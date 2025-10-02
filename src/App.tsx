@@ -319,10 +319,35 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [formData, setFormData] = useState({
+    projectNumber: '',
+    customerName: '',
+    address: '',
+    fenceType: '',
+    linearFeet: '',
+    specialRequirements: '',
+    deadline: '',
+    urgency: ''
+  });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateFormData = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const startRecording = async () => {
     try {
@@ -373,20 +398,33 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
           // Parse with Claude
           const parsed = await parseVoiceTranscript(transcript);
           setParsedData(parsed);
-          setStep('review');
+
+          // Auto-fill form with parsed data
+          setFormData({
+            projectNumber: formData.projectNumber, // Keep existing project number
+            customerName: parsed.customerName,
+            address: parsed.address,
+            fenceType: parsed.fenceType,
+            linearFeet: parsed.linearFeet,
+            specialRequirements: parsed.specialRequirements,
+            deadline: parsed.deadline,
+            urgency: parsed.urgency
+          });
+
+          setStep('choice'); // Return to form view with filled data
         } catch (error) {
           console.error('Error processing audio:', error);
           alert('Failed to process audio. Using demo mode.\n\nError: ' + (error as Error).message);
 
           // Fallback to demo data if API fails
-          setParsedData({
+          const demoData = {
             customerName: 'The Johnsons',
             address: '123 Oak Street',
             fenceType: '6-foot cedar privacy fence',
             linearFeet: '200',
             specialRequirements: 'Dark walnut stain, sloped terrain (15°)',
             deadline: 'Before June 15th',
-            urgency: 'End of day tomorrow',
+            urgency: 'high',
             confidence: {
               customerName: 85,
               address: 95,
@@ -396,8 +434,22 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
               deadline: 85,
               urgency: 90
             }
+          };
+          setParsedData(demoData);
+
+          // Auto-fill form with demo data
+          setFormData({
+            projectNumber: formData.projectNumber,
+            customerName: demoData.customerName,
+            address: demoData.address,
+            fenceType: demoData.fenceType,
+            linearFeet: demoData.linearFeet,
+            specialRequirements: demoData.specialRequirements,
+            deadline: demoData.deadline,
+            urgency: demoData.urgency
           });
-          setStep('review');
+
+          setStep('choice');
         }
       }, 100); // Small delay to ensure chunks are collected
     }
@@ -418,43 +470,160 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
 
   if (step === 'choice') {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-gray-50 p-4 pb-24">
         <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
 
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900">Custom Pricing Request</h1>
-          <p className="text-gray-600 mt-1">How would you like to submit this request?</p>
+          <p className="text-gray-600 mt-1">Fill in the details below or use voice to auto-fill</p>
         </div>
 
-        <div className="space-y-4">
+        {/* Compact Voice Recording Button */}
+        <div className="mb-4">
           <button
             onClick={startRecording}
-            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white p-8 rounded-2xl shadow-lg active:scale-98 transition-transform"
+            className="w-full bg-purple-600 text-white py-3 px-4 rounded-xl shadow-md active:scale-98 transition-transform flex items-center justify-center space-x-2"
           >
-            <div className="flex flex-col items-center space-y-3">
-              <div className="bg-white/20 p-4 rounded-full">
-                <Mic className="w-12 h-12" />
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold">Record Request (Recommended)</div>
-                <div className="text-sm text-purple-100 mt-1">Just talk - we'll fill out the form for you</div>
-                <div className="text-xs text-purple-200 mt-2">⚡ Takes 30 seconds vs 5 minutes typing</div>
-              </div>
-            </div>
+            <Mic className="w-5 h-5" />
+            <span className="font-semibold">Record to Auto-Fill Form</span>
           </button>
-
-          <button className="w-full bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center justify-center space-x-3">
-              <FileText className="w-6 h-6 text-gray-600" />
-              <div className="font-semibold text-gray-900">Fill Form Manually</div>
-            </div>
-          </button>
+          <p className="text-xs text-gray-500 text-center mt-1">Speak naturally - AI will fill the fields below</p>
         </div>
 
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-sm text-blue-800">
-            <strong>💡 Pro Tip:</strong> Voice recording captures details you might forget to type, like site conditions or customer urgency!
-          </p>
+        {/* Manual Form - Always Visible */}
+        <div className="space-y-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Project Number/Reference</label>
+            <input
+              type="text"
+              placeholder="Enter Jobber or Service Titan project #"
+              value={formData.projectNumber}
+              onChange={(e) => updateFormData('projectNumber', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            />
+            <p className="text-xs text-gray-500 mt-1">For linking to Jobber/Service Titan</p>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Customer Name</label>
+            <input
+              type="text"
+              placeholder="Enter customer name"
+              value={formData.customerName}
+              onChange={(e) => updateFormData('customerName', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Address/Location</label>
+            <input
+              type="text"
+              placeholder="Enter site address"
+              value={formData.address}
+              onChange={(e) => updateFormData('address', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Fence Type</label>
+            <input
+              type="text"
+              placeholder="e.g., 6-foot cedar privacy fence"
+              value={formData.fenceType}
+              onChange={(e) => updateFormData('fenceType', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Linear Feet</label>
+            <input
+              type="text"
+              placeholder="Enter linear feet"
+              value={formData.linearFeet}
+              onChange={(e) => updateFormData('linearFeet', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Special Requirements</label>
+            <textarea
+              placeholder="Staining, slope, gates, custom features..."
+              value={formData.specialRequirements}
+              onChange={(e) => updateFormData('specialRequirements', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 h-24"
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Deadline/Timeline</label>
+            <input
+              type="text"
+              placeholder="When does the customer need this?"
+              value={formData.deadline}
+              onChange={(e) => updateFormData('deadline', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Urgency Level</label>
+            <select
+              value={formData.urgency}
+              onChange={(e) => updateFormData('urgency', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+            >
+              <option value="">Select urgency</option>
+              <option value="low">Low - Standard timing</option>
+              <option value="medium">Medium - Within a week</option>
+              <option value="high">High - ASAP/Rush</option>
+            </select>
+          </div>
+
+          {/* Photo Upload Section */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <label className="text-sm font-semibold text-gray-700 block mb-2">Photos</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoUpload}
+              className="w-full text-sm text-gray-600"
+            />
+            {photos.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {photos.map((photo, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={URL.createObjectURL(photo)}
+                      alt={`Upload ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg"
+                    />
+                    <button
+                      onClick={() => removePhoto(index)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Submit Button */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          <button
+            onClick={submitRequest}
+            className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-98 transition-transform flex items-center justify-center space-x-2"
+          >
+            <Send className="w-6 h-6" />
+            <span>Submit Request</span>
+          </button>
         </div>
       </div>
     );
