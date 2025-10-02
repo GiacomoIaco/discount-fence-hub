@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Home, DollarSign, MessageSquare, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Home, DollarSign, MessageSquare, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
@@ -26,6 +26,29 @@ function App() {
   const [userName] = useState('John Smith');
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Handle browser back button to prevent app close
+  useEffect(() => {
+    // Push initial state
+    window.history.pushState(null, '', window.location.href);
+
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      // Push state again to keep user in app
+      window.history.pushState(null, '', window.location.href);
+
+      // Navigate back within app if not on home
+      if (activeSection !== 'home') {
+        setActiveSection('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [activeSection]);
 
   const operationsNav = [
     { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
@@ -368,10 +391,21 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
     }
+  };
+
+  const handleCameraCapture = () => {
+    cameraInputRef.current?.click();
+  };
+
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
   };
 
   const removePhoto = (index: number) => {
@@ -722,16 +756,48 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
 
           {/* Photo Upload Section */}
           <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <label className="text-sm font-semibold text-gray-700 block mb-2">Photos</label>
+            <label className="text-sm font-semibold text-gray-700 block mb-3">Photos</label>
+
+            {/* Hidden file inputs */}
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               multiple
               onChange={handlePhotoUpload}
-              className="w-full text-sm text-gray-600"
+              className="hidden"
             />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+
+            {/* Action buttons */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                type="button"
+                onClick={handleCameraCapture}
+                className="bg-purple-600 text-white py-2 px-4 rounded-lg flex items-center justify-center space-x-2 hover:bg-purple-700 transition"
+              >
+                <Camera className="w-5 h-5" />
+                <span className="text-sm font-medium">Take Photo</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleFileSelect}
+                className="bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-700 transition"
+              >
+                <Image className="w-5 h-5" />
+                <span className="text-sm font-medium">Choose Photo</span>
+              </button>
+            </div>
+
             {photos.length > 0 && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {photos.map((photo, index) => (
                   <div key={index} className="relative">
                     <img
