@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { Home, DollarSign, MessageSquare, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
+import { transcribeAudio } from './lib/openai';
+import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations';
 type Section = 'home' | 'custom-pricing' | 'presentation' | 'stain-calculator' | 'dashboard' | 'request-queue' | 'analytics' | 'team';
@@ -316,11 +318,10 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   const [step, setStep] = useState<RequestStep>('choice');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [, setAudioBlob] = useState<Blob | null>(null);
-  const [, setTranscript] = useState('');
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const startRecording = async () => {
@@ -328,12 +329,15 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
-      const chunks: Blob[] = [];
-      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -350,35 +354,52 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       if (timerRef.current) clearInterval(timerRef.current);
       setStep('processing');
 
-      setTimeout(() => {
-        setTranscript("I'm at 123 Oak Street with the Johnsons. They want a 6-foot cedar privacy fence, about 200 linear feet. They want it stained dark walnut, and they need it done before their daughter's graduation party on June 15th. The backyard has a slope on the left side, maybe 15 degrees. Can we get custom pricing by end of day tomorrow?");
-        setParsedData({
-          customerName: 'The Johnsons',
-          address: '123 Oak Street',
-          fenceType: '6-foot cedar privacy fence',
-          linearFeet: '200',
-          specialRequirements: 'Dark walnut stain, sloped terrain (15°)',
-          deadline: 'Before June 15th',
-          urgency: 'End of day tomorrow',
-          confidence: {
-            customerName: 85,
-            address: 95,
-            fenceType: 90,
-            linearFeet: 88,
-            specialRequirements: 92,
-            deadline: 85,
-            urgency: 90
-          }
-        });
-        setStep('review');
-      }, 2000);
+      // Wait for the audio blob to be available
+      setTimeout(async () => {
+        try {
+          // Create audio blob from collected chunks
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+
+          // Transcribe with Whisper
+          const transcript = await transcribeAudio(audioBlob);
+
+          // Parse with Claude
+          const parsed = await parseVoiceTranscript(transcript);
+          setParsedData(parsed);
+          setStep('review');
+        } catch (error) {
+          console.error('Error processing audio:', error);
+          alert('Failed to process audio. Using demo mode.\n\nError: ' + (error as Error).message);
+
+          // Fallback to demo data if API fails
+          setParsedData({
+            customerName: 'The Johnsons',
+            address: '123 Oak Street',
+            fenceType: '6-foot cedar privacy fence',
+            linearFeet: '200',
+            specialRequirements: 'Dark walnut stain, sloped terrain (15°)',
+            deadline: 'Before June 15th',
+            urgency: 'End of day tomorrow',
+            confidence: {
+              customerName: 85,
+              address: 95,
+              fenceType: 90,
+              linearFeet: 88,
+              specialRequirements: 92,
+              deadline: 85,
+              urgency: 90
+            }
+          });
+          setStep('review');
+        }
+      }, 100); // Small delay to ensure chunks are collected
     }
   };
 
