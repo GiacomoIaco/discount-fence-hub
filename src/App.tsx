@@ -748,12 +748,24 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
 
         {/* Submit Button */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          {isRecording && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-3 text-center">
+              <p className="text-sm text-yellow-800 font-semibold">
+                ⚠️ Stop recording before submitting
+              </p>
+            </div>
+          )}
           <button
             onClick={submitRequest}
-            className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-98 transition-transform flex items-center justify-center space-x-2"
+            disabled={isRecording}
+            className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center justify-center space-x-2 ${
+              isRecording
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white active:scale-98'
+            }`}
           >
             <Send className="w-6 h-6" />
-            <span>Submit Request</span>
+            <span>{isRecording ? 'Recording...' : 'Submit Request'}</span>
           </button>
         </div>
       </div>
