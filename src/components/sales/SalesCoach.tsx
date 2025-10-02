@@ -4,11 +4,10 @@ import { uploadRecording, getRecordings, getUserStats, type Recording } from '..
 
 interface SalesCoachProps {
   userId: string;
-  userRole: 'sales' | 'operations';
   onOpenAdmin?: () => void;
 }
 
-export default function SalesCoach({ userId, userRole, onOpenAdmin }: SalesCoachProps) {
+export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const [activeTab, setActiveTab] = useState<'record' | 'recordings'>('record');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -170,14 +169,13 @@ export default function SalesCoach({ userId, userRole, onOpenAdmin }: SalesCoach
               <p className="text-xs text-gray-600">Analyze your sales meetings</p>
             </div>
             <div className="flex gap-4 items-center">
-              {userRole === 'operations' && (
-                <button
-                  onClick={onOpenAdmin}
-                  className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-                >
-                  <Settings className="w-5 h-5 text-gray-600" />
-                </button>
-              )}
+              <button
+                onClick={onOpenAdmin}
+                className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+                title="Admin Settings & Delete Recordings"
+              >
+                <Settings className="w-5 h-5 text-gray-600" />
+              </button>
               <div className="text-center">
                 <div className={`text-xl font-bold ${getScoreColor(stats.averageScore)}`}>{stats.averageScore}%</div>
                 <div className="text-xs text-gray-600">Avg Score</div>

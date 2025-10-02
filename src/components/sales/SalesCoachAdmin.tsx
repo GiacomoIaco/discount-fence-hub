@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft } from 'lucide-react';
-import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, type SalesProcess, type KnowledgeBase } from '../../lib/recordings';
+import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic } from 'lucide-react';
+import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getRecordings, deleteRecording, type SalesProcess, type KnowledgeBase, type Recording } from '../../lib/recordings';
 
 interface SalesCoachAdminProps {
   onBack: () => void;
 }
 
 export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
-  const [activeTab, setActiveTab] = useState<'processes' | 'knowledge'>('processes');
+  const [activeTab, setActiveTab] = useState<'processes' | 'knowledge' | 'recordings'>('processes');
   const [processes, setProcesses] = useState<SalesProcess[]>([]);
   const [selectedProcess, setSelectedProcess] = useState<SalesProcess | null>(null);
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase>({
@@ -17,6 +17,7 @@ export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
     bestPractices: [],
     industryContext: ''
   });
+  const [allRecordings, setAllRecordings] = useState<Recording[]>([]);
 
   // For editing
   const [editingProcess, setEditingProcess] = useState(false);
@@ -27,7 +28,14 @@ export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
   useEffect(() => {
     loadProcesses();
     loadKnowledgeBase();
+    loadAllRecordings();
   }, []);
+
+  const loadAllRecordings = () => {
+    // Load recordings from all users (in production, this would be from a database)
+    const recordings = getRecordings('user123'); // For now, just user123
+    setAllRecordings(recordings);
+  };
 
   const loadProcesses = () => {
     const procs = getSalesProcesses();
@@ -198,6 +206,22 @@ export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
           >
             <BookOpen className="inline w-4 h-4 mr-2" />
             Knowledge Base
+          </button>
+          <button
+            onClick={() => setActiveTab('recordings')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'recordings'
+                ? 'text-purple-600 border-b-2 border-purple-600'
+                : 'text-gray-600'
+            }`}
+          >
+            <Mic className="inline w-4 h-4 mr-2" />
+            Manage Recordings
+            {allRecordings.length > 0 && (
+              <span className="ml-2 bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold">
+                {allRecordings.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -541,6 +565,72 @@ export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'recordings' && (
+          <div className="bg-white rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Manage All Recordings</h2>
+                <p className="text-sm text-gray-600">View and delete recordings from all users</p>
+              </div>
+            </div>
+
+            {allRecordings.length === 0 ? (
+              <div className="text-center py-12">
+                <Mic className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600">No recordings yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allRecordings.map(recording => (
+                  <div key={recording.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="font-semibold">{recording.clientName}</h3>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            recording.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            recording.status === 'transcribing' ? 'bg-blue-100 text-blue-800' :
+                            recording.status === 'analyzing' ? 'bg-purple-100 text-purple-800' :
+                            recording.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {recording.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span>{recording.meetingDate}</span>
+                          {recording.duration && <span>{recording.duration}</span>}
+                          {recording.analysis && (
+                            <span className="font-semibold text-purple-600">
+                              Score: {recording.analysis.overallScore}%
+                            </span>
+                          )}
+                        </div>
+                        {recording.error && (
+                          <div className="mt-2 text-sm text-red-600">
+                            Error: {recording.error}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete recording for ${recording.clientName}?`)) {
+                            deleteRecording('user123', recording.id);
+                            loadAllRecordings();
+                          }
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

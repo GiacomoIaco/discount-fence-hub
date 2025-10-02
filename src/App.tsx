@@ -179,7 +179,7 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
   }
 
   if (activeSection === 'sales-coach') {
-    return <SalesCoach userId="user123" userRole="sales" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
+    return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
   }
 
   if (activeSection === 'sales-coach-admin') {
