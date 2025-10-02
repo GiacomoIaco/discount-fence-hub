@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, setDebugCallback, type Recording } from '../../lib/recordings';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, type Recording } from '../../lib/recordings';
 
 interface SalesCoachProps {
   userId: string;
@@ -22,10 +22,13 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Set up debug logging
+  // Set up debug logging and update callback
   useEffect(() => {
     setDebugCallback((msg) => {
       setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+    });
+    setUpdateCallback(() => {
+      loadRecordings();
     });
   }, []);
 

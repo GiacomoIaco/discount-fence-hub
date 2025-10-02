@@ -81,15 +81,26 @@ export interface KnowledgeBase {
 
 // Debug logger
 let debugCallback: ((msg: string) => void) | null = null;
+let updateCallback: (() => void) | null = null;
 
 export function setDebugCallback(callback: (msg: string) => void) {
   debugCallback = callback;
+}
+
+export function setUpdateCallback(callback: () => void) {
+  updateCallback = callback;
 }
 
 function debugLog(message: string) {
   console.log(message);
   if (debugCallback) {
     debugCallback(message);
+  }
+}
+
+function notifyUpdate() {
+  if (updateCallback) {
+    updateCallback();
   }
 }
 
@@ -141,9 +152,11 @@ export async function uploadRecording(
           : r
       );
       localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+      notifyUpdate();
 
       // Step 3: Start analysis (async)
       analyzeRecording(recording.recordingId, transcription.text, processType).then(analysis => {
+        debugLog('🎯 Analysis completed!');
         // Update recording with analysis
         const recordings = getRecordings(userId);
         const updated = recordings.map(r =>
@@ -152,7 +165,9 @@ export async function uploadRecording(
             : r
         );
         localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+        notifyUpdate();
       }).catch(error => {
+        debugLog(`❌ Analysis failed: ${error.message}`);
         console.error('Analysis failed:', error);
         const recordings = getRecordings(userId);
         const updated = recordings.map(r =>
@@ -161,6 +176,7 @@ export async function uploadRecording(
             : r
         );
         localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+        notifyUpdate();
       });
     }).catch(error => {
       debugLog(`❌ Transcription failed: ${error.message}`);
@@ -171,6 +187,7 @@ export async function uploadRecording(
           : r
       );
       localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+      notifyUpdate();
     });
 
     // Save initial recording to localStorage
