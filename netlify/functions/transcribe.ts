@@ -14,11 +14,13 @@ export const handler: Handler = async (event) => {
     // The body contains the base64 encoded audio
     const { audioData } = JSON.parse(event.body || '{}');
 
-    // Convert base64 to blob
-    const audioBlob = Buffer.from(audioData, 'base64');
+    // Convert base64 to buffer
+    const audioBuffer = Buffer.from(audioData, 'base64');
 
+    // Create FormData using form-data package (available in Node 18+)
+    const FormData = (await import('undici')).FormData;
     const formData = new FormData();
-    formData.append('file', new Blob([audioBlob], { type: 'audio/webm' }), 'audio.webm');
+    formData.append('file', new Blob([audioBuffer], { type: 'audio/webm' }), 'audio.webm');
     formData.append('model', 'whisper-1');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -26,12 +28,19 @@ export const handler: Handler = async (event) => {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
       },
-      body: formData,
+      body: formData as any,
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Transcription failed');
+      const errorText = await response.text();
+      let errorMessage = 'Transcription failed';
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
