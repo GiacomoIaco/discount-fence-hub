@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import FormData from 'form-data';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -17,16 +18,19 @@ export const handler: Handler = async (event) => {
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audioData, 'base64');
 
-    // Create FormData using form-data package (available in Node 18+)
-    const FormData = (await import('undici')).FormData;
+    // Create FormData
     const formData = new FormData();
-    formData.append('file', new Blob([audioBuffer], { type: 'audio/webm' }), 'audio.webm');
+    formData.append('file', audioBuffer, {
+      filename: 'audio.webm',
+      contentType: 'audio/webm',
+    });
     formData.append('model', 'whisper-1');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
+        ...formData.getHeaders(),
       },
       body: formData as any,
     });
