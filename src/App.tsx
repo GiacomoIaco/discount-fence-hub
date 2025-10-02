@@ -1033,11 +1033,202 @@ interface OperationsViewProps {
   activeSection: Section;
 }
 
-const OperationsView = ({}: OperationsViewProps) => {
+const OperationsView = ({ activeSection }: OperationsViewProps) => {
+  if (activeSection === 'manager-dashboard') {
+    return <ManagerDashboard onBack={() => window.location.reload()} />;
+  }
+
+  if (activeSection === 'request-queue') {
+    return <RequestQueue onBack={() => window.location.reload()} />;
+  }
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Operations Dashboard</h1>
-      <p className="text-gray-600">Operations view coming soon - request queue, analytics, team management</p>
+    <div className="space-y-4 p-4">
+      <h1 className="text-3xl font-bold text-gray-900 mb-2">Operations Hub</h1>
+      <p className="text-gray-600 mb-6">Manage pricing requests and track team performance</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a
+          href="#manager-dashboard"
+          onClick={(e) => { e.preventDefault(); window.location.hash = 'manager-dashboard'; window.location.reload(); }}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <DollarSign className="w-8 h-8" />
+            </div>
+            <div>
+              <div className="font-bold text-xl">Manager Dashboard</div>
+              <div className="text-sm text-blue-100">Track metrics, response times, win rates</div>
+            </div>
+          </div>
+        </a>
+
+        <a
+          href="#request-queue"
+          onClick={(e) => { e.preventDefault(); window.location.hash = 'request-queue'; window.location.reload(); }}
+          className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-blue-300 transition-colors"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Ticket className="w-8 h-8 text-orange-600" />
+            </div>
+            <div>
+              <div className="font-bold text-xl text-gray-900">Request Queue</div>
+              <div className="text-sm text-gray-600">Process incoming pricing requests</div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  );
+};
+
+interface ManagerDashboardProps {
+  onBack: () => void;
+}
+
+const ManagerDashboard = ({ onBack }: ManagerDashboardProps) => {
+  // Mock data - would come from Supabase in production
+  const metrics = {
+    avgResponseTime: '2.4 hours',
+    pendingRequests: 5,
+    quotedToday: 12,
+    conversionRate: '68%',
+    avgCloseTime: '18 hours',
+    totalRevenue: '$142,350'
+  };
+
+  const teamPerformance = [
+    { name: 'Operations Lead', responseTime: '1.8h', closed: 24, winRate: '72%' },
+    { name: 'Pricing Specialist', responseTime: '2.1h', closed: 18, winRate: '65%' },
+    { name: 'Support Team', responseTime: '3.2h', closed: 15, winRate: '60%' }
+  ];
+
+  const recentRequests = [
+    { id: 'REQ-2453', salesRep: 'John Smith', customer: 'The Johnsons', status: 'quoted', responseTime: '2h', priority: 'high', quotedPrice: '$8,950' },
+    { id: 'REQ-2452', salesRep: 'Sarah Lee', customer: 'Garcia Family', status: 'pending', responseTime: '—', priority: 'medium', quotedPrice: '—' },
+    { id: 'REQ-2451', salesRep: 'Mike Johnson', customer: 'Smith Residence', status: 'won', responseTime: '3h', priority: 'low', quotedPrice: '$6,200' },
+    { id: 'REQ-2450', salesRep: 'John Smith', customer: 'Browns', status: 'lost', responseTime: '4h', priority: 'medium', quotedPrice: '$9,500' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 pb-8">
+      <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
+
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Manager Dashboard</h1>
+        <p className="text-gray-600 mt-1">Track team performance and pricing request metrics</p>
+      </div>
+
+      {/* Key Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="text-sm text-gray-600 mb-1">Avg Response Time</div>
+          <div className="text-2xl font-bold text-gray-900">{metrics.avgResponseTime}</div>
+          <div className="text-xs text-green-600 mt-1">↓ 12% vs last week</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="text-sm text-gray-600 mb-1">Pending</div>
+          <div className="text-2xl font-bold text-yellow-600">{metrics.pendingRequests}</div>
+          <div className="text-xs text-gray-500 mt-1">Needs attention</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="text-sm text-gray-600 mb-1">Quoted Today</div>
+          <div className="text-2xl font-bold text-blue-600">{metrics.quotedToday}</div>
+          <div className="text-xs text-green-600 mt-1">↑ 8% vs yesterday</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="text-sm text-gray-600 mb-1">Win Rate</div>
+          <div className="text-2xl font-bold text-green-600">{metrics.conversionRate}</div>
+          <div className="text-xs text-green-600 mt-1">↑ 5% vs last month</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="text-sm text-gray-600 mb-1">Avg Close Time</div>
+          <div className="text-2xl font-bold text-gray-900">{metrics.avgCloseTime}</div>
+          <div className="text-xs text-green-600 mt-1">↓ 6h vs last week</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="text-sm text-gray-600 mb-1">Total Revenue</div>
+          <div className="text-2xl font-bold text-green-600">{metrics.totalRevenue}</div>
+          <div className="text-xs text-gray-500 mt-1">Last 30 days</div>
+        </div>
+      </div>
+
+      {/* Team Performance */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+        <h2 className="font-bold text-lg text-gray-900 mb-4">Team Performance</h2>
+        <div className="space-y-3">
+          {teamPerformance.map((member, idx) => (
+            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900">{member.name}</div>
+                <div className="text-sm text-gray-600">Response: {member.responseTime} • Closed: {member.closed}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-green-600">{member.winRate}</div>
+                <div className="text-xs text-gray-500">Win Rate</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Requests */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <h2 className="font-bold text-lg text-gray-900 mb-4">Recent Requests</h2>
+        <div className="space-y-2">
+          {recentRequests.map((req) => (
+            <div key={req.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <span className="font-semibold text-gray-900">{req.id}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    req.status === 'quoted' ? 'bg-blue-100 text-blue-700' :
+                    req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                    req.status === 'won' ? 'bg-green-100 text-green-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {req.status.toUpperCase()}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    req.priority === 'high' ? 'bg-red-50 text-red-700' :
+                    req.priority === 'medium' ? 'bg-yellow-50 text-yellow-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {req.priority}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-600 mt-1">
+                  {req.salesRep} • {req.customer} • Response: {req.responseTime}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-gray-900">{req.quotedPrice}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface RequestQueueProps {
+  onBack: () => void;
+}
+
+const RequestQueue = ({ onBack }: RequestQueueProps) => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">Request Queue</h1>
+      <p className="text-gray-600">Process incoming pricing requests - coming soon</p>
     </div>
   );
 };
