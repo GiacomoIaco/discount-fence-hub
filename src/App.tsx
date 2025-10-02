@@ -454,7 +454,8 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
             urgency: parsed.urgency
           });
 
-          // Stay on form view
+          // Return to form view
+          setStep('choice');
         } catch (error) {
           console.error('Error processing audio:', error);
           alert('Failed to process audio. Using demo mode.\n\nError: ' + (error as Error).message);
@@ -492,7 +493,8 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
             urgency: demoData.urgency
           });
 
-          // Stay on form view
+          // Return to form view
+          setStep('choice');
         }
       }, 100); // Small delay to ensure chunks are collected
     }
@@ -556,35 +558,33 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
 
         {/* Recording Banner (sticky at top while recording) */}
         {isRecording && (
-          <div className="sticky top-0 z-50 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl p-4 mb-4 shadow-lg animate-pulse">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="bg-white/20 p-2 rounded-lg">
-                  <Mic className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="font-bold text-lg">Recording...</div>
-                  <div className="text-sm text-red-100">{formatTime(recordingTime)}</div>
-                </div>
+          <div className="sticky top-0 z-50 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl p-5 mb-4 shadow-lg">
+            <div className="text-center mb-4">
+              <div className="bg-white/20 p-4 rounded-full inline-block animate-pulse mb-3">
+                <Mic className="w-8 h-8" />
               </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={cancelRecording}
-                  className="bg-white/20 text-white px-4 py-2 rounded-lg font-semibold hover:bg-white/30 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={stopRecording}
-                  className="bg-white text-red-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center space-x-1"
-                >
-                  <StopCircle className="w-4 h-4" />
-                  <span>Stop</span>
-                </button>
-              </div>
+              <div className="font-bold text-2xl">{formatTime(recordingTime)}</div>
+              <div className="text-sm text-purple-100 mt-2">Recording in progress...</div>
             </div>
-            <div className="mt-2 text-xs text-red-100">
-              Speak naturally - mention customer name, address, fence type, linear feet, special requirements, and deadline
+
+            <div className="bg-white/10 rounded-lg p-3 mb-4 text-xs text-purple-100">
+              <strong>What to mention:</strong> Customer name, address, fence type, linear feet, special requirements, and deadline
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={cancelRecording}
+                className="bg-white/20 text-white py-3 rounded-lg font-semibold hover:bg-white/30 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={stopRecording}
+                className="bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center justify-center space-x-2"
+              >
+                <StopCircle className="w-5 h-5" />
+                <span>Stop Recording</span>
+              </button>
             </div>
           </div>
         )}
@@ -1004,7 +1004,7 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
 
   if (selectedRequest && selectedReq) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 pb-24">
+      <div className="min-h-screen bg-gray-50 p-4 pb-32">
         <button onClick={() => setSelectedRequest(null)} className="text-blue-600 font-medium mb-4">← Back to Requests</button>
 
         <div className="mb-4">
