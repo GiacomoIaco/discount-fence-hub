@@ -179,124 +179,130 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
       <div className="space-y-3 pt-4">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Sales Tools</h2>
 
-        <button
-          onClick={() => setActiveSection('stain-calculator')}
-          className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="bg-green-100 p-2 rounded-lg">
-              <DollarSign className="w-6 h-6 text-green-600" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            onClick={() => setActiveSection('stain-calculator')}
+            className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="bg-green-100 p-2 rounded-lg">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Pre-Stain Calculator</div>
+                <div className="text-xs text-gray-600">Show ROI vs DIY staining</div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Pre-Stain Calculator</div>
-              <div className="text-xs text-gray-600">Show ROI vs DIY staining</div>
-            </div>
-          </div>
-        </button>
+          </button>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <MessageSquare className="w-6 h-6 text-blue-600" />
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <MessageSquare className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">AI Sales Coach</div>
+                <div className="text-xs text-gray-600">Get real-time guidance</div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">AI Sales Coach</div>
-              <div className="text-xs text-gray-600">Get real-time guidance</div>
-            </div>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3 pt-4">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Submit Request</h2>
 
-        <button
-          onClick={() => setActiveSection('custom-pricing')}
-          className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50 relative"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="bg-orange-100 p-2 rounded-lg">
-              <DollarSign className="w-6 h-6 text-orange-600" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <button
+            onClick={() => setActiveSection('custom-pricing')}
+            className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50 relative"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <DollarSign className="w-6 h-6 text-orange-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Custom Pricing Request</div>
+                <div className="text-xs text-gray-600">Get pricing for special projects</div>
+              </div>
+              <div className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                🎤 Voice
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Custom Pricing Request</div>
-              <div className="text-xs text-gray-600">Get pricing for special projects</div>
-            </div>
-            <div className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-              🎤 Voice
-            </div>
-          </div>
-        </button>
+          </button>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Building2 className="w-6 h-6 text-blue-600" />
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <Building2 className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">New Builder/Community</div>
+                <div className="text-xs text-gray-600">Submit new client info</div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">New Builder/Community</div>
-              <div className="text-xs text-gray-600">Submit new client info</div>
-            </div>
-          </div>
-        </button>
+          </button>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <div className="bg-red-100 p-2 rounded-lg">
-              <Wrench className="w-6 h-6 text-red-600" />
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <div className="bg-red-100 p-2 rounded-lg">
+                <Wrench className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Installation Issue</div>
+                <div className="text-xs text-gray-600">Report installation problems</div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Installation Issue</div>
-              <div className="text-xs text-gray-600">Report installation problems</div>
-            </div>
-          </div>
-        </button>
+          </button>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <div className="bg-yellow-100 p-2 rounded-lg">
-              <Package className="w-6 h-6 text-yellow-600" />
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <div className="bg-yellow-100 p-2 rounded-lg">
+                <Package className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Material Request</div>
+                <div className="text-xs text-gray-600">Request supplies or materials</div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Material Request</div>
-              <div className="text-xs text-gray-600">Request supplies or materials</div>
-            </div>
-          </div>
-        </button>
+          </button>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <div className="bg-purple-100 p-2 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-purple-600" />
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <div className="bg-purple-100 p-2 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Customer Escalation</div>
+                <div className="text-xs text-gray-600">Escalate customer issues</div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Customer Escalation</div>
-              <div className="text-xs text-gray-600">Escalate customer issues</div>
-            </div>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3 pt-4 pb-8">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">More Tools</h2>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <BookOpen className="w-6 h-6 text-gray-600" />
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Sales Resources</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <BookOpen className="w-6 h-6 text-gray-600" />
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Sales Resources</div>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-          <div className="flex items-center space-x-3">
-            <Image className="w-6 h-6 text-gray-600" />
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Browse Photo Gallery</div>
+          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <Image className="w-6 h-6 text-gray-600" />
+              <div className="flex-1 text-left">
+                <div className="font-semibold text-gray-900">Browse Photo Gallery</div>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
     </div>
   );
