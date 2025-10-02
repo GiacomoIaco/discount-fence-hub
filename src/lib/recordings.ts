@@ -175,20 +175,48 @@ export async function uploadRecording(
   }
 }
 
-// Transcribe audio
+// Transcribe audio (start + poll)
 async function transcribeRecording(_recordingId: string, base64Audio: string) {
-  const response = await fetch('/.netlify/functions/transcribe-recording', {
+  // Step 1: Start transcription
+  const startResponse = await fetch('/.netlify/functions/start-transcription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ audioData: base64Audio }),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Transcription failed');
+  if (!startResponse.ok) {
+    const error = await startResponse.json();
+    throw new Error(error.error || 'Failed to start transcription');
   }
 
-  return await response.json();
+  const { transcriptId } = await startResponse.json();
+  console.log('Transcription started with ID:', transcriptId);
+
+  // Step 2: Poll for completion
+  let attempts = 0;
+  const maxAttempts = 120; // 6 minutes max (3 seconds per attempt)
+
+  while (attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+
+    const checkResponse = await fetch(`/.netlify/functions/check-transcription?id=${transcriptId}`);
+
+    if (!checkResponse.ok) {
+      const error = await checkResponse.json();
+      throw new Error(error.error || 'Failed to check transcription');
+    }
+
+    const result = await checkResponse.json();
+    console.log('Transcription check:', result.status);
+
+    if (result.status === 'completed') {
+      return result;
+    }
+
+    attempts++;
+  }
+
+  throw new Error('Transcription timeout - took longer than 6 minutes');
 }
 
 // Analyze transcript
