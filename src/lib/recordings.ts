@@ -79,6 +79,20 @@ export interface KnowledgeBase {
   updatedBy?: string;
 }
 
+// Debug logger
+let debugCallback: ((msg: string) => void) | null = null;
+
+export function setDebugCallback(callback: (msg: string) => void) {
+  debugCallback = callback;
+}
+
+function debugLog(message: string) {
+  console.log(message);
+  if (debugCallback) {
+    debugCallback(message);
+  }
+}
+
 // Upload and process a recording
 export async function uploadRecording(
   audioBlob: Blob,
@@ -88,6 +102,7 @@ export async function uploadRecording(
   processType: string = 'standard'
 ): Promise<Recording> {
   try {
+    debugLog('🎙️ Starting upload...');
     // Convert blob to base64
     const arrayBuffer = await audioBlob.arrayBuffer();
     const base64Audio = btoa(
@@ -115,9 +130,9 @@ export async function uploadRecording(
     const recording = await uploadResponse.json();
 
     // Step 2: Start transcription (async)
-    console.log('Starting transcription for recording:', recording.recordingId);
+    debugLog(`📝 Starting transcription for ${recording.recordingId}`);
     transcribeRecording(recording.recordingId, base64Audio).then(transcription => {
-      console.log('Transcription completed:', transcription);
+      debugLog('✅ Transcription completed!');
       // Update recording in localStorage with transcription
       const recordings = getRecordings(userId);
       const updated = recordings.map(r =>
@@ -148,8 +163,7 @@ export async function uploadRecording(
         localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
       });
     }).catch(error => {
-      console.error('Transcription failed:', error);
-      alert('Transcription failed: ' + error.message);
+      debugLog(`❌ Transcription failed: ${error.message}`);
       const recordings = getRecordings(userId);
       const updated = recordings.map(r =>
         r.id === recording.recordingId
@@ -190,7 +204,7 @@ async function transcribeRecording(_recordingId: string, base64Audio: string) {
   }
 
   const { transcriptId } = await startResponse.json();
-  console.log('Transcription started with ID:', transcriptId);
+  debugLog(`🔄 Transcript ID: ${transcriptId}`);
 
   // Step 2: Poll for completion
   let attempts = 0;
@@ -203,11 +217,12 @@ async function transcribeRecording(_recordingId: string, base64Audio: string) {
 
     if (!checkResponse.ok) {
       const error = await checkResponse.json();
+      debugLog(`❌ Check failed: ${error.error}`);
       throw new Error(error.error || 'Failed to check transcription');
     }
 
     const result = await checkResponse.json();
-    console.log('Transcription check:', result.status);
+    debugLog(`⏳ Status check ${attempts + 1}: ${result.status}`);
 
     if (result.status === 'completed') {
       return result;

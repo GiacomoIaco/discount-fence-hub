@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, type Recording } from '../../lib/recordings';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, type Recording } from '../../lib/recordings';
 
 interface SalesCoachProps {
   userId: string;
@@ -16,10 +16,18 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const [clientName, setClientName] = useState('');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [stats, setStats] = useState({ totalRecordings: 0, averageScore: 0, completionRate: 0, improvement: 0 });
+  const [debugLog, setDebugLog] = useState<string[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Set up debug logging
+  useEffect(() => {
+    setDebugCallback((msg) => {
+      setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+    });
+  }, []);
 
   // Load recordings and stats
   useEffect(() => {
@@ -316,6 +324,26 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
                   <p className="text-sm text-blue-800">
                     <strong>Tip:</strong> Place your phone where it can clearly capture both voices
                   </p>
+                </div>
+              )}
+
+              {/* Debug Log */}
+              {debugLog.length > 0 && (
+                <div className="mt-6 bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-white font-semibold text-sm">Debug Log</h3>
+                    <button
+                      onClick={() => setDebugLog([])}
+                      className="text-white text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="space-y-1 font-mono text-xs">
+                    {debugLog.map((log, idx) => (
+                      <div key={idx} className="text-green-400">{log}</div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
