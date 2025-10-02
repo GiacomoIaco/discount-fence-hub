@@ -115,7 +115,9 @@ export async function uploadRecording(
     const recording = await uploadResponse.json();
 
     // Step 2: Start transcription (async)
+    console.log('Starting transcription for recording:', recording.recordingId);
     transcribeRecording(recording.recordingId, base64Audio).then(transcription => {
+      console.log('Transcription completed:', transcription);
       // Update recording in localStorage with transcription
       const recordings = getRecordings(userId);
       const updated = recordings.map(r =>
@@ -147,6 +149,7 @@ export async function uploadRecording(
       });
     }).catch(error => {
       console.error('Transcription failed:', error);
+      alert('Transcription failed: ' + error.message);
       const recordings = getRecordings(userId);
       const updated = recordings.map(r =>
         r.id === recording.recordingId

@@ -11,11 +11,17 @@ export const handler: Handler = async (event) => {
 
   try {
     const apiKey = process.env.VITE_ASSEMBLYAI_API_KEY;
+    console.log('API Key present:', !!apiKey);
+    console.log('API Key prefix:', apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING');
+
     if (!apiKey) {
       throw new Error('AssemblyAI API key not configured');
     }
 
     const { audioData } = JSON.parse(event.body || '{}');
+    console.log('Audio data received:', !!audioData);
+    console.log('Audio data size:', audioData ? audioData.length : 0);
+
     if (!audioData) {
       throw new Error('No audio data provided');
     }
