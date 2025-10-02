@@ -356,6 +356,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
     urgency: ''
   });
 
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -395,13 +396,22 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
-      setStep('recording');
 
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (err) {
       alert('Microphone access denied. Please enable microphone permissions.');
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingTime(0);
+      audioChunksRef.current = [];
     }
   };
 
@@ -438,7 +448,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
             urgency: parsed.urgency
           });
 
-          setStep('choice'); // Return to form view with filled data
+          // Stay on form view
         } catch (error) {
           console.error('Error processing audio:', error);
           alert('Failed to process audio. Using demo mode.\n\nError: ' + (error as Error).message);
@@ -476,7 +486,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
             urgency: demoData.urgency
           });
 
-          setStep('choice');
+          // Stay on form view
         }
       }, 100); // Small delay to ensure chunks are collected
     }
@@ -489,6 +499,27 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   };
 
   const submitRequest = () => {
+    // Save to localStorage
+    const newRequest = {
+      id: Date.now(),
+      projectNumber: formData.projectNumber || `REQ-${Date.now()}`,
+      customerName: formData.customerName,
+      address: formData.address,
+      fenceType: formData.fenceType,
+      linearFeet: formData.linearFeet,
+      status: 'pending',
+      priority: formData.urgency === 'high' ? 'high' : formData.urgency === 'medium' ? 'medium' : 'low',
+      submittedDate: new Date().toISOString().split('T')[0],
+      responseTime: 'pending',
+      specialRequirements: formData.specialRequirements,
+      deadline: formData.deadline,
+      messages: []
+    };
+
+    const requests = JSON.parse(localStorage.getItem('myRequests') || '[]');
+    requests.unshift(newRequest); // Add to beginning
+    localStorage.setItem('myRequests', JSON.stringify(requests));
+
     setStep('success');
     setTimeout(() => {
       onBack();
@@ -505,8 +536,43 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
           <p className="text-gray-600 mt-1">Fill in the details below or use voice to auto-fill</p>
         </div>
 
+        {/* Recording Banner (sticky at top while recording) */}
+        {isRecording && (
+          <div className="sticky top-0 z-50 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl p-4 mb-4 shadow-lg animate-pulse">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/20 p-2 rounded-lg">
+                  <Mic className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="font-bold text-lg">Recording...</div>
+                  <div className="text-sm text-red-100">{formatTime(recordingTime)}</div>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={cancelRecording}
+                  className="bg-white/20 text-white px-4 py-2 rounded-lg font-semibold hover:bg-white/30 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={stopRecording}
+                  className="bg-white text-red-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center space-x-1"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  <span>Stop</span>
+                </button>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-red-100">
+              Speak naturally - mention customer name, address, fence type, linear feet, special requirements, and deadline
+            </div>
+          </div>
+        )}
+
         {/* Audio Playback (if recording exists) */}
-        {audioURL && (
+        {audioURL && !isRecording && (
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -530,16 +596,18 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
         )}
 
         {/* Compact Voice Recording Button */}
-        <div className="mb-4">
-          <button
-            onClick={startRecording}
-            className="w-full bg-purple-600 text-white py-3 px-4 rounded-xl shadow-md active:scale-98 transition-transform flex items-center justify-center space-x-2"
-          >
-            <Mic className="w-5 h-5" />
-            <span className="font-semibold">{audioURL ? 'Re-record' : 'Record to Auto-Fill Form'}</span>
-          </button>
-          <p className="text-xs text-gray-500 text-center mt-1">Speak naturally - AI will fill the fields below</p>
-        </div>
+        {!isRecording && (
+          <div className="mb-4">
+            <button
+              onClick={startRecording}
+              className="w-full bg-purple-600 text-white py-3 px-4 rounded-xl shadow-md active:scale-98 transition-transform flex items-center justify-center space-x-2"
+            >
+              <Mic className="w-5 h-5" />
+              <span className="font-semibold">{audioURL ? 'Re-record' : 'Record to Auto-Fill Form'}</span>
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-1">Speak naturally - AI will fill the fields below</p>
+          </div>
+        )}
 
         {/* Manual Form - Always Visible */}
         <div className="space-y-3">
@@ -680,35 +748,6 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
     );
   }
 
-  if (step === 'recording') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-purple-700 p-4 flex items-center justify-center">
-        <div className="text-center text-white space-y-8">
-          <div className="space-y-4">
-            <div className="mx-auto w-32 h-32 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
-              <Mic className="w-16 h-16" />
-            </div>
-            <div className="text-4xl font-bold">{formatTime(recordingTime)}</div>
-            <div className="text-xl">Recording...</div>
-            <div className="text-purple-200">Describe the pricing request naturally</div>
-          </div>
-
-          <button
-            onClick={stopRecording}
-            className="bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg shadow-xl active:scale-95 transition-transform flex items-center space-x-2 mx-auto"
-          >
-            <StopCircle className="w-6 h-6" />
-            <span>Stop Recording</span>
-          </button>
-
-          <div className="text-sm text-purple-200 max-w-md mx-auto">
-            <strong>What to say:</strong> Customer name, address, fence type, linear feet, special requirements, deadline, urgency
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (step === 'processing') {
     return (
       <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
@@ -816,9 +855,11 @@ interface MyRequestsProps {
 
 const MyRequests = ({ onBack }: MyRequestsProps) => {
   const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+  const [newMessage, setNewMessage] = useState('');
 
-  // Mock data - in production this would come from Supabase
-  const requests = [
+  // Load from localStorage - merge with mock data for demo
+  const savedRequests = JSON.parse(localStorage.getItem('myRequests') || '[]');
+  const mockRequests = [
     {
       id: 1,
       projectNumber: 'JOB-2453',
@@ -871,7 +912,33 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
     }
   ];
 
+  const requests = [...savedRequests, ...mockRequests];
+
   const selectedReq = requests.find(r => r.id === selectedRequest);
+
+  const sendMessage = () => {
+    if (!newMessage.trim() || !selectedReq) return;
+
+    const updatedRequests = requests.map(req => {
+      if (req.id === selectedRequest) {
+        return {
+          ...req,
+          messages: [
+            ...req.messages,
+            { from: 'You', text: newMessage, time: 'Just now' }
+          ]
+        };
+      }
+      return req;
+    });
+
+    // Update localStorage for saved requests
+    const savedOnly = updatedRequests.filter((r: any) => savedRequests.find((s: any) => s.id === r.id));
+    localStorage.setItem('myRequests', JSON.stringify(savedOnly));
+
+    setNewMessage('');
+    alert('Message sent to operations team!');
+  };
 
   if (selectedRequest && selectedReq) {
     return (
@@ -926,7 +993,7 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <h3 className="font-bold text-gray-900 mb-3">Messages</h3>
           <div className="space-y-3">
-            {selectedReq.messages.map((msg, idx) => (
+            {selectedReq.messages.map((msg: any, idx: number) => (
               <div key={idx} className={`p-3 rounded-lg ${
                 msg.from === 'You' ? 'bg-blue-50 ml-8' : 'bg-gray-50 mr-8'
               }`}>
@@ -940,12 +1007,25 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
           </div>
         </div>
 
-        {/* Add Message Button */}
+        {/* Add Message Input */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-          <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center space-x-2">
-            <MessageSquare className="w-5 h-5" />
-            <span>Send Message to Operations</span>
-          </button>
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-gray-900"
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!newMessage.trim()}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
     );
