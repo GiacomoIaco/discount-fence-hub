@@ -1,28 +1,26 @@
-// OpenAI Whisper API integration for voice transcription
+// OpenAI Whisper API integration for voice transcription via Netlify function
 
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'audio.webm');
-  formData.append('model', 'whisper-1');
-
   try {
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Convert blob to base64
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const base64Audio = btoa(
+      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+    );
+
+    const response = await fetch('/.netlify/functions/transcribe', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      body: formData,
+      body: JSON.stringify({
+        audioData: base64Audio,
+      }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error?.message || 'Transcription failed');
+      throw new Error(error.error || 'Transcription failed');
     }
 
     const data = await response.json();
