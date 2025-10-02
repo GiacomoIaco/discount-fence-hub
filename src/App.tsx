@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Home, DollarSign, MessageSquare, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 
@@ -310,8 +310,8 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   const [step, setStep] = useState<RequestStep>('choice');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [transcript, setTranscript] = useState('');
+  const [, setAudioBlob] = useState<Blob | null>(null);
+  const [, setTranscript] = useState('');
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -590,7 +590,7 @@ interface OperationsViewProps {
   activeSection: Section;
 }
 
-const OperationsView = ({ activeSection }: OperationsViewProps) => {
+const OperationsView = ({}: OperationsViewProps) => {
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-4">Operations Dashboard</h1>
