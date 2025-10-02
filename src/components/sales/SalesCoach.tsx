@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings } from 'lucide-react';
 import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, type Recording } from '../../lib/recordings';
 
@@ -22,6 +22,13 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load recordings function with useCallback
+  const loadRecordings = useCallback(() => {
+    const recs = getRecordings(userId);
+    setRecordings(recs);
+    setStats(getUserStats(userId));
+  }, [userId]);
+
   // Set up debug logging and update callback
   useEffect(() => {
     setDebugCallback((msg) => {
@@ -30,12 +37,12 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
     setUpdateCallback(() => {
       loadRecordings();
     });
-  }, []);
+  }, [loadRecordings]);
 
   // Load recordings and stats
   useEffect(() => {
     loadRecordings();
-  }, [userId]);
+  }, [loadRecordings]);
 
   // Auto-refresh recordings every 5 seconds when processing
   useEffect(() => {
@@ -44,7 +51,7 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
       const interval = setInterval(loadRecordings, 5000);
       return () => clearInterval(interval);
     }
-  }, [recordings]);
+  }, [recordings, loadRecordings]);
 
   // Recording timer
   useEffect(() => {
@@ -59,12 +66,6 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isRecording]);
-
-  const loadRecordings = () => {
-    const recs = getRecordings(userId);
-    setRecordings(recs);
-    setStats(getUserStats(userId));
-  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
