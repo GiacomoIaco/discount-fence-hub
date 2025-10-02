@@ -99,6 +99,9 @@ function debugLog(message: string) {
 }
 
 function notifyUpdate() {
+  // Dispatch custom event
+  window.dispatchEvent(new Event('recordings-updated'));
+
   if (updateCallback) {
     updateCallback();
   }

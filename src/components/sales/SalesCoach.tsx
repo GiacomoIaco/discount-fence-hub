@@ -37,6 +37,17 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
     setUpdateCallback(() => {
       loadRecordings();
     });
+
+    // Listen for storage update events
+    const handleUpdate = () => {
+      console.log('🔄 Recordings updated event received');
+      loadRecordings();
+    };
+    window.addEventListener('recordings-updated', handleUpdate);
+
+    return () => {
+      window.removeEventListener('recordings-updated', handleUpdate);
+    };
   }, [loadRecordings]);
 
   // Load recordings and stats
