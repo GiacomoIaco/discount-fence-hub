@@ -498,7 +498,18 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const submitRequest = () => {
+  const submitRequest = async () => {
+    // Convert photos to base64 for storage
+    const photoPromises = photos.map(photo => {
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(photo);
+      });
+    });
+
+    const photoBase64 = await Promise.all(photoPromises);
+
     // Save to localStorage
     const newRequest = {
       id: Date.now(),
@@ -513,6 +524,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
       responseTime: 'pending',
       specialRequirements: formData.specialRequirements,
       deadline: formData.deadline,
+      photos: photoBase64,
       messages: []
     };
 
@@ -856,6 +868,8 @@ interface MyRequestsProps {
 const MyRequests = ({ onBack }: MyRequestsProps) => {
   const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   // Load from localStorage - merge with mock data for demo
   const savedRequests = JSON.parse(localStorage.getItem('myRequests') || '[]');
@@ -912,9 +926,39 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
     }
   ];
 
-  const requests = [...savedRequests, ...mockRequests];
+  const allRequests = [...savedRequests, ...mockRequests];
 
-  const selectedReq = requests.find(r => r.id === selectedRequest);
+  // Filter and search
+  const requests = allRequests.filter(req => {
+    const matchesSearch = searchQuery === '' ||
+      req.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.projectNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.address.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesFilter = filterStatus === 'all' || req.status === filterStatus;
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const selectedReq = allRequests.find(r => r.id === selectedRequest);
+
+  const updateRequestStatus = (newStatus: string) => {
+    if (!selectedReq) return;
+
+    const updatedRequests = allRequests.map(req => {
+      if (req.id === selectedRequest) {
+        return { ...req, status: newStatus };
+      }
+      return req;
+    });
+
+    // Update localStorage for saved requests
+    const savedOnly = updatedRequests.filter((r: any) => savedRequests.find((s: any) => s.id === r.id));
+    localStorage.setItem('myRequests', JSON.stringify(savedOnly));
+
+    alert(`Request marked as ${newStatus}!`);
+    setSelectedRequest(null);
+  };
 
   const sendMessage = () => {
     if (!newMessage.trim() || !selectedReq) return;
@@ -970,6 +1014,26 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
           </div>
         )}
 
+        {/* Quick Actions */}
+        {selectedReq.status === 'quoted' && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <button
+              onClick={() => updateRequestStatus('won')}
+              className="bg-green-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center space-x-2"
+            >
+              <CheckCircle className="w-5 h-5" />
+              <span>Mark Won</span>
+            </button>
+            <button
+              onClick={() => updateRequestStatus('lost')}
+              className="bg-red-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center space-x-2"
+            >
+              <X className="w-5 h-5" />
+              <span>Mark Lost</span>
+            </button>
+          </div>
+        )}
+
         {/* Project Details */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
           <h3 className="font-bold text-gray-900 mb-3">Project Details</h3>
@@ -988,6 +1052,24 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
             </div>
           </div>
         </div>
+
+        {/* Photos */}
+        {selectedReq.photos && selectedReq.photos.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+            <h3 className="font-bold text-gray-900 mb-3">Photos ({selectedReq.photos.length})</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {selectedReq.photos.map((photo: string, idx: number) => (
+                <img
+                  key={idx}
+                  src={photo}
+                  alt={`Photo ${idx + 1}`}
+                  className="w-full h-32 object-cover rounded-lg cursor-pointer"
+                  onClick={() => window.open(photo, '_blank')}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -1035,9 +1117,42 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
     <div className="min-h-screen bg-gray-50 p-4">
       <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
 
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">My Requests</h1>
         <p className="text-gray-600 mt-1">Track status and view pricing responses</p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by customer, project #, or address..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900"
+        />
+      </div>
+
+      {/* Filter Buttons */}
+      <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
+        {['all', 'pending', 'quoted', 'won', 'lost'].map((status) => (
+          <button
+            key={status}
+            onClick={() => setFilterStatus(status)}
+            className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap ${
+              filterStatus === status
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300'
+            }`}
+          >
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Results Count */}
+      <div className="mb-3 text-sm text-gray-600">
+        Showing {requests.length} request{requests.length !== 1 ? 's' : ''}
       </div>
 
       <div className="space-y-3">
