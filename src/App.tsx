@@ -5,7 +5,7 @@ import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations';
-type Section = 'home' | 'custom-pricing' | 'presentation' | 'stain-calculator' | 'dashboard' | 'request-queue' | 'analytics' | 'team';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -137,6 +137,10 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
     return <CustomPricingRequest onBack={() => setActiveSection('home')} />;
   }
 
+  if (activeSection === 'my-requests') {
+    return <MyRequests onBack={() => setActiveSection('home')} />;
+  }
+
   if (activeSection === 'presentation') {
     return <ClientPresentation onBack={() => setActiveSection('home')} />;
   }
@@ -174,6 +178,26 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
               <div className="font-bold text-gray-900">Take Photo Now</div>
               <div className="text-sm text-gray-600">Quick capture for this job</div>
             </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="space-y-3 pt-4">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Track Requests</h2>
+
+        <button
+          onClick={() => setActiveSection('my-requests')}
+          className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white p-5 rounded-xl shadow-md active:scale-98 transition-transform"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <Ticket className="w-7 h-7" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-bold text-lg">My Requests</div>
+              <div className="text-sm text-green-100">View status & pricing responses</div>
+            </div>
+            <div className="bg-white/30 px-3 py-1 rounded-full font-bold">3</div>
           </div>
         </button>
       </div>
@@ -320,6 +344,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [audioURL, setAudioURL] = useState<string>('');
   const [formData, setFormData] = useState({
     projectNumber: '',
     customerName: '',
@@ -334,6 +359,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -390,10 +416,11 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
       setTimeout(async () => {
         try {
           // Create audio blob from collected chunks
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          setAudioURL(URL.createObjectURL(blob));
 
           // Transcribe with Whisper
-          const transcript = await transcribeAudio(audioBlob);
+          const transcript = await transcribeAudio(blob);
 
           // Parse with Claude
           const parsed = await parseVoiceTranscript(transcript);
@@ -478,6 +505,30 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
           <p className="text-gray-600 mt-1">Fill in the details below or use voice to auto-fill</p>
         </div>
 
+        {/* Audio Playback (if recording exists) */}
+        {audioURL && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-purple-100 p-2 rounded-lg">
+                  <Mic className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">Voice Recording</div>
+                  <div className="text-sm text-gray-600">{formatTime(recordingTime)}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => audioRef.current?.play()}
+                className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                <Play className="w-5 h-5" />
+              </button>
+            </div>
+            <audio ref={audioRef} src={audioURL} className="hidden" />
+          </div>
+        )}
+
         {/* Compact Voice Recording Button */}
         <div className="mb-4">
           <button
@@ -485,7 +536,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
             className="w-full bg-purple-600 text-white py-3 px-4 rounded-xl shadow-md active:scale-98 transition-transform flex items-center justify-center space-x-2"
           >
             <Mic className="w-5 h-5" />
-            <span className="font-semibold">Record to Auto-Fill Form</span>
+            <span className="font-semibold">{audioURL ? 'Re-record' : 'Record to Auto-Fill Form'}</span>
           </button>
           <p className="text-xs text-gray-500 text-center mt-1">Speak naturally - AI will fill the fields below</p>
         </div>
@@ -757,6 +808,202 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
   }
 
   return null;
+};
+
+interface MyRequestsProps {
+  onBack: () => void;
+}
+
+const MyRequests = ({ onBack }: MyRequestsProps) => {
+  const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+
+  // Mock data - in production this would come from Supabase
+  const requests = [
+    {
+      id: 1,
+      projectNumber: 'JOB-2453',
+      customerName: 'The Johnsons',
+      address: '123 Oak Street',
+      fenceType: '6-foot cedar privacy',
+      linearFeet: '200',
+      status: 'quoted',
+      priority: 'high',
+      submittedDate: '2025-10-01',
+      responseTime: '2 hours',
+      quotedPrice: '$8,950',
+      messages: [
+        { from: 'Operations', text: 'Reviewed your request. Quote is ready!', time: '2 hours ago' },
+        { from: 'You', text: 'Customer needs this before June 15th', time: '4 hours ago' }
+      ]
+    },
+    {
+      id: 2,
+      projectNumber: 'JOB-2441',
+      customerName: 'Smith Residence',
+      address: '456 Maple Drive',
+      fenceType: '4-foot vinyl picket',
+      linearFeet: '150',
+      status: 'pending',
+      priority: 'medium',
+      submittedDate: '2025-10-01',
+      responseTime: 'pending',
+      messages: [
+        { from: 'You', text: 'Straightforward install, no slope issues', time: '1 hour ago' }
+      ]
+    },
+    {
+      id: 3,
+      projectNumber: 'ST-8821',
+      customerName: 'Garcia Family',
+      address: '789 Pine Lane',
+      fenceType: '6-foot wood privacy with gates',
+      linearFeet: '300',
+      status: 'won',
+      priority: 'low',
+      submittedDate: '2025-09-28',
+      responseTime: '3 hours',
+      quotedPrice: '$12,450',
+      finalPrice: '$12,200',
+      messages: [
+        { from: 'You', text: 'Customer accepted! Scheduled for next week.', time: '2 days ago' },
+        { from: 'Operations', text: 'Great work! Updated in system.', time: '2 days ago' }
+      ]
+    }
+  ];
+
+  const selectedReq = requests.find(r => r.id === selectedRequest);
+
+  if (selectedRequest && selectedReq) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 pb-24">
+        <button onClick={() => setSelectedRequest(null)} className="text-blue-600 font-medium mb-4">← Back to Requests</button>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-gray-900">{selectedReq.projectNumber}</h1>
+            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+              selectedReq.status === 'quoted' ? 'bg-blue-100 text-blue-700' :
+              selectedReq.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-green-100 text-green-700'
+            }`}>
+              {selectedReq.status.toUpperCase()}
+            </span>
+          </div>
+          <p className="text-gray-600">{selectedReq.customerName} • {selectedReq.address}</p>
+        </div>
+
+        {/* Quoted Price Card */}
+        {selectedReq.quotedPrice && (
+          <div className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl p-6 mb-4 shadow-lg">
+            <div className="text-sm font-semibold mb-1">QUOTED PRICE</div>
+            <div className="text-4xl font-bold">{selectedReq.quotedPrice}</div>
+            {selectedReq.finalPrice && (
+              <div className="mt-2 text-sm">Final sold at: {selectedReq.finalPrice}</div>
+            )}
+          </div>
+        )}
+
+        {/* Project Details */}
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+          <h3 className="font-bold text-gray-900 mb-3">Project Details</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Fence Type:</span>
+              <span className="font-semibold text-gray-900">{selectedReq.fenceType}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Linear Feet:</span>
+              <span className="font-semibold text-gray-900">{selectedReq.linearFeet}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Response Time:</span>
+              <span className="font-semibold text-gray-900">{selectedReq.responseTime}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <h3 className="font-bold text-gray-900 mb-3">Messages</h3>
+          <div className="space-y-3">
+            {selectedReq.messages.map((msg, idx) => (
+              <div key={idx} className={`p-3 rounded-lg ${
+                msg.from === 'You' ? 'bg-blue-50 ml-8' : 'bg-gray-50 mr-8'
+              }`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-sm text-gray-900">{msg.from}</span>
+                  <span className="text-xs text-gray-500">{msg.time}</span>
+                </div>
+                <p className="text-sm text-gray-700">{msg.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Add Message Button */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center space-x-2">
+            <MessageSquare className="w-5 h-5" />
+            <span>Send Message to Operations</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
+
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">My Requests</h1>
+        <p className="text-gray-600 mt-1">Track status and view pricing responses</p>
+      </div>
+
+      <div className="space-y-3">
+        {requests.map((request) => (
+          <button
+            key={request.id}
+            onClick={() => setSelectedRequest(request.id)}
+            className="w-full bg-white border-2 border-gray-200 rounded-xl p-4 text-left hover:border-blue-300 transition-colors"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <div className="font-bold text-gray-900">{request.projectNumber}</div>
+                <div className="text-sm text-gray-600">{request.customerName}</div>
+              </div>
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                request.status === 'quoted' ? 'bg-blue-100 text-blue-700' :
+                request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-green-100 text-green-700'
+              }`}>
+                {request.status.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="text-sm text-gray-700 mb-2">{request.address}</div>
+            <div className="text-sm text-gray-600">{request.fenceType} • {request.linearFeet} LF</div>
+
+            {request.quotedPrice && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Quoted Price:</span>
+                  <span className="text-lg font-bold text-green-600">{request.quotedPrice}</span>
+                </div>
+              </div>
+            )}
+
+            {request.status === 'pending' && (
+              <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-yellow-700">
+                <AlertCircle className="w-4 h-4 inline mr-1" />
+                Waiting for operations response...
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 interface ClientPresentationProps {
