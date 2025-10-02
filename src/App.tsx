@@ -133,6 +133,10 @@ interface SalesRepViewProps {
 }
 
 const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) => {
+  // Count pending/quoted requests
+  const savedRequests = JSON.parse(localStorage.getItem('myRequests') || '[]');
+  const pendingCount = savedRequests.filter((r: any) => r.status === 'pending' || r.status === 'quoted').length;
+
   if (activeSection === 'custom-pricing') {
     return <CustomPricingRequest onBack={() => setActiveSection('home')} />;
   }
@@ -197,7 +201,9 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
               <div className="font-bold text-lg">My Requests</div>
               <div className="text-sm text-green-100">View status & pricing responses</div>
             </div>
-            <div className="bg-white/30 px-3 py-1 rounded-full font-bold">3</div>
+            {pendingCount > 0 && (
+              <div className="bg-white/30 px-3 py-1 rounded-full font-bold">{pendingCount}</div>
+            )}
           </div>
         </button>
       </div>
