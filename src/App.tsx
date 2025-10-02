@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, MessageSquare, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
+import SalesCoach from './components/sales/SalesCoach';
+import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -176,6 +178,14 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
     return <StainCalculator onBack={() => setActiveSection('home')} />;
   }
 
+  if (activeSection === 'sales-coach') {
+    return <SalesCoach userId="user123" userRole="sales" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
+  }
+
+  if (activeSection === 'sales-coach-admin') {
+    return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} />;
+  }
+
   return (
     <div className="space-y-4 p-4">
       <div className="space-y-3">
@@ -250,14 +260,17 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
             </div>
           </button>
 
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+          <button
+            onClick={() => setActiveSection('sales-coach')}
+            className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
+          >
             <div className="flex items-center space-x-3">
               <div className="bg-blue-100 p-2 rounded-lg">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
+                <Mic className="w-6 h-6 text-blue-600" />
               </div>
               <div className="flex-1 text-left">
                 <div className="font-semibold text-gray-900">AI Sales Coach</div>
-                <div className="text-xs text-gray-600">Get real-time guidance</div>
+                <div className="text-xs text-gray-600">Record & analyze meetings</div>
               </div>
             </div>
           </button>
