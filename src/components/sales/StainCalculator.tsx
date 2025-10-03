@@ -341,8 +341,12 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
               <h2 className="text-2xl font-bold mb-4 text-gray-800">
                 The Difference is Clear
               </h2>
-              <div className="relative bg-gray-200 rounded-lg h-64 flex items-center justify-center">
-                <p className="text-gray-500">Comparison image placeholder</p>
+              <div className="relative rounded-lg overflow-hidden">
+                <img
+                  src="/fence-comparison.jpg"
+                  alt="Fence comparison"
+                  className="w-full h-auto object-cover"
+                />
               </div>
               <p className="text-gray-600 mt-4 text-center font-semibold">
                 Left: Wood Defender stained | Right: Untreated after 2 years
@@ -408,6 +412,11 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
 
         {/* Footer */}
         <div className="mt-6 bg-white rounded-lg shadow-lg p-6 text-center border-t-4 border-gray-800">
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-16 w-auto" />
+            <div className="border-l-2 border-gray-300 h-16"></div>
+            <img src="/wood-defender-logo.png" alt="Wood Defender" className="h-16 w-auto" />
+          </div>
           <p className="text-gray-800 font-bold text-xl mb-2">
             Discount Fence USA - Professional Fence Installation
           </p>
