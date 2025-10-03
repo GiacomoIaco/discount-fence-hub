@@ -1415,7 +1415,7 @@ const OperationsView = ({ activeSection, setActiveSection }: OperationsViewProps
   }
 
   if (activeSection === 'request-queue') {
-    return <RequestQueue onBack={() => setActiveSection('home')} />;
+    return <RequestQueue onBack={() => setActiveSection('home')} userRole="backoffice" />;
   }
 
   return (
@@ -1595,9 +1595,10 @@ const ManagerDashboard = ({ onBack }: ManagerDashboardProps) => {
 
 interface RequestQueueProps {
   onBack: () => void;
+  userRole?: 'sales' | 'backoffice' | 'manager' | 'admin';
 }
 
-const RequestQueue = ({ onBack }: RequestQueueProps) => {
+const RequestQueue = ({ onBack, userRole = 'backoffice' }: RequestQueueProps) => {
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'quoted' | 'approved' | 'rejected' | 'closed'>('all');
@@ -1654,6 +1655,20 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
     });
     updateRequest(requestId, { messages });
     setNewMessage('');
+  };
+
+  const deleteRequest = (requestId: string) => {
+    if (userRole !== 'admin') {
+      alert('Only admins can delete requests');
+      return;
+    }
+    if (confirm('Are you sure you want to delete this request? This action cannot be undone.')) {
+      const saved = JSON.parse(localStorage.getItem('myRequests') || '[]');
+      const updated = saved.filter((req: any) => req.id !== requestId);
+      localStorage.setItem('myRequests', JSON.stringify(updated));
+      loadRequests();
+      setSelectedRequest(null);
+    }
   };
 
   const getRequestAge = (timestamp: string) => {
@@ -1718,9 +1733,19 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
               <h1 className="text-2xl font-bold text-gray-900">{selectedRequest.customerName}</h1>
               <p className="text-gray-600">{selectedRequest.address}</p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(selectedRequest.status)}`}>
-              {selectedRequest.status}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(selectedRequest.status)}`}>
+                {selectedRequest.status}
+              </span>
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => deleteRequest(selectedRequest.id)}
+                  className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
@@ -2069,7 +2094,7 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
   }
 
   if (activeSection === 'request-queue') {
-    return <RequestQueue onBack={() => setActiveSection('home')} />;
+    return <RequestQueue onBack={() => setActiveSection('home')} userRole="admin" />;
   }
 
   return (
