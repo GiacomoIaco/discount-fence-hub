@@ -530,3 +530,109 @@ export async function processOfflineQueue(): Promise<void> {
 
 // Get offline queue size
 export { getOfflineQueue } from './offlineQueue';
+
+// Team Leaderboard
+export interface LeaderboardEntry {
+  userId: string;
+  userName: string;
+  totalRecordings: number;
+  averageScore: number;
+  completionRate: number;
+  improvement: number;
+  totalCallTime: number; // in minutes
+  rank: number;
+}
+
+export function getTeamLeaderboard(timeframe: 'week' | 'month' | 'all' = 'all'): LeaderboardEntry[] {
+  // Get all users from localStorage (in a real app, this would come from a database)
+  const users = [
+    { id: 'user123', name: 'Sales Rep 1' },
+    { id: 'user456', name: 'Sales Rep 2' },
+    { id: 'user789', name: 'Sales Rep 3' },
+    // In production, fetch actual user list from Supabase
+  ];
+
+  const now = new Date();
+  const cutoffDate = new Date();
+  if (timeframe === 'week') {
+    cutoffDate.setDate(now.getDate() - 7);
+  } else if (timeframe === 'month') {
+    cutoffDate.setMonth(now.getMonth() - 1);
+  }
+
+  const leaderboard: LeaderboardEntry[] = users.map(user => {
+    const allRecordings = getRecordings(user.id).filter(r => r.status === 'completed');
+
+    // Filter by timeframe
+    const recordings = timeframe === 'all'
+      ? allRecordings
+      : allRecordings.filter(r => new Date(r.uploadedAt) >= cutoffDate);
+
+    if (recordings.length === 0) {
+      return {
+        userId: user.id,
+        userName: user.name,
+        totalRecordings: 0,
+        averageScore: 0,
+        completionRate: 0,
+        improvement: 0,
+        totalCallTime: 0,
+        rank: 0,
+      };
+    }
+
+    const scores = recordings.map(r => r.analysis?.overallScore || 0);
+    const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+
+    // Calculate improvement (recent vs previous)
+    const recent = scores.slice(0, Math.ceil(scores.length / 2));
+    const previous = scores.slice(Math.ceil(scores.length / 2));
+    const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+    const previousAvg = previous.length > 0 ? previous.reduce((a, b) => a + b, 0) / previous.length : recentAvg;
+    const improvement = Math.round(recentAvg - previousAvg);
+
+    // Calculate completion rate
+    const completedAll = recordings.filter(r =>
+      r.analysis?.processSteps.every(step => step.completed)
+    ).length;
+    const completionRate = Math.round((completedAll / recordings.length) * 100);
+
+    // Calculate total call time
+    const totalCallTime = recordings.reduce((total, r) => {
+      const [mins, secs] = r.duration.split(':').map(Number);
+      return total + mins + (secs / 60);
+    }, 0);
+
+    return {
+      userId: user.id,
+      userName: user.name,
+      totalRecordings: recordings.length,
+      averageScore,
+      completionRate,
+      improvement,
+      totalCallTime: Math.round(totalCallTime),
+      rank: 0, // Will be set after sorting
+    };
+  });
+
+  // Sort by average score, then by total recordings
+  leaderboard.sort((a, b) => {
+    if (b.averageScore !== a.averageScore) {
+      return b.averageScore - a.averageScore;
+    }
+    return b.totalRecordings - a.totalRecordings;
+  });
+
+  // Assign ranks
+  leaderboard.forEach((entry, index) => {
+    entry.rank = index + 1;
+  });
+
+  return leaderboard;
+}
+
+export function getUserRank(userId: string, timeframe: 'week' | 'month' | 'all' = 'all'): number {
+  const leaderboard = getTeamLeaderboard(timeframe);
+  const entry = leaderboard.find(e => e.userId === userId);
+  return entry?.rank || 0;
+}

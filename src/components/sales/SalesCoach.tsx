@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Upload } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getOfflineQueue, type Recording } from '../../lib/recordings';
+import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Upload, Trophy, Medal, Crown } from 'lucide-react';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getOfflineQueue, getTeamLeaderboard, type Recording, type LeaderboardEntry } from '../../lib/recordings';
 import { initOfflineDB, getOfflineQueueSize } from '../../lib/offlineQueue';
 
 interface SalesCoachProps {
@@ -9,7 +9,7 @@ interface SalesCoachProps {
 }
 
 export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
-  const [activeTab, setActiveTab] = useState<'record' | 'recordings'>('record');
+  const [activeTab, setActiveTab] = useState<'record' | 'recordings' | 'leaderboard'>('record');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordings, setRecordings] = useState<Recording[]>([]);
@@ -25,6 +25,8 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const [reviewActionItems, setReviewActionItems] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueSize, setQueueSize] = useState(0);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardTimeframe, setLeaderboardTimeframe] = useState<'week' | 'month' | 'all'>('month');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -39,7 +41,10 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
     // Update queue size
     const size = await getOfflineQueueSize();
     setQueueSize(size);
-  }, [userId]);
+
+    // Update leaderboard
+    setLeaderboard(getTeamLeaderboard(leaderboardTimeframe));
+  }, [userId, leaderboardTimeframe]);
 
   // Set up debug logging and update callback
   useEffect(() => {
@@ -337,6 +342,17 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('leaderboard')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'leaderboard'
+                ? 'text-purple-600 border-b-2 border-purple-600'
+                : 'text-gray-600'
+            }`}
+          >
+            <Trophy className="inline w-4 h-4 mr-2" />
+            Leaderboard
+          </button>
         </div>
       </div>
 
@@ -526,6 +542,141 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* Leaderboard Tab */}
+        {activeTab === 'leaderboard' && (
+          <div className="space-y-4">
+            {/* Timeframe Filter */}
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => setLeaderboardTimeframe('week')}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  leaderboardTimeframe === 'week'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                This Week
+              </button>
+              <button
+                onClick={() => setLeaderboardTimeframe('month')}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  leaderboardTimeframe === 'month'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => setLeaderboardTimeframe('all')}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  leaderboardTimeframe === 'all'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All Time
+              </button>
+            </div>
+
+            {/* Leaderboard List */}
+            <div className="space-y-3">
+              {leaderboard.map((entry, index) => {
+                const isCurrentUser = entry.userId === userId;
+                const getRankIcon = (rank: number) => {
+                  if (rank === 1) return <Crown className="w-6 h-6 text-yellow-500" />;
+                  if (rank === 2) return <Medal className="w-6 h-6 text-gray-400" />;
+                  if (rank === 3) return <Medal className="w-6 h-6 text-amber-600" />;
+                  return (
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <span className="text-sm font-bold text-gray-500">{rank}</span>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div
+                    key={entry.userId}
+                    className={`bg-white rounded-xl shadow p-4 ${
+                      isCurrentUser ? 'ring-2 ring-purple-600' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      {/* Rank */}
+                      <div className="flex-shrink-0">
+                        {getRankIcon(entry.rank)}
+                      </div>
+
+                      {/* User Info */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-semibold">
+                            {entry.userName}
+                            {isCurrentUser && (
+                              <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full font-medium">
+                                You
+                              </span>
+                            )}
+                          </h3>
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+                          <div>
+                            <div className="text-xs text-gray-600">Score</div>
+                            <div className={`text-lg font-bold ${getScoreColor(entry.averageScore)}`}>
+                              {entry.averageScore}%
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">Recordings</div>
+                            <div className="text-lg font-bold text-gray-800">
+                              {entry.totalRecordings}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">Completion</div>
+                            <div className="text-lg font-bold text-gray-800">
+                              {entry.completionRate}%
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">Call Time</div>
+                            <div className="text-lg font-bold text-gray-800">
+                              {entry.totalCallTime}m
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Improvement Badge */}
+                        {entry.improvement !== 0 && (
+                          <div className="mt-2">
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              entry.improvement > 0
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {entry.improvement > 0 ? '↑' : '↓'} {Math.abs(entry.improvement)}% improvement
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {leaderboard.length === 0 && (
+                <div className="text-center py-12 text-gray-500">
+                  <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">No data yet</p>
+                  <p className="text-sm">Complete some recordings to see the leaderboard</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
