@@ -1,4 +1,5 @@
 // API integration for Sales Coach recordings
+import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue, updateQueuedRecording, type QueuedRecording } from './offlineQueue';
 
 export interface ManagerReview {
   reviewerId: string;
@@ -118,6 +119,11 @@ function notifyUpdate() {
   }
 }
 
+// Check if online
+function isOnline(): boolean {
+  return navigator.onLine;
+}
+
 // Upload and process a recording
 export async function uploadRecording(
   audioBlob: Blob,
@@ -126,6 +132,39 @@ export async function uploadRecording(
   meetingDate: string,
   processType: string = 'standard'
 ): Promise<Recording> {
+  // If offline, queue for later
+  if (!isOnline()) {
+    debugLog('📵 Offline - adding to queue');
+    await addToOfflineQueue({
+      audioBlob,
+      userId,
+      clientName,
+      meetingDate,
+      processType,
+    });
+
+    // Return a placeholder recording
+    const placeholderRecording: Recording = {
+      id: `queued_${Date.now()}`,
+      userId,
+      clientName,
+      meetingDate,
+      duration: '0:00',
+      status: 'uploaded',
+      uploadedAt: new Date().toISOString(),
+      processType,
+      error: 'Queued for upload when online',
+    };
+
+    // Save to localStorage
+    const recordings = getRecordings(userId);
+    recordings.unshift(placeholderRecording);
+    localStorage.setItem(`recordings_${userId}`, JSON.stringify(recordings));
+    notifyUpdate();
+
+    return placeholderRecording;
+  }
+
   try {
     debugLog('🎙️ Starting upload...');
     // Convert blob to base64
@@ -422,3 +461,72 @@ export function removeManagerReview(userId: string, recordingId: string): void {
   localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
   notifyUpdate();
 }
+
+// Process offline queue - upload all queued recordings
+export async function processOfflineQueue(): Promise<void> {
+  if (!isOnline()) {
+    debugLog('📵 Still offline - skipping queue processing');
+    return;
+  }
+
+  const queue = await getOfflineQueue();
+  if (queue.length === 0) {
+    return;
+  }
+
+  debugLog(`📤 Processing ${queue.length} queued recordings`);
+
+  for (const queuedRecording of queue) {
+    try {
+      debugLog(`⬆️ Uploading queued recording: ${queuedRecording.clientName}`);
+
+      // Remove placeholder from localStorage
+      const recordings = getRecordings(queuedRecording.userId);
+      const filtered = recordings.filter(r => !r.id.startsWith('queued_'));
+      localStorage.setItem(`recordings_${queuedRecording.userId}`, JSON.stringify(filtered));
+
+      // Upload the recording
+      await uploadRecording(
+        queuedRecording.audioBlob,
+        queuedRecording.userId,
+        queuedRecording.clientName,
+        queuedRecording.meetingDate,
+        queuedRecording.processType
+      );
+
+      // Remove from queue
+      await removeFromOfflineQueue(queuedRecording.id);
+      debugLog(`✅ Successfully uploaded: ${queuedRecording.clientName}`);
+    } catch (error: any) {
+      debugLog(`❌ Failed to upload: ${queuedRecording.clientName} - ${error.message}`);
+
+      // Update retry count
+      const updatedRecording: QueuedRecording = {
+        ...queuedRecording,
+        attempts: queuedRecording.attempts + 1,
+        lastError: error.message,
+      };
+
+      // Remove from queue if too many attempts (max 3)
+      if (updatedRecording.attempts >= 3) {
+        debugLog(`🗑️ Removing from queue after 3 failed attempts: ${queuedRecording.clientName}`);
+        await removeFromOfflineQueue(queuedRecording.id);
+
+        // Update placeholder with error
+        const recordings = getRecordings(queuedRecording.userId);
+        const updated = recordings.map(r =>
+          r.clientName === queuedRecording.clientName && r.id.startsWith('queued_')
+            ? { ...r, status: 'failed' as const, error: `Upload failed after 3 attempts: ${error.message}` }
+            : r
+        );
+        localStorage.setItem(`recordings_${queuedRecording.userId}`, JSON.stringify(updated));
+        notifyUpdate();
+      } else {
+        await updateQueuedRecording(updatedRecording);
+      }
+    }
+  }
+}
+
+// Get offline queue size
+export { getOfflineQueue } from './offlineQueue';

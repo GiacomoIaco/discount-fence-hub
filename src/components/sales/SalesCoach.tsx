@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2 } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, type Recording } from '../../lib/recordings';
+import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Upload } from 'lucide-react';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getOfflineQueue, type Recording } from '../../lib/recordings';
+import { initOfflineDB, getOfflineQueueSize } from '../../lib/offlineQueue';
 
 interface SalesCoachProps {
   userId: string;
@@ -22,20 +23,29 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const [reviewComments, setReviewComments] = useState('');
   const [reviewKeyTakeaways, setReviewKeyTakeaways] = useState('');
   const [reviewActionItems, setReviewActionItems] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [queueSize, setQueueSize] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load recordings function with useCallback
-  const loadRecordings = useCallback(() => {
+  // Load recordings and queue size
+  const loadRecordings = useCallback(async () => {
     const recs = getRecordings(userId);
     setRecordings(recs);
     setStats(getUserStats(userId));
+
+    // Update queue size
+    const size = await getOfflineQueueSize();
+    setQueueSize(size);
   }, [userId]);
 
   // Set up debug logging and update callback
   useEffect(() => {
+    // Initialize offline DB
+    initOfflineDB();
+
     setDebugCallback((msg) => {
       setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
     });
@@ -50,8 +60,27 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
     };
     window.addEventListener('recordings-updated', handleUpdate);
 
+    // Listen for online/offline events
+    const handleOnline = async () => {
+      console.log('🌐 Back online');
+      setIsOnline(true);
+      // Process offline queue
+      await processOfflineQueue();
+      loadRecordings();
+    };
+
+    const handleOffline = () => {
+      console.log('📵 Gone offline');
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
       window.removeEventListener('recordings-updated', handleUpdate);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, [loadRecordings]);
 
@@ -232,6 +261,28 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
               <p className="text-xs text-gray-600">Analyze your sales meetings</p>
             </div>
             <div className="flex gap-4 items-center">
+              {/* Offline/Online Indicator */}
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
+                isOnline ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+              }`}>
+                {isOnline ? (
+                  <>
+                    <Wifi className="w-4 h-4" />
+                    <span>Online</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-4 h-4" />
+                    <span>Offline Mode</span>
+                  </>
+                )}
+                {queueSize > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-white rounded-full text-xs">
+                    {queueSize} queued
+                  </span>
+                )}
+              </div>
+
               <button
                 onClick={onOpenAdmin}
                 className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
