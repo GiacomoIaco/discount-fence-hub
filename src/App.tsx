@@ -34,12 +34,17 @@ function App() {
   });
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>(() => {
+    const saved = localStorage.getItem('viewMode');
+    return (saved as 'mobile' | 'desktop') || 'mobile';
+  });
 
-  // Save role and userName to localStorage when they change
+  // Save role, userName, and viewMode to localStorage when they change
   useEffect(() => {
     localStorage.setItem('userRole', userRole);
     localStorage.setItem('userName', userName);
-  }, [userRole, userName]);
+    localStorage.setItem('viewMode', viewMode);
+  }, [userRole, userName, viewMode]);
 
   // Handle browser back button to prevent app close
   useEffect(() => {
@@ -64,11 +69,16 @@ function App() {
     };
   }, [activeSection]);
 
-  // Navigation items based on role
+  // Navigation items based on role (for desktop view only)
   const getNavigationItems = () => {
     switch (userRole) {
       case 'sales':
-        return []; // Sales uses mobile view, no sidebar nav
+        return [
+          { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
+          { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
+          { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
+          { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
+        ];
       case 'operations':
         return [
           { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
@@ -110,7 +120,8 @@ function App() {
     }
   };
 
-  if (userRole === 'sales') {
+  // Mobile view - same for all roles
+  if (viewMode === 'mobile') {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -120,6 +131,13 @@ function App() {
               <p className="text-sm text-gray-500">Hey {userName}! 👋</p>
             </div>
             <div className="flex items-center gap-2">
+              {/* View Mode Switcher */}
+              <button
+                onClick={() => setViewMode('desktop')}
+                className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded text-gray-700 hover:bg-gray-200"
+              >
+                Desktop
+              </button>
               {/* Role Switcher for Testing */}
               <select
                 value={userRole}
@@ -141,7 +159,7 @@ function App() {
           </div>
         </div>
         <div className="pb-20">
-          {renderContent()}
+          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} />
         </div>
       </div>
     );
@@ -191,6 +209,18 @@ function App() {
         </nav>
 
         <div className="p-4 border-t border-gray-800">
+          {/* View Mode Switcher */}
+          {sidebarOpen && (
+            <div className="mb-3">
+              <button
+                onClick={() => setViewMode('mobile')}
+                className="w-full px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded text-white font-medium"
+              >
+                Switch to Mobile View
+              </button>
+            </div>
+          )}
+
           {/* Role Switcher for Testing */}
           {sidebarOpen && (
             <div className="mb-3">
