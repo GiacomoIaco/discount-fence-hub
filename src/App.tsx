@@ -1612,7 +1612,7 @@ const ManagerView = ({ activeSection, setActiveSection }: ManagerViewProps) => {
   }
 
   if (activeSection === 'sales-coach-admin') {
-    return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} />;
+    return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} userRole="manager" />;
   }
 
   if (activeSection === 'manager-dashboard') {
@@ -1668,7 +1668,7 @@ interface AdminViewProps {
 
 const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
   if (activeSection === 'sales-coach-admin') {
-    return <SalesCoachAdmin onBack={() => setActiveSection('home')} />;
+    return <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole="admin" />;
   }
 
   if (activeSection === 'manager-dashboard') {

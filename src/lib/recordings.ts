@@ -411,10 +411,82 @@ export function getUserStats(userId: string) {
   };
 }
 
+// Default Sales Process
+const DEFAULT_SALES_PROCESS: SalesProcess = {
+  id: 'standard',
+  name: 'Standard 5-Step Sales Process',
+  steps: [
+    {
+      name: 'Greeting & Rapport Building',
+      description: 'Establish connection and build trust',
+      keyBehaviors: [
+        'Warm and professional greeting',
+        'Small talk to establish rapport',
+        'Set agenda for the meeting',
+        'Build initial trust'
+      ]
+    },
+    {
+      name: 'Needs Discovery',
+      description: 'Understand client pain points and goals through questions',
+      keyBehaviors: [
+        'Ask open-ended questions',
+        'Active listening',
+        'Probe for pain points',
+        'Understand budget and timeline',
+        'Identify decision makers'
+      ]
+    },
+    {
+      name: 'Product Presentation',
+      description: 'Present solution matching their specific needs',
+      keyBehaviors: [
+        'Tailor presentation to discovered needs',
+        'Focus on benefits not features',
+        'Use stories and examples',
+        'Address specific pain points',
+        'Demonstrate value clearly'
+      ]
+    },
+    {
+      name: 'Objection Handling',
+      description: 'Address concerns and hesitations professionally',
+      keyBehaviors: [
+        'Listen to objections fully',
+        'Validate concerns',
+        'Provide evidence-based responses',
+        'Reframe objections as opportunities',
+        'Confirm resolution'
+      ]
+    },
+    {
+      name: 'Closing',
+      description: 'Ask for commitment and establish next steps',
+      keyBehaviors: [
+        'Trial close throughout',
+        'Ask for the sale directly',
+        'Create urgency when appropriate',
+        'Outline clear next steps',
+        'Confirm commitment'
+      ]
+    }
+  ],
+  createdBy: 'system',
+  createdAt: new Date().toISOString()
+};
+
 // Sales Process Management
 export function getSalesProcesses(): SalesProcess[] {
   const saved = localStorage.getItem('salesProcesses');
-  return saved ? JSON.parse(saved) : [];
+  const processes = saved ? JSON.parse(saved) : [];
+
+  // Always include default process if not already present
+  const hasDefault = processes.some((p: SalesProcess) => p.id === 'standard');
+  if (!hasDefault) {
+    processes.unshift(DEFAULT_SALES_PROCESS);
+  }
+
+  return processes;
 }
 
 export function getSalesProcess(id: string): SalesProcess | undefined {

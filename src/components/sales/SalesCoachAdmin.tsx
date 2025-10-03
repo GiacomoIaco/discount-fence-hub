@@ -4,9 +4,10 @@ import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBa
 
 interface SalesCoachAdminProps {
   onBack: () => void;
+  userRole?: 'sales' | 'backoffice' | 'manager' | 'admin';
 }
 
-export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
+export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoachAdminProps) {
   const [activeTab, setActiveTab] = useState<'processes' | 'knowledge' | 'recordings'>('processes');
   const [processes, setProcesses] = useState<SalesProcess[]>([]);
   const [selectedProcess, setSelectedProcess] = useState<SalesProcess | null>(null);
@@ -74,6 +75,18 @@ export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
   };
 
   const deleteProcess = (id: string) => {
+    // Prevent deleting default process
+    if (id === 'standard') {
+      alert('Cannot delete the default sales process');
+      return;
+    }
+
+    // Only admin can delete
+    if (userRole !== 'admin') {
+      alert('Only admins can delete sales processes');
+      return;
+    }
+
     if (confirm('Are you sure you want to delete this process?')) {
       deleteSalesProcess(id);
       loadProcesses();
@@ -257,18 +270,26 @@ export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-semibold">{proc.name}</h3>
+                        <h3 className="font-semibold">
+                          {proc.name}
+                          {proc.id === 'standard' && (
+                            <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Default</span>
+                          )}
+                        </h3>
                         <p className="text-sm text-gray-600">{proc.steps.length} steps</p>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteProcess(proc.id);
-                        }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {/* Only show delete button for non-default processes and admin role */}
+                      {proc.id !== 'standard' && userRole === 'admin' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteProcess(proc.id);
+                          }}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
