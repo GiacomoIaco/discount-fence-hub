@@ -147,6 +147,8 @@ export async function uploadRecording(
     debugLog(`📝 Starting transcription for ${recording.recordingId}`);
     transcribeRecording(recording.recordingId, base64Audio).then(transcription => {
       debugLog('✅ Transcription completed!');
+      debugLog(`📄 Transcription object keys: ${Object.keys(transcription).join(', ')}`);
+      debugLog(`📝 Has text field: ${!!transcription.text}, Length: ${transcription.text?.length || 0}`);
       // Update recording in localStorage with transcription
       const recordings = getRecordings(userId);
       const updated = recordings.map(r =>
@@ -158,6 +160,7 @@ export async function uploadRecording(
       notifyUpdate();
 
       // Step 3: Start analysis (async)
+      debugLog(`📊 Starting analysis with transcript length: ${transcription.text?.length || 0}`);
       analyzeRecording(recording.recordingId, transcription.text, processType).then(analysis => {
         debugLog('🎯 Analysis completed!');
         // Update recording with analysis
