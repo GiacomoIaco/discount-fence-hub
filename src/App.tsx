@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
@@ -99,7 +99,7 @@ function App() {
     if (userRole === 'sales') {
       return <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} />;
     } else if (userRole === 'backoffice') {
-      return <OperationsView activeSection={activeSection} />;
+      return <OperationsView activeSection={activeSection} setActiveSection={setActiveSection} />;
     } else if (userRole === 'manager') {
       return <ManagerView activeSection={activeSection} setActiveSection={setActiveSection} />;
     } else if (userRole === 'admin') {
@@ -1399,15 +1399,16 @@ const ClientPresentation = ({ onBack }: ClientPresentationProps) => {
 
 interface OperationsViewProps {
   activeSection: Section;
+  setActiveSection: (section: Section) => void;
 }
 
-const OperationsView = ({ activeSection }: OperationsViewProps) => {
+const OperationsView = ({ activeSection, setActiveSection }: OperationsViewProps) => {
   if (activeSection === 'manager-dashboard') {
-    return <ManagerDashboard onBack={() => window.location.reload()} />;
+    return <ManagerDashboard onBack={() => setActiveSection('home')} />;
   }
 
   if (activeSection === 'request-queue') {
-    return <RequestQueue onBack={() => window.location.reload()} />;
+    return <RequestQueue onBack={() => setActiveSection('home')} />;
   }
 
   return (
@@ -1416,10 +1417,9 @@ const OperationsView = ({ activeSection }: OperationsViewProps) => {
       <p className="text-gray-600 mb-6">Manage pricing requests and track team performance</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <a
-          href="#manager-dashboard"
-          onClick={(e) => { e.preventDefault(); window.location.hash = 'manager-dashboard'; window.location.reload(); }}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
+        <button
+          onClick={() => setActiveSection('manager-dashboard')}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow text-left"
         >
           <div className="flex items-center space-x-4">
             <div className="bg-white/20 p-3 rounded-lg">
@@ -1430,12 +1430,11 @@ const OperationsView = ({ activeSection }: OperationsViewProps) => {
               <div className="text-sm text-blue-100">Track metrics, response times, win rates</div>
             </div>
           </div>
-        </a>
+        </button>
 
-        <a
-          href="#request-queue"
-          onClick={(e) => { e.preventDefault(); window.location.hash = 'request-queue'; window.location.reload(); }}
-          className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-blue-300 transition-colors"
+        <button
+          onClick={() => setActiveSection('request-queue')}
+          className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-blue-300 transition-colors text-left"
         >
           <div className="flex items-center space-x-4">
             <div className="bg-orange-100 p-3 rounded-lg">
@@ -1446,7 +1445,7 @@ const OperationsView = ({ activeSection }: OperationsViewProps) => {
               <div className="text-sm text-gray-600">Process incoming pricing requests</div>
             </div>
           </div>
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -1592,11 +1591,177 @@ interface RequestQueueProps {
 }
 
 const RequestQueue = ({ onBack }: RequestQueueProps) => {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'quoted' | 'approved' | 'rejected'>('pending');
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = () => {
+    const saved = JSON.parse(localStorage.getItem('myRequests') || '[]');
+    setRequests(saved);
+  };
+
+  const updateRequestStatus = (id: string, status: string, quotedPrice?: string) => {
+    const saved = JSON.parse(localStorage.getItem('myRequests') || '[]');
+    const updated = saved.map((req: any) =>
+      req.id === id ? { ...req, status, quotedPrice: quotedPrice || req.quotedPrice, updatedAt: new Date().toISOString() } : req
+    );
+    localStorage.setItem('myRequests', JSON.stringify(updated));
+    loadRequests();
+  };
+
+  const filteredRequests = requests.filter(req => filter === 'all' || req.status === filter);
+
+  const getStatusBadge = (status: string) => {
+    const badges = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      quoted: 'bg-blue-100 text-blue-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800'
+    };
+    return badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-800';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Request Queue</h1>
-      <p className="text-gray-600">Process incoming pricing requests - coming soon</p>
+      <button onClick={onBack} className="text-blue-600 font-medium mb-4 flex items-center gap-2">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
+
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Request Queue</h1>
+        <p className="text-gray-600">Review and respond to pricing requests from the sales team</p>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto">
+        {['all', 'pending', 'quoted', 'approved', 'rejected'].map((filterOption) => (
+          <button
+            key={filterOption}
+            onClick={() => setFilter(filterOption as typeof filter)}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
+              filter === filterOption
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
+            <span className="ml-2 text-xs">
+              ({requests.filter(r => filterOption === 'all' || r.status === filterOption).length})
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Requests List */}
+      <div className="space-y-4">
+        {filteredRequests.length === 0 ? (
+          <div className="bg-white rounded-xl shadow p-8 text-center">
+            <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">No {filter !== 'all' ? filter : ''} requests</p>
+          </div>
+        ) : (
+          filteredRequests.map((request) => (
+            <div key={request.id} className="bg-white rounded-xl shadow p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-lg">{request.customerName}</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(request.status)}`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">{request.address}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Submitted: {new Date(request.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Request Details */}
+              <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-xs text-gray-600">Fence Type</p>
+                  <p className="font-medium">{request.fenceType}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Linear Feet</p>
+                  <p className="font-medium">{request.linearFeet}</p>
+                </div>
+                {request.deadline && (
+                  <div>
+                    <p className="text-xs text-gray-600">Deadline</p>
+                    <p className="font-medium">{request.deadline}</p>
+                  </div>
+                )}
+                {request.urgency && (
+                  <div>
+                    <p className="text-xs text-gray-600">Urgency</p>
+                    <p className="font-medium capitalize">{request.urgency}</p>
+                  </div>
+                )}
+              </div>
+
+              {request.specialRequirements && (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-600 mb-1">Special Requirements</p>
+                  <p className="text-sm bg-gray-50 p-2 rounded">{request.specialRequirements}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              {request.status === 'pending' && (
+                <div className="flex gap-2 mt-4">
+                  <input
+                    type="text"
+                    placeholder="Enter quote amount (e.g., $2,500)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        const value = (e.target as HTMLInputElement).value;
+                        if (value.trim()) {
+                          updateRequestStatus(request.id, 'quoted', value);
+                          (e.target as HTMLInputElement).value = '';
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.querySelector(`input[placeholder*="quote"]`) as HTMLInputElement;
+                      if (input && input.value.trim()) {
+                        updateRequestStatus(request.id, 'quoted', input.value);
+                        input.value = '';
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                  >
+                    Send Quote
+                  </button>
+                </div>
+              )}
+
+              {request.status === 'quoted' && request.quotedPrice && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">Quoted Price:</span> {request.quotedPrice}
+                  </p>
+                </div>
+              )}
+
+              {(request.status === 'approved' || request.status === 'rejected') && (
+                <div className={`mt-3 p-3 rounded-lg ${request.status === 'approved' ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <p className="text-sm font-medium">
+                    {request.status === 'approved' ? '✓ Approved' : '✗ Rejected'} by sales rep
+                  </p>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };
