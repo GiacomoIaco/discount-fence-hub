@@ -69,55 +69,61 @@ function App() {
     };
   }, [activeSection]);
 
-  // Navigation items based on role (for desktop view only)
+  // Universal navigation items - same for all roles (permissions controlled inside each component)
   const getNavigationItems = () => {
-    switch (userRole) {
-      case 'sales':
-        return [
-          { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
-          { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
-          { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
-          { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
-        ];
-      case 'operations':
-        return [
-          { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-          { id: 'request-queue' as Section, name: 'Request Queue', icon: Ticket },
-          { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
-          { id: 'team' as Section, name: 'Team', icon: User },
-        ];
-      case 'sales-manager':
-        return [
-          { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-          { id: 'sales-coach' as Section, name: 'Sales Coach', icon: Mic },
-          { id: 'team' as Section, name: 'Team Performance', icon: User },
-          { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
-        ];
-      case 'admin':
-        return [
-          { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-          { id: 'request-queue' as Section, name: 'Request Queue', icon: Ticket },
-          { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
-          { id: 'team' as Section, name: 'Team', icon: User },
-          { id: 'sales-coach-admin' as Section, name: 'Sales Coach Admin', icon: Wrench },
-        ];
-      default:
-        return [];
+    const baseItems = [
+      { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
+      { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
+      { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
+      { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
+      { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
+      { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket },
+      { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
+      { id: 'team' as Section, name: 'Team', icon: User },
+    ];
+
+    // Add Sales Coach Admin for admin only
+    if (userRole === 'admin') {
+      baseItems.push({ id: 'sales-coach-admin' as Section, name: 'Sales Coach Admin', icon: Wrench });
     }
+
+    return baseItems;
   };
 
   const navigationItems = getNavigationItems();
 
   const renderContent = () => {
-    if (userRole === 'sales') {
-      return <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} />;
-    } else if (userRole === 'operations') {
-      return <OperationsView activeSection={activeSection} setActiveSection={setActiveSection} />;
-    } else if (userRole === 'sales-manager') {
-      return <SalesManagerView activeSection={activeSection} setActiveSection={setActiveSection} />;
-    } else if (userRole === 'admin') {
-      return <AdminView activeSection={activeSection} setActiveSection={setActiveSection} />;
+    // Handle common sections for all roles
+    if (activeSection === 'presentation') {
+      return <ClientPresentation onBack={() => setActiveSection('home')} userRole={userRole} />;
     }
+    if (activeSection === 'sales-coach') {
+      return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
+    }
+    if (activeSection === 'photo-gallery') {
+      return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} />;
+    }
+    if (activeSection === 'stain-calculator') {
+      return <StainCalculator onBack={() => setActiveSection('home')} />;
+    }
+    if (activeSection === 'my-requests') {
+      return <MyRequests onBack={() => setActiveSection('home')} userRole={userRole} />;
+    }
+    if (activeSection === 'sales-coach-admin') {
+      return <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole={userRole} />;
+    }
+    if (activeSection === 'dashboard') {
+      return <Dashboard userRole={userRole} />;
+    }
+    if (activeSection === 'analytics') {
+      return <Analytics userRole={userRole} />;
+    }
+    if (activeSection === 'team') {
+      return <TeamManagement userRole={userRole} />;
+    }
+
+    // Default home view
+    return <Dashboard userRole={userRole} />;
   };
 
   // Mobile view - same for all roles
@@ -1066,9 +1072,10 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
 
 interface MyRequestsProps {
   onBack: () => void;
+  userRole?: UserRole;
 }
 
-const MyRequests = ({ onBack }: MyRequestsProps) => {
+const MyRequests = ({ onBack, userRole: _userRole = 'sales' }: MyRequestsProps) => {
   const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1406,9 +1413,10 @@ const MyRequests = ({ onBack }: MyRequestsProps) => {
 
 interface ClientPresentationProps {
   onBack: () => void;
+  userRole?: UserRole;
 }
 
-const ClientPresentation = ({ onBack }: ClientPresentationProps) => {
+const ClientPresentation = ({ onBack, userRole: _userRole = 'sales' }: ClientPresentationProps) => {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
@@ -1432,6 +1440,7 @@ interface OperationsViewProps {
   setActiveSection: (section: Section) => void;
 }
 
+// @ts-ignore - Unused legacy component
 const OperationsView = ({ activeSection, setActiveSection }: OperationsViewProps) => {
   if (activeSection === 'manager-dashboard') {
     return <ManagerDashboard onBack={() => setActiveSection('home')} />;
@@ -1485,6 +1494,7 @@ interface ManagerDashboardProps {
   onBack: () => void;
 }
 
+// @ts-ignore - Unused legacy component
 const ManagerDashboard = ({ onBack }: ManagerDashboardProps) => {
   // Mock data - would come from Supabase in production
   const metrics = {
@@ -2047,6 +2057,7 @@ interface SalesManagerViewProps {
   setActiveSection: (section: Section) => void;
 }
 
+// @ts-ignore - Unused legacy component
 const SalesManagerView = ({ activeSection, setActiveSection }: SalesManagerViewProps) => {
   if (activeSection === 'sales-coach') {
     return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
@@ -2103,6 +2114,7 @@ interface AdminViewProps {
   setActiveSection: (section: Section) => void;
 }
 
+// @ts-ignore - Unused legacy component
 const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
   if (activeSection === 'sales-coach-admin') {
     return <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole="admin" />;
@@ -2171,9 +2183,10 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
 
 interface PhotoGalleryProps {
   onBack: () => void;
+  userRole?: UserRole;
 }
 
-const PhotoGallery = ({ onBack }: PhotoGalleryProps) => {
+const PhotoGallery = ({ onBack, userRole: _userRole = 'sales' }: PhotoGalleryProps) => {
   const [photos, setPhotos] = useState<Array<{ id: string; url: string; date: string; tags: string[] }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -2302,6 +2315,126 @@ const PhotoGallery = ({ onBack }: PhotoGalleryProps) => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+// Placeholder Dashboard Component
+interface DashboardProps {
+  userRole: UserRole;
+}
+
+const Dashboard = ({ userRole }: DashboardProps) => {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+        <p className="text-gray-600">Welcome back! Here's your overview.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white border-2 border-gray-200 p-6 rounded-xl">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <Ticket className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Active Requests</p>
+              <p className="text-2xl font-bold text-gray-900">12</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-gray-200 p-6 rounded-xl">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="bg-green-100 p-2 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Completed</p>
+              <p className="text-2xl font-bold text-gray-900">45</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-gray-200 p-6 rounded-xl">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <DollarSign className="w-6 h-6 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Total Value</p>
+              <p className="text-2xl font-bold text-gray-900">$127K</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-100 border-2 border-gray-300 p-8 rounded-xl text-center">
+        <p className="text-gray-600">Dashboard metrics will be displayed here based on role: <span className="font-semibold capitalize">{userRole}</span></p>
+      </div>
+    </div>
+  );
+};
+
+// Placeholder Analytics Component
+interface AnalyticsProps {
+  userRole: UserRole;
+}
+
+const Analytics = ({ userRole }: AnalyticsProps) => {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics</h1>
+        <p className="text-gray-600">Performance metrics and insights</p>
+      </div>
+
+      <div className="bg-gray-100 border-2 border-gray-300 p-8 rounded-xl text-center">
+        <p className="text-gray-600">Analytics dashboard coming soon for role: <span className="font-semibold capitalize">{userRole}</span></p>
+      </div>
+    </div>
+  );
+};
+
+// Placeholder Team Management Component
+interface TeamManagementProps {
+  userRole: UserRole;
+}
+
+const TeamManagement = ({ userRole }: TeamManagementProps) => {
+  // Permission check
+  if (userRole === 'sales' || userRole === 'operations') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Team</h1>
+          <p className="text-red-600">You don't have permission to access team management.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Team Management</h1>
+        <p className="text-gray-600">
+          {userRole === 'sales-manager' ? 'View team performance and metrics' : 'Manage users and permissions'}
+        </p>
+      </div>
+
+      <div className="bg-gray-100 border-2 border-gray-300 p-8 rounded-xl text-center">
+        <p className="text-gray-600">
+          Team management for role: <span className="font-semibold capitalize">{userRole}</span>
+        </p>
+        {userRole === 'admin' && (
+          <p className="text-sm text-gray-500 mt-2">Admin can add/edit/delete users</p>
+        )}
+        {userRole === 'sales-manager' && (
+          <p className="text-sm text-gray-500 mt-2">Sales Manager can view team performance</p>
+        )}
+      </div>
     </div>
   );
 };
