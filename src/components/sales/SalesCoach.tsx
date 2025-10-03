@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, type Recording } from '../../lib/recordings';
+import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2 } from 'lucide-react';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, type Recording } from '../../lib/recordings';
 
 interface SalesCoachProps {
   userId: string;
@@ -17,6 +17,11 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [stats, setStats] = useState({ totalRecordings: 0, averageScore: 0, completionRate: 0, improvement: 0 });
   const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComments, setReviewComments] = useState('');
+  const [reviewKeyTakeaways, setReviewKeyTakeaways] = useState('');
+  const [reviewActionItems, setReviewActionItems] = useState('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -178,6 +183,41 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
         return <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-full">Failed</span>;
       default:
         return <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-semibold rounded-full">Processing</span>;
+    }
+  };
+
+  const handleAddReview = () => {
+    if (!selectedRecording || !reviewComments.trim()) return;
+
+    const keyTakeaways = reviewKeyTakeaways.trim()
+      ? reviewKeyTakeaways.split('\n').filter(t => t.trim())
+      : undefined;
+    const actionItems = reviewActionItems.trim()
+      ? reviewActionItems.split('\n').filter(t => t.trim())
+      : undefined;
+
+    addManagerReview(userId, selectedRecording.id, {
+      reviewerId: 'manager123',
+      reviewerName: 'Manager',
+      rating: reviewRating,
+      comments: reviewComments,
+      keyTakeaways,
+      actionItems,
+    });
+
+    setShowReviewForm(false);
+    setReviewRating(5);
+    setReviewComments('');
+    setReviewKeyTakeaways('');
+    setReviewActionItems('');
+    loadRecordings();
+  };
+
+  const handleRemoveReview = () => {
+    if (!selectedRecording) return;
+    if (confirm('Are you sure you want to remove this manager review?')) {
+      removeManagerReview(userId, selectedRecording.id);
+      loadRecordings();
     }
   };
 
@@ -598,6 +638,145 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Manager Review Section */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold">👔 Manager Review</h3>
+                  {!selectedRecording.managerReview && !showReviewForm && (
+                    <button
+                      onClick={() => setShowReviewForm(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Add Review
+                    </button>
+                  )}
+                </div>
+
+                {selectedRecording.managerReview ? (
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-200">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-800">{selectedRecording.managerReview.reviewerName}</span>
+                          <div className="flex items-center gap-1">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-4 h-4 ${i < selectedRecording.managerReview!.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {new Date(selectedRecording.managerReview.reviewedAt).toLocaleDateString()} at{' '}
+                          {new Date(selectedRecording.managerReview.reviewedAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleRemoveReview}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-gray-800 mb-3">{selectedRecording.managerReview.comments}</p>
+                    {selectedRecording.managerReview.keyTakeaways && selectedRecording.managerReview.keyTakeaways.length > 0 && (
+                      <div className="mb-3">
+                        <h4 className="font-semibold text-sm text-gray-700 mb-1">Key Takeaways:</h4>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {selectedRecording.managerReview.keyTakeaways.map((takeaway, idx) => (
+                            <li key={idx}>{takeaway}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {selectedRecording.managerReview.actionItems && selectedRecording.managerReview.actionItems.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold text-sm text-gray-700 mb-1">Action Items:</h4>
+                        <ul className="list-disc list-inside text-sm text-gray-700">
+                          {selectedRecording.managerReview.actionItems.map((item, idx) => (
+                            <li key={idx}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : showReviewForm ? (
+                  <div className="bg-white border border-gray-200 rounded-lg p-5">
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setReviewRating(star)}
+                            className="hover:scale-110 transition-transform"
+                          >
+                            <Star
+                              className={`w-8 h-8 ${star <= reviewRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Comments *</label>
+                      <textarea
+                        value={reviewComments}
+                        onChange={(e) => setReviewComments(e.target.value)}
+                        placeholder="Share your feedback on this sales call..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        rows={4}
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Key Takeaways (optional, one per line)</label>
+                      <textarea
+                        value={reviewKeyTakeaways}
+                        onChange={(e) => setReviewKeyTakeaways(e.target.value)}
+                        placeholder="Enter key takeaways, one per line"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Action Items (optional, one per line)</label>
+                      <textarea
+                        value={reviewActionItems}
+                        onChange={(e) => setReviewActionItems(e.target.value)}
+                        placeholder="Enter action items, one per line"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleAddReview}
+                        disabled={!reviewComments.trim()}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                      >
+                        Save Review
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowReviewForm(false);
+                          setReviewRating(5);
+                          setReviewComments('');
+                          setReviewKeyTakeaways('');
+                          setReviewActionItems('');
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm italic">No manager review yet</p>
+                )}
               </div>
 
               {/* Key Moments */}

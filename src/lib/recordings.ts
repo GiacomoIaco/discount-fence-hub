@@ -1,5 +1,15 @@
 // API integration for Sales Coach recordings
 
+export interface ManagerReview {
+  reviewerId: string;
+  reviewerName: string;
+  rating: number;
+  comments: string;
+  keyTakeaways?: string[];
+  actionItems?: string[];
+  reviewedAt: string;
+}
+
 export interface Recording {
   id: string;
   userId: string;
@@ -54,6 +64,7 @@ export interface Recording {
       nextSteps: string;
     };
   };
+  managerReview?: ManagerReview;
   error?: string;
 }
 
@@ -383,4 +394,31 @@ export function getKnowledgeBase(): KnowledgeBase {
 export function saveKnowledgeBase(kb: KnowledgeBase): void {
   kb.lastUpdated = new Date().toISOString();
   localStorage.setItem('knowledgeBase', JSON.stringify(kb));
+}
+
+// Manager Review Management
+export function addManagerReview(
+  userId: string,
+  recordingId: string,
+  review: Omit<ManagerReview, 'reviewedAt'>
+): void {
+  const recordings = getRecordings(userId);
+  const updated = recordings.map(r =>
+    r.id === recordingId
+      ? { ...r, managerReview: { ...review, reviewedAt: new Date().toISOString() } }
+      : r
+  );
+  localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+  notifyUpdate();
+}
+
+export function removeManagerReview(userId: string, recordingId: string): void {
+  const recordings = getRecordings(userId);
+  const updated = recordings.map(r =>
+    r.id === recordingId
+      ? { ...r, managerReview: undefined }
+      : r
+  );
+  localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+  notifyUpdate();
 }
