@@ -197,6 +197,7 @@ export async function uploadRecording(
     const recordings = getRecordings(userId);
     const newRecording: Recording = {
       ...recording,
+      id: recording.recordingId,
       status: 'transcribing' as const
     };
     recordings.unshift(newRecording);
