@@ -115,9 +115,12 @@ function App() {
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
           <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex-1">
-              <h1 className="font-bold text-lg text-gray-900">Discount Fence USA</h1>
-              <p className="text-xs text-gray-500">Hey {userName}! 👋</p>
+            <div className="flex items-center gap-3 flex-1">
+              <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
+              <div>
+                <h1 className="font-bold text-lg text-gray-900">Discount Fence USA</h1>
+                <p className="text-xs text-gray-500">Hey {userName}! 👋</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {/* Role Switcher for Testing */}
@@ -153,18 +156,24 @@ function App() {
         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           {sidebarOpen ? (
             <>
-              <div>
-                <h1 className="font-bold text-lg">Discount Fence USA</h1>
-                <p className="text-xs text-gray-400 capitalize">{userRole}</p>
+              <div className="flex items-center gap-3">
+                <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
+                <div>
+                  <h1 className="font-bold text-lg">Discount Fence USA</h1>
+                  <p className="text-xs text-gray-400 capitalize">{userRole}</p>
+                </div>
               </div>
               <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </>
           ) : (
-            <button onClick={() => setSidebarOpen(true)} className="mx-auto text-gray-400 hover:text-white">
-              <Menu className="w-6 h-6" />
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <img src="/logo-transparent.png" alt="Logo" className="h-8 w-auto" />
+              <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-white">
+                <Menu className="w-6 h-6" />
+              </button>
+            </div>
           )}
         </div>
 
