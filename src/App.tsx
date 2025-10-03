@@ -6,7 +6,7 @@ import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
-type UserRole = 'sales' | 'operations';
+type UserRole = 'sales' | 'backoffice' | 'manager' | 'admin';
 type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
@@ -24,10 +24,19 @@ interface ParsedData {
 }
 
 function App() {
-  const [userRole] = useState<UserRole>('sales');
+  // Load role from localStorage or default to 'sales'
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    const saved = localStorage.getItem('userRole');
+    return (saved as UserRole) || 'sales';
+  });
   const [userName] = useState('John Smith');
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Save role to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('userRole', userRole);
+  }, [userRole]);
 
   // Handle browser back button to prevent app close
   useEffect(() => {
@@ -52,18 +61,49 @@ function App() {
     };
   }, [activeSection]);
 
-  const operationsNav = [
-    { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-    { id: 'request-queue' as Section, name: 'Request Queue', icon: Ticket },
-    { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
-    { id: 'team' as Section, name: 'Team', icon: User },
-  ];
+  // Navigation items based on role
+  const getNavigationItems = () => {
+    switch (userRole) {
+      case 'sales':
+        return []; // Sales uses mobile view, no sidebar nav
+      case 'backoffice':
+        return [
+          { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
+          { id: 'request-queue' as Section, name: 'Request Queue', icon: Ticket },
+          { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
+          { id: 'team' as Section, name: 'Team', icon: User },
+        ];
+      case 'manager':
+        return [
+          { id: 'manager-dashboard' as Section, name: 'Manager Dashboard', icon: Home },
+          { id: 'sales-coach' as Section, name: 'Sales Coach', icon: Mic },
+          { id: 'team' as Section, name: 'Team Performance', icon: User },
+          { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
+        ];
+      case 'admin':
+        return [
+          { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
+          { id: 'request-queue' as Section, name: 'Request Queue', icon: Ticket },
+          { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
+          { id: 'team' as Section, name: 'Team', icon: User },
+          { id: 'sales-coach-admin' as Section, name: 'Sales Coach Admin', icon: Wrench },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const navigationItems = getNavigationItems();
 
   const renderContent = () => {
     if (userRole === 'sales') {
       return <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} />;
-    } else {
+    } else if (userRole === 'backoffice') {
       return <OperationsView activeSection={activeSection} />;
+    } else if (userRole === 'manager') {
+      return <ManagerView activeSection={activeSection} setActiveSection={setActiveSection} />;
+    } else if (userRole === 'admin') {
+      return <AdminView activeSection={activeSection} setActiveSection={setActiveSection} />;
     }
   };
 
@@ -72,12 +112,28 @@ function App() {
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
           <div className="px-4 py-3 flex items-center justify-between">
-            <div>
+            <div className="flex-1">
               <h1 className="font-bold text-lg text-gray-900">Discount Fence USA</h1>
               <p className="text-xs text-gray-500">Hey {userName}! 👋</p>
             </div>
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <User className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-2">
+              {/* Role Switcher for Testing */}
+              <select
+                value={userRole}
+                onChange={(e) => {
+                  setUserRole(e.target.value as UserRole);
+                  setActiveSection('home');
+                }}
+                className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded text-gray-700"
+              >
+                <option value="sales">Sales</option>
+                <option value="backoffice">Back Office</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <User className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
         </div>
@@ -96,7 +152,7 @@ function App() {
             <>
               <div>
                 <h1 className="font-bold text-lg">Discount Fence USA</h1>
-                <p className="text-xs text-gray-400">Operations</p>
+                <p className="text-xs text-gray-400 capitalize">{userRole}</p>
               </div>
               <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -110,7 +166,7 @@ function App() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-          {operationsNav.map((item) => {
+          {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
@@ -129,6 +185,26 @@ function App() {
         </nav>
 
         <div className="p-4 border-t border-gray-800">
+          {/* Role Switcher for Testing */}
+          {sidebarOpen && (
+            <div className="mb-3">
+              <p className="text-xs text-gray-400 mb-2">Switch Role (Testing):</p>
+              <select
+                value={userRole}
+                onChange={(e) => {
+                  setUserRole(e.target.value as UserRole);
+                  setActiveSection('home');
+                }}
+                className="w-full px-2 py-1 text-sm bg-gray-800 border border-gray-700 rounded text-white"
+              >
+                <option value="sales">Sales Rep</option>
+                <option value="backoffice">Back Office</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
               <User className="w-6 h-6" />
@@ -136,7 +212,7 @@ function App() {
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{userName}</p>
-                <p className="text-xs text-gray-400">Operations Manager</p>
+                <p className="text-xs text-gray-400 capitalize">{userRole}</p>
               </div>
             )}
           </div>
@@ -1521,6 +1597,141 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
       <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Request Queue</h1>
       <p className="text-gray-600">Process incoming pricing requests - coming soon</p>
+    </div>
+  );
+};
+
+interface ManagerViewProps {
+  activeSection: Section;
+  setActiveSection: (section: Section) => void;
+}
+
+const ManagerView = ({ activeSection, setActiveSection }: ManagerViewProps) => {
+  if (activeSection === 'sales-coach') {
+    return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
+  }
+
+  if (activeSection === 'sales-coach-admin') {
+    return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} />;
+  }
+
+  if (activeSection === 'manager-dashboard') {
+    return <ManagerDashboard onBack={() => setActiveSection('home')} />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Manager Dashboard</h1>
+        <p className="text-gray-600">Review team performance and coach sales reps</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          onClick={() => setActiveSection('sales-coach')}
+          className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow text-left"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <Mic className="w-8 h-8" />
+            </div>
+            <div>
+              <div className="font-bold text-xl">Sales Coach</div>
+              <div className="text-sm text-purple-100">Review recordings & add feedback</div>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('team')}
+          className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-purple-300 transition-colors text-left"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-green-100 p-3 rounded-lg">
+              <User className="w-8 h-8 text-green-600" />
+            </div>
+            <div>
+              <div className="font-bold text-xl text-gray-900">Team Performance</div>
+              <div className="text-sm text-gray-600">Track team metrics & leaderboards</div>
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface AdminViewProps {
+  activeSection: Section;
+  setActiveSection: (section: Section) => void;
+}
+
+const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
+  if (activeSection === 'sales-coach-admin') {
+    return <SalesCoachAdmin onBack={() => setActiveSection('home')} />;
+  }
+
+  if (activeSection === 'manager-dashboard') {
+    return <ManagerDashboard onBack={() => setActiveSection('home')} />;
+  }
+
+  if (activeSection === 'request-queue') {
+    return <RequestQueue onBack={() => setActiveSection('home')} />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+        <p className="text-gray-600">Full system access and configuration</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <button
+          onClick={() => setActiveSection('sales-coach-admin')}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow text-left"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <Wrench className="w-8 h-8" />
+            </div>
+            <div>
+              <div className="font-bold text-xl">Sales Coach Admin</div>
+              <div className="text-sm text-blue-100">Configure processes & knowledge</div>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('request-queue')}
+          className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-blue-300 transition-colors text-left"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Ticket className="w-8 h-8 text-orange-600" />
+            </div>
+            <div>
+              <div className="font-bold text-xl text-gray-900">Request Queue</div>
+              <div className="text-sm text-gray-600">Process pricing requests</div>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('manager-dashboard')}
+          className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-blue-300 transition-colors text-left"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-green-100 p-3 rounded-lg">
+              <DollarSign className="w-8 h-8 text-green-600" />
+            </div>
+            <div>
+              <div className="font-bold text-xl text-gray-900">Analytics</div>
+              <div className="text-sm text-gray-600">System-wide metrics</div>
+            </div>
+          </div>
+        </button>
+      </div>
     </div>
   );
 };
