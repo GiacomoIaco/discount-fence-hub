@@ -7,7 +7,7 @@ import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'backoffice' | 'manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -268,11 +268,14 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
     return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} />;
   }
 
+  if (activeSection === 'photo-gallery') {
+    return <PhotoGallery onBack={() => setActiveSection('home')} />;
+  }
+
   return (
     <div className="space-y-4 p-4">
+      {/* Sales Tools Section - No Title */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Daily Essentials</h2>
-
         <button
           onClick={() => setActiveSection('presentation')}
           className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
@@ -282,27 +285,61 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
               <FileText className="w-8 h-8" />
             </div>
             <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Start Client Presentation</div>
+              <div className="font-bold text-lg">Client Presentation</div>
               <div className="text-sm text-blue-100">Show customers why we're #1</div>
             </div>
           </div>
         </button>
 
-        <button className="w-full bg-white border-2 border-gray-200 p-5 rounded-xl shadow-sm active:scale-98 transition-transform">
+        <button
+          onClick={() => setActiveSection('sales-coach')}
+          className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
+        >
           <div className="flex items-center space-x-4">
-            <div className="bg-purple-100 p-3 rounded-lg">
-              <Image className="w-7 h-7 text-purple-600" />
+            <div className="bg-white/20 p-3 rounded-lg">
+              <Mic className="w-8 h-8" />
             </div>
             <div className="flex-1 text-left">
-              <div className="font-bold text-gray-900">Take Photo Now</div>
-              <div className="text-sm text-gray-600">Quick capture for this job</div>
+              <div className="font-bold text-lg">AI Sales Coach</div>
+              <div className="text-sm text-purple-100">Record & analyze meetings</div>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('photo-gallery')}
+          className="w-full bg-white border-2 border-gray-200 p-5 rounded-xl shadow-sm active:scale-98 transition-transform"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-green-100 p-3 rounded-lg">
+              <Image className="w-7 h-7 text-green-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-bold text-gray-900">Photo Gallery</div>
+              <div className="text-sm text-gray-600">Browse & capture job photos</div>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('stain-calculator')}
+          className="w-full bg-white border-2 border-gray-200 p-5 rounded-xl shadow-sm active:scale-98 transition-transform"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <DollarSign className="w-7 h-7 text-orange-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-bold text-gray-900">Pre-Stain Calculator</div>
+              <div className="text-sm text-gray-600">Show ROI vs DIY staining</div>
             </div>
           </div>
         </button>
       </div>
 
+      {/* Requests Section */}
       <div className="space-y-3 pt-4">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Track Requests</h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Requests</h2>
 
         <button
           onClick={() => setActiveSection('my-requests')}
@@ -313,7 +350,7 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
               <Ticket className="w-7 h-7" />
             </div>
             <div className="flex-1 text-left">
-              <div className="font-bold text-lg">My Requests</div>
+              <div className="font-bold text-lg">Track Requests</div>
               <div className="text-sm text-green-100">View status & pricing responses</div>
             </div>
             {pendingCount > 0 && (
@@ -321,46 +358,6 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
             )}
           </div>
         </button>
-      </div>
-
-      <div className="space-y-3 pt-4">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Sales Tools</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button
-            onClick={() => setActiveSection('stain-calculator')}
-            className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Pre-Stain Calculator</div>
-                <div className="text-xs text-gray-600">Show ROI vs DIY staining</div>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveSection('sales-coach')}
-            className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <Mic className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">AI Sales Coach</div>
-                <div className="text-xs text-gray-600">Record & analyze meetings</div>
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-3 pt-4">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Submit Request</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <button
@@ -372,11 +369,11 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
                 <DollarSign className="w-6 h-6 text-orange-600" />
               </div>
               <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Custom Pricing Request</div>
-                <div className="text-xs text-gray-600">Get pricing for special projects</div>
+                <div className="font-semibold text-gray-900">Custom Pricing</div>
+                <div className="text-xs text-gray-600">Special projects</div>
               </div>
               <div className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                🎤 Voice
+                🎤
               </div>
             </div>
           </button>
@@ -387,8 +384,8 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
                 <Building2 className="w-6 h-6 text-blue-600" />
               </div>
               <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">New Builder/Community</div>
-                <div className="text-xs text-gray-600">Submit new client info</div>
+                <div className="font-semibold text-gray-900">New Builder</div>
+                <div className="text-xs text-gray-600">Submit client info</div>
               </div>
             </div>
           </button>
@@ -400,7 +397,7 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
               </div>
               <div className="flex-1 text-left">
                 <div className="font-semibold text-gray-900">Installation Issue</div>
-                <div className="text-xs text-gray-600">Report installation problems</div>
+                <div className="text-xs text-gray-600">Report problems</div>
               </div>
             </div>
           </button>
@@ -412,7 +409,7 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
               </div>
               <div className="flex-1 text-left">
                 <div className="font-semibold text-gray-900">Material Request</div>
-                <div className="text-xs text-gray-600">Request supplies or materials</div>
+                <div className="text-xs text-gray-600">Request supplies</div>
               </div>
             </div>
           </button>
@@ -423,36 +420,29 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
                 <AlertTriangle className="w-6 h-6 text-purple-600" />
               </div>
               <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Customer Escalation</div>
-                <div className="text-xs text-gray-600">Escalate customer issues</div>
+                <div className="font-semibold text-gray-900">Escalation</div>
+                <div className="text-xs text-gray-600">Customer issues</div>
               </div>
             </div>
           </button>
         </div>
       </div>
 
+      {/* Other Tools Section */}
       <div className="space-y-3 pt-4 pb-8">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">More Tools</h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Other Tools</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <BookOpen className="w-6 h-6 text-gray-600" />
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Sales Resources</div>
-              </div>
+        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+          <div className="flex items-center space-x-3">
+            <div className="bg-indigo-100 p-2 rounded-lg">
+              <BookOpen className="w-6 h-6 text-indigo-600" />
             </div>
-          </button>
-
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <Image className="w-6 h-6 text-gray-600" />
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Browse Photo Gallery</div>
-              </div>
+            <div className="flex-1 text-left">
+              <div className="font-semibold text-gray-900">Sales Resources</div>
+              <div className="text-xs text-gray-600">Guides, catalogs & training</div>
             </div>
-          </button>
-        </div>
+          </div>
+        </button>
       </div>
     </div>
   );
@@ -2153,6 +2143,143 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
           </div>
         </button>
       </div>
+    </div>
+  );
+};
+
+interface PhotoGalleryProps {
+  onBack: () => void;
+}
+
+const PhotoGallery = ({ onBack }: PhotoGalleryProps) => {
+  const [photos, setPhotos] = useState<Array<{ id: string; url: string; date: string; tags: string[] }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Load photos from localStorage
+    const savedPhotos = JSON.parse(localStorage.getItem('photoGallery') || '[]');
+    setPhotos(savedPhotos);
+  }, []);
+
+  const handleTakePhoto = () => {
+    // For now, just trigger file input (camera will be available on mobile devices)
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Convert to base64 and save
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const newPhoto = {
+          id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          url: reader.result as string,
+          date: new Date().toISOString(),
+          tags: ['untagged']
+        };
+
+        const updatedPhotos = [newPhoto, ...photos];
+        setPhotos(updatedPhotos);
+        localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const deletePhoto = (id: string) => {
+    const updatedPhotos = photos.filter(p => p.id !== id);
+    setPhotos(updatedPhotos);
+    localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 pb-20">
+      <button onClick={onBack} className="text-blue-600 font-medium mb-4 flex items-center space-x-2">
+        <ArrowLeft className="w-5 h-5" />
+        <span>Back</span>
+      </button>
+
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Photo Gallery</h1>
+        <p className="text-gray-600 mt-1">Browse & capture job photos</p>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <button
+          onClick={handleTakePhoto}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-xl shadow-lg active:scale-98 transition-transform"
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <Camera className="w-6 h-6" />
+            <span className="font-semibold">Take Photo</span>
+          </div>
+        </button>
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-white border-2 border-blue-600 text-blue-600 p-4 rounded-xl shadow-sm active:scale-98 transition-transform"
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <Image className="w-6 h-6" />
+            <span className="font-semibold">Upload</span>
+          </div>
+        </button>
+      </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
+      {/* Photo Count */}
+      <div className="mb-4">
+        <p className="text-sm text-gray-600">
+          {photos.length} {photos.length === 1 ? 'photo' : 'photos'} in gallery
+        </p>
+      </div>
+
+      {/* Photo Grid */}
+      {photos.length === 0 ? (
+        <div className="text-center py-16">
+          <Image className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 font-medium">No photos yet</p>
+          <p className="text-sm text-gray-400 mt-1">Tap "Take Photo" to get started</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {photos.map((photo) => (
+            <div key={photo.id} className="relative group">
+              <img
+                src={photo.url}
+                alt="Job photo"
+                className="w-full h-40 object-cover rounded-lg"
+                onClick={() => window.open(photo.url, '_blank')}
+              />
+              <button
+                onClick={() => deletePhoto(photo.id)}
+                className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 rounded-b-lg">
+                <p className="text-white text-xs">
+                  {new Date(photo.date).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
