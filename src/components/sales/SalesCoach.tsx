@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Upload, Trophy, Medal, Crown } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getOfflineQueue, getTeamLeaderboard, type Recording, type LeaderboardEntry } from '../../lib/recordings';
+import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Trophy, Medal, Crown } from 'lucide-react';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getTeamLeaderboard, type Recording, type LeaderboardEntry } from '../../lib/recordings';
 import { initOfflineDB, getOfflineQueueSize } from '../../lib/offlineQueue';
 
 interface SalesCoachProps {
@@ -584,7 +584,7 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
 
             {/* Leaderboard List */}
             <div className="space-y-3">
-              {leaderboard.map((entry, index) => {
+              {leaderboard.map((entry) => {
                 const isCurrentUser = entry.userId === userId;
                 const getRankIcon = (rank: number) => {
                   if (rank === 1) return <Crown className="w-6 h-6 text-yellow-500" />;
