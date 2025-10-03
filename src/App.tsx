@@ -29,14 +29,17 @@ function App() {
     const saved = localStorage.getItem('userRole');
     return (saved as UserRole) || 'sales';
   });
-  const [userName] = useState('John Smith');
+  const [userName] = useState(() => {
+    return localStorage.getItem('userName') || 'John Smith';
+  });
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Save role to localStorage when it changes
+  // Save role and userName to localStorage when they change
   useEffect(() => {
     localStorage.setItem('userRole', userRole);
-  }, [userRole]);
+    localStorage.setItem('userName', userName);
+  }, [userRole, userName]);
 
   // Handle browser back button to prevent app close
   useEffect(() => {
@@ -644,6 +647,7 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
     // Save to localStorage
     const newRequest = {
       id: Date.now(),
+      requestType: 'custom-pricing',
       projectNumber: formData.projectNumber || `REQ-${Date.now()}`,
       customerName: formData.customerName,
       address: formData.address,
@@ -651,12 +655,15 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
       linearFeet: formData.linearFeet,
       status: 'pending',
       priority: formData.urgency === 'high' ? 'high' : formData.urgency === 'medium' ? 'medium' : 'low',
-      submittedDate: new Date().toISOString().split('T')[0],
+      submittedDate: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
       responseTime: 'pending',
       specialRequirements: formData.specialRequirements,
       deadline: formData.deadline,
       photos: photoBase64,
-      messages: []
+      messages: [],
+      notes: [],
+      salesperson: localStorage.getItem('userName') || 'Unknown Sales Rep'
     };
 
     const requests = JSON.parse(localStorage.getItem('myRequests') || '[]');
@@ -1592,7 +1599,13 @@ interface RequestQueueProps {
 
 const RequestQueue = ({ onBack }: RequestQueueProps) => {
   const [requests, setRequests] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'quoted' | 'approved' | 'rejected'>('pending');
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'quoted' | 'approved' | 'rejected' | 'closed'>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [salespersonFilter, setSalespersonFilter] = useState<string>('all');
+  const [ageFilter, setAgeFilter] = useState<string>('all');
+  const [newNote, setNewNote] = useState('');
+  const [newMessage, setNewMessage] = useState('');
 
   useEffect(() => {
     loadRequests();
@@ -1603,26 +1616,237 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
     setRequests(saved);
   };
 
-  const updateRequestStatus = (id: string, status: string, quotedPrice?: string) => {
+  const updateRequest = (id: string, updates: any) => {
     const saved = JSON.parse(localStorage.getItem('myRequests') || '[]');
     const updated = saved.map((req: any) =>
-      req.id === id ? { ...req, status, quotedPrice: quotedPrice || req.quotedPrice, updatedAt: new Date().toISOString() } : req
+      req.id === id ? { ...req, ...updates, updatedAt: new Date().toISOString() } : req
     );
     localStorage.setItem('myRequests', JSON.stringify(updated));
     loadRequests();
+    if (selectedRequest?.id === id) {
+      setSelectedRequest({ ...selectedRequest, ...updates });
+    }
   };
 
-  const filteredRequests = requests.filter(req => filter === 'all' || req.status === filter);
+  const addNote = (requestId: string) => {
+    if (!newNote.trim()) return;
+    const request = requests.find(r => r.id === requestId);
+    const notes = request?.notes || [];
+    notes.push({
+      id: Date.now(),
+      text: newNote,
+      author: 'Back Office',
+      timestamp: new Date().toISOString()
+    });
+    updateRequest(requestId, { notes });
+    setNewNote('');
+  };
+
+  const addMessage = (requestId: string) => {
+    if (!newMessage.trim()) return;
+    const request = requests.find(r => r.id === requestId);
+    const messages = request?.messages || [];
+    messages.push({
+      id: Date.now(),
+      text: newMessage,
+      from: 'backoffice',
+      timestamp: new Date().toISOString()
+    });
+    updateRequest(requestId, { messages });
+    setNewMessage('');
+  };
+
+  const getRequestAge = (timestamp: string) => {
+    const now = new Date();
+    const submitted = new Date(timestamp);
+    const diffTime = Math.abs(now.getTime() - submitted.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return '1 day';
+    return `${diffDays} days`;
+  };
+
+  const getAgeInDays = (timestamp: string) => {
+    const now = new Date();
+    const submitted = new Date(timestamp);
+    const diffTime = Math.abs(now.getTime() - submitted.getTime());
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  // Get unique values for filters
+  const requestTypes = Array.from(new Set(requests.map(r => r.requestType || 'custom-pricing')));
+  const salespeople = Array.from(new Set(requests.map(r => r.salesperson || 'Unknown')));
+
+  // Apply filters
+  const filteredRequests = requests.filter(req => {
+    if (statusFilter !== 'all' && req.status !== statusFilter) return false;
+    if (typeFilter !== 'all' && (req.requestType || 'custom-pricing') !== typeFilter) return false;
+    if (salespersonFilter !== 'all' && (req.salesperson || 'Unknown') !== salespersonFilter) return false;
+    if (ageFilter !== 'all') {
+      const days = getAgeInDays(req.timestamp);
+      if (ageFilter === 'today' && days !== 0) return false;
+      if (ageFilter === '1-3' && (days < 1 || days > 3)) return false;
+      if (ageFilter === '4-7' && (days < 4 || days > 7)) return false;
+      if (ageFilter === '7+' && days <= 7) return false;
+    }
+    return true;
+  });
 
   const getStatusBadge = (status: string) => {
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800',
       quoted: 'bg-blue-100 text-blue-800',
       approved: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800'
+      rejected: 'bg-red-100 text-red-800',
+      closed: 'bg-gray-100 text-gray-800'
     };
     return badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-800';
   };
+
+  // Detailed view
+  if (selectedRequest) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <button onClick={() => setSelectedRequest(null)} className="text-blue-600 font-medium mb-4 flex items-center gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back to Queue
+        </button>
+
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{selectedRequest.customerName}</h1>
+              <p className="text-gray-600">{selectedRequest.address}</p>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(selectedRequest.status)}`}>
+              {selectedRequest.status}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-xs text-gray-600">Salesperson</p>
+              <p className="font-medium">{selectedRequest.salesperson || 'Unknown'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">Request Type</p>
+              <p className="font-medium capitalize">{selectedRequest.requestType || 'Custom Pricing'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">Age</p>
+              <p className="font-medium">{getRequestAge(selectedRequest.timestamp)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">Submitted</p>
+              <p className="font-medium">{new Date(selectedRequest.timestamp).toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <p className="text-sm text-gray-600">Fence Type</p>
+              <p className="font-medium">{selectedRequest.fenceType}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Linear Feet</p>
+              <p className="font-medium">{selectedRequest.linearFeet}</p>
+            </div>
+          </div>
+
+          {selectedRequest.specialRequirements && (
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-1">Special Requirements</p>
+              <p className="bg-gray-50 p-3 rounded-lg">{selectedRequest.specialRequirements}</p>
+            </div>
+          )}
+
+          {/* Status Change */}
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm font-medium mb-2">Change Status</p>
+            <div className="flex gap-2">
+              {['pending', 'quoted', 'approved', 'rejected', 'closed'].map(status => (
+                <button
+                  key={status}
+                  onClick={() => updateRequest(selectedRequest.id, { status })}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                    selectedRequest.status === status
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes Section */}
+          <div className="mb-4">
+            <h3 className="font-semibold mb-2">Internal Notes</h3>
+            <div className="space-y-2 mb-3">
+              {(selectedRequest.notes || []).map((note: any) => (
+                <div key={note.id} className="bg-yellow-50 p-3 rounded-lg">
+                  <p className="text-sm">{note.text}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {note.author} - {new Date(note.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Add internal note..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                onKeyPress={(e) => e.key === 'Enter' && addNote(selectedRequest.id)}
+              />
+              <button
+                onClick={() => addNote(selectedRequest.id)}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium text-sm"
+              >
+                Add Note
+              </button>
+            </div>
+          </div>
+
+          {/* Chat Section */}
+          <div>
+            <h3 className="font-semibold mb-2">Chat with Sales Rep</h3>
+            <div className="space-y-2 mb-3 max-h-60 overflow-y-auto">
+              {(selectedRequest.messages || []).map((msg: any) => (
+                <div key={msg.id} className={`p-3 rounded-lg ${
+                  msg.from === 'backoffice' ? 'bg-blue-50 ml-8' : 'bg-gray-100 mr-8'
+                }`}>
+                  <p className="text-sm">{msg.text}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {msg.from === 'backoffice' ? 'You' : selectedRequest.salesperson} - {new Date(msg.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Message to sales rep..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                onKeyPress={(e) => e.key === 'Enter' && addMessage(selectedRequest.id)}
+              />
+              <button
+                onClick={() => addMessage(selectedRequest.id)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -1635,24 +1859,65 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
         <p className="text-gray-600">Review and respond to pricing requests from the sales team</p>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
-        {['all', 'pending', 'quoted', 'approved', 'rejected'].map((filterOption) => (
-          <button
-            key={filterOption}
-            onClick={() => setFilter(filterOption as typeof filter)}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              filter === filterOption
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
-            <span className="ml-2 text-xs">
-              ({requests.filter(r => filterOption === 'all' || r.status === filterOption).length})
-            </span>
-          </button>
-        ))}
+      {/* Advanced Filters */}
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="quoted">Quoted</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Request Type</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Types</option>
+              {requestTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Salesperson</label>
+            <select
+              value={salespersonFilter}
+              onChange={(e) => setSalespersonFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Salespeople</option>
+              {salespeople.map(person => (
+                <option key={person} value={person}>{person}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Age</label>
+            <select
+              value={ageFilter}
+              onChange={(e) => setAgeFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Ages</option>
+              <option value="today">Today</option>
+              <option value="1-3">1-3 days</option>
+              <option value="4-7">4-7 days</option>
+              <option value="7+">7+ days</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Requests List */}
@@ -1660,11 +1925,15 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
         {filteredRequests.length === 0 ? (
           <div className="bg-white rounded-xl shadow p-8 text-center">
             <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No {filter !== 'all' ? filter : ''} requests</p>
+            <p className="text-gray-500">No {statusFilter !== 'all' ? statusFilter : ''} requests</p>
           </div>
         ) : (
           filteredRequests.map((request) => (
-            <div key={request.id} className="bg-white rounded-xl shadow p-4">
+            <button
+              key={request.id}
+              onClick={() => setSelectedRequest(request)}
+              className="w-full bg-white rounded-xl shadow p-4 hover:shadow-lg transition-shadow text-left"
+            >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -1672,10 +1941,13 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(request.status)}`}>
                       {request.status}
                     </span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                      {getRequestAge(request.timestamp)}
+                    </span>
                   </div>
                   <p className="text-sm text-gray-600">{request.address}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Submitted: {new Date(request.timestamp).toLocaleString()}
+                    {request.salesperson || 'Unknown Sales Rep'} • {new Date(request.timestamp).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -1711,54 +1983,10 @@ const RequestQueue = ({ onBack }: RequestQueueProps) => {
                 </div>
               )}
 
-              {/* Actions */}
-              {request.status === 'pending' && (
-                <div className="flex gap-2 mt-4">
-                  <input
-                    type="text"
-                    placeholder="Enter quote amount (e.g., $2,500)"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        const value = (e.target as HTMLInputElement).value;
-                        if (value.trim()) {
-                          updateRequestStatus(request.id, 'quoted', value);
-                          (e.target as HTMLInputElement).value = '';
-                        }
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      const input = document.querySelector(`input[placeholder*="quote"]`) as HTMLInputElement;
-                      if (input && input.value.trim()) {
-                        updateRequestStatus(request.id, 'quoted', input.value);
-                        input.value = '';
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
-                  >
-                    Send Quote
-                  </button>
-                </div>
-              )}
-
-              {request.status === 'quoted' && request.quotedPrice && (
-                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold">Quoted Price:</span> {request.quotedPrice}
-                  </p>
-                </div>
-              )}
-
-              {(request.status === 'approved' || request.status === 'rejected') && (
-                <div className={`mt-3 p-3 rounded-lg ${request.status === 'approved' ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <p className="text-sm font-medium">
-                    {request.status === 'approved' ? '✓ Approved' : '✗ Rejected'} by sales rep
-                  </p>
-                </div>
-              )}
-            </div>
+              <div className="mt-2 text-sm text-blue-600 font-medium">
+                Click to view details and respond →
+              </div>
+            </button>
           ))
         )}
       </div>
