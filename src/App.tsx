@@ -6,7 +6,7 @@ import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
-type UserRole = 'sales' | 'backoffice' | 'manager' | 'admin';
+type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
 type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
@@ -69,16 +69,16 @@ function App() {
     switch (userRole) {
       case 'sales':
         return []; // Sales uses mobile view, no sidebar nav
-      case 'backoffice':
+      case 'operations':
         return [
           { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
           { id: 'request-queue' as Section, name: 'Request Queue', icon: Ticket },
           { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
           { id: 'team' as Section, name: 'Team', icon: User },
         ];
-      case 'manager':
+      case 'sales-manager':
         return [
-          { id: 'manager-dashboard' as Section, name: 'Manager Dashboard', icon: Home },
+          { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
           { id: 'sales-coach' as Section, name: 'Sales Coach', icon: Mic },
           { id: 'team' as Section, name: 'Team Performance', icon: User },
           { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
@@ -101,10 +101,10 @@ function App() {
   const renderContent = () => {
     if (userRole === 'sales') {
       return <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} />;
-    } else if (userRole === 'backoffice') {
+    } else if (userRole === 'operations') {
       return <OperationsView activeSection={activeSection} setActiveSection={setActiveSection} />;
-    } else if (userRole === 'manager') {
-      return <ManagerView activeSection={activeSection} setActiveSection={setActiveSection} />;
+    } else if (userRole === 'sales-manager') {
+      return <SalesManagerView activeSection={activeSection} setActiveSection={setActiveSection} />;
     } else if (userRole === 'admin') {
       return <AdminView activeSection={activeSection} setActiveSection={setActiveSection} />;
     }
@@ -130,8 +130,8 @@ function App() {
                 className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded text-gray-700"
               >
                 <option value="sales">Sales</option>
-                <option value="backoffice">Back Office</option>
-                <option value="manager">Manager</option>
+                <option value="operations">Operations</option>
+                <option value="sales-manager">Sales Manager</option>
                 <option value="admin">Admin</option>
               </select>
               <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
@@ -203,9 +203,9 @@ function App() {
                 }}
                 className="w-full px-2 py-1 text-sm bg-gray-800 border border-gray-700 rounded text-white"
               >
-                <option value="sales">Sales Rep</option>
-                <option value="backoffice">Back Office</option>
-                <option value="manager">Manager</option>
+                <option value="sales">Sales</option>
+                <option value="operations">Operations</option>
+                <option value="sales-manager">Sales Manager</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -1408,7 +1408,7 @@ const OperationsView = ({ activeSection, setActiveSection }: OperationsViewProps
   }
 
   if (activeSection === 'request-queue') {
-    return <RequestQueue onBack={() => setActiveSection('home')} userRole="backoffice" />;
+    return <RequestQueue onBack={() => setActiveSection('home')} userRole="operations" />;
   }
 
   return (
@@ -1588,10 +1588,10 @@ const ManagerDashboard = ({ onBack }: ManagerDashboardProps) => {
 
 interface RequestQueueProps {
   onBack: () => void;
-  userRole?: 'sales' | 'backoffice' | 'manager' | 'admin';
+  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
 }
 
-const RequestQueue = ({ onBack, userRole = 'backoffice' }: RequestQueueProps) => {
+const RequestQueue = ({ onBack, userRole = 'operations' }: RequestQueueProps) => {
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'quoted' | 'approved' | 'rejected' | 'closed'>('all');
@@ -1643,7 +1643,7 @@ const RequestQueue = ({ onBack, userRole = 'backoffice' }: RequestQueueProps) =>
     messages.push({
       id: Date.now(),
       text: newMessage,
-      from: 'backoffice',
+      from: 'operations',
       timestamp: new Date().toISOString()
     });
     updateRequest(requestId, { messages });
@@ -1835,11 +1835,11 @@ const RequestQueue = ({ onBack, userRole = 'backoffice' }: RequestQueueProps) =>
             <div className="space-y-2 mb-3 max-h-60 overflow-y-auto">
               {(selectedRequest.messages || []).map((msg: any) => (
                 <div key={msg.id} className={`p-3 rounded-lg ${
-                  msg.from === 'backoffice' ? 'bg-blue-50 ml-8' : 'bg-gray-100 mr-8'
+                  msg.from === 'operations' ? 'bg-blue-50 ml-8' : 'bg-gray-100 mr-8'
                 }`}>
                   <p className="text-sm">{msg.text}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {msg.from === 'backoffice' ? 'You' : selectedRequest.salesperson} - {new Date(msg.timestamp).toLocaleString()}
+                    {msg.from === 'operations' ? 'You' : selectedRequest.salesperson} - {new Date(msg.timestamp).toLocaleString()}
                   </p>
                 </div>
               ))}
@@ -2012,28 +2012,24 @@ const RequestQueue = ({ onBack, userRole = 'backoffice' }: RequestQueueProps) =>
   );
 };
 
-interface ManagerViewProps {
+interface SalesManagerViewProps {
   activeSection: Section;
   setActiveSection: (section: Section) => void;
 }
 
-const ManagerView = ({ activeSection, setActiveSection }: ManagerViewProps) => {
+const SalesManagerView = ({ activeSection, setActiveSection }: SalesManagerViewProps) => {
   if (activeSection === 'sales-coach') {
     return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
   }
 
   if (activeSection === 'sales-coach-admin') {
-    return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} userRole="manager" />;
-  }
-
-  if (activeSection === 'manager-dashboard') {
-    return <ManagerDashboard onBack={() => setActiveSection('home')} />;
+    return <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} userRole="sales-manager" />;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Manager Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Sales Manager Dashboard</h1>
         <p className="text-gray-600">Review team performance and coach sales reps</p>
       </div>
 
@@ -2082,10 +2078,6 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
     return <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole="admin" />;
   }
 
-  if (activeSection === 'manager-dashboard') {
-    return <ManagerDashboard onBack={() => setActiveSection('home')} />;
-  }
-
   if (activeSection === 'request-queue') {
     return <RequestQueue onBack={() => setActiveSection('home')} userRole="admin" />;
   }
@@ -2129,7 +2121,7 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
         </button>
 
         <button
-          onClick={() => setActiveSection('manager-dashboard')}
+          onClick={() => setActiveSection('analytics')}
           className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:border-blue-300 transition-colors text-left"
         >
           <div className="flex items-center space-x-4">

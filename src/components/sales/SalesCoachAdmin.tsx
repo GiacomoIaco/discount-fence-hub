@@ -4,7 +4,7 @@ import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBa
 
 interface SalesCoachAdminProps {
   onBack: () => void;
-  userRole?: 'sales' | 'backoffice' | 'manager' | 'admin';
+  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
 }
 
 export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoachAdminProps) {
