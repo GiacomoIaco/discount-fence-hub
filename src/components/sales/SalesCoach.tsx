@@ -721,6 +721,129 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
                 </div>
               </div>
 
+              {/* Sentiment Analysis */}
+              {selectedRecording.analysis.sentiment && (
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold mb-4">💭 Sentiment Analysis</h3>
+
+                  {/* Overall Sentiment */}
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-5 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="text-sm text-gray-600 mb-1">Overall Conversation Tone</div>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-2xl font-bold ${
+                            selectedRecording.analysis.sentiment.overall === 'positive' ? 'text-green-600' :
+                            selectedRecording.analysis.sentiment.overall === 'negative' ? 'text-red-600' :
+                            'text-gray-600'
+                          }`}>
+                            {selectedRecording.analysis.sentiment.overall === 'positive' ? '😊 Positive' :
+                             selectedRecording.analysis.sentiment.overall === 'negative' ? '😞 Negative' :
+                             '😐 Neutral'}
+                          </span>
+                          <span className={`text-xl font-bold ${getScoreColor(selectedRecording.analysis.sentiment.overallScore)}`}>
+                            {selectedRecording.analysis.sentiment.overallScore}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
+                      <div
+                        className={`h-3 rounded-full ${
+                          selectedRecording.analysis.sentiment.overallScore >= 80 ? 'bg-green-500' :
+                          selectedRecording.analysis.sentiment.overallScore >= 50 ? 'bg-blue-500' :
+                          selectedRecording.analysis.sentiment.overallScore >= 30 ? 'bg-gray-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${selectedRecording.analysis.sentiment.overallScore}%` }}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-700">
+                      <strong>Sentiment Evolution:</strong> {selectedRecording.analysis.sentiment.sentimentShift}
+                    </p>
+                  </div>
+
+                  {/* Client vs Rep Sentiment */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 mb-2">Client Mood</div>
+                      <div className={`text-lg font-bold ${
+                        selectedRecording.analysis.sentiment.clientSentiment === 'positive' ? 'text-green-600' :
+                        selectedRecording.analysis.sentiment.clientSentiment === 'negative' ? 'text-red-600' :
+                        'text-gray-600'
+                      }`}>
+                        {selectedRecording.analysis.sentiment.clientSentiment === 'positive' ? '😊 Positive' :
+                         selectedRecording.analysis.sentiment.clientSentiment === 'negative' ? '😞 Negative' :
+                         '😐 Neutral'}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 mb-2">Sales Rep Mood</div>
+                      <div className={`text-lg font-bold ${
+                        selectedRecording.analysis.sentiment.repSentiment === 'positive' ? 'text-green-600' :
+                        selectedRecording.analysis.sentiment.repSentiment === 'negative' ? 'text-red-600' :
+                        'text-gray-600'
+                      }`}>
+                        {selectedRecording.analysis.sentiment.repSentiment === 'positive' ? '😊 Positive' :
+                         selectedRecording.analysis.sentiment.repSentiment === 'negative' ? '😞 Negative' :
+                         '😐 Neutral'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Empathy Moments */}
+                  {selectedRecording.analysis.sentiment.empathyMoments && selectedRecording.analysis.sentiment.empathyMoments.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-gray-800 mb-2">💚 Empathy Moments</h4>
+                      <div className="space-y-2">
+                        {selectedRecording.analysis.sentiment.empathyMoments.map((moment, idx) => (
+                          <div key={idx} className="bg-green-50 border-l-4 border-green-500 rounded-r-lg p-3">
+                            <div className="flex items-start justify-between mb-1">
+                              <span className="text-xs font-semibold text-green-700">{moment.timestamp}</span>
+                            </div>
+                            <p className="text-sm text-gray-800 font-medium mb-1">{moment.description}</p>
+                            <p className="text-xs text-gray-600 italic bg-white rounded p-2 mb-1">"{moment.quote}"</p>
+                            <p className="text-xs text-green-700">💡 {moment.impact}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Emotional Highs */}
+                  {selectedRecording.analysis.sentiment.emotionalHighs && selectedRecording.analysis.sentiment.emotionalHighs.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-gray-800 mb-2">📈 Emotional Highs</h4>
+                      <div className="space-y-2">
+                        {selectedRecording.analysis.sentiment.emotionalHighs.map((high, idx) => (
+                          <div key={idx} className="bg-blue-50 rounded-lg p-3">
+                            <div className="text-xs font-semibold text-blue-700 mb-1">{high.timestamp}</div>
+                            <p className="text-sm text-gray-800 mb-1">{high.description}</p>
+                            <p className="text-xs text-gray-600 italic">"{high.quote}"</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Emotional Lows */}
+                  {selectedRecording.analysis.sentiment.emotionalLows && selectedRecording.analysis.sentiment.emotionalLows.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-2">📉 Emotional Lows / Tension Points</h4>
+                      <div className="space-y-2">
+                        {selectedRecording.analysis.sentiment.emotionalLows.map((low, idx) => (
+                          <div key={idx} className="bg-orange-50 rounded-lg p-3">
+                            <div className="text-xs font-semibold text-orange-700 mb-1">{low.timestamp}</div>
+                            <p className="text-sm text-gray-800 mb-1">{low.description}</p>
+                            <p className="text-xs text-gray-600 italic">"{low.quote}"</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Coaching Priorities */}
               <div className="mb-6">
                 <h3 className="text-xl font-bold mb-4">🎯 Top Coaching Priorities</h3>

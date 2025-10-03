@@ -176,6 +176,35 @@ Analyze this sales conversation and provide detailed coaching feedback in JSON f
     "likelihood": "high|medium|low",
     "reasoning": "Why you predict this outcome",
     "nextSteps": "What should happen next"
+  },
+  "sentiment": {
+    "overall": "positive|neutral|negative",
+    "overallScore": 0-100 (emotional tone of entire conversation),
+    "clientSentiment": "positive|neutral|negative",
+    "repSentiment": "positive|neutral|negative",
+    "sentimentShift": "Description of how sentiment evolved (e.g., 'Started neutral, became positive after addressing concerns')",
+    "emotionalHighs": [
+      {
+        "timestamp": "approximate time (beginning/early/middle/late/end)",
+        "description": "What created positive emotion",
+        "quote": "Quote showing positive emotion"
+      }
+    ],
+    "emotionalLows": [
+      {
+        "timestamp": "approximate time",
+        "description": "What created negative emotion or tension",
+        "quote": "Quote showing frustration/concern"
+      }
+    ],
+    "empathyMoments": [
+      {
+        "timestamp": "approximate time",
+        "description": "When sales rep showed genuine understanding",
+        "quote": "Quote demonstrating empathy",
+        "impact": "How this affected the relationship/outcome"
+      }
+    ]
   }
 }
 
@@ -185,6 +214,13 @@ SCORING GUIDELINES:
 - 70-79: Good - Competent with room for improvement
 - 60-69: Fair - Needs development in key areas
 - Below 60: Needs Significant Development
+
+SENTIMENT ANALYSIS GUIDELINES:
+- Analyze emotional tone of both parties throughout conversation
+- Identify moments where emotions shifted (positive or negative)
+- Note empathy moments where rep connected emotionally with client
+- Overall sentiment should reflect the general emotional arc of the conversation
+- Sentiment score (0-100): 80+ very positive, 50-79 positive, 30-49 neutral, below 30 negative
 
 Be specific, reference actual quotes, and provide actionable coaching advice.`;
 

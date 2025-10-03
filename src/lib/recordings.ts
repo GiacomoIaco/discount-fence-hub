@@ -64,6 +64,29 @@ export interface Recording {
       reasoning: string;
       nextSteps: string;
     };
+    sentiment?: {
+      overall: 'positive' | 'neutral' | 'negative';
+      overallScore: number;
+      clientSentiment: 'positive' | 'neutral' | 'negative';
+      repSentiment: 'positive' | 'neutral' | 'negative';
+      sentimentShift: string;
+      emotionalHighs: Array<{
+        timestamp: string;
+        description: string;
+        quote: string;
+      }>;
+      emotionalLows: Array<{
+        timestamp: string;
+        description: string;
+        quote: string;
+      }>;
+      empathyMoments: Array<{
+        timestamp: string;
+        description: string;
+        quote: string;
+        impact: string;
+      }>;
+    };
   };
   managerReview?: ManagerReview;
   error?: string;
