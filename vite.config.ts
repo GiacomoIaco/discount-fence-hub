@@ -21,13 +21,13 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/logo-transparent.png',
+            src: '/Logo-DF-Transparent.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/logo-transparent.png',
+            src: '/Logo-DF-Transparent.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any maskable'
