@@ -13,6 +13,7 @@ import {
   Sparkles,
   Trash2,
   Check,
+  CheckSquare,
   Save,
 } from 'lucide-react';
 import type { Photo, FilterState } from '../lib/photos';
@@ -62,6 +63,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewLoading, setReviewLoading] = useState(false);
   const [uploaderName, setUploaderName] = useState<string>('');
+
+  // Bulk edit mode
+  const [editMode, setEditMode] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -667,6 +672,91 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     }
   };
 
+  // Bulk edit functions
+  const togglePhotoSelection = (photoId: string) => {
+    const newSelected = new Set(selectedPhotoIds);
+    if (newSelected.has(photoId)) {
+      newSelected.delete(photoId);
+    } else {
+      newSelected.add(photoId);
+    }
+    setSelectedPhotoIds(newSelected);
+  };
+
+  const selectAll = () => {
+    const allIds = new Set(filteredPhotos.map((p) => p.id));
+    setSelectedPhotoIds(allIds);
+  };
+
+  const deselectAll = () => {
+    setSelectedPhotoIds(new Set());
+  };
+
+  const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'pending') => {
+    if (selectedPhotoIds.size === 0) {
+      alert('No photos selected');
+      return;
+    }
+
+    if (!confirm(`Change status of ${selectedPhotoIds.size} photo(s) to "${newStatus}"?`)) return;
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+
+      for (const photoId of selectedPhotoIds) {
+        await supabase
+          .from('photos')
+          .update({
+            status: newStatus,
+            reviewed_by: userId,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('id', photoId);
+      }
+
+      // Reload photos
+      await loadPhotos();
+      setSelectedPhotoIds(new Set());
+      setEditMode(false);
+      alert(`Successfully updated ${selectedPhotoIds.size} photo(s)`);
+    } catch (error) {
+      console.error('Error updating photos:', error);
+      alert('Failed to update photos. Please try again.');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPhotoIds.size === 0) {
+      alert('No photos selected');
+      return;
+    }
+
+    if (!confirm(`PERMANENTLY DELETE ${selectedPhotoIds.size} photo(s)? This cannot be undone.`)) return;
+
+    try {
+      for (const photoId of selectedPhotoIds) {
+        const photo = photos.find((p) => p.id === photoId);
+        if (!photo) continue;
+
+        const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+        const fileName = `${userId}/full/${photoId}.jpg`;
+        const thumbFileName = `${userId}/thumb/${photoId}.jpg`;
+
+        await supabase.storage.from('photos').remove([fileName, thumbFileName]);
+        await supabase.from('photos').delete().eq('id', photoId);
+      }
+
+      // Reload photos
+      await loadPhotos();
+      setSelectedPhotoIds(new Set());
+      setEditMode(false);
+      alert(`Successfully deleted ${selectedPhotoIds.size} photo(s)`);
+    } catch (error) {
+      console.error('Error deleting photos:', error);
+      alert('Failed to delete photos. Please try again.');
+    }
+  };
+
   const navigatePhoto = (direction: 'prev' | 'next') => {
     if (direction === 'prev') {
       setCurrentIndex((prev) => (prev > 0 ? prev - 1 : filteredPhotos.length - 1));
@@ -729,50 +819,81 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         {/* Tabs (Desktop Only) */}
         {viewMode === 'desktop' && (
           <div className="border-t border-gray-200">
-            <div className="flex space-x-1 p-2">
-              <button
-                onClick={() => setActiveTab('gallery')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'gallery'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Gallery
-              </button>
-              {(userRole === 'sales-manager' || userRole === 'admin') && (
-                <>
-                  <button
-                    onClick={() => setActiveTab('pending')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      activeTab === 'pending'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Pending Review
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('saved')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      activeTab === 'saved'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Saved
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('archived')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      activeTab === 'archived'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Archived
-                  </button>
-                </>
+            <div className="flex justify-between items-center p-2">
+              <div className="flex space-x-1">
+                <button
+                  onClick={() => setActiveTab('gallery')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === 'gallery'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Gallery
+                </button>
+                {(userRole === 'sales-manager' || userRole === 'admin') && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('pending')}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        activeTab === 'pending'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Pending Review
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('saved')}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        activeTab === 'saved'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Saved
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('archived')}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        activeTab === 'archived'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Archived
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Edit/Select Mode Button (for Gallery/Saved/Archived, Managers/Admins only) */}
+              {(userRole === 'sales-manager' || userRole === 'admin') && activeTab !== 'pending' && (
+                <button
+                  onClick={() => {
+                    setEditMode(!editMode);
+                    if (editMode) {
+                      setSelectedPhotoIds(new Set());
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                    editMode
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {editMode ? (
+                    <>
+                      <X className="w-4 h-4" />
+                      <span>Cancel</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="w-4 h-4" />
+                      <span>Select</span>
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </div>
@@ -795,25 +916,56 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               <div
                 key={photo.id}
                 className="relative aspect-square rounded-lg overflow-hidden cursor-pointer"
-                onClick={() => openFullScreen(index)}
+                onClick={() => {
+                  if (editMode) {
+                    togglePhotoSelection(photo.id);
+                  } else {
+                    openFullScreen(index);
+                  }
+                }}
               >
                 <img
                   src={photo.thumbnailUrl || photo.url}
                   alt="Gallery"
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover transition-opacity ${
+                    editMode && selectedPhotoIds.has(photo.id) ? 'opacity-60' : ''
+                  }`}
                 />
-                {photo.isFavorite && (
+
+                {/* Checkbox for edit mode */}
+                {editMode && (
+                  <div className="absolute top-2 left-2">
+                    <div
+                      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                        selectedPhotoIds.has(photo.id)
+                          ? 'bg-blue-600 border-blue-600'
+                          : 'bg-white border-gray-400'
+                      }`}
+                    >
+                      {selectedPhotoIds.has(photo.id) && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Favorite star (only show when not in edit mode) */}
+                {!editMode && photo.isFavorite && (
                   <div className="absolute top-2 left-2">
                     <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   </div>
                 )}
+
+                {/* Like count */}
                 {photo.likes > 0 && (
                   <div className="absolute top-2 right-2 bg-white/90 rounded-full px-2 py-1 text-xs font-semibold text-red-600 flex items-center space-x-1">
                     <Heart className="w-3 h-3 fill-red-600" />
                     <span>{photo.likes}</span>
                   </div>
                 )}
-                {photo.status === 'pending' && (
+
+                {/* Pending badge and delete button (only show when not in edit mode) */}
+                {!editMode && photo.status === 'pending' && (
                   <>
                     <div className="absolute bottom-2 left-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
                       Pending Review
@@ -833,9 +985,89 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         )}
       </div>
 
-      {/* Floating Action Buttons - Only show on Gallery tab or mobile */}
-      {(activeTab === 'gallery' || viewMode === 'mobile') && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white to-transparent pointer-events-none">
+      {/* Bulk Action Bar - Show when in edit mode */}
+      {editMode && (
+        <div className={`fixed bottom-0 right-0 p-4 bg-white border-t-2 border-gray-300 shadow-lg z-40 ${
+          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        }`}>
+          <div className="max-w-7xl mx-auto">
+            {/* Selection count and select all/deselect all */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-semibold text-gray-700">
+                {selectedPhotoIds.size} photo{selectedPhotoIds.size !== 1 ? 's' : ''} selected
+              </span>
+              <div className="flex space-x-2">
+                <button
+                  onClick={selectAll}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={deselectAll}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+
+            {/* Bulk action buttons */}
+            <div className="flex flex-wrap gap-2">
+              {/* Move to Published (not shown when already in Gallery tab) */}
+              {activeTab !== 'gallery' && (
+                <button
+                  onClick={() => handleBulkStatusChange('published')}
+                  disabled={selectedPhotoIds.size === 0}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+                >
+                  Move to Published
+                </button>
+              )}
+
+              {/* Move to Saved (not shown when already in Saved tab) */}
+              {activeTab !== 'saved' && (
+                <button
+                  onClick={() => handleBulkStatusChange('pending')}
+                  disabled={selectedPhotoIds.size === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+                >
+                  Move to Saved
+                </button>
+              )}
+
+              {/* Move to Archived (not shown when already in Archived tab) */}
+              {activeTab !== 'archived' && (
+                <button
+                  onClick={() => handleBulkStatusChange('archived')}
+                  disabled={selectedPhotoIds.size === 0}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+                >
+                  Move to Archived
+                </button>
+              )}
+
+              {/* Delete (Admin only, not shown on Gallery tab) */}
+              {userRole === 'admin' && activeTab !== 'gallery' && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedPhotoIds.size === 0}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+                >
+                  Delete Permanently
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Action Buttons - Only show on Gallery tab or mobile, and when NOT in edit mode */}
+      {!editMode && (activeTab === 'gallery' || viewMode === 'mobile') && (
+        <div className={`fixed bottom-0 right-0 p-4 bg-gradient-to-t from-white to-transparent pointer-events-none ${
+          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        }`}>
           <div className="flex justify-between items-center pointer-events-auto">
             <button
               onClick={() => setShowFilters(true)}

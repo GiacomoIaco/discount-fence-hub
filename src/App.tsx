@@ -264,11 +264,11 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
   const pendingCount = savedRequests.filter((r: any) => r.status === 'pending' || r.status === 'quoted').length;
 
   if (activeSection === 'custom-pricing') {
-    return <CustomPricingRequest onBack={() => setActiveSection('home')} />;
+    return <CustomPricingRequest onBack={() => setActiveSection('home')} viewMode={viewMode} />;
   }
 
   if (activeSection === 'my-requests') {
-    return <MyRequests onBack={() => setActiveSection('home')} />;
+    return <MyRequests onBack={() => setActiveSection('home')} viewMode={viewMode} />;
   }
 
   if (activeSection === 'presentation') {
@@ -469,9 +469,10 @@ const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) =>
 
 interface CustomPricingRequestProps {
   onBack: () => void;
+  viewMode: 'mobile' | 'desktop';
 }
 
-const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
+const CustomPricingRequest = ({ onBack, viewMode }: CustomPricingRequestProps) => {
   const [step, setStep] = useState<RequestStep>('choice');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -927,7 +928,9 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
         </div>
 
         {/* Submit Button */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 p-4 ${
+          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        }`}>
           {isRecording && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-3 text-center">
               <p className="text-sm text-yellow-800 font-semibold">
@@ -1021,7 +1024,9 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
           })}
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 p-4 ${
+          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        }`}>
           <button
             onClick={submitRequest}
             className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-98 transition-transform flex items-center justify-center space-x-2"
@@ -1056,9 +1061,10 @@ const CustomPricingRequest = ({ onBack }: CustomPricingRequestProps) => {
 interface MyRequestsProps {
   onBack: () => void;
   userRole?: UserRole;
+  viewMode?: 'mobile' | 'desktop';
 }
 
-const MyRequests = ({ onBack, userRole: _userRole = 'sales' }: MyRequestsProps) => {
+const MyRequests = ({ onBack, userRole: _userRole = 'sales', viewMode = 'mobile' }: MyRequestsProps) => {
   const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1283,7 +1289,9 @@ const MyRequests = ({ onBack, userRole: _userRole = 'sales' }: MyRequestsProps) 
         </div>
 
         {/* Add Message Input */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 p-4 ${
+          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        }`}>
           <div className="flex space-x-2">
             <input
               type="text"
