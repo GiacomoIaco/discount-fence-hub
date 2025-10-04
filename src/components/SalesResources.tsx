@@ -12,7 +12,8 @@ import {
   ArrowLeft,
   Film,
   Image as ImageIcon,
-  File
+  File,
+  Edit
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -34,6 +35,7 @@ interface ResourceFile {
   id: string;
   folder_id: string;
   name: string;
+  description?: string;
   file_type: string;
   file_size: number;
   storage_path: string;
@@ -57,6 +59,10 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [showArchivedFiles, setShowArchivedFiles] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingFile, setEditingFile] = useState<ResourceFile | null>(null);
+  const [editFileName, setEditFileName] = useState('');
+  const [editFileDescription, setEditFileDescription] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -187,6 +193,40 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     try {
       setUploading(true);
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+
+      // Check for duplicate filename in current folder
+      const { data: existingFiles, error: checkError } = await supabase
+        .from('sales_resources_files')
+        .select('id, name, archived')
+        .eq('folder_id', selectedFolder.id)
+        .eq('name', file.name)
+        .eq('archived', false);
+
+      if (checkError) throw checkError;
+
+      if (existingFiles && existingFiles.length > 0) {
+        const shouldReplace = confirm(
+          `A file named "${file.name}" already exists in this folder.\n\n` +
+          `Do you want to archive the existing file and upload the new one?`
+        );
+
+        if (!shouldReplace) {
+          setUploading(false);
+          setShowUploadModal(false);
+          return;
+        }
+
+        // Archive the existing file
+        await supabase
+          .from('sales_resources_files')
+          .update({
+            archived: true,
+            archived_at: new Date().toISOString(),
+            archived_by: userId
+          })
+          .eq('id', existingFiles[0].id);
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `${selectedFolder.id}/${fileName}`;
@@ -431,6 +471,65 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     }
   };
 
+  const handleEditFile = (file: ResourceFile) => {
+    if (!canEdit) return;
+    setEditingFile(file);
+    setEditFileName(file.name);
+    setEditFileDescription(file.description || '');
+    setShowEditModal(true);
+  };
+
+  const handleSaveFileEdit = async () => {
+    if (!editingFile || !canEdit) return;
+
+    if (!editFileName.trim()) {
+      alert('File name cannot be empty');
+      return;
+    }
+
+    try {
+      // Check if new name conflicts with existing files (excluding current file)
+      if (editFileName !== editingFile.name) {
+        const { data: existingFiles, error: checkError } = await supabase
+          .from('sales_resources_files')
+          .select('id')
+          .eq('folder_id', editingFile.folder_id)
+          .eq('name', editFileName)
+          .eq('archived', false)
+          .neq('id', editingFile.id);
+
+        if (checkError) throw checkError;
+
+        if (existingFiles && existingFiles.length > 0) {
+          alert(`A file named "${editFileName}" already exists in this folder`);
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from('sales_resources_files')
+        .update({
+          name: editFileName.trim(),
+          description: editFileDescription.trim() || null
+        })
+        .eq('id', editingFile.id);
+
+      if (error) throw error;
+
+      setShowEditModal(false);
+      setEditingFile(null);
+
+      if (selectedFolder) {
+        loadFiles(selectedFolder.id);
+      } else if (showArchivedFiles) {
+        loadArchivedFiles();
+      }
+    } catch (error) {
+      console.error('Error updating file:', error);
+      alert('Failed to update file');
+    }
+  };
+
   const getFileIcon = (fileType: string) => {
     switch (fileType) {
       case 'pdf':
@@ -632,8 +731,13 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
                           )}
                         </div>
 
+                        {/* Description */}
+                        {file.description && (
+                          <p className="text-sm text-gray-600 italic mb-2">"{file.description}"</p>
+                        )}
+
                         {/* File metadata */}
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-3">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
                           <span className="flex items-center space-x-1">
                             <span className="font-medium">{formatFileSize(file.file_size)}</span>
                           </span>
@@ -675,12 +779,22 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
                       </button>
 
                       {canEdit && (
-                        <button
-                          onClick={() => handleArchiveFile(file)}
-                          className="px-4 py-2.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg border border-orange-200 font-medium transition-colors"
-                        >
-                          <Archive className="w-4 h-4" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleEditFile(file)}
+                            className="px-4 py-2.5 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg border border-gray-300 font-medium transition-colors"
+                            title="Edit name and description"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleArchiveFile(file)}
+                            className="px-4 py-2.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg border border-orange-200 font-medium transition-colors"
+                            title="Archive file"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -826,6 +940,63 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
               </button>
               <button
                 onClick={() => setShowNewFolderModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit File Modal */}
+      {showEditModal && editingFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Edit File</h3>
+              <button onClick={() => setShowEditModal(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  File Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="File name"
+                  value={editFileName}
+                  onChange={(e) => setEditFileName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description (optional, 1-2 lines)
+                </label>
+                <textarea
+                  placeholder="Brief description of the file..."
+                  value={editFileDescription}
+                  onChange={(e) => setEditFileDescription(e.target.value)}
+                  rows={2}
+                  maxLength={200}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">{editFileDescription.length}/200 characters</p>
+              </div>
+            </div>
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={handleSaveFileEdit}
+                disabled={!editFileName.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={() => setShowEditModal(false)}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
                 Cancel
