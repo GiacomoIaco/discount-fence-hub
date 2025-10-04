@@ -19,7 +19,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, fullName: string, role: UserRole) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, role: UserRole, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: Error | null }>;
 }
@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, role: UserRole) => {
+  const signUp = async (email: string, password: string, fullName: string, role: UserRole, phone?: string) => {
     try {
       // Sign up user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -100,6 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           data: {
             full_name: fullName,
             role: role,
+            phone: phone,
           },
         },
       });
@@ -115,6 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             email: email,
             full_name: fullName,
             role: role,
+            phone: phone || null,
           });
 
         if (profileError && profileError.code !== '23505') { // Ignore duplicate key error

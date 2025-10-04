@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import Signup from './Signup';
 
 const Login = () => {
+  const [showSignup, setShowSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
+
+  if (showSignup) {
+    return <Signup onBackToLogin={() => setShowSignup(false)} />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,9 +104,12 @@ const Login = () => {
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
-              Contact your administrator
-            </a>
+            <button
+              onClick={() => setShowSignup(true)}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign up
+            </button>
           </p>
         </div>
       </div>
