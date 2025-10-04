@@ -300,13 +300,21 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
         .update({ view_count: file.view_count + 1 })
         .eq('id', file.id);
 
-      // Get file URL and open in new tab for now (preview modal coming soon)
-      const { data } = supabase.storage
+      // Get signed URL that forces inline viewing (not download)
+      const { data, error } = await supabase.storage
         .from('sales-resources')
-        .getPublicUrl(file.storage_path);
+        .createSignedUrl(file.storage_path, 3600, {
+          download: false // This prevents download and enables inline viewing
+        });
 
-      if (data?.publicUrl) {
-        window.open(data.publicUrl, '_blank');
+      if (error) {
+        console.error('Error getting signed URL:', error);
+        alert('Failed to open file');
+        return;
+      }
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
       }
     } catch (error) {
       console.error('Error viewing file:', error);
