@@ -181,9 +181,18 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           console.error('AI analysis failed:', error);
         }
 
+        // Generate a UUID v4 for the photo ID
+        const generateUUID = () => {
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        };
+
         // Create photo object
         const newPhoto: Photo = {
-          id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: generateUUID(),
           url: full.dataUrl,
           thumbnailUrl: thumb.dataUrl,
           uploadedBy: userId,
