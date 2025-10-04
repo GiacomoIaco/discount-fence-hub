@@ -12,6 +12,8 @@ import {
   Flag,
   Sparkles,
   Trash2,
+  Check,
+  Save,
 } from 'lucide-react';
 import type { Photo, FilterState } from '../lib/photos';
 import {
@@ -52,6 +54,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   });
   const [sessionId] = useState(() => generateSessionId());
   const [uploading, setUploading] = useState(false);
+
+  // Review modal state (for Pending Review tab)
+  const [reviewingPhoto, setReviewingPhoto] = useState<Photo | null>(null);
+  const [editingTags, setEditingTags] = useState<string[]>([]);
+  const [editingScore, setEditingScore] = useState<number>(5);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -460,11 +469,136 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   };
 
   const openFullScreen = (index: number) => {
-    setCurrentIndex(index);
+    // On Pending Review tab, open review modal instead of full-screen viewer
+    if (activeTab === 'pending' && viewMode === 'desktop') {
+      const photo = filteredPhotos[index];
+      setReviewingPhoto(photo);
+      setEditingTags(photo.tags || photo.suggestedTags || []);
+      setEditingScore(photo.qualityScore || 5);
+      setReviewNotes(photo.reviewNotes || '');
+    } else {
+      setCurrentIndex(index);
+    }
   };
 
   const closeFullScreen = () => {
     setCurrentIndex(-1);
+  };
+
+  // Review actions
+  const toggleReviewTag = (tag: string) => {
+    if (editingTags.includes(tag)) {
+      setEditingTags(editingTags.filter((t) => t !== tag));
+    } else {
+      setEditingTags([...editingTags, tag]);
+    }
+  };
+
+  const handlePublishPhoto = async () => {
+    if (!reviewingPhoto) return;
+    setReviewLoading(true);
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const dbUpdate = {
+        status: 'published',
+        tags: editingTags,
+        quality_score: editingScore,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes,
+      };
+
+      const { error } = await supabase
+        .from('photos')
+        .update(dbUpdate)
+        .eq('id', reviewingPhoto.id);
+
+      if (error) throw error;
+
+      // Remove from photos list and close modal
+      setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
+      setReviewingPhoto(null);
+      alert('Photo published successfully!');
+    } catch (error) {
+      console.error('Error publishing photo:', error);
+      alert('Failed to publish photo. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!reviewingPhoto) return;
+    setReviewLoading(true);
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const dbUpdate = {
+        tags: editingTags,
+        quality_score: editingScore,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes,
+      };
+
+      const { error } = await supabase
+        .from('photos')
+        .update(dbUpdate)
+        .eq('id', reviewingPhoto.id);
+
+      if (error) throw error;
+
+      // Update in photos list
+      setPhotos((prev) =>
+        prev.map((p) =>
+          p.id === reviewingPhoto.id
+            ? { ...p, tags: editingTags, qualityScore: editingScore, reviewNotes }
+            : p
+        )
+      );
+      setReviewingPhoto(null);
+      alert('Draft saved successfully!');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert('Failed to save draft. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const handleArchivePhoto = async () => {
+    if (!reviewingPhoto) return;
+    if (!confirm('Archive this photo? It will no longer be visible in the gallery.')) return;
+
+    setReviewLoading(true);
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const dbUpdate = {
+        status: 'archived',
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes || 'Archived by reviewer',
+      };
+
+      const { error } = await supabase
+        .from('photos')
+        .update(dbUpdate)
+        .eq('id', reviewingPhoto.id);
+
+      if (error) throw error;
+
+      // Remove from photos list and close modal
+      setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
+      setReviewingPhoto(null);
+      alert('Photo archived.');
+    } catch (error) {
+      console.error('Error archiving photo:', error);
+      alert('Failed to archive photo. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
   };
 
   const navigatePhoto = (direction: 'prev' | 'next') => {
@@ -939,6 +1073,150 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         onChange={(e) => handleFileSelect(e, true)}
         className="hidden"
       />
+
+      {/* Review Modal (Pending Review tab only) */}
+      {reviewingPhoto && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Review Photo</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Uploaded {new Date(reviewingPhoto.uploadedAt).toLocaleDateString()} at{' '}
+                    {new Date(reviewingPhoto.uploadedAt).toLocaleTimeString()}
+                  </p>
+                  <p className="text-sm text-gray-600">User ID: {reviewingPhoto.uploadedBy}</p>
+                </div>
+                <button
+                  onClick={() => setReviewingPhoto(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Photo Preview */}
+              <div className="mb-6">
+                <img
+                  src={reviewingPhoto.url}
+                  alt="Review"
+                  className="w-full h-96 object-contain bg-gray-100 rounded-lg"
+                />
+              </div>
+
+              {/* AI Suggestions */}
+              {reviewingPhoto.suggestedTags && reviewingPhoto.suggestedTags.length > 0 && (
+                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-semibold text-blue-900">AI Suggestions</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {reviewingPhoto.suggestedTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  {reviewingPhoto.qualityScore && (
+                    <p className="text-sm text-blue-700 mt-2">
+                      Quality Score: {reviewingPhoto.qualityScore}/10
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Tag Selection */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-900 mb-3">Tags</h3>
+                {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
+                  <div key={category} className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2 capitalize">
+                      {category.replace(/([A-Z])/g, ' $1').trim()}
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {tags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => toggleReviewTag(tag)}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                            editingTags.includes(tag)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quality Score */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quality Score: {editingScore}/10
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={editingScore}
+                  onChange={(e) => setEditingScore(parseInt(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Review Notes */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Review Notes
+                </label>
+                <textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Add notes about this photo..."
+                  className="w-full border border-gray-300 rounded-lg p-3 min-h-[100px]"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={handlePublishPhoto}
+                  disabled={reviewLoading}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  <Check className="w-5 h-5" />
+                  <span>Publish to Gallery</span>
+                </button>
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={reviewLoading}
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  <Save className="w-5 h-5" />
+                  <span>Save Draft</span>
+                </button>
+                <button
+                  onClick={handleArchivePhoto}
+                  disabled={reviewLoading}
+                  className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>Archive</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
