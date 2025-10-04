@@ -195,10 +195,14 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
         userId
       });
 
-      // Upload to storage
+      // Upload to storage with proper content type for inline viewing
       const { error: uploadError, data: uploadData } = await supabase.storage
         .from('sales-resources')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          contentType: file.type,
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) {
         console.error('❌ Storage upload error:', uploadError);
@@ -300,21 +304,13 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
         .update({ view_count: file.view_count + 1 })
         .eq('id', file.id);
 
-      // Get signed URL that forces inline viewing (not download)
-      const { data, error } = await supabase.storage
+      // Use public URL for inline viewing (bucket must be public)
+      const { data } = supabase.storage
         .from('sales-resources')
-        .createSignedUrl(file.storage_path, 3600, {
-          download: false // This prevents download and enables inline viewing
-        });
+        .getPublicUrl(file.storage_path);
 
-      if (error) {
-        console.error('Error getting signed URL:', error);
-        alert('Failed to open file');
-        return;
-      }
-
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
+      if (data?.publicUrl) {
+        window.open(data.publicUrl, '_blank');
       }
     } catch (error) {
       console.error('Error viewing file:', error);
