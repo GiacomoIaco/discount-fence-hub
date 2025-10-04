@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
+import Login from './components/auth/Login';
+import { useAuth } from './contexts/AuthContext';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
@@ -26,7 +28,10 @@ interface ParsedData {
 }
 
 function App() {
-  // Load role from localStorage or default to 'sales'
+  const { user, profile, loading, signOut } = useAuth();
+
+  // Temporary: Load role from localStorage for backward compatibility
+  // Will be replaced with profile.role once authenticated
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem('userRole');
     return (saved as UserRole) || 'sales';
@@ -34,6 +39,13 @@ function App() {
   const [userName] = useState(() => {
     return localStorage.getItem('userName') || 'John Smith';
   });
+
+  // Update userRole from profile when authenticated
+  useEffect(() => {
+    if (profile?.role) {
+      setUserRole(profile.role);
+    }
+  }, [profile]);
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>(() => {
@@ -127,6 +139,25 @@ function App() {
     // Default home view
     return <Dashboard userRole={userRole} />;
   };
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <img src="/logo-transparent.png" alt="Logo" className="h-24 w-auto mx-auto mb-4" />
+          <div className="text-gray-600">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  // TEMPORARY: Allow bypass for development - remove this once auth is fully implemented
+  const bypassAuth = localStorage.getItem('bypassAuth') === 'true';
+  if (!user && !bypassAuth) {
+    return <Login />;
+  }
 
   // Mobile view - same for all roles
   if (viewMode === 'mobile') {
@@ -237,15 +268,31 @@ function App() {
             </div>
           )}
 
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-              <User className="w-6 h-6" />
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{userName}</p>
-                <p className="text-xs text-gray-400 capitalize">{userRole}</p>
+          <div className="space-y-3">
+            {/* User Profile */}
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <User className="w-6 h-6 text-white" />
               </div>
+              {sidebarOpen && (
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-white truncate">
+                    {profile?.full_name || userName}
+                  </p>
+                  <p className="text-xs text-gray-400 capitalize">{profile?.role || userRole}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Logout Button */}
+            {user && sidebarOpen && (
+              <button
+                onClick={() => signOut()}
+                className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
             )}
           </div>
         </div>
