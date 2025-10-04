@@ -114,12 +114,12 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       // Filter based on active tab
       switch (activeTab) {
         case 'gallery':
-          // Gallery tab: Published photos + user's own pending photos (not archived)
-          query = query.or(`status.eq.published,and(status.eq.pending,uploaded_by.eq.${userId})`);
+          // Gallery tab: Published photos + user's own pending photos (only those NOT in saved drafts)
+          query = query.or(`status.eq.published,and(status.eq.pending,uploaded_by.eq.${userId},review_notes.is.null)`);
           break;
         case 'pending':
-          // Pending Review tab: ALL pending photos (for managers/admins to review)
-          query = query.eq('status', 'pending');
+          // Pending Review tab: ALL pending photos WITHOUT review notes (not yet reviewed/saved)
+          query = query.eq('status', 'pending').is('review_notes', null);
           break;
         case 'saved':
           // Saved tab: Pending with review notes (draft reviews)
@@ -698,19 +698,27 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       return;
     }
 
-    if (!confirm(`Change status of ${selectedPhotoIds.size} photo(s) to "${newStatus}"?`)) return;
+    const statusLabel = newStatus === 'pending' ? 'Saved' : newStatus === 'published' ? 'Published' : 'Archived';
+    if (!confirm(`Move ${selectedPhotoIds.size} photo(s) to ${statusLabel}?`)) return;
 
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
       for (const photoId of selectedPhotoIds) {
+        const updateData: any = {
+          status: newStatus,
+          reviewed_by: userId,
+          reviewed_at: new Date().toISOString(),
+        };
+
+        // For "Saved" (pending), add review_notes so it appears in Saved tab
+        if (newStatus === 'pending') {
+          updateData.review_notes = 'Bulk moved to saved';
+        }
+
         await supabase
           .from('photos')
-          .update({
-            status: newStatus,
-            reviewed_by: userId,
-            reviewed_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', photoId);
       }
 
@@ -718,7 +726,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       await loadPhotos();
       setSelectedPhotoIds(new Set());
       setEditMode(false);
-      alert(`Successfully updated ${selectedPhotoIds.size} photo(s)`);
+      alert(`Successfully moved ${selectedPhotoIds.size} photo(s) to ${statusLabel}`);
     } catch (error) {
       console.error('Error updating photos:', error);
       alert('Failed to update photos. Please try again.');
