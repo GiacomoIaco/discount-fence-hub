@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
+import SalesResources from './components/SalesResources';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -80,7 +81,8 @@ function App() {
       { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
       { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket },
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
-      { id: 'team' as Section, name: 'Team', icon: User },
+      { id: 'sales-resources' as Section, name: 'Sales Resources', icon: FolderOpen },
+      { id: 'team' as Section, name: 'Team', icon: User, separator: true },
     ];
 
     // Photo Review is now accessed via tabs in Photo Gallery (desktop only)
@@ -117,6 +119,9 @@ function App() {
     }
     if (activeSection === 'team') {
       return <TeamManagement userRole={userRole} />;
+    }
+    if (activeSection === 'sales-resources') {
+      return <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
     }
 
     // Default home view
@@ -183,16 +188,18 @@ function App() {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
-              <button
-                key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                }`}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {sidebarOpen && <span className="font-medium">{item.name}</span>}
-              </button>
+              <div key={item.id}>
+                {item.separator && <div className="my-4 border-t border-gray-700"></div>}
+                <button
+                  onClick={() => setActiveSection(item.id)}
+                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
+                    isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="font-medium">{item.name}</span>}
+                </button>
+              </div>
             );
           })}
         </nav>
