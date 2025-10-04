@@ -34,10 +34,10 @@ interface PhotoGalleryProps {
   viewMode?: 'mobile' | 'desktop';
 }
 
-type GalleryTab = 'published' | 'pending' | 'saved' | 'archived';
+type GalleryTab = 'gallery' | 'pending' | 'saved' | 'archived';
 
 const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: PhotoGalleryProps) => {
-  const [activeTab, setActiveTab] = useState<GalleryTab>('published');
+  const [activeTab, setActiveTab] = useState<GalleryTab>('gallery');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [filteredPhotos, setFilteredPhotos] = useState<Photo[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
@@ -97,26 +97,23 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         .order('uploaded_at', { ascending: false });
 
       // Filter based on active tab
-      if (viewMode === 'desktop') {
-        // Desktop: Use tab filtering
-        switch (activeTab) {
-          case 'published':
-            query = query.eq('status', 'published');
-            break;
-          case 'pending':
-            query = query.eq('status', 'pending');
-            break;
-          case 'saved':
-            // Saved = pending with review notes (drafts)
-            query = query.eq('status', 'pending').not('review_notes', 'is', null);
-            break;
-          case 'archived':
-            query = query.eq('status', 'archived');
-            break;
-        }
-      } else {
-        // Mobile: Show published OR user's own pending photos
-        query = query.or(`status.eq.published,uploaded_by.eq.${userId}`);
+      switch (activeTab) {
+        case 'gallery':
+          // Gallery tab: Published photos + user's own pending photos
+          query = query.or(`status.eq.published,uploaded_by.eq.${userId}`);
+          break;
+        case 'pending':
+          // Pending Review tab: ALL pending photos (for managers/admins to review)
+          query = query.eq('status', 'pending');
+          break;
+        case 'saved':
+          // Saved tab: Pending with review notes (draft reviews)
+          query = query.eq('status', 'pending').not('review_notes', 'is', null);
+          break;
+        case 'archived':
+          // Archived tab: All archived photos
+          query = query.eq('status', 'archived');
+          break;
       }
 
       const { data, error } = await query;
@@ -534,14 +531,14 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           <div className="border-t border-gray-200">
             <div className="flex space-x-1 p-2">
               <button
-                onClick={() => setActiveTab('published')}
+                onClick={() => setActiveTab('gallery')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'published'
+                  activeTab === 'gallery'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                Published
+                Gallery
               </button>
               {(userRole === 'sales-manager' || userRole === 'admin') && (
                 <>
@@ -636,34 +633,36 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         )}
       </div>
 
-      {/* Floating Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white to-transparent pointer-events-none">
-        <div className="flex justify-between items-center pointer-events-auto">
-          <button
-            onClick={() => setShowFilters(true)}
-            className="relative bg-white border-2 border-blue-600 text-blue-600 p-4 rounded-full shadow-lg active:scale-95 transition-transform"
-          >
-            <Filter className="w-6 h-6" />
-            {activeFilterCount > 0 && (
-              <div className="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                {activeFilterCount}
-              </div>
-            )}
-          </button>
+      {/* Floating Action Buttons - Only show on Gallery tab or mobile */}
+      {(activeTab === 'gallery' || viewMode === 'mobile') && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white to-transparent pointer-events-none">
+          <div className="flex justify-between items-center pointer-events-auto">
+            <button
+              onClick={() => setShowFilters(true)}
+              className="relative bg-white border-2 border-blue-600 text-blue-600 p-4 rounded-full shadow-lg active:scale-95 transition-transform"
+            >
+              <Filter className="w-6 h-6" />
+              {activeFilterCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                  {activeFilterCount}
+                </div>
+              )}
+            </button>
 
-          <button
-            onClick={handleUploadClick}
-            disabled={uploading}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5 rounded-full shadow-lg active:scale-95 transition-transform disabled:opacity-50"
-          >
-            {uploading ? (
-              <Sparkles className="w-7 h-7 animate-spin" />
-            ) : (
-              <Camera className="w-7 h-7" />
-            )}
-          </button>
+            <button
+              onClick={handleUploadClick}
+              disabled={uploading}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5 rounded-full shadow-lg active:scale-95 transition-transform disabled:opacity-50"
+            >
+              {uploading ? (
+                <Sparkles className="w-7 h-7 animate-spin" />
+              ) : (
+                <Camera className="w-7 h-7" />
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Upload Modal */}
       {showUploadModal && (
