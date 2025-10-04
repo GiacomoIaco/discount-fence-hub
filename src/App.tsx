@@ -7,6 +7,7 @@ import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
 import TeamCommunication from './components/TeamCommunication';
+import TeamCommunicationMobile from './components/TeamCommunicationMobile';
 import MessageComposer from './components/MessageComposer';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
@@ -215,7 +216,7 @@ function App() {
           </div>
         </div>
         <div className="pb-20">
-          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} />
+          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} />
         </div>
 
         {/* Install App Banner */}
@@ -379,9 +380,10 @@ interface SalesRepViewProps {
   activeSection: Section;
   setActiveSection: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
+  unreadCount: number;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }: SalesRepViewProps) => {
   // Count pending/quoted requests
   const savedRequests = JSON.parse(localStorage.getItem('myRequests') || '[]');
   const pendingCount = savedRequests.filter((r: any) => r.status === 'pending' || r.status === 'quoted').length;
@@ -416,6 +418,10 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode }: SalesRepVie
 
   if (activeSection === 'sales-resources') {
     return <SalesResources onBack={() => setActiveSection('home')} userRole="sales" viewMode={viewMode} />;
+  }
+
+  if (activeSection === 'team-communication') {
+    return <TeamCommunicationMobile onBack={() => setActiveSection('home')} />;
   }
 
   return (
@@ -479,6 +485,26 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode }: SalesRepVie
               <div className="font-bold text-gray-900">Pre-Stain Calculator</div>
               <div className="text-sm text-gray-600">Show ROI vs DIY staining</div>
             </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('team-communication')}
+          className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <MessageSquare className="w-8 h-8" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-bold text-lg">Messages</div>
+              <div className="text-sm text-indigo-100">Team updates & announcements</div>
+            </div>
+            {unreadCount > 0 && (
+              <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
           </div>
         </button>
       </div>
