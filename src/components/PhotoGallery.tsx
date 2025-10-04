@@ -61,6 +61,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   const [editingScore, setEditingScore] = useState<number>(5);
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [uploaderName, setUploaderName] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -468,7 +469,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     }
   };
 
-  const openFullScreen = (index: number) => {
+  const openFullScreen = async (index: number) => {
     // On Pending Review tab, open review modal instead of full-screen viewer
     if (activeTab === 'pending' && viewMode === 'desktop') {
       const photo = filteredPhotos[index];
@@ -476,6 +477,24 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       setEditingTags(photo.tags || photo.suggestedTags || []);
       setEditingScore(photo.qualityScore || 5);
       setReviewNotes(photo.reviewNotes || '');
+
+      // Fetch uploader name
+      try {
+        const { data, error } = await supabase
+          .from('sales_reps')
+          .select('name')
+          .eq('id', photo.uploadedBy)
+          .single();
+
+        if (!error && data) {
+          setUploaderName(data.name);
+        } else {
+          setUploaderName('Unknown User');
+        }
+      } catch (error) {
+        console.error('Error fetching uploader name:', error);
+        setUploaderName('Unknown User');
+      }
     } else {
       setCurrentIndex(index);
     }
@@ -1087,7 +1106,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                     Uploaded {new Date(reviewingPhoto.uploadedAt).toLocaleDateString()} at{' '}
                     {new Date(reviewingPhoto.uploadedAt).toLocaleTimeString()}
                   </p>
-                  <p className="text-sm text-gray-600">User ID: {reviewingPhoto.uploadedBy}</p>
+                  <p className="text-sm text-gray-600 font-medium">
+                    Submitted by: {uploaderName || 'Loading...'}
+                  </p>
                 </div>
                 <button
                   onClick={() => setReviewingPhoto(null)}
