@@ -414,17 +414,43 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
           {loading ? (
             <div className="text-center py-12">Loading folders...</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {folders.map(folder => (
-                <button
-                  key={folder.id}
-                  onClick={() => setSelectedFolder(folder)}
-                  className="bg-white rounded-lg p-6 shadow hover:shadow-md transition-shadow border border-gray-200 flex flex-col items-center space-y-3"
-                >
-                  <FolderOpen className="w-16 h-16 text-blue-600" />
-                  <span className="font-semibold text-gray-900">{folder.name}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {folders.map((folder, index) => {
+                // Assign different colors to folders
+                const colors = [
+                  'bg-gradient-to-br from-blue-500 to-blue-600',
+                  'bg-gradient-to-br from-purple-500 to-purple-600',
+                  'bg-gradient-to-br from-green-500 to-green-600',
+                  'bg-gradient-to-br from-orange-500 to-orange-600',
+                  'bg-gradient-to-br from-pink-500 to-pink-600',
+                  'bg-gradient-to-br from-indigo-500 to-indigo-600',
+                  'bg-gradient-to-br from-teal-500 to-teal-600',
+                  'bg-gradient-to-br from-red-500 to-red-600'
+                ];
+                const colorClass = colors[index % colors.length];
+
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => setSelectedFolder(folder)}
+                    className={`${colorClass} rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all transform hover:scale-105 flex flex-col items-center space-y-4 text-white relative overflow-hidden`}
+                  >
+                    {/* Background pattern */}
+                    <div className="absolute inset-0 opacity-10">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -mr-16 -mt-16"></div>
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full -ml-12 -mb-12"></div>
+                    </div>
+
+                    {/* Folder icon */}
+                    <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm relative z-10">
+                      <FolderOpen className="w-12 h-12" />
+                    </div>
+
+                    {/* Folder name */}
+                    <span className="font-bold text-lg text-center relative z-10">{folder.name}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -473,61 +499,77 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
                 No files found. {canEdit && 'Upload your first file!'}
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {filteredFiles.map(file => (
                   <div
                     key={file.id}
-                    className="bg-white rounded-lg p-4 shadow hover:shadow-md transition-shadow border border-gray-200 flex items-center justify-between"
+                    className="bg-white rounded-xl p-5 shadow hover:shadow-lg transition-all border border-gray-200"
                   >
-                    <div className="flex items-center space-x-4 flex-1">
-                      {getFileIcon(file.file_type)}
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-gray-900">{file.name}</span>
+                    {/* Top section: Icon, Name, and Badge */}
+                    <div className="flex items-start space-x-4 mb-4">
+                      <div className="flex-shrink-0">
+                        {getFileIcon(file.file_type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-semibold text-gray-900 text-base break-words pr-2">
+                            {file.name}
+                          </h3>
                           {file.is_new && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded">
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded flex-shrink-0">
                               NEW
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-gray-500 flex items-center space-x-4">
-                          <span>{formatFileSize(file.file_size)}</span>
+
+                        {/* File metadata */}
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-3">
+                          <span className="flex items-center space-x-1">
+                            <span className="font-medium">{formatFileSize(file.file_size)}</span>
+                          </span>
                           <span>•</span>
                           <span>{new Date(file.uploaded_at).toLocaleDateString()}</span>
                           <span>•</span>
                           <span className="flex items-center space-x-1">
-                            <Eye className="w-3 h-3" />
+                            <Eye className="w-4 h-4" />
                             <span>{file.view_count} views</span>
                           </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+
+                    {/* Bottom section: Action buttons */}
+                    <div className="flex items-center space-x-2 pt-3 border-t border-gray-100">
                       <button
                         onClick={() => handleToggleFavorite(file)}
-                        className={`p-2 rounded-lg ${
+                        className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${
                           file.is_favorited
-                            ? 'text-yellow-500 hover:text-yellow-600'
-                            : 'text-gray-400 hover:text-gray-600'
+                            ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200'
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
                         }`}
-                        title={file.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
                       >
-                        <Star className={`w-5 h-5 ${file.is_favorited ? 'fill-current' : ''}`} />
+                        <div className="flex items-center justify-center space-x-2">
+                          <Star className={`w-4 h-4 ${file.is_favorited ? 'fill-current' : ''}`} />
+                          <span className="text-sm">{file.is_favorited ? 'Favorited' : 'Favorite'}</span>
+                        </div>
                       </button>
+
                       <button
                         onClick={() => handleViewFile(file)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title="View file"
+                        className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
                       >
-                        <Eye className="w-5 h-5" />
+                        <div className="flex items-center justify-center space-x-2">
+                          <Eye className="w-4 h-4" />
+                          <span className="text-sm">View</span>
+                        </div>
                       </button>
+
                       {canEdit && (
                         <button
                           onClick={() => handleArchiveFile(file)}
-                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
-                          title="Archive file"
+                          className="px-4 py-2.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg border border-orange-200 font-medium transition-colors"
                         >
-                          <Archive className="w-5 h-5" />
+                          <Archive className="w-4 h-4" />
                         </button>
                       )}
                     </div>
