@@ -179,6 +179,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         const thumbFileName = `${userId}/thumb/${newPhoto.id}.jpg`;
 
         try {
+          console.log('Uploading to Supabase storage:', fileName);
+
           // Upload full-size image
           const { error: uploadError } = await supabase.storage
             .from('photos')
@@ -187,7 +189,12 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               upsert: false
             });
 
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error('Storage upload error (full):', uploadError);
+            throw uploadError;
+          }
+
+          console.log('Full image uploaded successfully');
 
           // Upload thumbnail
           const { error: thumbError } = await supabase.storage
@@ -197,7 +204,12 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               upsert: false
             });
 
-          if (thumbError) throw thumbError;
+          if (thumbError) {
+            console.error('Storage upload error (thumb):', thumbError);
+            throw thumbError;
+          }
+
+          console.log('Thumbnail uploaded successfully');
 
           // Get public URLs
           const { data: fullUrlData } = supabase.storage
@@ -213,23 +225,31 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           newPhoto.thumbnailUrl = thumbUrlData.publicUrl;
 
           // Save metadata to database
+          console.log('Saving photo metadata to database...');
           const { data, error } = await supabase
             .from('photos')
             .insert([newPhoto])
             .select()
             .single();
 
-          if (error) throw error;
+          if (error) {
+            console.error('Database insert error:', error);
+            throw error;
+          }
+
+          console.log('Photo saved to Supabase successfully!', data);
 
           if (data) {
             setPhotos((prev) => [data as Photo, ...prev]);
           }
         } catch (error) {
           console.error('Error saving to Supabase:', error);
+          console.log('Falling back to localStorage...');
           // Fallback to localStorage with base64 data URLs
           setPhotos((prev) => {
             const updated = [newPhoto, ...prev];
             localStorage.setItem('photoGallery', JSON.stringify(updated));
+            console.log('Photo saved to localStorage as fallback');
             return updated;
           });
         }

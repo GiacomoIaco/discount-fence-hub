@@ -30,14 +30,20 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
         .order('uploaded_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading pending photos:', error);
+        console.error('Error loading pending photos from Supabase:', error);
+        console.log('Falling back to localStorage...');
         // Fallback to localStorage
         loadFromLocalStorage();
         return;
       }
 
-      if (data) {
+      if (data && data.length > 0) {
+        console.log(`Loaded ${data.length} pending photos from Supabase`);
         setPendingPhotos(data as Photo[]);
+      } else {
+        console.log('No pending photos in Supabase, checking localStorage...');
+        // Also check localStorage if Supabase is empty
+        loadFromLocalStorage();
       }
     } catch (error) {
       console.error('Error loading pending photos:', error);
@@ -51,10 +57,13 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
       try {
         const parsed = JSON.parse(savedPhotos);
         const pending = parsed.filter((p: Photo) => p.status === 'pending');
+        console.log(`Loaded ${pending.length} pending photos from localStorage`);
         setPendingPhotos(pending);
       } catch (e) {
         console.error('Error parsing saved photos:', e);
       }
+    } else {
+      console.log('No photos found in localStorage');
     }
   };
 
