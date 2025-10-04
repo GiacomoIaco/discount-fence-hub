@@ -30,22 +30,17 @@ interface ParsedData {
 function App() {
   const { user, profile, loading, signOut } = useAuth();
 
-  // Temporary: Load role from localStorage for backward compatibility
-  // Will be replaced with profile.role once authenticated
-  const [userRole, setUserRole] = useState<UserRole>(() => {
-    const saved = localStorage.getItem('userRole');
-    return (saved as UserRole) || 'sales';
-  });
-  const [userName] = useState(() => {
-    return localStorage.getItem('userName') || 'John Smith';
-  });
+  // Get role and name from authenticated profile, with fallback for role switching
+  const [userRole, setUserRole] = useState<UserRole>(profile?.role || 'sales');
 
-  // Update userRole from profile when authenticated
+  // Update userRole from profile when it changes
   useEffect(() => {
     if (profile?.role) {
       setUserRole(profile.role);
     }
   }, [profile]);
+
+  const userName = profile?.full_name || 'User';
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>(() => {
@@ -53,12 +48,10 @@ function App() {
     return (saved as 'mobile' | 'desktop') || 'mobile';
   });
 
-  // Save role, userName, and viewMode to localStorage when they change
+  // Save viewMode to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem('userRole', userRole);
-    localStorage.setItem('userName', userName);
     localStorage.setItem('viewMode', viewMode);
-  }, [userRole, userName, viewMode]);
+  }, [viewMode]);
 
   // Handle browser back button to prevent app close
   useEffect(() => {
