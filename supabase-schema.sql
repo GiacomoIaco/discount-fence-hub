@@ -114,6 +114,34 @@ CREATE TABLE public.roi_calculations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Photos Table (for photo gallery)
+CREATE TABLE public.photos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    uploaded_by UUID NOT NULL REFERENCES public.sales_reps(id) ON DELETE CASCADE,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    tags TEXT[] DEFAULT '{}',
+    is_favorite BOOLEAN DEFAULT false,
+    likes INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'archived')),
+
+    -- AI metadata
+    suggested_tags TEXT[],
+    quality_score INTEGER CHECK (quality_score BETWEEN 1 AND 10),
+
+    -- Admin review
+    reviewed_by UUID REFERENCES public.sales_reps(id),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    review_notes TEXT,
+
+    -- Client presentation
+    client_selections JSONB DEFAULT '[]'::jsonb,
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Activity Log Table (for audit trail)
 CREATE TABLE public.activity_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -132,6 +160,9 @@ CREATE INDEX idx_requests_created_at ON public.requests(created_at DESC);
 CREATE INDEX idx_roi_calculations_rep_id ON public.roi_calculations(rep_id);
 CREATE INDEX idx_activity_log_user_id ON public.activity_log(user_id);
 CREATE INDEX idx_activity_log_created_at ON public.activity_log(created_at DESC);
+CREATE INDEX idx_photos_status ON public.photos(status);
+CREATE INDEX idx_photos_uploaded_by ON public.photos(uploaded_by);
+CREATE INDEX idx_photos_tags ON public.photos USING GIN(tags);
 
 -- Row Level Security (RLS) Policies
 ALTER TABLE public.sales_reps ENABLE ROW LEVEL SECURITY;
@@ -139,6 +170,7 @@ ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.presentations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.roi_calculations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
 
 -- Policies for sales_reps
 CREATE POLICY "Users can view their own profile"
@@ -185,6 +217,67 @@ CREATE POLICY "Users can view their own activity"
     ON public.activity_log FOR SELECT
     USING (auth.uid() = user_id);
 
+-- Policies for photos
+-- Sales users can upload photos
+CREATE POLICY "Users can insert photos"
+    ON public.photos FOR INSERT
+    WITH CHECK (auth.uid() = uploaded_by);
+
+-- Sales users can view published photos only
+CREATE POLICY "Sales users can view published photos"
+    ON public.photos FOR SELECT
+    USING (
+        status = 'published'
+        OR auth.uid() = uploaded_by
+        OR EXISTS (
+            SELECT 1 FROM public.sales_reps
+            WHERE id = auth.uid()
+            AND email IN (
+                SELECT email FROM public.sales_reps sr
+                WHERE sr.id = auth.uid()
+                AND (
+                    email LIKE '%@manager%'
+                    OR email LIKE '%@admin%'
+                )
+            )
+        )
+    );
+
+-- Users can update their own photos (favorites, likes)
+CREATE POLICY "Users can update their own photos"
+    ON public.photos FOR UPDATE
+    USING (auth.uid() = uploaded_by);
+
+-- Managers can update any pending/published photo for review
+CREATE POLICY "Managers can review photos"
+    ON public.photos FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.sales_reps
+            WHERE id = auth.uid()
+            AND (
+                email LIKE '%@manager%'
+                OR email LIKE '%@admin%'
+            )
+        )
+    );
+
+-- Users can delete photos they uploaded
+CREATE POLICY "Users can delete their own photos"
+    ON public.photos FOR DELETE
+    USING (auth.uid() = uploaded_by);
+
+-- Admins can delete any photo
+CREATE POLICY "Admins can delete any photo"
+    ON public.photos FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.sales_reps
+            WHERE id = auth.uid()
+            AND email LIKE '%@admin%'
+        )
+    );
+
 -- Functions for updated_at timestamp
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
@@ -210,10 +303,15 @@ CREATE TRIGGER set_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
--- Storage Buckets (to be created in Supabase Dashboard)
--- 1. 'voice-recordings' - for audio files from voice requests
--- 2. 'photos' - for job site photos
--- 3. 'presentations' - for client presentation files (PDFs, PPTs)
+CREATE TRIGGER set_updated_at
+    BEFORE UPDATE ON public.photos
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+-- Storage Buckets (already created in Supabase Dashboard)
+-- 1. 'voice-recordings' - for audio files from voice requests ✅
+-- 2. 'photos' - for photo gallery images (full size and thumbnails) ✅
+-- 3. 'presentations' - for client presentation files (PDFs, PPTs) ✅
 
 -- Storage Policies (apply in Supabase Dashboard):
 -- voice-recordings bucket:
@@ -221,10 +319,15 @@ CREATE TRIGGER set_updated_at
 --   - SELECT: users can only access their own files
 --   - DELETE: users can only delete their own files
 
--- photos bucket:
+-- photos bucket (PRIVATE):
+--   Folder structure: {userId}/full/{photoId}.jpg and {userId}/thumb/{photoId}.jpg
 --   - INSERT: authenticated users can upload
---   - SELECT: users can only access their own files
---   - DELETE: users can only delete their own files
+--   - SELECT:
+--       * Sales users: can view published photos only (via database query)
+--       * Managers/Admins: can view all photos
+--   - DELETE:
+--       * Users: can delete their own photos
+--       * Admins: can delete any photo
 
 -- presentations bucket:
 --   - INSERT: authenticated users can upload

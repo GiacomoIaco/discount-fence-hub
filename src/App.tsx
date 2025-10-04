@@ -3,11 +3,13 @@ import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCirc
 import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
+import PhotoGallery from './components/PhotoGallery';
+import PhotoReviewQueue from './components/PhotoReviewQueue';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'photo-review' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -71,7 +73,7 @@ function App() {
 
   // Universal navigation items - same for all roles (permissions controlled inside each component)
   const getNavigationItems = () => {
-    return [
+    const items = [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
@@ -81,6 +83,13 @@ function App() {
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'team' as Section, name: 'Team', icon: User },
     ];
+
+    // Add Photo Review for managers and admins only
+    if (userRole === 'sales-manager' || userRole === 'admin') {
+      items.splice(4, 0, { id: 'photo-review' as Section, name: 'Photo Review', icon: CheckCircle });
+    }
+
+    return items;
   };
 
   const navigationItems = getNavigationItems();
@@ -94,7 +103,13 @@ function App() {
       return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
     }
     if (activeSection === 'photo-gallery') {
-      return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} />;
+      return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
+    }
+    if (activeSection === 'photo-review') {
+      if (userRole === 'sales-manager' || userRole === 'admin') {
+        return <PhotoReviewQueue onBack={() => setActiveSection('home')} userRole={userRole} />;
+      }
+      return <Dashboard userRole={userRole} />; // Fallback for users without access
     }
     if (activeSection === 'stain-calculator') {
       return <StainCalculator onBack={() => setActiveSection('home')} />;
@@ -2156,144 +2171,6 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
           </div>
         </button>
       </div>
-    </div>
-  );
-};
-
-interface PhotoGalleryProps {
-  onBack: () => void;
-  userRole?: UserRole;
-}
-
-const PhotoGallery = ({ onBack, userRole: _userRole = 'sales' }: PhotoGalleryProps) => {
-  const [photos, setPhotos] = useState<Array<{ id: string; url: string; date: string; tags: string[] }>>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    // Load photos from localStorage
-    const savedPhotos = JSON.parse(localStorage.getItem('photoGallery') || '[]');
-    setPhotos(savedPhotos);
-  }, []);
-
-  const handleTakePhoto = () => {
-    // For now, just trigger file input (camera will be available on mobile devices)
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    // Convert to base64 and save
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newPhoto = {
-          id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          url: reader.result as string,
-          date: new Date().toISOString(),
-          tags: ['untagged']
-        };
-
-        const updatedPhotos = [newPhoto, ...photos];
-        setPhotos(updatedPhotos);
-        localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const deletePhoto = (id: string) => {
-    const updatedPhotos = photos.filter(p => p.id !== id);
-    setPhotos(updatedPhotos);
-    localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      <button onClick={onBack} className="text-blue-600 font-medium mb-4 flex items-center space-x-2">
-        <ArrowLeft className="w-5 h-5" />
-        <span>Back</span>
-      </button>
-
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Photo Gallery</h1>
-        <p className="text-gray-600 mt-1">Browse & capture job photos</p>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <button
-          onClick={handleTakePhoto}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-xl shadow-lg active:scale-98 transition-transform"
-        >
-          <div className="flex items-center justify-center space-x-2">
-            <Camera className="w-6 h-6" />
-            <span className="font-semibold">Take Photo</span>
-          </div>
-        </button>
-
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="bg-white border-2 border-blue-600 text-blue-600 p-4 rounded-xl shadow-sm active:scale-98 transition-transform"
-        >
-          <div className="flex items-center justify-center space-x-2">
-            <Image className="w-6 h-6" />
-            <span className="font-semibold">Upload</span>
-          </div>
-        </button>
-      </div>
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        multiple
-        onChange={handleFileSelect}
-        className="hidden"
-      />
-
-      {/* Photo Count */}
-      <div className="mb-4">
-        <p className="text-sm text-gray-600">
-          {photos.length} {photos.length === 1 ? 'photo' : 'photos'} in gallery
-        </p>
-      </div>
-
-      {/* Photo Grid */}
-      {photos.length === 0 ? (
-        <div className="text-center py-16">
-          <Image className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 font-medium">No photos yet</p>
-          <p className="text-sm text-gray-400 mt-1">Tap "Take Photo" to get started</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {photos.map((photo) => (
-            <div key={photo.id} className="relative group">
-              <img
-                src={photo.url}
-                alt="Job photo"
-                className="w-full h-40 object-cover rounded-lg"
-                onClick={() => window.open(photo.url, '_blank')}
-              />
-              <button
-                onClick={() => deletePhoto(photo.id)}
-                className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 rounded-b-lg">
-                <p className="text-white text-xs">
-                  {new Date(photo.date).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };
