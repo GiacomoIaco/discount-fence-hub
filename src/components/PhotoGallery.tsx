@@ -109,8 +109,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       // Filter based on active tab
       switch (activeTab) {
         case 'gallery':
-          // Gallery tab: Published photos + user's own pending photos
-          query = query.or(`status.eq.published,uploaded_by.eq.${userId}`);
+          // Gallery tab: Published photos + user's own pending photos (not archived)
+          query = query.or(`status.eq.published,and(status.eq.pending,uploaded_by.eq.${userId})`);
           break;
         case 'pending':
           // Pending Review tab: ALL pending photos (for managers/admins to review)
@@ -470,9 +470,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   };
 
   const openFullScreen = async (index: number) => {
-    // On Pending Review tab, open review modal instead of full-screen viewer
-    if (activeTab === 'pending' && viewMode === 'desktop') {
-      const photo = filteredPhotos[index];
+    const photo = filteredPhotos[index];
+
+    // On desktop, managers/admins can edit photos from any tab
+    const canEdit = viewMode === 'desktop' && (userRole === 'sales-manager' || userRole === 'admin');
+
+    if (canEdit && activeTab !== 'gallery') {
+      // Open review modal for Pending/Saved/Archived tabs
       setReviewingPhoto(photo);
       setEditingTags(photo.tags || photo.suggestedTags || []);
       setEditingScore(photo.qualityScore || 5);
@@ -496,6 +500,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         setUploaderName('Unknown User');
       }
     } else {
+      // Gallery tab or non-managers: open full-screen viewer
       setCurrentIndex(index);
     }
   };
@@ -515,6 +520,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
   const handlePublishPhoto = async () => {
     if (!reviewingPhoto) return;
+
+    // Validate: require at least 1 tag
+    if (editingTags.length === 0) {
+      alert('Please select at least one tag before publishing.');
+      return;
+    }
+
     setReviewLoading(true);
 
     try {
@@ -615,6 +627,41 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     } catch (error) {
       console.error('Error archiving photo:', error);
       alert('Failed to archive photo. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!reviewingPhoto) return;
+    if (!confirm('PERMANENTLY DELETE this photo? This cannot be undone and will remove the photo from storage.')) return;
+
+    setReviewLoading(true);
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+
+      // Delete from storage
+      const fileName = `${userId}/full/${reviewingPhoto.id}.jpg`;
+      const thumbFileName = `${userId}/thumb/${reviewingPhoto.id}.jpg`;
+
+      await supabase.storage.from('photos').remove([fileName, thumbFileName]);
+
+      // Delete from database
+      const { error } = await supabase
+        .from('photos')
+        .delete()
+        .eq('id', reviewingPhoto.id);
+
+      if (error) throw error;
+
+      // Remove from photos list and close modal
+      setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
+      setReviewingPhoto(null);
+      alert('Photo permanently deleted.');
+    } catch (error) {
+      console.error('Error deleting photo:', error);
+      alert('Failed to delete photo. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -1096,36 +1143,41 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       {/* Review Modal (Pending Review tab only) */}
       {reviewingPhoto && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Review Photo</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Uploaded {new Date(reviewingPhoto.uploadedAt).toLocaleDateString()} at{' '}
-                    {new Date(reviewingPhoto.uploadedAt).toLocaleTimeString()}
-                  </p>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Submitted by: {uploaderName || 'Loading...'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setReviewingPhoto(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+          <div className="bg-white rounded-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-200 flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Review Photo</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Uploaded {new Date(reviewingPhoto.uploadedAt).toLocaleDateString()} at{' '}
+                  {new Date(reviewingPhoto.uploadedAt).toLocaleTimeString()}
+                </p>
+                <p className="text-sm text-gray-600 font-medium">
+                  Submitted by: {uploaderName || 'Loading...'}
+                </p>
               </div>
+              <button
+                onClick={() => setReviewingPhoto(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
 
-              {/* Photo Preview */}
-              <div className="mb-6">
-                <img
-                  src={reviewingPhoto.url}
-                  alt="Review"
-                  className="w-full h-96 object-contain bg-gray-100 rounded-lg"
-                />
-              </div>
+            {/* Side-by-side layout */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-6 p-6">
+                {/* Left: Photo Preview */}
+                <div className="flex items-center justify-center bg-gray-100 rounded-lg">
+                  <img
+                    src={reviewingPhoto.url}
+                    alt="Review"
+                    className="max-w-full max-h-[calc(95vh-200px)] object-contain"
+                  />
+                </div>
+
+                {/* Right: Review Controls */}
+                <div className="overflow-y-auto pr-2">
 
               {/* AI Suggestions */}
               {reviewingPhoto.suggestedTags && reviewingPhoto.suggestedTags.length > 0 && (
@@ -1207,32 +1259,82 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                 />
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Different per tab */}
               <div className="flex space-x-3">
-                <button
-                  onClick={handlePublishPhoto}
-                  disabled={reviewLoading}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  <Check className="w-5 h-5" />
-                  <span>Publish to Gallery</span>
-                </button>
-                <button
-                  onClick={handleSaveDraft}
-                  disabled={reviewLoading}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  <Save className="w-5 h-5" />
-                  <span>Save Draft</span>
-                </button>
-                <button
-                  onClick={handleArchivePhoto}
-                  disabled={reviewLoading}
-                  className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span>Archive</span>
-                </button>
+                {activeTab === 'pending' && (
+                  <>
+                    <button
+                      onClick={handlePublishPhoto}
+                      disabled={reviewLoading}
+                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      <Check className="w-5 h-5" />
+                      <span>Publish</span>
+                    </button>
+                    <button
+                      onClick={handleSaveDraft}
+                      disabled={reviewLoading}
+                      className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      <Save className="w-5 h-5" />
+                      <span>Save Draft</span>
+                    </button>
+                    <button
+                      onClick={handleArchivePhoto}
+                      disabled={reviewLoading}
+                      className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span>Archive</span>
+                    </button>
+                  </>
+                )}
+
+                {activeTab === 'saved' && (
+                  <>
+                    <button
+                      onClick={handlePublishPhoto}
+                      disabled={reviewLoading}
+                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      <Check className="w-5 h-5" />
+                      <span>Publish</span>
+                    </button>
+                    <button
+                      onClick={handleSaveDraft}
+                      disabled={reviewLoading}
+                      className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      <Save className="w-5 h-5" />
+                      <span>Update</span>
+                    </button>
+                    <button
+                      onClick={handleArchivePhoto}
+                      disabled={reviewLoading}
+                      className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span>Archive</span>
+                    </button>
+                  </>
+                )}
+
+                {activeTab === 'archived' && userRole === 'admin' && (
+                  <button
+                    onClick={handlePermanentDelete}
+                    disabled={reviewLoading}
+                    className="w-full bg-red-700 text-white py-3 rounded-lg font-semibold hover:bg-red-800 disabled:opacity-50 flex items-center justify-center space-x-2"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span>Permanently Delete</span>
+                  </button>
+                )}
+
+                {activeTab === 'archived' && userRole === 'sales-manager' && (
+                  <p className="text-gray-500 text-center py-3">Only admins can delete archived photos</p>
+                )}
+              </div>
+                </div>
               </div>
             </div>
           </div>
