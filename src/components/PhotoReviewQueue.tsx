@@ -111,18 +111,19 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
     const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
     try {
-      const updated: Partial<Photo> = {
+      // Convert to snake_case for Supabase
+      const dbUpdate = {
         status: 'published',
         tags: editingTags,
-        qualityScore: editingScore,
-        reviewedBy: userId,
-        reviewedAt: new Date().toISOString(),
-        reviewNotes,
+        quality_score: editingScore,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes,
       };
 
       const { error } = await supabase
         .from('photos')
-        .update(updated)
+        .update(dbUpdate)
         .eq('id', selectedPhoto.id);
 
       if (error) throw error;
@@ -167,22 +168,30 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
 
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
-      const updated: Partial<Photo> = {
+      // Convert to snake_case for Supabase
+      const dbUpdate = {
+        tags: editingTags,
+        quality_score: editingScore,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes,
+      };
+
+      const { error } = await supabase
+        .from('photos')
+        .update(dbUpdate)
+        .eq('id', selectedPhoto.id);
+
+      if (error) throw error;
+
+      // Update in pending list with camelCase for display
+      const updated = {
         tags: editingTags,
         qualityScore: editingScore,
         reviewedBy: userId,
         reviewedAt: new Date().toISOString(),
         reviewNotes,
       };
-
-      const { error } = await supabase
-        .from('photos')
-        .update(updated)
-        .eq('id', selectedPhoto.id);
-
-      if (error) throw error;
-
-      // Update in pending list
       setPendingPhotos((prev) =>
         prev.map((p) => (p.id === selectedPhoto.id ? { ...p, ...updated } : p))
       );
@@ -206,16 +215,17 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
     const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
     try {
-      const updated: Partial<Photo> = {
+      // Convert to snake_case for Supabase
+      const dbUpdate = {
         status: 'archived',
-        reviewedBy: userId,
-        reviewedAt: new Date().toISOString(),
-        reviewNotes: reviewNotes || 'Archived by reviewer',
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes || 'Archived by reviewer',
       };
 
       const { error } = await supabase
         .from('photos')
-        .update(updated)
+        .update(dbUpdate)
         .eq('id', selectedPhoto.id);
 
       if (error) throw error;
