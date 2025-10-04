@@ -541,12 +541,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
   const handlePublishPhoto = async () => {
     if (!reviewingPhoto) return;
-
-    // Validate: require at least 1 tag
-    if (editingTags.length === 0) {
-      alert('Please select at least one tag before publishing.');
-      return;
-    }
+    // Button is disabled if no tags, so this shouldn't happen
+    if (editingTags.length === 0) return;
 
     setReviewLoading(true);
 
@@ -587,10 +583,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Remove from photos list and close modal
-      setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
+      // Reload photos and close modal
+      await loadPhotos();
       closeReviewModal();
-      alert(showingEnhanced && enhancedUrl ? 'Enhanced photo published!' : 'Photo published successfully!');
     } catch (error) {
       console.error('Error publishing photo:', error);
       alert('Failed to publish photo. Please try again.');
@@ -621,10 +616,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Update in photos list
+      // Update in photos list and close modal
       await loadPhotos();
-      setReviewingPhoto(null);
-      alert('Draft saved. Photo remains in Pending Review.');
+      closeReviewModal();
     } catch (error) {
       console.error('Error saving draft:', error);
       alert('Failed to save draft. Please try again.');
@@ -655,10 +649,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Update in photos list and reload to reflect new status
+      // Update in photos list and close modal
       await loadPhotos();
-      setReviewingPhoto(null);
-      alert('Photo moved to Saved tab.');
+      closeReviewModal();
     } catch (error) {
       console.error('Error saving photo:', error);
       alert('Failed to save photo. Please try again.');
@@ -689,10 +682,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Update in photos list
+      // Update in photos list and close modal
       await loadPhotos();
-      setReviewingPhoto(null);
-      alert('Photo updated.');
+      closeReviewModal();
     } catch (error) {
       console.error('Error updating photo:', error);
       alert('Failed to update photo. Please try again.');
@@ -703,7 +695,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
   const handleArchivePhoto = async () => {
     if (!reviewingPhoto) return;
-    if (!confirm('Archive this photo? It will no longer be visible in the gallery.')) return;
 
     setReviewLoading(true);
 
@@ -723,10 +714,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Remove from photos list and close modal
-      setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
-      setReviewingPhoto(null);
-      alert('Photo archived.');
+      // Reload photos and close modal
+      await loadPhotos();
+      closeReviewModal();
     } catch (error) {
       console.error('Error archiving photo:', error);
       alert('Failed to archive photo. Please try again.');
@@ -774,27 +764,39 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      // Auto-enhance adjustments
-      const brightness = 1.1;  // 10% brighter
-      const contrast = 1.15;   // 15% more contrast
-      const saturation = 1.2;  // 20% more saturated
+      // Auto-enhance adjustments - subtle and realistic
+      const brightness = 1.05;  // 5% brighter (subtle)
+      const contrast = 1.08;    // 8% more contrast (gentle)
+      const saturation = 1.10;  // 10% more saturated (natural)
+      const shadows = 1.15;     // Lift shadows by 15%
 
       for (let i = 0; i < data.length; i += 4) {
         let r = data[i];
         let g = data[i + 1];
         let b = data[i + 2];
 
-        // Apply brightness
+        // Calculate luminance
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+        // Lift shadows (brighten dark areas more than bright areas)
+        if (luminance < 128) {
+          const shadowBoost = shadows * (1 - luminance / 128);
+          r *= shadowBoost;
+          g *= shadowBoost;
+          b *= shadowBoost;
+        }
+
+        // Apply gentle brightness
         r *= brightness;
         g *= brightness;
         b *= brightness;
 
-        // Apply contrast
+        // Apply gentle contrast (centered around midpoint)
         r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
         g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
         b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
 
-        // Apply saturation
+        // Apply subtle saturation
         const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
         r = gray + saturation * (r - gray);
         g = gray + saturation * (g - gray);
@@ -1161,8 +1163,15 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                 {/* Pending badge and delete button (only show when not in edit mode) */}
                 {!editMode && photo.status === 'pending' && (
                   <>
-                    <div className="absolute bottom-2 left-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
-                      Pending Review
+                    <div className="absolute bottom-2 left-2 flex flex-col gap-1">
+                      {photo.reviewNotes && (
+                        <div className="bg-blue-600 text-white text-xs px-2 py-1 rounded font-semibold">
+                          DRAFT
+                        </div>
+                      )}
+                      <div className="bg-orange-500 text-white text-xs px-2 py-1 rounded">
+                        Pending Review
+                      </div>
                     </div>
                     <button
                       onClick={(e) => deletePhoto(photo, e)}
@@ -1734,8 +1743,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                     <div className="flex space-x-3">
                       <button
                         onClick={handlePublishPhoto}
-                        disabled={reviewLoading}
-                        className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                        disabled={reviewLoading || editingTags.length === 0}
+                        className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                        title={editingTags.length === 0 ? 'Add at least one tag to publish' : 'Publish photo'}
                       >
                         <Check className="w-5 h-5" />
                         <span>Publish</span>
@@ -1775,8 +1785,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                   <div className="flex space-x-3">
                     <button
                       onClick={handlePublishPhoto}
-                      disabled={reviewLoading}
-                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                      disabled={reviewLoading || editingTags.length === 0}
+                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                      title={editingTags.length === 0 ? 'Add at least one tag to publish' : 'Publish photo'}
                     >
                       <Check className="w-5 h-5" />
                       <span>Publish</span>

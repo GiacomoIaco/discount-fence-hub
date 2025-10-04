@@ -9,7 +9,7 @@ export interface Photo {
   tags: string[];
   isFavorite: boolean;
   likes: number;
-  status: 'pending' | 'published' | 'archived';
+  status: 'pending' | 'saved' | 'published' | 'archived';
   suggestedTags?: string[];
   qualityScore?: number;
   reviewedBy?: string;
