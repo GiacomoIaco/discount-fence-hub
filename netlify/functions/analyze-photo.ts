@@ -122,7 +122,7 @@ Respond ONLY with valid JSON in this exact format:
 
     // Call Claude Vision API
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-5-sonnet-20240620',
       max_tokens: 1024,
       messages: [
         {
