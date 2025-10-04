@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:tables": "npx tsx scripts/check-supabase-tables.ts",
+    "check:buckets": "npx tsx scripts/check-supabase-buckets.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
