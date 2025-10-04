@@ -347,6 +347,10 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode }: SalesRepVie
     return <PhotoGallery onBack={() => setActiveSection('home')} />;
   }
 
+  if (activeSection === 'sales-resources') {
+    return <SalesResources onBack={() => setActiveSection('home')} userRole="sales" viewMode={viewMode} />;
+  }
+
   return (
     <div className="space-y-4 p-4">
       {/* Sales Tools Section - No Title */}
