@@ -114,19 +114,19 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       // Filter based on active tab
       switch (activeTab) {
         case 'gallery':
-          // Gallery tab: Published photos + user's own pending photos (only those NOT in saved drafts)
-          query = query.or(`status.eq.published,and(status.eq.pending,uploaded_by.eq.${userId},review_notes.is.null)`);
+          // Gallery tab: Published photos + user's own pending photos
+          query = query.or(`status.eq.published,and(status.eq.pending,uploaded_by.eq.${userId})`);
           break;
         case 'pending':
-          // Pending Review tab: ALL pending photos WITHOUT review notes (not yet reviewed/saved)
-          query = query.eq('status', 'pending').is('review_notes', null);
+          // Pending Review tab: ALL pending photos (awaiting first review)
+          query = query.eq('status', 'pending');
           break;
         case 'saved':
-          // Saved tab: Pending with review notes (draft reviews)
-          query = query.eq('status', 'pending').not('review_notes', 'is', null);
+          // Saved tab: Photos reviewed but not ready to publish
+          query = query.eq('status', 'saved');
           break;
         case 'archived':
-          // Archived tab: All archived photos
+          // Archived tab: Photos marked for deletion
           query = query.eq('status', 'archived');
           break;
       }
@@ -571,6 +571,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
+        status: 'saved',
         tags: editingTags,
         quality_score: editingScore,
         reviewed_by: userId,
@@ -585,16 +586,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Update in photos list
-      setPhotos((prev) =>
-        prev.map((p) =>
-          p.id === reviewingPhoto.id
-            ? { ...p, tags: editingTags, qualityScore: editingScore, reviewNotes }
-            : p
-        )
-      );
+      // Update in photos list and reload to reflect new status
+      await loadPhotos();
       setReviewingPhoto(null);
-      alert('Draft saved successfully!');
+      alert('Photo saved to Saved tab.');
     } catch (error) {
       console.error('Error saving draft:', error);
       alert('Failed to save draft. Please try again.');
@@ -692,13 +687,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setSelectedPhotoIds(new Set());
   };
 
-  const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'pending') => {
+  const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'saved') => {
     if (selectedPhotoIds.size === 0) {
       alert('No photos selected');
       return;
     }
 
-    const statusLabel = newStatus === 'pending' ? 'Saved' : newStatus === 'published' ? 'Published' : 'Archived';
+    const statusLabel = newStatus === 'saved' ? 'Saved' : newStatus === 'published' ? 'Published' : 'Archived';
     if (!confirm(`Move ${selectedPhotoIds.size} photo(s) to ${statusLabel}?`)) return;
 
     try {
@@ -711,8 +706,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           reviewed_at: new Date().toISOString(),
         };
 
-        // For "Saved" (pending), add review_notes so it appears in Saved tab
-        if (newStatus === 'pending') {
+        // For "Saved", add review_notes placeholder
+        if (newStatus === 'saved') {
           updateData.review_notes = 'Bulk moved to saved';
         }
 
@@ -1037,7 +1032,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               {/* Move to Saved (not shown when already in Saved tab) */}
               {activeTab !== 'saved' && (
                 <button
-                  onClick={() => handleBulkStatusChange('pending')}
+                  onClick={() => handleBulkStatusChange('saved')}
                   disabled={selectedPhotoIds.size === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1"
                 >
