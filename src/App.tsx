@@ -148,7 +148,7 @@ function App() {
           </div>
         </div>
         <div className="pb-20">
-          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} />
+          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} />
         </div>
       </div>
     );
@@ -256,9 +256,10 @@ function App() {
 interface SalesRepViewProps {
   activeSection: Section;
   setActiveSection: (section: Section) => void;
+  viewMode: 'mobile' | 'desktop';
 }
 
-const SalesRepView = ({ activeSection, setActiveSection }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode }: SalesRepViewProps) => {
   // Count pending/quoted requests
   const savedRequests = JSON.parse(localStorage.getItem('myRequests') || '[]');
   const pendingCount = savedRequests.filter((r: any) => r.status === 'pending' || r.status === 'quoted').length;
