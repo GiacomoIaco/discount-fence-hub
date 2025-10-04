@@ -1,10 +1,13 @@
 # Discount Fence USA Operations Hub
 
-A comprehensive, mobile-first web application for sales reps, managers, and operations teams at Discount Fence USA. Features AI-powered sales coaching, voice transcription, photo gallery with auto-tagging, and complete request management.
+A comprehensive, mobile-first web application for sales reps, managers, and operations teams at Discount Fence USA. Features AI-powered sales coaching, voice transcription, photo gallery with auto-tagging, complete authentication system, team management, and sales resources library.
 
 🌐 **Live App**: [Deployed on Netlify]
 📊 **Database**: Supabase (PostgreSQL)
 🤖 **AI Integrations**: OpenAI Whisper + Anthropic Claude + AssemblyAI
+🔐 **Authentication**: Supabase Auth with Role-Based Access
+👥 **Team Management**: User invitations and role management
+📚 **Sales Resources**: Organized file library with AI assistance
 
 ---
 
@@ -48,6 +51,16 @@ A comprehensive, mobile-first web application for sales reps, managers, and oper
 - **Upload Management**: Add/modify presentation files
 - **Easy Access**: Quick access from mobile home screen
 
+#### Sales Resources Library 📚
+- **Folder Organization**: Colorful gradient folders (8 colors)
+- **File Management**: Upload PDFs, presentations, images, videos (up to 20MB)
+- **Smart Features**: Duplicate detection, file rename, descriptions
+- **Search & Filter**: By filename and file type
+- **Favorites**: Save important files for quick access
+- **Inline Viewing**: PDFs and images open in browser (no download)
+- **View Tracking**: See how many times files are viewed
+- **Mobile Access**: Full access from sales mobile view
+
 #### 5 Request Types
 1. **Custom Pricing** (voice-enabled)
 2. **New Builder/Community**
@@ -58,6 +71,13 @@ A comprehensive, mobile-first web application for sales reps, managers, and oper
 ---
 
 ### 🏢 For Operations & Managers (Desktop)
+
+#### Authentication & Access
+- **Email/Password Login**: Secure Supabase authentication
+- **Email Verification**: Confirm email on signup
+- **Role-Based Access**: 4 roles (Sales, Operations, Sales Manager, Admin)
+- **Profile Management**: Update user information
+- **Last Login Tracking**: Monitor user activity
 
 #### Photo Review Queue
 - **Pending Photos**: See all photos awaiting approval
@@ -80,9 +100,20 @@ A comprehensive, mobile-first web application for sales reps, managers, and oper
 - **Process Steps**: Set key behaviors for each step
 
 #### Team Management
-- **User Roles**: Sales, Operations, Sales Manager, Admin
-- **Performance Tracking**: Monitor team metrics
-- **Access Control**: Permission-based features
+- **User List**: View all team members with search and filter
+- **Invite Users**: Email-based invitations with role assignment
+- **Role Management**: Change user roles (Admin only)
+- **User Activation**: Enable/disable user access (Admin only)
+- **Pending Invitations**: Track and manage sent invitations
+- **Permissions**: Role-specific access (Sales Manager can invite, Admin has full control)
+
+#### Sales Resources Management
+- **File Upload**: Add PDFs, presentations, images, videos
+- **Edit Files**: Rename files and add descriptions (Admin/Manager)
+- **Archive System**: Soft delete with restore capability
+- **Permanent Delete**: Admin-only permanent removal
+- **Duplicate Prevention**: Automatic check with archive-and-replace option
+- **Inline Viewing**: Open files in browser instead of download
 
 ---
 
@@ -138,19 +169,21 @@ VITE_ANTHROPIC_API_KEY=sk-ant-...
 ### 3. Database Setup (Already Done ✅)
 
 All tables exist:
-- ✅ `sales_reps`
-- ✅ `requests`
-- ✅ `presentations`
-- ✅ `roi_calculations`
-- ✅ `activity_log`
-- ✅ `photos` (NEW - for Photo Gallery)
+- ✅ Core: `sales_reps`, `requests`, `presentations`, `roi_calculations`, `activity_log`, `photos`
+- ✅ Auth: `user_profiles`, `user_invitations`
+- ✅ Resources: `sales_resources_folders`, `sales_resources_files`, `sales_resources_favorites`, `sales_resources_views`
 
 Storage buckets:
 - ✅ `voice-recordings`
 - ✅ `photos`
 - ✅ `presentations`
+- ✅ `sales-resources`
 
-**One-time setup needed:** Run `supabase-storage-policies.sql` in Supabase SQL Editor to enable photo uploads.
+**SQL Scripts** (run these in Supabase SQL Editor if needed):
+- `create-auth-tables.sql` - Creates authentication tables
+- `add-file-description.sql` - Adds description field to files
+- `fix-storage-content-disposition.sql` - Configures storage bucket for inline viewing
+- `supabase-storage-policies.sql` - Enables photo uploads
 
 ### 4. Run Development Server
 
@@ -175,12 +208,20 @@ npm run preview  # Preview production build
 discount-fence-hub/
 ├── src/
 │   ├── components/
+│   │   ├── auth/
+│   │   │   ├── Login.tsx               # Login screen
+│   │   │   └── Signup.tsx              # Self-service signup
 │   │   ├── sales/
 │   │   │   ├── SalesCoach.tsx          # AI sales coaching
 │   │   │   ├── SalesCoachAdmin.tsx     # Admin configuration
 │   │   │   └── StainCalculator.tsx     # ROI calculator
 │   │   ├── PhotoGallery.tsx            # Photo gallery feature
-│   │   └── PhotoReviewQueue.tsx        # Manager review interface
+│   │   ├── PhotoReviewQueue.tsx        # Manager review interface
+│   │   ├── SalesResources.tsx          # Sales resources library
+│   │   ├── TeamManagement.tsx          # Team & user management
+│   │   └── InstallAppBanner.tsx        # PWA install prompt
+│   ├── contexts/
+│   │   └── AuthContext.tsx             # Authentication context
 │   ├── lib/
 │   │   ├── supabase.ts                 # Supabase client
 │   │   ├── openai.ts                   # Whisper transcription
@@ -202,14 +243,16 @@ discount-fence-hub/
 │   ├── check-supabase-buckets.ts       # Verify storage buckets
 │   └── check-supabase-tables.ts        # Verify database tables
 ├── public/                             # Static assets
-├── supabase-schema.sql                 # Database schema
-├── supabase-storage-policies.sql       # Storage RLS policies
+├── SQL scripts/
+│   ├── supabase-schema.sql             # Core database schema
+│   ├── create-auth-tables.sql          # Auth & user profiles
+│   ├── add-file-description.sql        # File description field
+│   └── fix-storage-content-disposition.sql # Storage config
 ├── netlify.toml                        # Netlify config
 ├── vite.config.ts                      # Vite + PWA config
 ├── DEPLOY.md                           # Deployment guide
 ├── PROJECT_SUMMARY.md                  # Detailed feature list
-├── PHOTO_GALLERY_READY.md              # Photo gallery setup
-└── SUPABASE_SETUP.md                   # Supabase configuration
+└── README.md                           # This file
 ```
 
 ---
@@ -219,17 +262,22 @@ discount-fence-hub/
 ### ✅ Fully Functional
 1. **AI Sales Coach** - Record, transcribe, analyze sales calls
 2. **Photo Gallery** - AI-powered photo management with review workflow
-3. **Voice Requests** - Speak your pricing requests
-4. **Pre-Stain Calculator** - Professional ROI presentations
-5. **Multi-Role Interface** - Sales, Operations, Manager, Admin
-6. **Offline Support** - Queue recordings when offline, sync later
-7. **PWA** - Install as app on mobile devices
+3. **Authentication** - Supabase Auth with email/password, role-based access
+4. **Team Management** - Invite users, manage roles, track activity
+5. **Sales Resources Library** - Organized file storage with advanced features
+6. **Voice Requests** - Speak your pricing requests
+7. **Pre-Stain Calculator** - Professional ROI presentations
+8. **Multi-Role Interface** - Sales, Operations, Manager, Admin
+9. **Offline Support** - Queue recordings when offline, sync later
+10. **PWA** - Install as app on mobile devices with smart prompts
 
 ### 🔗 Live Integrations
+- ✅ **Supabase Auth** - Email/password authentication
+- ✅ **Supabase Database** - PostgreSQL with 12 tables
+- ✅ **Supabase Storage** - 4 buckets for files
 - ✅ **OpenAI Whisper** - Real voice transcription
 - ✅ **Claude API** - AI analysis & parsing
 - ✅ **AssemblyAI** - Alternative transcription
-- ✅ **Supabase** - Database & storage
 - ✅ **Netlify** - Deployed and live
 
 ---
@@ -237,30 +285,37 @@ discount-fence-hub/
 ## 🔐 User Roles & Permissions
 
 ### Sales Role
-- View/use: Presentations, Sales Coach, Photo Gallery, Calculator, Requests
+- View/use: Presentations, Sales Coach, Photo Gallery, Calculator, Requests, Sales Resources
 - Upload photos (pending approval)
 - Record sales calls
 - Submit requests
-- **Cannot**: Access review queues, see pending photos (except own), manage team
+- View and favorite files
+- **Cannot**: Access review queues, manage team, upload/edit files
 
 ### Operations Role
 - Full dashboard access
 - Request queue management
-- **Cannot**: Access Sales Coach Admin, review photos
+- View team members
+- **Cannot**: Access Sales Coach Admin, review photos, manage team, edit resources
 
 ### Sales Manager Role
 - All sales permissions
 - Photo review queue
 - Sales Coach analytics
 - Team performance
-- **Cannot**: Delete others' photos, access Sales Coach Admin
+- **Invite users** and assign roles
+- **Upload/edit files** in Sales Resources
+- View and manage team members
+- **Cannot**: Change roles, activate/deactivate users, delete permanently
 
 ### Admin Role
 - **Full access** to everything
 - Sales Coach Admin configuration
+- **Full team management** (roles, activation)
+- **Full file management** (upload, edit, archive, restore, permanent delete)
 - Delete any photo
-- Manage all users
 - System configuration
+- View archived files section
 
 ---
 
@@ -329,14 +384,23 @@ npm run check:buckets  # Verify storage buckets
 
 ## 📊 Project Stats
 
-- **Total Lines of Code**: ~12,000+
-- **React Components**: 10+ major components
+- **Total Lines of Code**: ~18,000+
+- **React Components**: 16+ major components
+  - SalesCoach, SalesCoachAdmin, StainCalculator
+  - PhotoGallery, PhotoReviewQueue
+  - Login, Signup, TeamManagement
+  - SalesResources, InstallAppBanner
+  - Dashboard, Analytics, etc.
 - **Netlify Functions**: 7 serverless endpoints
-- **Database Tables**: 6 tables
-- **Storage Buckets**: 3 configured
-- **API Integrations**: 3 (Supabase, OpenAI, Anthropic)
+- **Database Tables**: 12 tables
+  - Core: sales_reps, requests, presentations, roi_calculations, activity_log, photos
+  - Auth: user_profiles, user_invitations
+  - Resources: sales_resources_folders, sales_resources_files, sales_resources_favorites, sales_resources_views
+- **Storage Buckets**: 4 configured (voice-recordings, photos, presentations, sales-resources)
+- **API Integrations**: 4 (Supabase Auth + Database, OpenAI, Anthropic, AssemblyAI)
+- **Authentication**: Full Supabase Auth with role-based access
 - **Offline Support**: Full IndexedDB implementation
-- **PWA Features**: Service worker, manifest, offline caching
+- **PWA Features**: Service worker, manifest, offline caching, install prompts
 
 ---
 
@@ -349,26 +413,40 @@ npm run check:buckets  # Verify storage buckets
 5. **Manager Review System** - Human + AI feedback
 6. **Team Leaderboards** - Gamification with rankings
 7. **Multi-Role Architecture** - One app for all users
+8. **Self-Service Authentication** - Email/password signup with verification
+9. **Team Management** - Invite users, manage roles, track activity
+10. **Sales Resources Library** - Organized file storage with AI assistance
+11. **Smart File Management** - Duplicate detection, auto-archive, inline viewing
+12. **PWA Installation** - Progressive Web App with smart prompts
+13. **Colorful UI** - Gradient folders, visual depth, modern design
 
 ---
 
 ## 🛣️ Roadmap
 
-### Phase 1: Production (Current)
+### Phase 1: Production ✅ COMPLETE
 - [x] Deploy to Netlify
 - [x] Connect Supabase
 - [x] AI integrations
-- [ ] Set up authentication
-- [ ] Storage policies
+- [x] Set up authentication
+- [x] Team management
+- [x] Sales resources library
+- [ ] Storage policies (SQL script available)
 
-### Phase 2: Enhancements
+### Phase 2: Enhancements (In Progress)
+- [x] PWA install prompts
+- [x] Photo gallery with AI
+- [x] File upload with compression
+- [ ] Email automation for invitations
 - [ ] Push notifications
 - [ ] Real-time team chat
 - [ ] Advanced analytics dashboard
 - [ ] Export reports to PDF
 - [ ] Custom domain
 
-### Phase 3: Mobile
+### Phase 3: Mobile (Future)
+- [x] PWA with service workers
+- [x] Offline capabilities (IndexedDB)
 - [ ] React Native app
 - [ ] Background sync
 - [ ] Push notifications
@@ -405,9 +483,9 @@ Proprietary software owned by Discount Fence USA.
 
 For documentation:
 - **Setup**: See `DEPLOY.md`
-- **Photo Gallery**: See `PHOTO_GALLERY_READY.md`
-- **Supabase**: See `SUPABASE_SETUP.md`
-- **Features**: See `PROJECT_SUMMARY.md`
+- **Features**: See `PROJECT_SUMMARY.md` (comprehensive feature documentation)
+- **Code**: See this `README.md`
+- **Database**: See SQL scripts in root directory
 
 For issues: Create an issue in the GitHub repository
 

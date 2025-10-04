@@ -2,9 +2,9 @@
 
 ## 🎉 Project Status: ✅ PRODUCTION DEPLOYED
 
-A **comprehensive mobile-first web application** for sales reps, managers, and operations teams at Discount Fence USA, featuring AI-powered sales coaching, voice transcription, intelligent photo gallery with auto-tagging, and complete business tools.
+A **comprehensive mobile-first web application** for sales reps, managers, and operations teams at Discount Fence USA, featuring AI-powered sales coaching, voice transcription, intelligent photo gallery with auto-tagging, complete authentication system, team management, and sales resources library.
 
-**🌐 Live on Netlify** | **📊 Supabase Connected** | **🤖 All AI Integrations Active**
+**🌐 Live on Netlify** | **📊 Supabase Connected** | **🤖 All AI Integrations Active** | **🔐 Authentication Enabled** | **👥 Team Management Active**
 
 ---
 
@@ -145,6 +145,117 @@ Role-based navigation with localStorage persistence:
 - Full-screen viewer placeholder
 - Ready for PDF/PPT integration
 
+### 7. **Authentication System** ✅ FULLY FUNCTIONAL
+(`AuthContext.tsx`, `Login.tsx`, `Signup.tsx`)
+- **Supabase Auth Integration**: Complete email/password authentication
+- **User Profiles**: Extended auth.users with custom user_profiles table
+- **Phone Number Collection**: Optional phone field during signup
+- **Email Verification**: Confirmation email with verification flow
+- **Protected Routes**: Login screen for unauthenticated users
+- **Role-Based Access**: 4 roles (sales, operations, sales-manager, admin)
+- **Profile Management**: Update user profiles and track activity
+- **Sign Out**: Full session management
+- **Development Bypass**: Optional localStorage bypass for testing
+- **Auto-create Profiles**: Database trigger creates profile on signup
+- **Last Login Tracking**: Automatic timestamp updates
+- **User Display**: Real name and role shown in sidebar (no more mock data)
+- **Admin Role Toggle**: Admins can switch between all role views
+- **Security**: RLS policies disabled (to be re-enabled with proper non-recursive policies)
+
+### 8. **Team Management** ✅ FULLY FUNCTIONAL
+(`TeamManagement.tsx`)
+- **User List**: View all team members with search and filter
+  - Search by name or email
+  - Filter by role (all, admin, sales-manager, operations, sales)
+  - Display: Avatar with initials, full name, email, phone, role, join date
+  - Visual indicators: "You" badge, inactive status, role badges
+- **Invite Users**: Email-based invitation system
+  - Create invitation with email and role assignment
+  - Generate unique invitation token (7-day expiration)
+  - Track who invited whom and when
+  - Share invitation link (manual for now, email automation pending)
+  - Pending invitations view with delete option
+- **User Management** (Admin Only):
+  - Change user roles (inline dropdown)
+  - Activate/deactivate users (toggle button)
+  - Cannot modify own role or status (safety)
+  - All changes tracked with timestamps
+- **Permissions**:
+  - Sales/Operations: No access (restricted message)
+  - Sales Manager: View team + send invitations
+  - Admin: Full access (invite, change roles, activate/deactivate)
+- **Database Tables**:
+  - `user_profiles`: id, email, full_name, role, phone, is_active, created_at, updated_at, last_login
+  - `user_invitations`: email, role, invited_by, token, expires_at, is_used, invited_at
+
+### 9. **Sales Resources Library** ✅ FULLY FUNCTIONAL
+(`SalesResources.tsx`)
+- **Folder-Based Organization**:
+  - Colorful gradient folders (8 colors: blue, purple, green, orange, pink, indigo, teal, red)
+  - Each folder gets unique color with decorative pattern
+  - Hover animations and visual depth
+- **File Management**:
+  - Upload files (PDF, PPT, PPTX, Images, Videos) up to 20MB
+  - Duplicate filename detection with archive-and-replace option
+  - File rename (preserves extension automatically)
+  - File descriptions (optional, 200 char max, 1-2 lines)
+  - View files inline (no download for PDFs)
+  - Archive files (soft delete)
+  - Favorite files (per-user)
+  - View count tracking
+- **Advanced File Cards**:
+  - Icon, name, "NEW" badge (within 7 days)
+  - Description in italic below name
+  - Metadata: file size, upload date, view count
+  - Action buttons: Favorite, View, Edit, Archive
+  - Taller cards with better spacing
+  - Mobile-friendly touch targets
+- **Search & Filter**:
+  - Search by filename
+  - Filter by type (all, PDF, PowerPoint, images, videos)
+- **Archived Files Section** (Admin Only):
+  - View all archived files from all folders
+  - Orange theme with "ARCHIVED" badge
+  - Shows archived date
+  - Actions: View, Restore, Permanent Delete
+  - Confirmation before permanent deletion
+  - Deletes from both database and storage
+- **Edit Modal** (Admin/Manager):
+  - Rename file (extension shown separately, auto-preserved)
+  - Add/edit description (textarea with character counter)
+  - Duplicate check on rename
+- **Permissions**:
+  - All Users: View files, favorite files
+  - Sales Manager/Admin: Upload, edit, archive files
+  - Admin Only: View archived section, restore files, permanent delete
+- **Database Schema**:
+  - `sales_resources_folders`: id, name, created_by, created_at, archived
+  - `sales_resources_files`: id, folder_id, name, description, file_type, file_size, storage_path, uploaded_by, uploaded_at, archived, archived_at, archived_by, view_count
+  - `sales_resources_favorites`: user_id, file_id (many-to-many)
+  - `sales_resources_views`: user_id, file_id, viewed_at (tracking)
+- **Storage**:
+  - Supabase Storage bucket: `sales-resources`
+  - Public bucket with proper content-type headers
+  - Files organized by folder_id/timestamp.ext
+
+### 10. **App Installation Prompts** ✅ COMPLETE
+(`InstallAppBanner.tsx`)
+- **Smart Install Banner**:
+  - Auto-detects if app is already installed (PWA standalone mode)
+  - Dismissible with localStorage persistence
+  - Platform-specific instructions (iOS, Android, Desktop)
+  - Native install prompt for compatible browsers
+  - Positioned at bottom with sidebar offset
+  - Displays in both mobile and desktop views
+- **Signup Success Page**:
+  - Shows install instructions after email verification
+  - Step-by-step guide for each platform
+  - Clean blue info box design
+- **Invitation Messages**:
+  - Formatted invitation with app install instructions
+  - 2-step process: signup + install
+  - Platform-specific guidance included
+
 ---
 
 ## 🏗️ Project Structure
@@ -153,18 +264,29 @@ Role-based navigation with localStorage persistence:
 discount-fence-hub/
 ├── src/
 │   ├── components/
-│   │   └── sales/
-│   │       ├── SalesCoach.tsx          ✅ Full sales coaching interface
-│   │       ├── SalesCoachAdmin.tsx     ✅ Admin configuration panel
-│   │       └── StainCalculator.tsx     ✅ ROI calculator
+│   │   ├── auth/
+│   │   │   ├── Login.tsx               ✅ Login screen
+│   │   │   └── Signup.tsx              ✅ Self-service signup
+│   │   ├── sales/
+│   │   │   ├── SalesCoach.tsx          ✅ Full sales coaching interface
+│   │   │   ├── SalesCoachAdmin.tsx     ✅ Admin configuration panel
+│   │   │   └── StainCalculator.tsx     ✅ ROI calculator
+│   │   ├── PhotoGallery.tsx            ✅ Photo gallery with AI tagging
+│   │   ├── PhotoReviewQueue.tsx        ✅ Manager photo review
+│   │   ├── SalesResources.tsx          ✅ Sales resources library
+│   │   ├── TeamManagement.tsx          ✅ Team & user management
+│   │   └── InstallAppBanner.tsx        ✅ PWA install prompt
+│   ├── contexts/
+│   │   └── AuthContext.tsx             ✅ Authentication context
 │   ├── lib/
 │   │   ├── supabase.ts                 ✅ Supabase client
 │   │   ├── openai.ts                   ✅ Whisper transcription
 │   │   ├── claude.ts                   ✅ Claude parsing
 │   │   ├── recordings.ts               ✅ Recording management API
-│   │   └── offlineQueue.ts             ✅ IndexedDB offline queue
+│   │   ├── offlineQueue.ts             ✅ IndexedDB offline queue
+│   │   └── photos.ts                   ✅ Photo utilities
 │   ├── App.tsx                         ✅ Main app with role-based routing
-│   ├── main.tsx                        ✅ Entry point
+│   ├── main.tsx                        ✅ Entry point with AuthProvider
 │   └── index.css                       ✅ TailwindCSS
 ├── netlify/functions/
 │   ├── upload-recording.ts             ✅ File upload handler
@@ -175,11 +297,17 @@ discount-fence-hub/
 │   ├── transcribe.ts                   ✅ Whisper integration
 │   └── parse.ts                        ✅ Claude parsing
 ├── public/                             📁 Logos and assets
-├── supabase-schema.sql                 ✅ Complete database schema
+├── SQL scripts/
+│   ├── supabase-schema.sql             ✅ Complete database schema
+│   ├── create-auth-tables.sql          ✅ Auth & user profiles
+│   ├── disable-user-profiles-rls.sql   ✅ Fix RLS recursion
+│   ├── add-file-description.sql        ✅ Add description column
+│   └── fix-storage-content-disposition.sql ✅ Storage bucket config
 ├── vite.config.ts                      ✅ Vite + PWA config
 ├── netlify.toml                        ✅ Deployment config
 ├── DEPLOY.md                           ✅ Deployment guide
 ├── README.md                           ✅ Documentation
+├── PROJECT_SUMMARY.md                  ✅ This file
 └── package.json                        ✅ Dependencies
 ```
 
@@ -212,24 +340,38 @@ discount-fence-hub/
 
 ## 📊 Database Schema (Supabase)
 
-### Tables Defined in `supabase-schema.sql`:
+### Database Tables:
+**Core Schema** (`supabase-schema.sql`):
 1. **`sales_reps`** - User profiles, territories, metrics
 2. **`requests`** - All request types with polymorphic data
 3. **`presentations`** - Client presentation files
 4. **`roi_calculations`** - Calculator usage tracking
 5. **`activity_log`** - Audit trail for all actions
+6. **`photos`** - Photo gallery with AI tags
+
+**Authentication** (`create-auth-tables.sql`):
+7. **`user_profiles`** - Extended user data (full_name, role, phone, is_active, last_login)
+8. **`user_invitations`** - Invitation system (email, role, token, expires_at, is_used)
+
+**Sales Resources** (created separately):
+9. **`sales_resources_folders`** - Folder organization
+10. **`sales_resources_files`** - Files with descriptions, view counts
+11. **`sales_resources_favorites`** - User favorites (many-to-many)
+12. **`sales_resources_views`** - View tracking
 
 ### Features:
-- ✅ Row Level Security (RLS) policies
+- ✅ Row Level Security (RLS) policies (disabled on user_profiles to fix recursion)
 - ✅ Performance indexes
-- ✅ Trigger functions for auto-timestamps
+- ✅ Trigger functions for auto-timestamps and profile creation
 - ✅ Foreign key constraints
-- ✅ Role-based access control
+- ✅ Role-based access control (4 roles: sales, operations, sales-manager, admin)
+- ✅ Full-text search on file descriptions
 
 ### Storage Buckets:
 - `voice-recordings` - Audio files
-- `photos` - Job site images
+- `photos` - Job site images with AI tags
 - `presentations` - Client files
+- `sales-resources` - Sales library files (PDFs, presentations, images, videos)
 
 ---
 
@@ -279,9 +421,10 @@ See `DEPLOY.md` for step-by-step instructions:
 - **Claude API**: ✅ **FULLY FUNCTIONAL** - AI analysis & parsing live (`analyze-recording.ts`, `analyze-photo.ts`, `parse.ts`)
 - **AssemblyAI**: ✅ **FULLY FUNCTIONAL** - Alternative transcription service integrated
 - **Supabase**: ✅ **PRODUCTION CONNECTED** - Database live at `mravqfoypwyutjqtoxet.supabase.co`
+- **Supabase Auth**: ✅ **FULLY FUNCTIONAL** - Email/password authentication live
 - **Netlify**: ✅ **DEPLOYED** - Live serverless functions + hosting
-- **Storage**: ✅ **CONFIGURED** - 3 buckets created (`voice-recordings`, `photos`, `presentations`)
-- **Auth**: ⚠️ Infrastructure ready, needs Supabase auth flow implementation
+- **Storage**: ✅ **CONFIGURED** - 4 buckets created (`voice-recordings`, `photos`, `presentations`, `sales-resources`)
+- **PWA**: ✅ **INSTALLED** - Progressive Web App with service workers, install prompts
 
 ---
 
@@ -305,28 +448,53 @@ See `DEPLOY.md` for step-by-step instructions:
 - [x] ✅ Client presentation mode (flag photos)
 - [x] ✅ Role-based permissions
 
-### Phase 3: Data Persistence (In Progress)
-- [x] ✅ Supabase database connected
-- [x] ✅ File storage (Supabase Storage) for photos
-- [ ] ⏳ Replace all localStorage with Supabase calls
-- [ ] ⏳ Add user authentication flows
-- [ ] ⏳ Real-time sync for recordings
-- [ ] ⏳ Team data aggregation
+### Phase 3: Authentication & User Management ✅ COMPLETE
+- [x] ✅ Supabase Auth integration (email/password)
+- [x] ✅ User profiles with roles
+- [x] ✅ Login/Signup screens
+- [x] ✅ Protected routes
+- [x] ✅ Team management (invite, roles, activation)
+- [x] ✅ Admin role toggle
+- [x] ✅ Profile display in sidebar
 
-### Phase 4: Enhanced Features
+### Phase 4: Sales Resources Library ✅ COMPLETE
+- [x] ✅ Folder-based organization with colorful design
+- [x] ✅ File upload (PDF, PPT, images, videos)
+- [x] ✅ Duplicate detection and archive-replace
+- [x] ✅ File rename (preserves extension)
+- [x] ✅ File descriptions (200 char max)
+- [x] ✅ Search and filter
+- [x] ✅ Favorite files
+- [x] ✅ View count tracking
+- [x] ✅ Archive/restore/delete
+- [x] ✅ Inline PDF viewing (no download)
+
+### Phase 5: Data Persistence (In Progress)
+- [x] ✅ Supabase database connected
+- [x] ✅ File storage for photos and resources
+- [x] ✅ User authentication with database
+- [ ] ⏳ Replace localStorage with Supabase for recordings
+- [ ] ⏳ Real-time sync for recordings
+- [ ] ⏳ Team data aggregation from database
+
+### Phase 6: Enhanced Features (Next)
 - [ ] Real-time notifications (Supabase Realtime)
 - [x] ✅ Photo upload with compression (auto-resize + thumbnails)
+- [x] ✅ PWA install prompts (mobile + desktop)
 - [ ] PDF presentation viewer
 - [ ] Export reports to PDF
 - [ ] Advanced analytics dashboard
 - [ ] Team chat/messaging
+- [ ] Email automation for invitations (Netlify function)
 
-### Phase 5: Mobile & Performance
+### Phase 7: Mobile & Performance (Future)
 - [ ] Native mobile app (React Native)
 - [x] ✅ Enhanced offline capabilities (IndexedDB queue)
+- [x] ✅ PWA with service workers
 - [ ] Background sync
 - [ ] Push notifications
 - [ ] Performance optimizations
+- [ ] Code splitting for faster loads
 
 ---
 
@@ -345,10 +513,18 @@ See `DEPLOY.md` for step-by-step instructions:
 | `src/lib/photos.ts` | Photo utilities & types | ✅ Complete |
 | `src/components/PhotoGallery.tsx` | Photo gallery UI | ✅ Complete |
 | `src/components/PhotoReviewQueue.tsx` | Manager review interface | ✅ Complete |
+| `src/components/auth/Login.tsx` | Login screen | ✅ Complete |
+| `src/components/auth/Signup.tsx` | Self-service signup | ✅ Complete |
+| `src/components/TeamManagement.tsx` | Team & user management | ✅ Complete |
+| `src/components/SalesResources.tsx` | Sales resources library | ✅ Complete |
+| `src/components/InstallAppBanner.tsx` | PWA install prompt | ✅ Complete |
+| `src/contexts/AuthContext.tsx` | Authentication context | ✅ Complete |
 | `netlify/functions/analyze-recording.ts` | AI sales call analysis | ✅ Complete |
 | `netlify/functions/analyze-photo.ts` | AI photo tagging | ✅ Complete |
 | `supabase-schema.sql` | Database schema | ✅ Ready |
-| `supabase-storage-policies.sql` | Storage RLS policies | ✅ Ready |
+| `create-auth-tables.sql` | Auth & user profiles | ✅ Ready |
+| `add-file-description.sql` | File descriptions | ✅ Ready |
+| `fix-storage-content-disposition.sql` | Storage config | ✅ Ready |
 | `vite.config.ts` | Build & PWA config | ✅ Complete |
 
 ---
@@ -381,55 +557,79 @@ VITE_OPENAI_API_KEY=your_openai_key (optional)
 
 ## 📈 Project Statistics
 
-- **Total Lines of Code**: ~12,000+
-- **React Components**: 10+ major components (SalesCoach, PhotoGallery, PhotoReviewQueue, StainCalculator, etc.)
-- **Netlify Functions**: 7 serverless endpoints
-- **Database Tables**: 6 tables (sales_reps, requests, presentations, roi_calculations, activity_log, photos)
-- **Storage Buckets**: 3 configured (voice-recordings, photos, presentations)
-- **API Integrations**: 4 (Supabase, OpenAI Whisper, Anthropic Claude, AssemblyAI)
-- **Offline Support**: Full IndexedDB implementation
-- **PWA Features**: Service worker, manifest, offline caching
-- **Deployment**: ✅ Live on Netlify
+- **Total Lines of Code**: ~18,000+
+- **React Components**: 16+ major components
+  - SalesCoach, SalesCoachAdmin, StainCalculator
+  - PhotoGallery, PhotoReviewQueue
+  - Login, Signup, TeamManagement
+  - SalesResources, InstallAppBanner
+  - Dashboard, Analytics, etc.
+- **Contexts**: 1 (AuthContext for global auth state)
+- **Netlify Functions**: 7 serverless endpoints (transcribe, analyze, parse, upload, etc.)
+- **Database Tables**: 12 tables
+  - Core: sales_reps, requests, presentations, roi_calculations, activity_log, photos
+  - Auth: user_profiles, user_invitations
+  - Resources: sales_resources_folders, sales_resources_files, sales_resources_favorites, sales_resources_views
+- **Storage Buckets**: 4 configured (voice-recordings, photos, presentations, sales-resources)
+- **API Integrations**: 4 (Supabase Auth + Database, OpenAI Whisper, Anthropic Claude, AssemblyAI)
+- **Authentication**: Full Supabase Auth with email/password, role-based access
+- **Offline Support**: Full IndexedDB implementation for recordings
+- **PWA Features**: Service worker, manifest, offline caching, install prompts
+- **Deployment**: ✅ Live on Netlify with continuous deployment
 
 ---
 
 ## 🎓 Key Innovations
 
 1. **Offline-First Sales Coaching**: Record sales calls even without internet, auto-sync later
-2. **AI-Powered Analysis**: Claude API provides detailed, context-aware feedback
+2. **AI-Powered Analysis**: Claude API provides detailed, context-aware feedback & photo tagging
 3. **Custom Sales Processes**: Admins can define company-specific sales methodologies
 4. **Manager Review System**: Layer human feedback on top of AI analysis
 5. **Team Leaderboard**: Gamification with weekly/monthly rankings
 6. **Sentiment Tracking**: Emotional highs/lows throughout conversations
-7. **Multi-Role Architecture**: Sales, back office, manager, admin - all in one app
+7. **Multi-Role Architecture**: Sales, operations, manager, admin - all in one app with role-based navigation
+8. **Self-Service Authentication**: Email/password signup with email verification
+9. **Team Management**: Invite users, manage roles, track activity - all within the app
+10. **Sales Resources Library**: Organized file storage with AI-assisted management, favorites, and view tracking
+11. **Smart File Management**: Duplicate detection, auto-archive, inline viewing, descriptions
+12. **PWA Installation**: Progressive Web App with smart install prompts for mobile and desktop
+13. **Colorful UI**: Gradient folders, visual depth, modern mobile-first design
 
 ---
 
 ## 🐛 Known Limitations & Future Work
 
 ### Current Limitations:
-1. **Authentication**: Infrastructure ready but Supabase auth flow needs implementation
-2. **Data Sync**: Some features use localStorage - gradual migration to Supabase in progress
-3. **Real-time Sync**: Recordings don't sync across devices yet (needs Supabase Realtime)
-4. **Team Features**: Leaderboard uses localStorage data (not cross-device yet)
-5. **Storage Policies**: Need to run `supabase-storage-policies.sql` for photo uploads
+1. **Data Sync**: Recordings use localStorage - need to migrate to Supabase
+2. **Real-time Sync**: Recordings don't sync across devices yet (needs Supabase Realtime)
+3. **Team Features**: Leaderboard uses localStorage data (not cross-device yet)
+4. **RLS Policies**: user_profiles table has RLS disabled (needs proper non-recursive policies)
+5. **Email Automation**: Invitations show link in alert (need Netlify function for emails)
+6. **PowerPoint Viewing**: PPT files download instead of inline view (recommend PDFs)
 
 ### What's Already Working (No Limitations):
+✅ **Authentication** - Full Supabase Auth with email/password, email verification
+✅ **User Profiles** - Real user data with roles, phone numbers, activity tracking
+✅ **Team Management** - Invite users, manage roles, activate/deactivate
+✅ **Sales Resources** - Complete file library with folders, upload, edit, archive
 ✅ **Voice transcription** - Whisper & AssemblyAI APIs fully operational
 ✅ **AI analysis** - Claude API delivering real coaching feedback & photo tagging
 ✅ **Photo Gallery** - Full upload, tagging, filtering, review workflow
 ✅ **Offline recording** - IndexedDB queue working perfectly
-✅ **PWA installation** - Service workers & manifest configured
-✅ **Supabase Storage** - Photos uploaded to cloud storage
-✅ **Netlify Deployment** - Live in production
+✅ **PWA installation** - Service workers, manifest, install prompts all working
+✅ **Supabase Storage** - 4 buckets for photos, files, recordings, presentations
+✅ **Netlify Deployment** - Live in production with CI/CD
 
 ### Planned Improvements:
-1. ✅ ~~Migrate from localStorage to Supabase database~~ (Photos done, recordings in progress)
-2. Implement Supabase Auth with email/password + social logins
-3. Upload audio recordings to Supabase Storage
-4. Real-time subscriptions for team updates
-5. Advanced analytics with charts & graphs
-6. Export functionality for reports
+1. ✅ ~~Implement Supabase Auth~~ (Complete!)
+2. ✅ ~~Team management interface~~ (Complete!)
+3. ✅ ~~Sales resources library~~ (Complete!)
+4. Upload audio recordings to Supabase Storage (migrate from localStorage)
+5. Real-time subscriptions for team updates
+6. Email automation for invitations (Netlify function)
+7. Advanced analytics with charts & graphs
+8. Export functionality for reports
+9. Proper RLS policies for user_profiles table
 
 ---
 

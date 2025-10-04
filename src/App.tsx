@@ -1,19 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut, MessageSquare, Bell } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
+import TeamCommunication from './components/TeamCommunication';
+import MessageComposer from './components/MessageComposer';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
 import { useAuth } from './contexts/AuthContext';
+import { supabase } from './lib/supabase';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -49,11 +52,40 @@ function App() {
     const saved = localStorage.getItem('viewMode');
     return (saved as 'mobile' | 'desktop') || 'mobile';
   });
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showMessageComposer, setShowMessageComposer] = useState(false);
 
   // Save viewMode to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('viewMode', viewMode);
   }, [viewMode]);
+
+  // Load unread message count
+  useEffect(() => {
+    if (!user) return;
+
+    const loadUnreadCount = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_unread_messages')
+          .select('unread_count')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!error && data) {
+          setUnreadCount(data.unread_count || 0);
+        }
+      } catch (error) {
+        console.error('Error loading unread count:', error);
+      }
+    };
+
+    loadUnreadCount();
+
+    // Refresh every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Handle browser back button to prevent app close
   useEffect(() => {
@@ -82,6 +114,7 @@ function App() {
   const getNavigationItems = () => {
     const items = [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
+      { id: 'team-communication' as Section, name: 'Messages', icon: MessageSquare, badge: unreadCount },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
       { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
@@ -129,6 +162,9 @@ function App() {
     }
     if (activeSection === 'sales-resources') {
       return <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
+    }
+    if (activeSection === 'team-communication') {
+      return <TeamCommunication onBack={() => setActiveSection('home')} />;
     }
 
     // Default home view
@@ -226,7 +262,14 @@ function App() {
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && <span className="font-medium">{item.name}</span>}
+                  {sidebarOpen && (
+                    <span className="font-medium flex-1">{item.name}</span>
+                  )}
+                  {item.badge && item.badge > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </button>
               </div>
             );
@@ -304,6 +347,30 @@ function App() {
 
       {/* Install App Banner */}
       <InstallAppBanner />
+
+      {/* Floating Action Button for Composing Messages (Admin/Manager only) */}
+      {(userRole === 'admin' || userRole === 'sales-manager') && activeSection === 'team-communication' && (
+        <button
+          onClick={() => setShowMessageComposer(true)}
+          className="fixed bottom-8 right-8 w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 z-40"
+          title="New Message"
+        >
+          <Send className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Message Composer Modal */}
+      {showMessageComposer && (
+        <MessageComposer
+          onClose={() => setShowMessageComposer(false)}
+          onMessageSent={() => {
+            setShowMessageComposer(false);
+            // Reload messages by re-rendering TeamCommunication
+            setActiveSection('home');
+            setTimeout(() => setActiveSection('team-communication'), 0);
+          }}
+        />
+      )}
     </div>
   );
 }
