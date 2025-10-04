@@ -68,6 +68,11 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   const [editMode, setEditMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
 
+  // Auto-enhance state
+  const [enhancedUrl, setEnhancedUrl] = useState<string | null>(null);
+  const [showingEnhanced, setShowingEnhanced] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -547,6 +552,25 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+
+      // If using enhanced version, upload it to replace the original
+      if (showingEnhanced && enhancedUrl) {
+        // Convert data URL to blob
+        const response = await fetch(enhancedUrl);
+        const blob = await response.blob();
+
+        // Upload to storage (replace existing file)
+        const fileName = `${userId}/full/${reviewingPhoto.id}.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, blob, { upsert: true });
+
+        if (uploadError) {
+          console.error('Error uploading enhanced photo:', uploadError);
+          throw new Error('Failed to save enhanced version');
+        }
+      }
+
       const dbUpdate = {
         status: 'published',
         tags: editingTags,
@@ -565,8 +589,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       // Remove from photos list and close modal
       setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
-      setReviewingPhoto(null);
-      alert('Photo published successfully!');
+      closeReviewModal();
+      alert(showingEnhanced && enhancedUrl ? 'Enhanced photo published!' : 'Photo published successfully!');
     } catch (error) {
       console.error('Error publishing photo:', error);
       alert('Failed to publish photo. Please try again.');
@@ -708,6 +732,94 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       alert('Failed to archive photo. Please try again.');
     } finally {
       setReviewLoading(false);
+    }
+  };
+
+  const closeReviewModal = () => {
+    setReviewingPhoto(null);
+    setEnhancedUrl(null);
+    setShowingEnhanced(false);
+  };
+
+  const handleAutoEnhance = async () => {
+    if (!reviewingPhoto) return;
+
+    setIsEnhancing(true);
+
+    try {
+      // Load image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = reviewingPhoto.url;
+      });
+
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+
+      // Get image data
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Auto-enhance adjustments
+      const brightness = 1.1;  // 10% brighter
+      const contrast = 1.15;   // 15% more contrast
+      const saturation = 1.2;  // 20% more saturated
+
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+
+        // Apply brightness
+        r *= brightness;
+        g *= brightness;
+        b *= brightness;
+
+        // Apply contrast
+        r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
+        g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
+        b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
+
+        // Apply saturation
+        const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+        r = gray + saturation * (r - gray);
+        g = gray + saturation * (g - gray);
+        b = gray + saturation * (b - gray);
+
+        // Clamp values
+        data[i] = Math.max(0, Math.min(255, r));
+        data[i + 1] = Math.max(0, Math.min(255, g));
+        data[i + 2] = Math.max(0, Math.min(255, b));
+      }
+
+      // Put enhanced image back
+      ctx.putImageData(imageData, 0, 0);
+
+      // Convert to data URL
+      const enhancedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      setEnhancedUrl(enhancedDataUrl);
+      setShowingEnhanced(true);
+
+      console.log('✅ Photo auto-enhanced');
+    } catch (error) {
+      console.error('❌ Auto-enhance failed:', error);
+      alert('Failed to enhance photo. Please try again.');
+    } finally {
+      setIsEnhancing(false);
     }
   };
 
@@ -1471,7 +1583,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                 </p>
               </div>
               <button
-                onClick={() => setReviewingPhoto(null)}
+                onClick={closeReviewModal}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="w-6 h-6" />
@@ -1482,12 +1594,53 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             <div className="flex-1 overflow-y-auto">
               <div className="grid grid-cols-2 gap-6 p-6">
                 {/* Left: Photo Preview */}
-                <div className="flex items-center justify-center bg-gray-100 rounded-lg">
-                  <img
-                    src={reviewingPhoto.url}
-                    alt="Review"
-                    className="max-w-full max-h-[calc(95vh-200px)] object-contain"
-                  />
+                <div className="space-y-3">
+                  {/* Auto-Enhance Controls */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={handleAutoEnhance}
+                      disabled={isEnhancing || reviewLoading}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center space-x-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>{isEnhancing ? 'Enhancing...' : 'Auto-Enhance'}</span>
+                    </button>
+
+                    {/* Original vs Enhanced Toggle */}
+                    {enhancedUrl && (
+                      <div className="flex items-center space-x-2 bg-gray-200 rounded-lg p-1">
+                        <button
+                          onClick={() => setShowingEnhanced(false)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                            !showingEnhanced
+                              ? 'bg-white text-gray-900 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          Original
+                        </button>
+                        <button
+                          onClick={() => setShowingEnhanced(true)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                            showingEnhanced
+                              ? 'bg-white text-gray-900 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          Enhanced
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Photo Display */}
+                  <div className="flex items-center justify-center bg-gray-100 rounded-lg">
+                    <img
+                      src={showingEnhanced && enhancedUrl ? enhancedUrl : reviewingPhoto.url}
+                      alt="Review"
+                      className="max-w-full max-h-[calc(95vh-250px)] object-contain"
+                    />
+                  </div>
                 </div>
 
                 {/* Right: Review Controls */}
