@@ -121,12 +121,19 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
         review_notes: reviewNotes,
       };
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('photos')
         .update(dbUpdate)
-        .eq('id', selectedPhoto.id);
+        .eq('id', selectedPhoto.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Publish error:', error);
+        alert(`Error: ${error.message}`);
+        throw error;
+      }
+
+      console.log('Photo published, updated data:', data);
 
       // Remove from pending list
       setPendingPhotos((prev) => prev.filter((p) => p.id !== selectedPhoto.id));

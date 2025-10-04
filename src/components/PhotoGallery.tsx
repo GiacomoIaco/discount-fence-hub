@@ -86,18 +86,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
   const loadPhotos = async () => {
     try {
-      // Query based on role
-      let query = supabase
+      // Photo Gallery only shows published photos (all roles)
+      // Pending photos are only visible in Photo Review Queue
+      const { data, error } = await supabase
         .from('photos')
         .select('*')
+        .eq('status', 'published')
         .order('uploaded_at', { ascending: false });
-
-      // Sales users only see published photos
-      if (userRole === 'sales') {
-        query = query.eq('status', 'published');
-      }
-
-      const { data, error } = await query;
 
       if (error) {
         console.error('Error loading photos:', error);
