@@ -571,7 +571,75 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
+        // Keep status as pending - this is an incomplete draft review
+        tags: editingTags,
+        quality_score: editingScore,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes || 'Draft - review in progress',
+      };
+
+      const { error } = await supabase
+        .from('photos')
+        .update(dbUpdate)
+        .eq('id', reviewingPhoto.id);
+
+      if (error) throw error;
+
+      // Update in photos list
+      await loadPhotos();
+      setReviewingPhoto(null);
+      alert('Draft saved. Photo remains in Pending Review.');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert('Failed to save draft. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const handleSaveNotPublished = async () => {
+    if (!reviewingPhoto) return;
+    setReviewLoading(true);
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const dbUpdate = {
         status: 'saved',
+        tags: editingTags,
+        quality_score: editingScore,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes || 'Reviewed - saved for later',
+      };
+
+      const { error } = await supabase
+        .from('photos')
+        .update(dbUpdate)
+        .eq('id', reviewingPhoto.id);
+
+      if (error) throw error;
+
+      // Update in photos list and reload to reflect new status
+      await loadPhotos();
+      setReviewingPhoto(null);
+      alert('Photo moved to Saved tab.');
+    } catch (error) {
+      console.error('Error saving photo:', error);
+      alert('Failed to save photo. Please try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const handleUpdateSaved = async () => {
+    if (!reviewingPhoto) return;
+    setReviewLoading(true);
+
+    try {
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const dbUpdate = {
+        // Keep status as 'saved', just update the metadata
         tags: editingTags,
         quality_score: editingScore,
         reviewed_by: userId,
@@ -586,13 +654,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
       if (error) throw error;
 
-      // Update in photos list and reload to reflect new status
+      // Update in photos list
       await loadPhotos();
       setReviewingPhoto(null);
-      alert('Photo saved to Saved tab.');
+      alert('Photo updated.');
     } catch (error) {
-      console.error('Error saving draft:', error);
-      alert('Failed to save draft. Please try again.');
+      console.error('Error updating photo:', error);
+      alert('Failed to update photo. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -1495,38 +1563,52 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               </div>
 
               {/* Action Buttons - Different per tab */}
-              <div className="flex space-x-3">
+              <div className="space-y-3">
                 {activeTab === 'pending' && (
                   <>
-                    <button
-                      onClick={handlePublishPhoto}
-                      disabled={reviewLoading}
-                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                    >
-                      <Check className="w-5 h-5" />
-                      <span>Publish</span>
-                    </button>
-                    <button
-                      onClick={handleSaveDraft}
-                      disabled={reviewLoading}
-                      className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                    >
-                      <Save className="w-5 h-5" />
-                      <span>Save Draft</span>
-                    </button>
-                    <button
-                      onClick={handleArchivePhoto}
-                      disabled={reviewLoading}
-                      className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                      <span>Archive</span>
-                    </button>
+                    {/* Row 1: Publish and Save (not published) */}
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handlePublishPhoto}
+                        disabled={reviewLoading}
+                        className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                      >
+                        <Check className="w-5 h-5" />
+                        <span>Publish</span>
+                      </button>
+                      <button
+                        onClick={handleSaveNotPublished}
+                        disabled={reviewLoading}
+                        className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                      >
+                        <Save className="w-5 h-5" />
+                        <span>Save</span>
+                      </button>
+                    </div>
+                    {/* Row 2: Save Draft and Archive */}
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handleSaveDraft}
+                        disabled={reviewLoading}
+                        className="flex-1 bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 disabled:opacity-50 flex items-center justify-center space-x-2"
+                      >
+                        <Save className="w-5 h-5" />
+                        <span>Save Draft</span>
+                      </button>
+                      <button
+                        onClick={handleArchivePhoto}
+                        disabled={reviewLoading}
+                        className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                        <span>Archive</span>
+                      </button>
+                    </div>
                   </>
                 )}
 
                 {activeTab === 'saved' && (
-                  <>
+                  <div className="flex space-x-3">
                     <button
                       onClick={handlePublishPhoto}
                       disabled={reviewLoading}
@@ -1536,7 +1618,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                       <span>Publish</span>
                     </button>
                     <button
-                      onClick={handleSaveDraft}
+                      onClick={handleUpdateSaved}
                       disabled={reviewLoading}
                       className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
                     >
@@ -1551,7 +1633,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                       <Trash2 className="w-5 h-5" />
                       <span>Archive</span>
                     </button>
-                  </>
+                  </div>
                 )}
 
                 {activeTab === 'archived' && userRole === 'admin' && (
