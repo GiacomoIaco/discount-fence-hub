@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Flag,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import type { Photo, FilterState } from '../lib/photos';
 import {
@@ -338,6 +339,57 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     }
   };
 
+  const deletePhoto = async (photo: Photo, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening full-screen viewer
+
+    if (!confirm('Delete this photo? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const userId = localStorage.getItem('userId') || 'user123';
+
+      // Delete from storage
+      const fileName = `${userId}/full/${photo.id}.jpg`;
+      const thumbFileName = `${userId}/thumb/${photo.id}.jpg`;
+
+      const { error: fullDeleteError } = await supabase.storage
+        .from('photos')
+        .remove([fileName]);
+
+      if (fullDeleteError) {
+        console.error('Error deleting full image:', fullDeleteError);
+      }
+
+      const { error: thumbDeleteError } = await supabase.storage
+        .from('photos')
+        .remove([thumbFileName]);
+
+      if (thumbDeleteError) {
+        console.error('Error deleting thumbnail:', thumbDeleteError);
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('photos')
+        .delete()
+        .eq('id', photo.id);
+
+      if (dbError) throw dbError;
+
+      // Remove from state
+      setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+    } catch (error) {
+      console.error('Error deleting photo:', error);
+      // Fallback to localStorage
+      setPhotos((prev) => {
+        const updatedPhotos = prev.filter((p) => p.id !== photo.id);
+        localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
+        return updatedPhotos;
+      });
+    }
+  };
+
   const openFullScreen = (index: number) => {
     setCurrentIndex(index);
   };
@@ -441,9 +493,18 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                   </div>
                 )}
                 {photo.status === 'pending' && (
-                  <div className="absolute bottom-2 left-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
-                    Pending Review
-                  </div>
+                  <>
+                    <div className="absolute bottom-2 left-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
+                      Pending Review
+                    </div>
+                    <button
+                      onClick={(e) => deletePhoto(photo, e)}
+                      className="absolute bottom-2 right-2 bg-red-600 text-white p-2 rounded-full shadow-lg active:scale-95 transition-transform"
+                      title="Delete photo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
                 )}
               </div>
             ))}
