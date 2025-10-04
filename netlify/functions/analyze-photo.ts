@@ -177,12 +177,18 @@ Respond ONLY with valid JSON in this exact format:
   } catch (error) {
     console.error('Photo analysis error:', error);
 
+    // Log full error details for debugging
+    if (error && typeof error === 'object') {
+      console.error('Error details:', JSON.stringify(error, null, 2));
+    }
+
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         error: 'Failed to analyze photo',
         details: error instanceof Error ? error.message : 'Unknown error',
+        fullError: error && typeof error === 'object' ? JSON.stringify(error) : String(error),
       }),
     };
   }
