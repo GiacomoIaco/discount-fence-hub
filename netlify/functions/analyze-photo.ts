@@ -79,9 +79,10 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const apiKey = process.env.VITE_ANTHROPIC_API_KEY;
+    // Try both VITE_ prefixed (from build) and non-prefixed (Netlify env vars)
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error('VITE_ANTHROPIC_API_KEY not configured');
+      throw new Error('ANTHROPIC_API_KEY not configured in Netlify environment variables');
     }
 
     const anthropic = new Anthropic({ apiKey });

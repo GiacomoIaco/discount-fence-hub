@@ -211,13 +211,24 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             const analysis = await analysisResponse.json();
             suggestedTags = analysis.suggestedTags || [];
             qualityScore = analysis.qualityScore;
-            console.log('AI analysis complete:', { suggestedTags, qualityScore, notes: analysis.analysisNotes });
+            console.log('✅ AI analysis complete:', {
+              suggestedTags,
+              qualityScore,
+              notes: analysis.analysisNotes
+            });
           } else {
             const errorText = await analysisResponse.text();
-            console.error('AI analysis HTTP error:', analysisResponse.status, errorText);
+            console.error('❌ AI analysis HTTP error:', {
+              status: analysisResponse.status,
+              statusText: analysisResponse.statusText,
+              error: errorText
+            });
+            // Show user-friendly message
+            console.warn('AI tagging unavailable - photo uploaded without suggested tags');
           }
         } catch (error) {
-          console.error('AI analysis failed:', error);
+          console.error('❌ AI analysis network error:', error);
+          console.warn('AI tagging unavailable - photo uploaded without suggested tags');
         }
 
         // Generate a UUID v4 for the photo ID
