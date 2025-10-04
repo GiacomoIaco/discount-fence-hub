@@ -218,7 +218,8 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       loadFiles(selectedFolder.id);
     } catch (error) {
       console.error('Error uploading file:', error);
-      alert('Failed to upload file');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to upload file: ${errorMessage}`);
     } finally {
       setUploading(false);
     }
