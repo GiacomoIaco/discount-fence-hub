@@ -241,10 +241,10 @@ function App() {
             </div>
           )}
 
-          {/* Role Switcher for Admin Only */}
-          {sidebarOpen && userRole === 'admin' && (
+          {/* Role Switcher for Admin Only - show based on authenticated profile, not current view */}
+          {sidebarOpen && profile?.role === 'admin' && (
             <div className="mb-3">
-              <p className="text-xs text-gray-400 mb-2">Switch Role (Admin):</p>
+              <p className="text-xs text-gray-400 mb-2">Switch View (Admin):</p>
               <select
                 value={userRole}
                 onChange={(e) => {
@@ -253,10 +253,10 @@ function App() {
                 }}
                 className="w-full px-2 py-1 text-sm bg-gray-800 border border-gray-700 rounded text-white"
               >
-                <option value="sales">Sales</option>
-                <option value="operations">Operations</option>
-                <option value="sales-manager">Sales Manager</option>
-                <option value="admin">Admin</option>
+                <option value="sales">Sales View</option>
+                <option value="operations">Operations View</option>
+                <option value="sales-manager">Sales Manager View</option>
+                <option value="admin">Admin View</option>
               </select>
             </div>
           )}
