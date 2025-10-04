@@ -40,6 +40,8 @@ interface ResourceFile {
   uploaded_by: string;
   uploaded_at: string;
   archived: boolean;
+  archived_at?: string;
+  archived_by?: string;
   view_count: number;
   is_favorited?: boolean;
   is_new?: boolean; // Added within last 7 days
@@ -48,16 +50,19 @@ interface ResourceFile {
 const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [files, setFiles] = useState<ResourceFile[]>([]);
+  const [archivedFiles, setArchivedFiles] = useState<ResourceFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [showArchivedFiles, setShowArchivedFiles] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const canEdit = userRole === 'sales-manager' || userRole === 'admin';
+  const isAdmin = userRole === 'admin';
 
   useEffect(() => {
     loadFolders();
@@ -317,6 +322,44 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     }
   };
 
+  const loadArchivedFiles = async () => {
+    if (!isAdmin) return;
+
+    try {
+      setLoading(true);
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+
+      // Get archived files from all folders
+      const { data: filesData, error: filesError } = await supabase
+        .from('sales_resources_files')
+        .select('*')
+        .eq('archived', true)
+        .order('archived_at', { ascending: false });
+
+      if (filesError) throw filesError;
+
+      // Get favorites for current user
+      const { data: favoritesData } = await supabase
+        .from('sales_resources_favorites')
+        .select('file_id')
+        .eq('user_id', userId);
+
+      const favoriteIds = new Set(favoritesData?.map(f => f.file_id) || []);
+
+      const enrichedFiles = filesData?.map(file => ({
+        ...file,
+        is_favorited: favoriteIds.has(file.id),
+        is_new: false
+      })) || [];
+
+      setArchivedFiles(enrichedFiles);
+    } catch (error) {
+      console.error('Error loading archived files:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleArchiveFile = async (file: ResourceFile) => {
     if (!canEdit) return;
 
@@ -337,6 +380,54 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     } catch (error) {
       console.error('Error archiving file:', error);
       alert('Failed to archive file');
+    }
+  };
+
+  const handlePermanentDelete = async (file: ResourceFile) => {
+    if (!isAdmin) return;
+
+    if (!confirm(`Permanently delete "${file.name}"? This cannot be undone.`)) return;
+
+    try {
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('sales-resources')
+        .remove([file.storage_path]);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('sales_resources_files')
+        .delete()
+        .eq('id', file.id);
+
+      if (dbError) throw dbError;
+
+      loadArchivedFiles();
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      alert('Failed to delete file permanently');
+    }
+  };
+
+  const handleRestoreFile = async (file: ResourceFile) => {
+    if (!isAdmin) return;
+
+    try {
+      await supabase
+        .from('sales_resources_files')
+        .update({
+          archived: false,
+          archived_at: null,
+          archived_by: null
+        })
+        .eq('id', file.id);
+
+      loadArchivedFiles();
+    } catch (error) {
+      console.error('Error restoring file:', error);
+      alert('Failed to restore file');
     }
   };
 
@@ -372,36 +463,59 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 p-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <button onClick={onBack} className="text-gray-600 hover:text-gray-900">
+          <button
+            onClick={() => {
+              if (showArchivedFiles) {
+                setShowArchivedFiles(false);
+              } else {
+                onBack();
+              }
+            }}
+            className="text-gray-600 hover:text-gray-900"
+          >
             <ArrowLeft className="w-6 h-6" />
           </button>
           <FolderOpen className="w-6 h-6 text-blue-600" />
           <h1 className="text-xl font-bold text-gray-900">
-            {selectedFolder ? selectedFolder.name : 'Sales Resources'}
+            {showArchivedFiles ? 'Archived Files' : (selectedFolder ? selectedFolder.name : 'Sales Resources')}
           </h1>
         </div>
-        {canEdit && (
-          <div className="flex items-center space-x-2">
-            {!selectedFolder && (
-              <button
-                onClick={() => setShowNewFolderModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Folder</span>
-              </button>
-            )}
-            {selectedFolder && (
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload File</span>
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center space-x-2">
+          {isAdmin && !selectedFolder && !showArchivedFiles && (
+            <button
+              onClick={() => {
+                setShowArchivedFiles(true);
+                loadArchivedFiles();
+              }}
+              className="px-4 py-2 bg-orange-100 text-orange-700 border border-orange-300 rounded-lg hover:bg-orange-200 flex items-center space-x-2"
+            >
+              <Archive className="w-4 h-4" />
+              <span>Archived</span>
+            </button>
+          )}
+          {canEdit && !showArchivedFiles && (
+            <>
+              {!selectedFolder && (
+                <button
+                  onClick={() => setShowNewFolderModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Folder</span>
+                </button>
+              )}
+              {selectedFolder && (
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload File</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Folder view */}
@@ -574,6 +688,90 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Archived Files View */}
+      {showArchivedFiles && (
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="text-center py-12">Loading archived files...</div>
+          ) : archivedFiles.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              No archived files
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {archivedFiles.map(file => (
+                <div
+                  key={file.id}
+                  className="bg-orange-50 rounded-xl p-5 shadow hover:shadow-lg transition-all border-2 border-orange-200"
+                >
+                  {/* Top section: Icon, Name, and Badge */}
+                  <div className="flex items-start space-x-4 mb-4">
+                    <div className="flex-shrink-0">
+                      {getFileIcon(file.file_type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900 text-base break-words pr-2">
+                          {file.name}
+                        </h3>
+                        <span className="px-2 py-1 bg-orange-200 text-orange-800 text-xs font-semibold rounded flex-shrink-0">
+                          ARCHIVED
+                        </span>
+                      </div>
+
+                      {/* File metadata */}
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mb-3">
+                        <span className="font-medium">{formatFileSize(file.file_size)}</span>
+                        <span>•</span>
+                        <span>Archived: {new Date(file.archived_at || file.uploaded_at).toLocaleDateString()}</span>
+                        <span>•</span>
+                        <span className="flex items-center space-x-1">
+                          <Eye className="w-4 h-4" />
+                          <span>{file.view_count} views</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom section: Action buttons */}
+                  <div className="flex items-center space-x-2 pt-3 border-t border-orange-200">
+                    <button
+                      onClick={() => handleViewFile(file)}
+                      className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <Eye className="w-4 h-4" />
+                        <span className="text-sm">View</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleRestoreFile(file)}
+                      className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <Upload className="w-4 h-4 rotate-180" />
+                        <span className="text-sm">Restore</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handlePermanentDelete(file)}
+                      className="px-4 py-2.5 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium transition-colors"
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Delete</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
