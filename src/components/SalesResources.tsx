@@ -474,7 +474,12 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
   const handleEditFile = (file: ResourceFile) => {
     if (!canEdit) return;
     setEditingFile(file);
-    setEditFileName(file.name);
+
+    // Extract filename without extension for editing
+    const lastDotIndex = file.name.lastIndexOf('.');
+    const nameWithoutExt = lastDotIndex > 0 ? file.name.substring(0, lastDotIndex) : file.name;
+
+    setEditFileName(nameWithoutExt);
     setEditFileDescription(file.description || '');
     setShowEditModal(true);
   };
@@ -488,20 +493,27 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     }
 
     try {
+      // Get the original file extension
+      const lastDotIndex = editingFile.name.lastIndexOf('.');
+      const extension = lastDotIndex > 0 ? editingFile.name.substring(lastDotIndex) : '';
+
+      // Construct new full name with original extension
+      const newFullName = editFileName.trim() + extension;
+
       // Check if new name conflicts with existing files (excluding current file)
-      if (editFileName !== editingFile.name) {
+      if (newFullName !== editingFile.name) {
         const { data: existingFiles, error: checkError } = await supabase
           .from('sales_resources_files')
           .select('id')
           .eq('folder_id', editingFile.folder_id)
-          .eq('name', editFileName)
+          .eq('name', newFullName)
           .eq('archived', false)
           .neq('id', editingFile.id);
 
         if (checkError) throw checkError;
 
         if (existingFiles && existingFiles.length > 0) {
-          alert(`A file named "${editFileName}" already exists in this folder`);
+          alert(`A file named "${newFullName}" already exists in this folder`);
           return;
         }
       }
@@ -509,7 +521,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       const { error } = await supabase
         .from('sales_resources_files')
         .update({
-          name: editFileName.trim(),
+          name: newFullName,
           description: editFileDescription.trim() || null
         })
         .eq('id', editingFile.id);
@@ -964,13 +976,19 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   File Name
                 </label>
-                <input
-                  type="text"
-                  placeholder="File name"
-                  value={editFileName}
-                  onChange={(e) => setEditFileName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    placeholder="File name"
+                    value={editFileName}
+                    onChange={(e) => setEditFileName(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-500 font-medium">
+                    {editingFile.name.substring(editingFile.name.lastIndexOf('.'))}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Extension will be kept automatically</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
