@@ -4,12 +4,11 @@ import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
-import PhotoReviewQueue from './components/PhotoReviewQueue';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'photo-review' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
+type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -84,11 +83,7 @@ function App() {
       { id: 'team' as Section, name: 'Team', icon: User },
     ];
 
-    // Add Photo Review for managers and admins only
-    if (userRole === 'sales-manager' || userRole === 'admin') {
-      items.splice(4, 0, { id: 'photo-review' as Section, name: 'Photo Review', icon: CheckCircle });
-    }
-
+    // Photo Review is now accessed via tabs in Photo Gallery (desktop only)
     return items;
   };
 
@@ -104,12 +99,6 @@ function App() {
     }
     if (activeSection === 'photo-gallery') {
       return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
-    }
-    if (activeSection === 'photo-review') {
-      if (userRole === 'sales-manager' || userRole === 'admin') {
-        return <PhotoReviewQueue onBack={() => setActiveSection('home')} userRole={userRole} />;
-      }
-      return <Dashboard userRole={userRole} />; // Fallback for users without access
     }
     if (activeSection === 'stain-calculator') {
       return <StainCalculator onBack={() => setActiveSection('home')} />;

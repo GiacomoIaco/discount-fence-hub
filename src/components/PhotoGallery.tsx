@@ -34,7 +34,10 @@ interface PhotoGalleryProps {
   viewMode?: 'mobile' | 'desktop';
 }
 
+type GalleryTab = 'published' | 'pending' | 'saved' | 'archived';
+
 const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: PhotoGalleryProps) => {
+  const [activeTab, setActiveTab] = useState<GalleryTab>('published');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [filteredPhotos, setFilteredPhotos] = useState<Photo[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
@@ -56,7 +59,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   // Load photos from Supabase
   useEffect(() => {
     loadPhotos();
-  }, [userRole]);
+  }, [userRole, activeTab, viewMode]);
 
   // Apply filters whenever photos or filters change
   useEffect(() => {
@@ -88,20 +91,32 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
-      // Query based on role:
-      // - Sales/Mobile: Published photos + their own pending photos
-      // - Managers/Admins on desktop: Only published photos (pending photos are in Review Queue)
       let query = supabase
         .from('photos')
         .select('*')
         .order('uploaded_at', { ascending: false });
 
-      if (viewMode === 'mobile' || userRole === 'sales') {
-        // Mobile: Show published OR photos uploaded by current user
-        query = query.or(`status.eq.published,uploaded_by.eq.${userId}`);
+      // Filter based on active tab
+      if (viewMode === 'desktop') {
+        // Desktop: Use tab filtering
+        switch (activeTab) {
+          case 'published':
+            query = query.eq('status', 'published');
+            break;
+          case 'pending':
+            query = query.eq('status', 'pending');
+            break;
+          case 'saved':
+            // Saved = pending with review notes (drafts)
+            query = query.eq('status', 'pending').not('review_notes', 'is', null);
+            break;
+          case 'archived':
+            query = query.eq('status', 'archived');
+            break;
+        }
       } else {
-        // Desktop (managers/admins): Only show published
-        query = query.eq('status', 'published');
+        // Mobile: Show published OR user's own pending photos
+        query = query.or(`status.eq.published,uploaded_by.eq.${userId}`);
       }
 
       const { data, error } = await query;
@@ -173,6 +188,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         let qualityScore: number | undefined;
 
         try {
+          console.log('Calling AI photo analysis...');
           const analysisResponse = await fetch('/.netlify/functions/analyze-photo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -183,6 +199,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             const analysis = await analysisResponse.json();
             suggestedTags = analysis.suggestedTags || [];
             qualityScore = analysis.qualityScore;
+            console.log('AI analysis complete:', { suggestedTags, qualityScore, notes: analysis.analysisNotes });
+          } else {
+            const errorText = await analysisResponse.text();
+            console.error('AI analysis HTTP error:', analysisResponse.status, errorText);
           }
         } catch (error) {
           console.error('AI analysis failed:', error);
@@ -508,6 +528,58 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
           <div className="w-20"></div>
         </div>
+
+        {/* Tabs (Desktop Only) */}
+        {viewMode === 'desktop' && (
+          <div className="border-t border-gray-200">
+            <div className="flex space-x-1 p-2">
+              <button
+                onClick={() => setActiveTab('published')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === 'published'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Published
+              </button>
+              {(userRole === 'sales-manager' || userRole === 'admin') && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('pending')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === 'pending'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Pending Review
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('saved')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === 'saved'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Saved
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('archived')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === 'archived'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Archived
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Gallery Grid */}
