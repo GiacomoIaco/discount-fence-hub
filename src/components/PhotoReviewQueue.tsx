@@ -108,7 +108,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
 
     setLoading(true);
 
-    const userId = localStorage.getItem('userId') || 'user123';
+    const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
     try {
       const updated: Partial<Photo> = {
@@ -166,7 +166,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
     setLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || 'user123';
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
       const updated: Partial<Photo> = {
         tags: editingTags,
         qualityScore: editingScore,
@@ -203,7 +203,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
 
     setLoading(true);
 
-    const userId = localStorage.getItem('userId') || 'user123';
+    const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
     try {
       const updated: Partial<Photo> = {

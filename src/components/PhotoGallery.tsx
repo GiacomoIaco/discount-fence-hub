@@ -149,7 +149,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setUploading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || 'user123';
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
       for (const file of Array.from(files)) {
         // Resize for full image (max 1920px)
@@ -368,7 +368,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     }
 
     try {
-      const userId = localStorage.getItem('userId') || 'user123';
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
 
       // Delete from storage
       const fileName = `${userId}/full/${photo.id}.jpg`;
