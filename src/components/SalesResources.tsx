@@ -186,12 +186,26 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `${selectedFolder.id}/${fileName}`;
 
+      console.log('📤 Uploading file:', {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        filePath,
+        folderId: selectedFolder.id,
+        userId
+      });
+
       // Upload to storage
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('sales-resources')
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('❌ Storage upload error:', uploadError);
+        throw uploadError;
+      }
+
+      console.log('✅ Storage upload successful:', uploadData);
 
       // Get file type category
       let fileType = 'file';
@@ -201,7 +215,16 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       else if (file.type.includes('presentation')) fileType = 'ppt';
 
       // Save metadata to database
-      const { error: dbError } = await supabase
+      console.log('💾 Saving to database:', {
+        folder_id: selectedFolder.id,
+        name: file.name,
+        file_type: fileType,
+        file_size: file.size,
+        storage_path: filePath,
+        uploaded_by: userId
+      });
+
+      const { error: dbError, data: dbData } = await supabase
         .from('sales_resources_files')
         .insert({
           folder_id: selectedFolder.id,
@@ -212,7 +235,12 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
           uploaded_by: userId
         });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('❌ Database insert error:', dbError);
+        throw dbError;
+      }
+
+      console.log('✅ Database insert successful:', dbData);
 
       setShowUploadModal(false);
       loadFiles(selectedFolder.id);
