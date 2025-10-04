@@ -5,6 +5,7 @@ import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
+import TeamManagement from './components/TeamManagement';
 import Login from './components/auth/Login';
 import { useAuth } from './contexts/AuthContext';
 import { transcribeAudio } from './lib/openai';
@@ -2293,48 +2294,6 @@ const Analytics = ({ userRole }: AnalyticsProps) => {
 
       <div className="bg-gray-100 border-2 border-gray-300 p-8 rounded-xl text-center">
         <p className="text-gray-600">Analytics dashboard coming soon for role: <span className="font-semibold capitalize">{userRole}</span></p>
-      </div>
-    </div>
-  );
-};
-
-// Placeholder Team Management Component
-interface TeamManagementProps {
-  userRole: UserRole;
-}
-
-const TeamManagement = ({ userRole }: TeamManagementProps) => {
-  // Permission check
-  if (userRole === 'sales' || userRole === 'operations') {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Team</h1>
-          <p className="text-red-600">You don't have permission to access team management.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Team Management</h1>
-        <p className="text-gray-600">
-          {userRole === 'sales-manager' ? 'View team performance and metrics' : 'Manage users and permissions'}
-        </p>
-      </div>
-
-      <div className="bg-gray-100 border-2 border-gray-300 p-8 rounded-xl text-center">
-        <p className="text-gray-600">
-          Team management for role: <span className="font-semibold capitalize">{userRole}</span>
-        </p>
-        {userRole === 'admin' && (
-          <p className="text-sm text-gray-500 mt-2">Admin can add/edit/delete users</p>
-        )}
-        {userRole === 'sales-manager' && (
-          <p className="text-sm text-gray-500 mt-2">Sales Manager can view team performance</p>
-        )}
       </div>
     </div>
   );
