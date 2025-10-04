@@ -248,9 +248,23 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
           // Save metadata to database
           console.log('Saving photo metadata to database...');
+          // Convert camelCase to snake_case for Supabase
+          const dbPhoto = {
+            id: newPhoto.id,
+            url: newPhoto.url,
+            thumbnail_url: newPhoto.thumbnailUrl,
+            uploaded_by: newPhoto.uploadedBy,
+            uploaded_at: newPhoto.uploadedAt,
+            tags: newPhoto.tags,
+            is_favorite: newPhoto.isFavorite,
+            likes: newPhoto.likes,
+            status: newPhoto.status,
+            suggested_tags: newPhoto.suggestedTags,
+            quality_score: newPhoto.qualityScore,
+          };
           const { data, error } = await supabase
             .from('photos')
-            .insert([newPhoto])
+            .insert([dbPhoto])
             .select()
             .single();
 
