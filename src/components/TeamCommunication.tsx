@@ -14,16 +14,10 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
-  X,
   Eye,
-  Users,
   Search,
-  Filter,
   ArrowLeft,
-  ExternalLink,
-  Heart,
-  ThumbsUp,
-  Smile
+  ExternalLink
 } from 'lucide-react';
 
 interface CompanyMessage {
@@ -79,7 +73,7 @@ interface TeamCommunicationProps {
 }
 
 export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
-  const { user, userProfile } = useAuth();
+  const { user, profile } = useAuth();
   const [messages, setMessages] = useState<CompanyMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -102,10 +96,10 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
   useEffect(() => {
     loadMessages();
     loadUnreadCount();
-  }, [user, userProfile]);
+  }, [user, profile]);
 
   const loadMessages = async () => {
-    if (!user || !userProfile) return;
+    if (!user || !profile) return;
 
     try {
       setLoading(true);
@@ -117,7 +111,7 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
           *,
           message_receipts!left(id, read_at, user_id)
         `)
-        .or(`target_roles.cs.{${userProfile.role}},target_user_ids.cs.{${user.id}}`)
+        .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
         .eq('is_archived', false)
         .order('created_at', { ascending: false });
 
@@ -300,7 +294,7 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
     return matchesType && matchesSearch;
   });
 
-  const canCreateMessages = userProfile?.role === 'admin' || userProfile?.role === 'sales-manager';
+  // Removed unused variable - message creation handled in App.tsx with FAB
 
   if (loading) {
     return (

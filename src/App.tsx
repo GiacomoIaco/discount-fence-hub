@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut, MessageSquare, Bell } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut, MessageSquare } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';

@@ -10,14 +10,10 @@ import {
   ClipboardList,
   FileText,
   GraduationCap,
-  MessageCircle,
   CheckSquare,
   Calendar,
   Plus,
-  Trash2,
-  Search,
-  Users,
-  User
+  Trash2
 } from 'lucide-react';
 
 interface MessageComposerProps {
@@ -33,14 +29,13 @@ interface UserProfile {
 }
 
 export default function MessageComposer({ onClose, onMessageSent }: MessageComposerProps) {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
   const [messageType, setMessageType] = useState<string>('announcement');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal');
   const [requiresAcknowledgment, setRequiresAcknowledgment] = useState(false);
   const [targetRoles, setTargetRoles] = useState<string[]>(['sales', 'operations', 'sales-manager', 'admin']);
-  const [targetUsers, setTargetUsers] = useState<string[]>([]);
   const [expiresAt, setExpiresAt] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -51,7 +46,6 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
   // Recognition specific
   const [recognizedUserId, setRecognizedUserId] = useState('');
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [userSearch, setUserSearch] = useState('');
 
   // Event specific
   const [eventDate, setEventDate] = useState('');
@@ -61,7 +55,6 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
 
   // Task specific
   const [taskDueDate, setTaskDueDate] = useState('');
-  const [taskAssignees, setTaskAssignees] = useState<string[]>([]);
 
   const messageTypes = [
     { value: 'announcement', label: 'Announcement', icon: Megaphone, color: 'blue' },
@@ -135,13 +128,7 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
     );
   };
 
-  const handleToggleUser = (userId: string) => {
-    setTargetUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
+  // Removed - user-specific targeting will be added in future update
 
   const handleSend = async () => {
     if (!user || !title.trim() || !content.trim()) {
@@ -149,8 +136,8 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       return;
     }
 
-    if (targetRoles.length === 0 && targetUsers.length === 0) {
-      alert('Please select at least one role or user');
+    if (targetRoles.length === 0) {
+      alert('Please select at least one role');
       return;
     }
 
@@ -178,7 +165,7 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
         priority,
         requires_acknowledgment: requiresAcknowledgment,
         target_roles: targetRoles.length > 0 ? targetRoles : null,
-        target_user_ids: targetUsers.length > 0 ? targetUsers : null,
+        target_user_ids: null, // User-specific targeting will be added in future update
         expires_at: expiresAt || null,
       };
 
@@ -207,7 +194,7 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       if (messageType === 'task') {
         messageData.task_details = {
           due_date: taskDueDate,
-          assignees: taskAssignees,
+          assignees: [],
           status: 'pending'
         };
       }
@@ -231,11 +218,6 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
 
   const selectedType = messageTypes.find(t => t.value === messageType);
   const Icon = selectedType?.icon || Megaphone;
-
-  const filteredUsers = allUsers.filter(u =>
-    u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
-    u.email.toLowerCase().includes(userSearch.toLowerCase())
-  );
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
