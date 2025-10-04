@@ -270,6 +270,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
           if (error) {
             console.error('Database insert error:', error);
+            alert(`DB Error: ${error.message || JSON.stringify(error)}`);
             throw error;
           }
 
