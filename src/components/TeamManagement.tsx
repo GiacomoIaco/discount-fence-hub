@@ -115,7 +115,24 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       // For now, just show success message with invitation link
       const inviteLink = `${window.location.origin}/signup?token=${invitation.token}`;
 
-      alert(`Invitation created! Share this link with ${inviteEmail}:\n\n${inviteLink}`);
+      const message = `Invitation created! Share this message with ${inviteEmail}:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 Welcome to Discount Fence Hub!
+
+You've been invited to join our team.
+
+1️⃣ Click this link to sign up:
+${inviteLink}
+
+2️⃣ After signing in, install the app:
+   • iPhone/iPad: Tap Share → Add to Home Screen
+   • Android: Tap Menu → Install App
+   • Desktop: Look for install icon in address bar
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+      alert(message);
 
       setInviteEmail('');
       setInviteRole('sales');

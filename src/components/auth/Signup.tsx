@@ -52,14 +52,39 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <UserPlus className="w-8 h-8 text-green-600" />
+        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <UserPlus className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+            <p className="text-gray-600 mb-4">
+              We've sent a confirmation link to <strong>{email}</strong>. Please check your email to verify your account.
+            </p>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
-          <p className="text-gray-600 mb-6">
-            We've sent a confirmation link to <strong>{email}</strong>. Please check your email to verify your account.
-          </p>
+
+          {/* App Installation Instructions */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h3 className="font-bold text-gray-900 mb-3 flex items-center">
+              <span className="text-2xl mr-2">📱</span>
+              Install the App
+            </h3>
+            <div className="space-y-3 text-sm text-gray-700">
+              <div>
+                <p className="font-semibold mb-1">iPhone/iPad:</p>
+                <p className="text-gray-600">Tap <strong>Share</strong> → <strong>Add to Home Screen</strong></p>
+              </div>
+              <div>
+                <p className="font-semibold mb-1">Android:</p>
+                <p className="text-gray-600">Tap <strong>Menu</strong> (⋮) → <strong>Install App</strong></p>
+              </div>
+              <div>
+                <p className="font-semibold mb-1">Desktop:</p>
+                <p className="text-gray-600">Look for the install icon in your browser's address bar</p>
+              </div>
+            </div>
+          </div>
+
           <button
             onClick={onBackToLogin}
             className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"

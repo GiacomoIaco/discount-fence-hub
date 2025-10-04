@@ -7,6 +7,7 @@ import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
 import Login from './components/auth/Login';
+import InstallAppBanner from './components/InstallAppBanner';
 import { useAuth } from './contexts/AuthContext';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
@@ -180,6 +181,9 @@ function App() {
         <div className="pb-20">
           <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} />
         </div>
+
+        {/* Install App Banner */}
+        <InstallAppBanner />
       </div>
     );
   }
@@ -297,6 +301,9 @@ function App() {
           {renderContent()}
         </div>
       </div>
+
+      {/* Install App Banner */}
+      <InstallAppBanner />
     </div>
   );
 }
