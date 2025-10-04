@@ -71,7 +71,7 @@ function App() {
 
   // Universal navigation items - same for all roles (permissions controlled inside each component)
   const getNavigationItems = () => {
-    const baseItems = [
+    return [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
@@ -81,13 +81,6 @@ function App() {
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'team' as Section, name: 'Team', icon: User },
     ];
-
-    // Add Sales Coach Admin for admin only
-    if (userRole === 'admin') {
-      baseItems.push({ id: 'sales-coach-admin' as Section, name: 'Sales Coach Admin', icon: Wrench });
-    }
-
-    return baseItems;
   };
 
   const navigationItems = getNavigationItems();
@@ -144,20 +137,6 @@ function App() {
               >
                 Desktop
               </button>
-              {/* Role Switcher for Testing */}
-              <select
-                value={userRole}
-                onChange={(e) => {
-                  setUserRole(e.target.value as UserRole);
-                  setActiveSection('home');
-                }}
-                className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded text-gray-700"
-              >
-                <option value="sales">Sales</option>
-                <option value="operations">Operations</option>
-                <option value="sales-manager">Sales Manager</option>
-                <option value="admin">Admin</option>
-              </select>
               <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                 <User className="w-6 h-6 text-white" />
               </div>
@@ -227,10 +206,10 @@ function App() {
             </div>
           )}
 
-          {/* Role Switcher for Testing */}
-          {sidebarOpen && (
+          {/* Role Switcher for Admin Only */}
+          {sidebarOpen && userRole === 'admin' && (
             <div className="mb-3">
-              <p className="text-xs text-gray-400 mb-2">Switch Role (Testing):</p>
+              <p className="text-xs text-gray-400 mb-2">Switch Role (Admin):</p>
               <select
                 value={userRole}
                 onChange={(e) => {
