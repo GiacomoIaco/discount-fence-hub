@@ -64,6 +64,26 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setFilteredPhotos(filtered);
   }, [photos, filters]);
 
+  const mapSupabaseToPhoto = (dbPhoto: any): Photo => {
+    return {
+      id: dbPhoto.id,
+      url: dbPhoto.url,
+      thumbnailUrl: dbPhoto.thumbnail_url,
+      uploadedBy: dbPhoto.uploaded_by,
+      uploadedAt: dbPhoto.uploaded_at,
+      tags: dbPhoto.tags || [],
+      isFavorite: dbPhoto.is_favorite || false,
+      likes: dbPhoto.likes || 0,
+      status: dbPhoto.status || 'pending',
+      suggestedTags: dbPhoto.suggested_tags,
+      qualityScore: dbPhoto.quality_score,
+      reviewedBy: dbPhoto.reviewed_by,
+      reviewedAt: dbPhoto.reviewed_at,
+      reviewNotes: dbPhoto.review_notes,
+      clientSelections: dbPhoto.client_selections || [],
+    };
+  };
+
   const loadPhotos = async () => {
     try {
       // Query based on role
@@ -87,7 +107,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       }
 
       if (data) {
-        setPhotos(data as Photo[]);
+        const mappedPhotos = data.map(mapSupabaseToPhoto);
+        setPhotos(mappedPhotos);
       }
     } catch (error) {
       console.error('Error loading photos:', error);

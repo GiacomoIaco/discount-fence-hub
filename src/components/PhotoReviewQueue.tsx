@@ -21,6 +21,26 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
     loadPendingPhotos();
   }, []);
 
+  const mapSupabaseToPhoto = (dbPhoto: any): Photo => {
+    return {
+      id: dbPhoto.id,
+      url: dbPhoto.url,
+      thumbnailUrl: dbPhoto.thumbnail_url,
+      uploadedBy: dbPhoto.uploaded_by,
+      uploadedAt: dbPhoto.uploaded_at,
+      tags: dbPhoto.tags || [],
+      isFavorite: dbPhoto.is_favorite || false,
+      likes: dbPhoto.likes || 0,
+      status: dbPhoto.status || 'pending',
+      suggestedTags: dbPhoto.suggested_tags,
+      qualityScore: dbPhoto.quality_score,
+      reviewedBy: dbPhoto.reviewed_by,
+      reviewedAt: dbPhoto.reviewed_at,
+      reviewNotes: dbPhoto.review_notes,
+      clientSelections: dbPhoto.client_selections || [],
+    };
+  };
+
   const loadPendingPhotos = async () => {
     try {
       const { data, error } = await supabase
@@ -39,7 +59,8 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
 
       if (data && data.length > 0) {
         console.log(`Loaded ${data.length} pending photos from Supabase`);
-        setPendingPhotos(data as Photo[]);
+        const mappedPhotos = data.map(mapSupabaseToPhoto);
+        setPendingPhotos(mappedPhotos);
       } else {
         console.log('No pending photos in Supabase, checking localStorage...');
         // Also check localStorage if Supabase is empty
