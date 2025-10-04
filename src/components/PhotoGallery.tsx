@@ -86,13 +86,25 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
   const loadPhotos = async () => {
     try {
-      // Photo Gallery only shows published photos (all roles)
-      // Pending photos are only visible in Photo Review Queue
-      const { data, error } = await supabase
+      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+
+      // Query based on role:
+      // - Sales/Mobile: Published photos + their own pending photos
+      // - Managers/Admins on desktop: Only published photos (pending photos are in Review Queue)
+      let query = supabase
         .from('photos')
         .select('*')
-        .eq('status', 'published')
         .order('uploaded_at', { ascending: false });
+
+      if (viewMode === 'mobile' || userRole === 'sales') {
+        // Mobile: Show published OR photos uploaded by current user
+        query = query.or(`status.eq.published,uploaded_by.eq.${userId}`);
+      } else {
+        // Desktop (managers/admins): Only show published
+        query = query.eq('status', 'published');
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error loading photos:', error);
