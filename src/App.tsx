@@ -507,7 +507,10 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode }: SalesRepVie
       <div className="space-y-3 pt-4 pb-8">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Other Tools</h2>
 
-        <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
+        <button
+          onClick={() => setActiveSection('sales-resources')}
+          className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
+        >
           <div className="flex items-center space-x-3">
             <div className="bg-indigo-100 p-2 rounded-lg">
               <BookOpen className="w-6 h-6 text-indigo-600" />
