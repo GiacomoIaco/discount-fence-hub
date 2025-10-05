@@ -989,6 +989,100 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     }
   };
 
+  const handleBulkEnhance = async () => {
+    if (selectedPhotoIds.size === 0) {
+      alert('No photos selected');
+      return;
+    }
+
+    if (!confirm(`Enhance ${selectedPhotoIds.size} photo(s) using Gemini 2.5 Flash Image? This will replace the original photos with enhanced versions.`)) return;
+
+    setIsEnhancing(true);
+    const totalPhotos = selectedPhotoIds.size;
+    let completed = 0;
+    let failed = 0;
+
+    try {
+      for (const photoId of selectedPhotoIds) {
+        const photo = photos.find((p) => p.id === photoId);
+        if (!photo) continue;
+
+        try {
+          // Convert image URL to base64
+          const response = await fetch(photo.url);
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64String = (reader.result as string).split(',')[1];
+              resolve(base64String);
+            };
+            reader.readAsDataURL(blob);
+          });
+
+          // Call Gemini 2.5 Flash Image API for enhancement
+          const apiResponse = await fetch('/.netlify/functions/enhance-photo', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              imageBase64: base64,
+            }),
+          });
+
+          if (!apiResponse.ok) {
+            const error = await apiResponse.json();
+            throw new Error(error.details || 'Enhancement failed');
+          }
+
+          const { enhancedImageBase64 } = await apiResponse.json();
+
+          // Convert base64 to blob
+          const enhancedResponse = await fetch(`data:image/jpeg;base64,${enhancedImageBase64}`);
+          const enhancedBlob = await enhancedResponse.blob();
+
+          // Upload enhanced photo to replace original
+          const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+          const fileName = `${userId}/full/${photoId}.jpg`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('photos')
+            .update(fileName, enhancedBlob, {
+              contentType: 'image/jpeg',
+              upsert: true,
+            });
+
+          if (uploadError) {
+            throw new Error(`Failed to save enhanced version: ${uploadError.message}`);
+          }
+
+          completed++;
+          console.log(`✅ Enhanced photo ${completed}/${totalPhotos}`);
+        } catch (error) {
+          console.error(`❌ Failed to enhance photo ${photoId}:`, error);
+          failed++;
+        }
+      }
+
+      // Reload photos to show enhanced versions
+      await loadPhotos();
+      setSelectedPhotoIds(new Set());
+      setEditMode(false);
+
+      if (failed === 0) {
+        alert(`✅ Successfully enhanced all ${completed} photo(s)!`);
+      } else {
+        alert(`Enhanced ${completed} photo(s). ${failed} photo(s) failed.`);
+      }
+    } catch (error) {
+      console.error('Bulk enhance error:', error);
+      alert('Failed to enhance photos. Please try again.');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
   const navigatePhoto = (direction: 'prev' | 'next') => {
     if (direction === 'prev') {
       setCurrentIndex((prev) => (prev > 0 ? prev - 1 : filteredPhotos.length - 1));
@@ -1325,6 +1419,18 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                   className="px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1"
                 >
                   Move to Archived
+                </button>
+              )}
+
+              {/* Enhance Selected (Admin only) */}
+              {userRole === 'admin' && (
+                <button
+                  onClick={handleBulkEnhance}
+                  disabled={selectedPhotoIds.size === 0 || isEnhancing}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center space-x-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isEnhancing ? 'Enhancing...' : 'Enhance Selected'}</span>
                 </button>
               )}
 
