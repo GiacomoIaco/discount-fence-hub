@@ -12,9 +12,9 @@ import {
   GraduationCap,
   CheckSquare,
   Calendar,
-  Plus,
-  Trash2
+  Save
 } from 'lucide-react';
+import SurveyBuilder, { type SurveyQuestion } from './SurveyBuilder';
 
 interface MessageComposerProps {
   onClose: () => void;
@@ -39,9 +39,11 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
   const [expiresAt, setExpiresAt] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Survey specific
-  const [surveyOptions, setSurveyOptions] = useState<string[]>(['']);
-  const [allowMultiple, setAllowMultiple] = useState(false);
+  // Survey specific (V2 - multi-question)
+  const [surveyQuestions, setSurveyQuestions] = useState<SurveyQuestion[]>([]);
+  const [showResultsAfterSubmit, setShowResultsAfterSubmit] = useState(false);
+  const [allowEditResponses, setAllowEditResponses] = useState(false);
+  const [anonymousResponses, setAnonymousResponses] = useState(false);
 
   // Recognition specific
   const [recognizedUserId, setRecognizedUserId] = useState('');
@@ -106,20 +108,6 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
     }
   };
 
-  const handleAddSurveyOption = () => {
-    setSurveyOptions([...surveyOptions, '']);
-  };
-
-  const handleRemoveSurveyOption = (index: number) => {
-    setSurveyOptions(surveyOptions.filter((_, i) => i !== index));
-  };
-
-  const handleSurveyOptionChange = (index: number, value: string) => {
-    const newOptions = [...surveyOptions];
-    newOptions[index] = value;
-    setSurveyOptions(newOptions);
-  };
-
   const handleToggleRole = (role: string) => {
     setTargetRoles(prev =>
       prev.includes(role)
@@ -129,6 +117,76 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
   };
 
   // Removed - user-specific targeting will be added in future update
+
+  const handleSaveDraft = async () => {
+    if (!user || !title.trim()) {
+      alert('Please enter a title for the draft');
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      const messageData: any = {
+        message_type: messageType,
+        title: title.trim(),
+        content: content.trim(),
+        created_by: user.id,
+        priority,
+        requires_acknowledgment: requiresAcknowledgment,
+        target_roles: targetRoles.length > 0 ? targetRoles : null,
+        target_user_ids: null,
+        expires_at: expiresAt || null,
+        is_draft: true,
+        status: 'draft'
+      };
+
+      // Add survey data if applicable
+      if (messageType === 'survey' && surveyQuestions.length > 0) {
+        messageData.survey_questions = surveyQuestions;
+        messageData.show_results_after_submit = showResultsAfterSubmit;
+        messageData.allow_edit_responses = allowEditResponses;
+        messageData.anonymous_responses = anonymousResponses;
+      }
+
+      // Add other type-specific data
+      if (messageType === 'recognition') {
+        messageData.recognized_user_id = recognizedUserId;
+      }
+
+      if (messageType === 'event') {
+        messageData.event_details = {
+          date: eventDate,
+          time: eventTime,
+          location: eventLocation,
+          rsvp_required: rsvpRequired
+        };
+      }
+
+      if (messageType === 'task') {
+        messageData.task_details = {
+          due_date: taskDueDate,
+          assignees: [],
+          status: 'pending'
+        };
+      }
+
+      const { error } = await supabase
+        .from('company_messages')
+        .insert([messageData]);
+
+      if (error) throw error;
+
+      alert('Draft saved successfully!');
+      onMessageSent();
+      onClose();
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert('Failed to save draft');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!user || !title.trim() || !content.trim()) {
@@ -141,12 +199,15 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       return;
     }
 
-    if (messageType === 'survey') {
-      const validOptions = surveyOptions.filter(o => o.trim());
-      if (validOptions.length < 2) {
-        alert('Please add at least 2 survey options');
+    if (messageType === 'survey' && surveyQuestions.length > 0) {
+      const invalidQuestions = surveyQuestions.filter(q => !q.text.trim());
+      if (invalidQuestions.length > 0) {
+        alert('Please fill in all question texts');
         return;
       }
+    } else if (messageType === 'survey' && surveyQuestions.length === 0) {
+      alert('Please add at least one survey question');
+      return;
     }
 
     if (messageType === 'recognition' && !recognizedUserId) {
@@ -167,15 +228,16 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
         target_roles: targetRoles.length > 0 ? targetRoles : null,
         target_user_ids: null, // User-specific targeting will be added in future update
         expires_at: expiresAt || null,
+        is_draft: false,
+        status: 'active'
       };
 
       // Add type-specific data
-      if (messageType === 'survey') {
-        const validOptions = surveyOptions.filter(o => o.trim());
-        messageData.survey_options = {
-          options: validOptions,
-          allow_multiple: allowMultiple
-        };
+      if (messageType === 'survey' && surveyQuestions.length > 0) {
+        messageData.survey_questions = surveyQuestions;
+        messageData.show_results_after_submit = showResultsAfterSubmit;
+        messageData.allow_edit_responses = allowEditResponses;
+        messageData.anonymous_responses = anonymousResponses;
       }
 
       if (messageType === 'recognition') {
@@ -321,47 +383,53 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
             </div>
           )}
 
-          {/* Survey Options */}
+          {/* Survey Builder */}
           {messageType === 'survey' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Survey Options
-              </label>
-              <div className="space-y-2">
-                {surveyOptions.map((option, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) => handleSurveyOptionChange(index, e.target.value)}
-                      placeholder={`Option ${index + 1}`}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    {surveyOptions.length > 1 && (
-                      <button
-                        onClick={() => handleRemoveSurveyOption(index)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  onClick={handleAddSurveyOption}
-                  className="flex items-center space-x-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Option</span>
-                </button>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">
+                  Survey Questions
+                </label>
+                <span className="text-xs text-gray-500">
+                  {surveyQuestions.length} question{surveyQuestions.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <SurveyBuilder
+                questions={surveyQuestions}
+                onChange={setSurveyQuestions}
+              />
+
+              {/* Survey Settings */}
+              <div className="space-y-2 pt-4 border-t border-gray-200">
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
-                    checked={allowMultiple}
-                    onChange={(e) => setAllowMultiple(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    checked={showResultsAfterSubmit}
+                    onChange={(e) => setShowResultsAfterSubmit(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                   />
-                  <span className="text-sm text-gray-700">Allow multiple selections</span>
+                  <span className="text-sm text-gray-700">Show results after user submits</span>
+                </label>
+
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={allowEditResponses}
+                    onChange={(e) => setAllowEditResponses(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-gray-700">Allow users to edit their responses</span>
+                </label>
+
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={anonymousResponses}
+                    onChange={(e) => setAnonymousResponses(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-gray-700">Anonymous responses (hide names in results)</span>
                 </label>
               </div>
             </div>
@@ -513,14 +581,24 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
           >
             Cancel
           </button>
-          <button
-            onClick={handleSend}
-            disabled={sending || !title.trim() || !content.trim()}
-            className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send className="w-4 h-4" />
-            <span>{sending ? 'Sending...' : 'Send Message'}</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleSaveDraft}
+              disabled={sending || !title.trim()}
+              className="flex items-center space-x-2 px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className="w-4 h-4" />
+              <span>Save Draft</span>
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={sending || !title.trim() || !content.trim()}
+              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send className="w-4 h-4" />
+              <span>{sending ? 'Sending...' : 'Send Message'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
