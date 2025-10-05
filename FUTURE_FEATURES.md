@@ -276,6 +276,105 @@ useEffect(() => {
 
 ---
 
+## 👤 Advanced User Profile Features
+
+### 1. **Enhanced User Profile**
+**Status**: Discussed, not implemented (basic profile exists with avatar_url field)
+
+**Current State**:
+- ✅ Basic profile with: full_name, email, role, phone, avatar_url
+- ❌ No profile picture upload
+- ❌ No "About Me" bio
+- ❌ No voice sample storage
+
+**Features to Implement**:
+
+#### A. Profile Picture Upload
+- Upload profile photo (max 5MB)
+- Auto-resize to 300x300px thumbnail
+- Store in Supabase Storage bucket `user-avatars`
+- Update `avatar_url` in user_profiles table
+- Default avatar with initials if no photo
+- Crop/rotate functionality before upload
+
+#### B. About Me / Bio Section
+- Add `bio` TEXT column to user_profiles table
+- Character limit: 500 characters
+- Rich text editor for formatting
+- Display in team directory
+- Show on hover in message threads
+- Visibility settings (team only, managers, public)
+
+#### C. Voice Sample for AI Sales Coach
+**Purpose**: Allow AI to learn each rep's voice for personalized coaching
+
+**Implementation**:
+- Add `voice_sample_url` TEXT column to user_profiles table
+- Record 30-60 second voice sample during onboarding
+- Store in Supabase Storage bucket `voice-samples`
+- Use for:
+  - Voice verification in recordings
+  - Personalized speech pattern analysis
+  - Coaching on speaking pace, tone, clarity
+  - Benchmark for improvement tracking
+
+**Voice Sample Collection Flow**:
+1. Prompt user: "Read this script to help our AI learn your voice"
+2. Provide sample script (30-60 seconds)
+3. Record audio using MediaRecorder API
+4. Upload to storage
+5. Optional: Transcribe and validate recording quality
+6. Save reference in user profile
+
+**AI Integration**:
+- Pass voice sample to AI analysis for comparison
+- "This rep tends to speak 20% faster than their baseline"
+- Emotion/tone analysis calibrated to individual
+- Track vocal improvement over time
+
+#### D. Additional Profile Fields to Consider
+- `territory` - Geographic area assignment
+- `start_date` - Employment start date
+- `certifications` - List of completed trainings
+- `goals` - Personal sales goals
+- `achievements` - Badges/awards earned
+- `preferences` - Notification settings, theme, language
+
+**Database Schema Update Needed**:
+```sql
+ALTER TABLE user_profiles
+ADD COLUMN bio TEXT,
+ADD COLUMN voice_sample_url TEXT,
+ADD COLUMN territory TEXT,
+ADD COLUMN start_date DATE,
+ADD COLUMN certifications JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN goals JSONB DEFAULT '{}'::jsonb,
+ADD COLUMN preferences JSONB DEFAULT '{}'::jsonb;
+```
+
+**Storage Buckets Needed**:
+- `user-avatars` - Profile pictures
+- `voice-samples` - Voice baseline recordings
+
+**UI Components Needed**:
+- `UserProfileEditor.tsx` - Edit profile form
+- `ProfilePictureUpload.tsx` - Image upload with crop
+- `VoiceSampleRecorder.tsx` - Voice sample collection
+- `UserProfileView.tsx` - Public profile display
+- `TeamDirectory.tsx` - Browse all team members
+
+**Estimated Effort**: 8-12 hours
+- Database schema: 1 hour
+- Storage setup: 1 hour
+- Profile picture upload: 2-3 hours
+- Bio editor: 1-2 hours
+- Voice sample recorder: 3-4 hours
+- Profile view components: 2-3 hours
+
+**Priority**: Medium-High (voice sample important for AI coaching accuracy)
+
+---
+
 ## 🔐 Security & Permissions
 
 ### 1. **Advanced Permissions**
@@ -375,11 +474,12 @@ useEffect(() => {
 4. 🔨 Real-time updates with Supabase Realtime
 
 ### Medium Priority (Future Sprints):
-5. Message search functionality
-6. Swipe gestures for mobile
-7. Email notifications for messages
-8. Schedule message sending
-9. Advanced user targeting (specific users, not just roles)
+5. **Enhanced User Profiles** (profile pic, bio, voice sample) - Important for AI coaching
+6. Message search functionality
+7. Swipe gestures for mobile
+8. Email notifications for messages
+9. Schedule message sending
+10. Advanced user targeting (specific users, not just roles)
 
 ### Low Priority (Future Enhancements):
 10. Message threading/replies
@@ -397,6 +497,8 @@ useEffect(() => {
 | Survey System Integration | 🔨 Partial | ✅ Yes | ✅ Yes | 2-4 hours |
 | Engagement Dashboard | ❌ Not Started | ❌ No | ✅ Yes (data exists) | 4-6 hours |
 | CSV Export | ❌ Not Started | ✅ Yes (button) | ❌ No | 2-3 hours |
+| Enhanced User Profile | ❌ Not Started | ❌ No | ⚠️ Partial (avatar_url) | 8-12 hours |
+| Voice Sample Collection | ❌ Not Started | ⚠️ Partial (MediaRecorder) | ❌ No | 3-4 hours |
 | Real-time Updates | ❌ Not Started | ❌ No | ⚠️ Setup needed | 4-6 hours |
 | Swipe Gestures | ❌ Not Started | ❌ No | ✅ Yes | 3-4 hours |
 | Push Notifications | ❌ Not Started | ⚠️ Partial (PWA) | ❌ No | 6-8 hours |
