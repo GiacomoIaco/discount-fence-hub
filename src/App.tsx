@@ -180,7 +180,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <img src="/logo-transparent.png" alt="Logo" className="h-24 w-auto mx-auto mb-4" />
+          <img src="/Logo-1.jpg" alt="Logo" className="h-24 w-auto mx-auto mb-4" />
           <div className="text-gray-600">Loading...</div>
         </div>
       </div>

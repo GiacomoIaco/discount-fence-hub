@@ -137,7 +137,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
         <div className="bg-gradient-to-r from-red-700 to-red-900 rounded-lg shadow-lg mb-6 p-6 md:p-8">
           <div className="text-center">
             <div className="flex items-center justify-center gap-4 mb-4">
-              <img src="/wood-defender-logo.png" alt="Wood Defender" className="h-16 md:h-20 w-auto" />
+              <img src="/wood-defender-logo.png" alt="Wood Defender" className="h-24 md:h-32 w-auto" />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
               Premium Oil-Based Pre-Stain System
@@ -520,7 +520,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
         {/* Footer */}
         <div className="mt-6 bg-white rounded-lg shadow-lg p-6 text-center border-t-4 border-red-600">
           <div className="flex items-center justify-center gap-6 mb-4">
-            <img src="/dfusa-logo.png" alt="Discount Fence USA" className="h-16 w-auto" />
+            <img src="/Logo-1.jpg" alt="Discount Fence USA" className="h-16 w-auto" />
             <div className="border-l-2 border-gray-300 h-16"></div>
             <img src="/wood-defender-logo.png" alt="Wood Defender" className="h-16 w-auto" />
           </div>
