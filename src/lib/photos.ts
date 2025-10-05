@@ -5,6 +5,7 @@ export interface Photo {
   url: string;
   thumbnailUrl?: string;
   uploadedBy: string;
+  uploaderName?: string;
   uploadedAt: string;
   tags: string[];
   isFavorite: boolean;

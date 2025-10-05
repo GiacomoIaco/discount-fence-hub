@@ -115,6 +115,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       url: dbPhoto.url,
       thumbnailUrl: dbPhoto.thumbnail_url,
       uploadedBy: dbPhoto.uploaded_by,
+      uploaderName: dbPhoto.uploader_name,
       uploadedAt: dbPhoto.uploaded_at,
       tags: dbPhoto.tags || [],
       isFavorite: dbPhoto.is_favorite || false,
@@ -212,6 +213,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
     try {
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userName = localStorage.getItem('userName') || 'Unknown User';
 
       for (const file of Array.from(files)) {
         // Resize for full image (max 1920px)
@@ -277,6 +279,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           url: full.dataUrl,
           thumbnailUrl: thumb.dataUrl,
           uploadedBy: userId,
+          uploaderName: userName,
           uploadedAt: new Date().toISOString(),
           tags: suggestedTags,
           isFavorite: false,
@@ -345,6 +348,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             url: newPhoto.url,
             thumbnail_url: newPhoto.thumbnailUrl,
             uploaded_by: newPhoto.uploadedBy,
+            uploader_name: newPhoto.uploaderName,
             uploaded_at: newPhoto.uploadedAt,
             tags: newPhoto.tags,
             is_favorite: newPhoto.isFavorite,
@@ -531,23 +535,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       setEditingScore(photo.qualityScore || 5);
       setReviewNotes(photo.reviewNotes || '');
 
-      // Fetch uploader name
-      try {
-        const { data, error } = await supabase
-          .from('sales_reps')
-          .select('name')
-          .eq('id', photo.uploadedBy)
-          .single();
-
-        if (!error && data) {
-          setUploaderName(data.name);
-        } else {
-          setUploaderName('Unknown User');
-        }
-      } catch (error) {
-        console.error('Error fetching uploader name:', error);
-        setUploaderName('Unknown User');
-      }
+      // Set uploader name from photo object (stored when photo was uploaded)
+      setUploaderName(photo.uploaderName || 'Unknown User');
     } else {
       // Gallery tab or non-managers: open full-screen viewer
       setCurrentIndex(index);
