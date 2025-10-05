@@ -583,8 +583,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         const response = await fetch(enhancedUrl);
         const blob = await response.blob();
 
-        // Upload to storage (replace existing file)
-        const fileName = `${userId}/full/${reviewingPhoto.id}.jpg`;
+        // Upload to storage (replace existing file) - use photo's original uploader ID
+        const fileName = `${reviewingPhoto.uploadedBy}/full/${reviewingPhoto.id}.jpg`;
         const { error: uploadError } = await supabase.storage
           .from('photos')
           .update(fileName, blob, {
@@ -1042,9 +1042,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           const enhancedResponse = await fetch(`data:image/jpeg;base64,${enhancedImageBase64}`);
           const enhancedBlob = await enhancedResponse.blob();
 
-          // Upload enhanced photo to replace original
-          const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
-          const fileName = `${userId}/full/${photoId}.jpg`;
+          // Upload enhanced photo to replace original - use photo's original uploader ID
+          const fileName = `${photo.uploadedBy}/full/${photoId}.jpg`;
 
           const { error: uploadError } = await supabase.storage
             .from('photos')
