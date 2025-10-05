@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, DollarSign, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { ArrowLeft, DollarSign, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface StainCalculatorProps {
   onBack: () => void;
@@ -21,9 +22,11 @@ interface CalculationResults {
 }
 
 interface MediaItem {
+  id?: string;
   url: string;
   type: 'image' | 'video';
   caption?: string;
+  file_path?: string;
 }
 
 const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
@@ -33,20 +36,13 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
   const [showResults, setShowResults] = useState<boolean>(false);
 
   // Media gallery state
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
-    // Load from localStorage on mount
-    const saved = localStorage.getItem('stainCalculatorMedia');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [{ url: '/fence-comparison.jpg', type: 'image', caption: 'Left: Wood Defender stained | Right: Untreated after 2 years' }];
-      }
-    }
-    return [{ url: '/fence-comparison.jpg', type: 'image', caption: 'Left: Wood Defender stained | Right: Untreated after 2 years' }];
-  });
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([
+    { url: '/fence-comparison.jpg', type: 'image', caption: 'Left: Wood Defender stained | Right: Untreated after 2 years' }
+  ]);
   const [showGallery, setShowGallery] = useState(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   // Advanced settings
   const [pricePerGallon, setPricePerGallon] = useState<number>(55);
@@ -87,39 +83,115 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
     };
   };
 
+  // Load media from Supabase
+  const loadMedia = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('prestain_media')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const items: MediaItem[] = data.map(item => ({
+          id: item.id,
+          url: item.file_url,
+          type: item.file_type as 'image' | 'video',
+          caption: item.caption || undefined,
+          file_path: item.file_path
+        }));
+        setMediaItems(items);
+      } else {
+        // No items in database, use default
+        setMediaItems([{
+          url: '/fence-comparison.jpg',
+          type: 'image',
+          caption: 'Left: Wood Defender stained | Right: Untreated after 2 years'
+        }]);
+      }
+    } catch (error) {
+      console.error('Error loading media:', error);
+      // Use default on error
+      setMediaItems([{
+        url: '/fence-comparison.jpg',
+        type: 'image',
+        caption: 'Left: Wood Defender stained | Right: Untreated after 2 years'
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploading(true);
 
     for (const file of files) {
-      // Check file size (max 5MB to prevent localStorage issues)
+      // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert(`${file.name} is too large. Please use files under 5MB.`);
         continue;
       }
 
       try {
-        if (file.type.startsWith('image')) {
-          // Compress image before storing
+        const fileType = file.type.startsWith('video') ? 'video' : 'image';
+
+        // Compress image if needed
+        let uploadFile = file;
+        if (fileType === 'image') {
           const compressed = await compressImage(file);
-          const type = 'image' as const;
-          setMediaItems(prev => [...prev, { url: compressed, type }]);
-        } else if (file.type.startsWith('video')) {
-          // For videos, use object URL (won't persist but won't crash)
-          const url = URL.createObjectURL(file);
-          const type = 'video' as const;
-          setMediaItems(prev => [...prev, { url, type }]);
+          uploadFile = compressed;
         }
-      } catch (error) {
+
+        // Upload to Supabase Storage
+        const fileExt = uploadFile.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `prestain/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('prestain-media')
+          .upload(filePath, uploadFile, {
+            contentType: uploadFile.type,
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('prestain-media')
+          .getPublicUrl(filePath);
+
+        // Save to database
+        const { error: dbError } = await supabase
+          .from('prestain_media')
+          .insert({
+            file_path: filePath,
+            file_url: publicUrl,
+            file_type: fileType,
+            display_order: mediaItems.length
+          });
+
+        if (dbError) throw dbError;
+
+      } catch (error: any) {
         console.error('Error uploading file:', error);
-        alert(`Failed to upload ${file.name}. Please try a smaller file.`);
+        alert(`Failed to upload ${file.name}: ${error.message}`);
       }
     }
+
+    // Reload media after upload
+    await loadMedia();
+    setUploading(false);
 
     // Reset input
     e.target.value = '';
   };
 
-  const compressImage = (file: File): Promise<string> => {
+  const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -147,9 +219,18 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
           canvas.height = height;
           ctx?.drawImage(img, 0, 0, width, height);
 
-          // Compress to JPEG with 80% quality
-          const compressed = canvas.toDataURL('image/jpeg', 0.8);
-          resolve(compressed);
+          // Convert to blob
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Failed to compress image'));
+            }
+          }, 'image/jpeg', 0.8);
         };
         img.onerror = reject;
         img.src = e.target?.result as string;
@@ -157,6 +238,36 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  };
+
+  const handleDeleteMedia = async (item: MediaItem) => {
+    if (!item.id || !item.file_path) return;
+
+    if (!confirm('Are you sure you want to delete this image?')) return;
+
+    try {
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('prestain-media')
+        .remove([item.file_path]);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('prestain_media')
+        .delete()
+        .eq('id', item.id);
+
+      if (dbError) throw dbError;
+
+      // Reload media
+      await loadMedia();
+
+    } catch (error: any) {
+      console.error('Error deleting media:', error);
+      alert(`Failed to delete image: ${error.message}`);
+    }
   };
 
   const openGallery = (index: number) => {
@@ -172,29 +283,10 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
     setCurrentMediaIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
   };
 
-  // Save media items to localStorage whenever they change
+  // Load media on mount
   useEffect(() => {
-    try {
-      const data = JSON.stringify(mediaItems);
-      // Check if data is too large (localStorage limit is ~5-10MB)
-      if (data.length > 5 * 1024 * 1024) {
-        console.warn('Media items too large for localStorage, keeping only first item');
-        // Keep only the default image
-        localStorage.setItem('stainCalculatorMedia', JSON.stringify([mediaItems[0]]));
-      } else {
-        localStorage.setItem('stainCalculatorMedia', data);
-      }
-    } catch (error) {
-      console.error('Failed to save media to localStorage:', error);
-      // If storage fails, keep only default image
-      try {
-        localStorage.setItem('stainCalculatorMedia', JSON.stringify([mediaItems[0]]));
-      } catch {
-        // If still fails, clear it
-        localStorage.removeItem('stainCalculatorMedia');
-      }
-    }
-  }, [mediaItems]);
+    loadMedia();
+  }, []);
 
   useEffect(() => {
     if (showResults) {
@@ -265,15 +357,25 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
 
               {/* Upload button - Admin only */}
               {profile?.role === 'admin' && (
-                <label className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-red-600 hover:bg-red-50 transition-colors">
-                  <Upload className="w-5 h-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Add Photos or Videos</span>
+                <label className={`mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-red-600 hover:bg-red-50'}`}>
+                  {uploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700"></div>
+                      <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">Add Photos or Videos</span>
+                    </>
+                  )}
                   <input
                     type="file"
                     multiple
                     accept="image/*,video/*"
                     onChange={handleMediaUpload}
                     className="hidden"
+                    disabled={uploading}
                   />
                 </label>
               )}
@@ -623,6 +725,17 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
           >
             <X className="w-8 h-8 text-white" />
           </button>
+
+          {/* Delete button - Admin only */}
+          {profile?.role === 'admin' && mediaItems[currentMediaIndex].id && (
+            <button
+              onClick={() => handleDeleteMedia(mediaItems[currentMediaIndex])}
+              className="absolute top-4 left-4 p-2 bg-red-600/80 hover:bg-red-700 rounded-full transition-colors z-10"
+              title="Delete this image"
+            >
+              <Trash2 className="w-6 h-6 text-white" />
+            </button>
+          )}
 
           {mediaItems.length > 1 && (
             <>
