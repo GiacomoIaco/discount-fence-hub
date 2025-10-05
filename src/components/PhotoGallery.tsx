@@ -17,7 +17,6 @@ import {
   Save,
   Settings,
   Plus,
-  Edit2,
 } from 'lucide-react';
 import type { Photo, FilterState } from '../lib/photos';
 import {
