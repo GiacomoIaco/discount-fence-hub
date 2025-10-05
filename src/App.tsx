@@ -503,7 +503,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
   }
 
   if (activeSection === 'photo-gallery') {
-    return <PhotoGallery onBack={() => setActiveSection('home')} userId={user?.id} userName={profile?.full_name} />;
+    return <PhotoGallery onBack={() => setActiveSection('home')} />;
   }
 
   if (activeSection === 'sales-resources') {

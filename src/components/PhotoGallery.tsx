@@ -135,8 +135,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
   const loadPhotos = async () => {
     try {
-      const currentUserId = userId || '00000000-0000-0000-0000-000000000001';
-
       let query = supabase
         .from('photos')
         .select('*')
@@ -484,8 +482,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     }
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
-
       // Delete from storage
       const fileName = `${userId}/full/${photo.id}.jpg`;
       const thumbFileName = `${userId}/thumb/${photo.id}.jpg`;
@@ -577,8 +573,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setReviewLoading(true);
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
-
       // If using enhanced version, upload it to replace the original
       if (showingEnhanced && enhancedUrl) {
         // Convert data URL to blob
@@ -636,7 +630,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setReviewLoading(true);
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         // Keep status as pending - this is an incomplete draft review
         tags: editingTags,
@@ -669,7 +662,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setReviewLoading(true);
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         status: 'saved',
         tags: editingTags,
@@ -702,7 +694,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setReviewLoading(true);
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         // Keep status as 'saved', just update the metadata
         tags: editingTags,
@@ -736,7 +727,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setReviewLoading(true);
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         status: 'archived',
         reviewed_by: userId,
@@ -825,8 +815,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setReviewLoading(true);
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
-
       // Delete from storage
       const fileName = `${userId}/full/${reviewingPhoto.id}.jpg`;
       const thumbFileName = `${userId}/thumb/${reviewingPhoto.id}.jpg`;
@@ -928,8 +916,6 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     if (!confirm(`Move ${selectedPhotoIds.size} photo(s) to ${statusLabel}?`)) return;
 
     try {
-      const userId = userId || '00000000-0000-0000-0000-000000000001';
-
       for (const photoId of selectedPhotoIds) {
         const updateData: any = {
           status: newStatus,
@@ -972,8 +958,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
         const photo = photos.find((p) => p.id === photoId);
         if (!photo) continue;
 
-        const userId = userId || '00000000-0000-0000-0000-000000000001';
-        const fileName = `${userId}/full/${photoId}.jpg`;
+          const fileName = `${userId}/full/${photoId}.jpg`;
         const thumbFileName = `${userId}/thumb/${photoId}.jpg`;
 
         await supabase.storage.from('photos').remove([fileName, thumbFileName]);
