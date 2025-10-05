@@ -17,8 +17,10 @@ import {
   Save,
   Settings,
   Plus,
+  BarChart3,
 } from 'lucide-react';
 import type { Photo, FilterState } from '../lib/photos';
+import PhotoAnalytics from './PhotoAnalytics';
 import {
   TAG_CATEGORIES,
   filterPhotos,
@@ -85,19 +87,44 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     style: string[];
   }>({ productType: [], material: [], style: [] });
 
+  // Flagging state
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flaggingPhoto, setFlaggingPhoto] = useState<Photo | null>(null);
+  const [flagReason, setFlagReason] = useState<'wrong_tags' | 'poor_quality' | 'needs_enhancement' | 'other'>('wrong_tags');
+  const [flagNotes, setFlagNotes] = useState('');
+  const [flagSuggestedTags, setFlagSuggestedTags] = useState<string[]>([]);
+
+  // Analytics state
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Load custom tags from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('customPhotoTags');
-    if (saved) {
-      try {
-        setCustomTags(JSON.parse(saved));
-      } catch (e) {
-        console.error('Error loading custom tags:', e);
+  // Load custom tags from Supabase
+  const loadCustomTags = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('custom_photo_tags')
+        .select('category, tag_name')
+        .order('tag_name');
+
+      if (error) throw error;
+
+      if (data) {
+        const tags = {
+          productType: data.filter(t => t.category === 'productType').map(t => t.tag_name),
+          material: data.filter(t => t.category === 'material').map(t => t.tag_name),
+          style: data.filter(t => t.category === 'style').map(t => t.tag_name),
+        };
+        setCustomTags(tags);
       }
+    } catch (e) {
+      console.error('Error loading custom tags:', e);
     }
+  };
+
+  useEffect(() => {
+    loadCustomTags();
   }, []);
 
   // Load photos from Supabase
@@ -878,7 +905,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     };
   };
 
-  const addCustomTag = (category: 'productType' | 'material' | 'style', tag: string) => {
+  const addCustomTag = async (category: 'productType' | 'material' | 'style', tag: string) => {
     const trimmed = tag.trim();
     if (!trimmed) return;
 
@@ -889,21 +916,79 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       return;
     }
 
-    const updated = {
-      ...customTags,
-      [category]: [...customTags[category], trimmed],
-    };
-    setCustomTags(updated);
-    localStorage.setItem('customPhotoTags', JSON.stringify(updated));
+    try {
+      const { error } = await supabase
+        .from('custom_photo_tags')
+        .insert({
+          category,
+          tag_name: trimmed,
+          created_by: userId || '00000000-0000-0000-0000-000000000001',
+        });
+
+      if (error) throw error;
+
+      // Reload tags from database
+      await loadCustomTags();
+    } catch (e) {
+      console.error('Error adding custom tag:', e);
+      alert('Failed to add tag. Please try again.');
+    }
   };
 
-  const deleteCustomTag = (category: 'productType' | 'material' | 'style', tag: string) => {
-    const updated = {
-      ...customTags,
-      [category]: customTags[category].filter(t => t !== tag),
-    };
-    setCustomTags(updated);
-    localStorage.setItem('customPhotoTags', JSON.stringify(updated));
+  const deleteCustomTag = async (category: 'productType' | 'material' | 'style', tag: string) => {
+    try {
+      const { error } = await supabase
+        .from('custom_photo_tags')
+        .delete()
+        .eq('category', category)
+        .eq('tag_name', tag);
+
+      if (error) throw error;
+
+      // Reload tags from database
+      await loadCustomTags();
+    } catch (e) {
+      console.error('Error deleting custom tag:', e);
+      alert('Failed to delete tag. Please try again.');
+    }
+  };
+
+  const openFlagModal = (photo: Photo) => {
+    setFlaggingPhoto(photo);
+    setFlagReason('wrong_tags');
+    setFlagNotes('');
+    setFlagSuggestedTags([]);
+    setShowFlagModal(true);
+  };
+
+  const submitFlag = async () => {
+    if (!flaggingPhoto || !userId || !userName) return;
+
+    try {
+      const { error } = await supabase
+        .from('photo_flags')
+        .insert({
+          photo_id: flaggingPhoto.id,
+          flagged_by: userId,
+          flagged_by_name: userName,
+          flag_reason: flagReason,
+          notes: flagNotes || null,
+          suggested_tags: flagSuggestedTags.length > 0 ? flagSuggestedTags : null,
+        });
+
+      if (error) throw error;
+
+      alert('Photo flagged for review successfully!');
+      setShowFlagModal(false);
+      setFlaggingPhoto(null);
+    } catch (e: any) {
+      console.error('Error flagging photo:', e);
+      if (e.code === '23505') {
+        alert('You have already flagged this photo for review.');
+      } else {
+        alert('Failed to flag photo. Please try again.');
+      }
+    }
   };
 
   const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'saved') => {
@@ -1105,6 +1190,11 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
   const activeFilterCount = getActiveFilterCount(filters);
   const currentPhoto = currentIndex >= 0 ? filteredPhotos[currentIndex] : null;
 
+  // Show Analytics view if active
+  if (showAnalytics) {
+    return <PhotoAnalytics onBack={() => setShowAnalytics(false)} userRole={userRole} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -1208,6 +1298,17 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                 </button>
               )}
 
+              {/* Analytics Button (Admin & Sales Manager) */}
+              {(userRole === 'admin' || userRole === 'sales-manager') && (
+                <button
+                  onClick={() => setShowAnalytics(true)}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Analytics</span>
+                </button>
+              )}
+
               {/* Manage Tags Button (Admin only) */}
               {userRole === 'admin' && (
                 <button
@@ -1238,7 +1339,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
             {filteredPhotos.map((photo, index) => (
               <div
                 key={photo.id}
-                className="relative aspect-square rounded-lg overflow-hidden cursor-pointer"
+                className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group"
                 onClick={() => {
                   if (editMode) {
                     togglePhotoSelection(photo.id);
@@ -1326,6 +1427,20 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </>
+                )}
+
+                {/* Flag button for published photos (only show when not in edit mode) */}
+                {!editMode && photo.status === 'published' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openFlagModal(photo);
+                    }}
+                    className="absolute bottom-2 right-2 bg-orange-600 text-white p-2 rounded-full shadow-lg active:scale-95 transition-transform opacity-0 group-hover:opacity-100"
+                    title="Flag for review"
+                  >
+                    <Flag className="w-4 h-4" />
+                  </button>
                 )}
               </div>
             ))}
@@ -2150,6 +2265,119 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Flag Photo Modal */}
+      {showFlagModal && flaggingPhoto && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Flag Photo for Review</h2>
+              <button
+                onClick={() => setShowFlagModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <img
+                src={flaggingPhoto.thumbnailUrl || flaggingPhoto.url}
+                alt="Flagging"
+                className="w-full h-48 object-cover rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason for Flag
+                </label>
+                <select
+                  value={flagReason}
+                  onChange={(e) => setFlagReason(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="wrong_tags">Wrong Tags</option>
+                  <option value="poor_quality">Poor Quality</option>
+                  <option value="needs_enhancement">Needs Enhancement</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={flagNotes}
+                  onChange={(e) => setFlagNotes(e.target.value)}
+                  placeholder="Describe the issue..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {flagReason === 'wrong_tags' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Suggested Tags (Optional)
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {flagSuggestedTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="bg-blue-100 text-blue-800 px-2 py-1 rounded-lg text-sm flex items-center space-x-1"
+                      >
+                        <span>{tag}</span>
+                        <button
+                          onClick={() => setFlagSuggestedTags(flagSuggestedTags.filter(t => t !== tag))}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value && !flagSuggestedTags.includes(e.target.value)) {
+                        setFlagSuggestedTags([...flagSuggestedTags, e.target.value]);
+                      }
+                      e.target.value = '';
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select a tag to add...</option>
+                    {Object.entries(getAllTags()).map(([_category, tags]) =>
+                      tags.map((tag) => (
+                        <option key={tag} value={tag}>
+                          {tag}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowFlagModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitFlag}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700"
+                >
+                  Submit Flag
                 </button>
               </div>
             </div>
