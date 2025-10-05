@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut, MessageSquare } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
+import ClientPresentation from './components/sales/ClientPresentation';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
@@ -138,7 +139,7 @@ function App() {
   const renderContent = () => {
     // Handle common sections for all roles
     if (activeSection === 'presentation') {
-      return <ClientPresentation onBack={() => setActiveSection('home')} userRole={userRole} />;
+      return <ClientPresentation onBack={() => setActiveSection('home')} isMobile={viewMode === 'mobile'} />;
     }
     if (activeSection === 'sales-coach') {
       return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
@@ -464,10 +465,6 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
 
   if (activeSection === 'my-requests') {
     return <MyRequests onBack={() => setActiveSection('home')} viewMode={viewMode} />;
-  }
-
-  if (activeSection === 'presentation') {
-    return <ClientPresentation onBack={() => setActiveSection('home')} />;
   }
 
   if (activeSection === 'stain-calculator') {
@@ -1623,30 +1620,6 @@ const MyRequests = ({ onBack, userRole: _userRole = 'sales', viewMode = 'mobile'
             )}
           </button>
         ))}
-      </div>
-    </div>
-  );
-};
-
-interface ClientPresentationProps {
-  onBack: () => void;
-  userRole?: UserRole;
-}
-
-const ClientPresentation = ({ onBack, userRole: _userRole = 'sales' }: ClientPresentationProps) => {
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <button onClick={onBack} className="text-blue-600 font-medium mb-4">← Back</button>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
-        <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Client Presentation</h2>
-        <p className="text-gray-600 mb-6">
-          Upload your PowerPoint or PDF presentation here. It will open in fullscreen for customer viewing.
-        </p>
-        <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium">
-          Upload Presentation
-        </button>
       </div>
     </div>
   );
