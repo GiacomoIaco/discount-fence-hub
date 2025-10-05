@@ -19,6 +19,7 @@ export default function ProfilePictureUpload({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useCamera, setUseCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,17 +143,17 @@ export default function ProfilePictureUpload({
   };
 
   const handleChoosePhoto = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.capture = '';
-      fileInputRef.current.click();
-    }
+    setUseCamera(false);
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 0);
   };
 
   const handleTakePhoto = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.capture = 'environment';
-      fileInputRef.current.click();
-    }
+    setUseCamera(true);
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 0);
   };
 
   return (
@@ -200,6 +201,7 @@ export default function ProfilePictureUpload({
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            capture={useCamera ? 'environment' : undefined}
             onChange={handleFileSelect}
             className="hidden"
           />
