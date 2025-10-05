@@ -1,5 +1,5 @@
 import { Handler } from '@netlify/functions';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 
 // Tag categories for photo classification
 const TAG_CATEGORIES = {
@@ -39,6 +39,7 @@ const TAG_CATEGORIES = {
 interface AnalysisResult {
   suggestedTags: string[];
   qualityScore: number;
+  confidenceScore: number;
   analysisNotes: string;
 }
 
@@ -79,15 +80,14 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Try both VITE_ prefixed (from build) and non-prefixed (Netlify env vars)
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY not configured in Netlify environment variables');
+      throw new Error('OPENAI_API_KEY not configured in Netlify environment variables');
     }
 
-    const anthropic = new Anthropic({ apiKey });
+    const openai = new OpenAI({ apiKey });
 
-    // Create prompt for Claude Vision
+    // Create prompt for GPT-5 Vision
     const prompt = `You are analyzing a photo for Discount Fence USA's photo gallery. Your task is to:
 
 1. **Identify the fence/structure type** from these options:
@@ -105,7 +105,12 @@ ${TAG_CATEGORIES.style.map(t => `   - ${t}`).join('\n')}
    - Composition (fence is clearly visible and centered)
    - Professional presentation value
 
-5. **Provide brief analysis notes** explaining your ratings and any recommendations.
+5. **Provide a confidence score** (0-100) for how certain you are about the tags
+   - 80-100: High confidence - clearly identifiable
+   - 60-79: Medium confidence - likely correct but some uncertainty
+   - 0-59: Low confidence - significant uncertainty
+
+6. **Provide brief analysis notes** explaining your ratings and any recommendations.
 
 IMPORTANT:
 - Only select tags that you are confident about (>70% confidence)
@@ -117,23 +122,22 @@ Respond ONLY with valid JSON in this exact format:
 {
   "suggestedTags": ["tag1", "tag2", "tag3"],
   "qualityScore": 7,
+  "confidenceScore": 85,
   "analysisNotes": "Brief description of what you see and quality assessment"
 }`;
 
-    // Call Claude Vision API
-    const response = await anthropic.messages.create({
-      model: 'claude-3-7-sonnet-20250219',
+    // Call GPT-5 Vision API
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5-2025-08-07',
       max_tokens: 1024,
       messages: [
         {
           role: 'user',
           content: [
             {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/jpeg',
-                data: imageBase64,
+              type: 'image_url',
+              image_url: {
+                url: `data:image/jpeg;base64,${imageBase64}`,
               },
             },
             {
@@ -143,16 +147,11 @@ Respond ONLY with valid JSON in this exact format:
           ],
         },
       ],
+      response_format: { type: 'json_object' },
     });
 
-    // Extract the text content
-    const textContent = response.content.find(block => block.type === 'text');
-    if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text response from Claude');
-    }
-
     // Parse the JSON response
-    const analysisResult: AnalysisResult = JSON.parse(textContent.text);
+    const analysisResult: AnalysisResult = JSON.parse(response.choices[0].message.content || '{}');
 
     // Validate quality score
     if (analysisResult.qualityScore < 1 || analysisResult.qualityScore > 10) {

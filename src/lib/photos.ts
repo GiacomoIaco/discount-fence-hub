@@ -12,6 +12,7 @@ export interface Photo {
   status: 'pending' | 'saved' | 'published' | 'archived';
   suggestedTags?: string[];
   qualityScore?: number;
+  confidenceScore?: number;
   reviewedBy?: string;
   reviewedAt?: string;
   reviewNotes?: string;
