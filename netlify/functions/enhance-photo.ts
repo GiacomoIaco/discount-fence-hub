@@ -61,13 +61,13 @@ export const handler: Handler = async (event) => {
                   },
                 },
                 {
-                  text: 'Enhance this fence/construction photo: improve brightness and clarity, sharpen details, reduce noise, enhance colors naturally while maintaining realistic look. Make it suitable for professional portfolio display.',
+                  text: `Professional photo enhancement request for Discount Fence USA portfolio (${new Date().toISOString()}): Apply subtle brightness optimization, enhance structural clarity of fence/construction elements, reduce grain/noise artifacts, boost natural color saturation while preserving authentic material appearance. Target output: high-quality presentation-ready image suitable for customer gallery display.`,
                 },
               ],
             },
           ],
           generationConfig: {
-            temperature: 0.4,
+            temperature: 0.9,
             responseModalities: ['image'],
           },
         }),
