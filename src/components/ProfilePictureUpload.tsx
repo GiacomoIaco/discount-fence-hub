@@ -143,17 +143,25 @@ export default function ProfilePictureUpload({
   };
 
   const handleChoosePhoto = () => {
+    // Reset file input to clear any previous selection
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setUseCamera(false);
     setTimeout(() => {
       fileInputRef.current?.click();
-    }, 0);
+    }, 10);
   };
 
   const handleTakePhoto = () => {
+    // Reset file input to clear any previous selection
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setUseCamera(true);
     setTimeout(() => {
       fileInputRef.current?.click();
-    }, 0);
+    }, 10);
   };
 
   return (
@@ -198,6 +206,7 @@ export default function ProfilePictureUpload({
 
           {/* File Input */}
           <input
+            key={useCamera ? 'camera' : 'file'}
             ref={fileInputRef}
             type="file"
             accept="image/*"
