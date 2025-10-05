@@ -597,7 +597,38 @@ VITE_OPENAI_API_KEY=your_openai_key (optional)
 
 ---
 
-## 🐛 Known Limitations & Future Work
+## 🐛 Known Limitations & Active Issues
+
+### 🔴 CRITICAL ISSUE - Team Communication Mobile Tab Switching
+**Problem**: When switching from "Sent" tab to "Inbox" tab on MOBILE, the screen goes blank/freezes.
+
+**What's Been Tried** (3 attempts):
+1. ✅ Fixed broken import - removed non-existent `TeamCommunication` component
+2. ✅ Fixed engagement data query - separated LEFT JOIN into proper user-filtered query
+3. ✅ Added viewMode checks in getUnreadCount() and getDraftsCount()
+4. ✅ Added extensive console.log debugging
+5. ✅ Added error handling to prevent blank screens
+
+**Root Cause** (suspected):
+- The issue persists despite all fixes
+- Likely a state management issue or race condition when switching tabs
+- Console logs should reveal the exact failure point
+- Possible React rendering issue with state updates
+
+**Next Steps to Try**:
+- Check browser console for errors when switching tabs
+- Add React.memo or useMemo to prevent unnecessary re-renders
+- Consider adding a loading state between tab switches
+- Debug the exact sequence: Sent loaded → Click Inbox → What fails?
+- Potentially rewrite tab switching to unmount/remount component
+
+**Workaround**: Desktop view works fine. Only affects mobile Sales Rep view.
+
+**Files Involved**:
+- `src/components/TeamCommunicationMobileV2.tsx` (lines 77-110, 354-362)
+- `src/App.tsx` (line 423)
+
+---
 
 ### Current Limitations:
 1. **Data Sync**: Recordings use localStorage - need to migrate to Supabase

@@ -358,4 +358,46 @@ export interface SurveyQuestion {
 
 ---
 
-**Status:** Core V2 framework complete. Survey system is next priority.
+**Status:** Core V2 framework complete. Survey system COMPLETE ✅
+
+---
+
+## 🔴 ACTIVE BUG - Mobile Tab Switching
+
+### Issue Description:
+When switching from "Sent" → "Inbox" on MOBILE (Sales Rep view), the screen goes blank/freezes.
+
+### Symptoms:
+- Desktop view: Works fine ✅
+- Mobile Inbox → Sent: Works fine ✅
+- Mobile Sent → Inbox: **BREAKS** ❌ (blank screen)
+
+### Debugging Attempts (5 fixes tried):
+1. ✅ Removed broken `TeamCommunication` import (was causing Desktop to fail)
+2. ✅ Fixed engagement query - separated LEFT JOIN to user-filtered query
+3. ✅ Added viewMode checks in getUnreadCount() and getDraftsCount()
+4. ✅ Added console.log debugging throughout component
+5. ✅ Added error handling with empty message fallback
+
+### Suspected Root Cause:
+- State management race condition during tab switch
+- Possible React rendering issue with messages array update
+- getUnreadCount() might still be accessing wrong data structure
+- Component might need key prop to force re-mount
+
+### Next Debugging Steps:
+1. Open mobile browser console (Chrome DevTools via USB)
+2. Check console.log output when switching Sent → Inbox
+3. Look for JavaScript errors or warnings
+4. Check if messages state is being set correctly
+5. Verify viewMode state changes properly
+6. Try adding key={viewMode} to force component re-render
+
+### Files to Check:
+- `TeamCommunicationMobileV2.tsx` - Main component with tab logic
+- Lines 77-110: useEffect and loadMessages with debugging
+- Lines 354-362: getUnreadCount and getDraftsCount helpers
+- Lines 383-415: Tab button onClick handlers
+
+### Temporary Workaround:
+Users can access messages on desktop view where tab switching works correctly.
