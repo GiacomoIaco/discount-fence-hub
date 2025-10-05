@@ -141,8 +141,18 @@ export default function ProfilePictureUpload({
     }
   };
 
-  const handleCameraClick = () => {
-    fileInputRef.current?.click();
+  const handleChoosePhoto = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.capture = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleTakePhoto = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.capture = 'environment';
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -194,19 +204,28 @@ export default function ProfilePictureUpload({
             className="hidden"
           />
 
-          {/* Upload Button */}
+          {/* Upload Buttons */}
           {!selectedFile ? (
-            <button
-              onClick={handleCameraClick}
-              className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Upload className="w-5 h-5" />
-              <span>Choose Photo</span>
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={handleTakePhoto}
+                className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Camera className="w-5 h-5" />
+                <span>Take Photo</span>
+              </button>
+              <button
+                onClick={handleChoosePhoto}
+                className="w-full flex items-center justify-center space-x-2 px-6 py-3 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                <Upload className="w-5 h-5" />
+                <span>Choose from Gallery</span>
+              </button>
+            </div>
           ) : (
             <div className="flex space-x-3">
               <button
-                onClick={handleCameraClick}
+                onClick={handleChoosePhoto}
                 className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Choose Different
