@@ -129,7 +129,7 @@ Respond ONLY with valid JSON in this exact format:
     // Call GPT-5 Vision API
     const response = await openai.chat.completions.create({
       model: 'gpt-5-2025-08-07',
-      max_tokens: 1024,
+      max_completion_tokens: 1024,
       messages: [
         {
           role: 'user',
