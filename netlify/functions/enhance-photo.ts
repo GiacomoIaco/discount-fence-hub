@@ -102,7 +102,8 @@ export const handler: Handler = async (event) => {
 
     if (!enhancedImageBase64) {
       console.error('Full API response:', JSON.stringify(data, null, 2));
-      throw new Error('No enhanced image in response - check logs for full response');
+      // Return the actual response structure to help debug
+      throw new Error(`No enhanced image in response. Response structure: ${JSON.stringify(data, null, 2).substring(0, 500)}`);
     }
 
     return {
