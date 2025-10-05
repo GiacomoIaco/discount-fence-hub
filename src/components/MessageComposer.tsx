@@ -351,15 +351,20 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
           {/* Content */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Message Content *
+              {messageType === 'survey' ? 'Survey Description *' : 'Message Content *'}
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Enter your message..."
-              rows={6}
+              placeholder={messageType === 'survey' ? 'Describe what this survey is about...' : 'Enter your message...'}
+              rows={messageType === 'survey' ? 3 : 6}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
             />
+            {messageType === 'survey' && (
+              <p className="mt-1 text-sm text-gray-500">
+                Add your survey questions below
+              </p>
+            )}
           </div>
 
           {/* Recognition User Selection */}

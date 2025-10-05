@@ -6,7 +6,6 @@ import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
-import TeamCommunication from './components/TeamCommunication';
 import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
 import Login from './components/auth/Login';
@@ -165,7 +164,7 @@ function App() {
       return <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
     }
     if (activeSection === 'team-communication') {
-      return <TeamCommunication onBack={() => setActiveSection('home')} />;
+      return <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />;
     }
 
     // Default home view

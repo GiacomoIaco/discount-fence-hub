@@ -74,8 +74,6 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
-  const canSendMessages = profile?.role === 'admin' || profile?.role === 'sales-manager';
-
   useEffect(() => {
     loadMessages();
   }, [user, profile, viewMode, filterMode]);
@@ -373,22 +371,20 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
               </span>
             )}
           </button>
-          {canSendMessages && (
-            <button
-              onClick={() => {
-                setViewMode('sent');
-                setFilterMode('active');
-              }}
-              className={`flex-1 flex items-center justify-center space-x-2 py-3 border-b-2 transition-colors ${
-                viewMode === 'sent'
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-gray-500'
-              }`}
-            >
-              <SendIcon className="w-5 h-5" />
-              <span className="font-medium">Sent</span>
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setViewMode('sent');
+              setFilterMode('active');
+            }}
+            className={`flex-1 flex items-center justify-center space-x-2 py-3 border-b-2 transition-colors ${
+              viewMode === 'sent'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-gray-500'
+            }`}
+          >
+            <SendIcon className="w-5 h-5" />
+            <span className="font-medium">Sent</span>
+          </button>
         </div>
 
         {/* Filter Tabs */}
