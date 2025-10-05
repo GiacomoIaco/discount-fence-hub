@@ -496,8 +496,11 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
       {/* Sales Tools Section - No Title */}
       <div className="space-y-3">
         <button
-          onClick={() => setActiveSection('presentation')}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
+          onClick={() => {
+            console.log('Client Presentation button clicked!');
+            setActiveSection('presentation');
+          }}
+          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative z-10"
         >
           <div className="flex items-center space-x-4">
             <div className="bg-white/20 p-3 rounded-lg">
