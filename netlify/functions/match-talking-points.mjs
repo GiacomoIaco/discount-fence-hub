@@ -39,7 +39,7 @@ export default async (req, context) => {
           content: `You are helping match talking points to presentation slides for a sales presentation.
 
 I have ${slideTexts.length} slides with the following content:
-${slideTexts.map((text, i) => `Slide ${i + 1}: ${text.substring(0, 300)}...`).join('\n\n')}
+${slideTexts.map((text, i) => `Slide ${i + 1}: ${text.substring(0, 250)}...`).join('\n\n')}
 
 And these talking points:
 ${talkingPointsText}

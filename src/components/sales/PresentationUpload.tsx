@@ -104,9 +104,24 @@ export default function PresentationUpload({ onBack, onUploadComplete }: Present
       console.log('Function response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Function error response:', errorData);
-        throw new Error(errorData.error || 'AI matching failed');
+        // Handle timeout or empty response
+        if (response.status === 504) {
+          throw new Error('Request timed out - your presentation might be too large. Try with fewer slides or shorter talking points.');
+        }
+
+        const text = await response.text();
+        if (!text) {
+          throw new Error('Empty response from server');
+        }
+
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Function error response:', errorData);
+          throw new Error(errorData.error || 'AI matching failed');
+        } catch (e) {
+          console.error('Function error response (raw):', text);
+          throw new Error(`AI matching failed: ${response.status}`);
+        }
       }
 
       const data = await response.json();

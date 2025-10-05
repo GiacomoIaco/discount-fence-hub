@@ -15,6 +15,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+[[functions]]
+  path = "match-talking-points"
+  included_files = ["netlify/functions/match-talking-points.mjs"]
+
 # Optimization settings
 [build.processing]
   skip_processing = false
