@@ -535,8 +535,16 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       setEditingScore(photo.qualityScore || 5);
       setReviewNotes(photo.reviewNotes || '');
 
-      // Set uploader name from photo object (stored when photo was uploaded)
-      setUploaderName(photo.uploaderName || 'Unknown User');
+      // Set uploader name from photo object, or fall back to current user if missing
+      if (photo.uploaderName) {
+        setUploaderName(photo.uploaderName);
+      } else if (photo.uploadedBy === localStorage.getItem('userId')) {
+        // If photo was uploaded by current user but name wasn't stored, use current user's name
+        setUploaderName(localStorage.getItem('userName') || 'Unknown User');
+      } else {
+        // Photo uploaded by different user and name not stored
+        setUploaderName('Unknown User');
+      }
     } else {
       // Gallery tab or non-managers: open full-screen viewer
       setCurrentIndex(index);
