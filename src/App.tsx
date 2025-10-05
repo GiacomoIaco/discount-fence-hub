@@ -7,7 +7,7 @@ import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
 import TeamCommunication from './components/TeamCommunication';
-import TeamCommunicationMobile from './components/TeamCommunicationMobile';
+import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
@@ -421,7 +421,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
   }
 
   if (activeSection === 'team-communication') {
-    return <TeamCommunicationMobile onBack={() => setActiveSection('home')} />;
+    return <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />;
   }
 
   return (
