@@ -302,7 +302,7 @@ function App() {
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {sidebarOpen && (
-                    <span className="font-medium flex-1">{item.name}</span>
+                    <span className="font-medium flex-1 text-left">{item.name}</span>
                   )}
                   {item.badge && item.badge > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
