@@ -216,6 +216,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       const userName = localStorage.getItem('userName') || 'Unknown User';
 
       console.log('📸 Photo upload - User info:', { userId, userName });
+      console.log('📸 localStorage keys:', Object.keys(localStorage));
+      console.log('📸 All localStorage:', { ...localStorage });
 
       for (const file of Array.from(files)) {
         // Resize for full image (max 1920px)
@@ -1766,11 +1768,17 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Review Photo</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Uploaded {new Date(reviewingPhoto.uploadedAt).toLocaleDateString()} at{' '}
-                  {new Date(reviewingPhoto.uploadedAt).toLocaleTimeString()}
+                  {reviewingPhoto.uploadedAt && !isNaN(new Date(reviewingPhoto.uploadedAt).getTime()) ? (
+                    <>
+                      Uploaded {new Date(reviewingPhoto.uploadedAt).toLocaleDateString()} at{' '}
+                      {new Date(reviewingPhoto.uploadedAt).toLocaleTimeString()}
+                    </>
+                  ) : (
+                    'Upload date unknown'
+                  )}
                 </p>
                 <p className="text-sm text-gray-600 font-medium">
-                  Submitted by: {uploaderName || 'Loading...'}
+                  Submitted by: {uploaderName || 'Unknown User'}
                 </p>
               </div>
               <button

@@ -394,7 +394,14 @@ function App() {
               <p className="text-xs text-gray-500">
                 {import.meta.env.MODE === 'development'
                   ? 'v1.0.dev'
-                  : `v1.0 • ${new Date(__BUILD_TIME__).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                  : (() => {
+                      try {
+                        const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
+                        return `v1.0 • ${new Date(buildTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+                      } catch {
+                        return 'v1.0';
+                      }
+                    })()
                 }
               </p>
             </div>
