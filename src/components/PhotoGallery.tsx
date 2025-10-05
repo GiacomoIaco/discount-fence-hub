@@ -587,11 +587,14 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         const fileName = `${userId}/full/${reviewingPhoto.id}.jpg`;
         const { error: uploadError } = await supabase.storage
           .from('photos')
-          .upload(fileName, blob, { upsert: true });
+          .update(fileName, blob, {
+            contentType: 'image/jpeg',
+            upsert: true,
+          });
 
         if (uploadError) {
           console.error('Error uploading enhanced photo:', uploadError);
-          throw new Error('Failed to save enhanced version');
+          throw new Error(`Failed to save enhanced version: ${uploadError.message}`);
         }
       }
 
