@@ -177,11 +177,11 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
         </div>
 
         {/* PDF Viewer */}
-        <div className="flex-1 relative bg-white">
+        <div className="flex-1 relative bg-white overflow-hidden">
           <iframe
             key={currentSlide}
             src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
-            className="w-full h-full"
+            className="w-full h-full pointer-events-none"
             title={presentation.name}
           />
         </div>
@@ -251,13 +251,15 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
               </button>
             </div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 overflow-hidden">
             <iframe
               key={currentSlide}
               src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
-              className="w-full h-full"
+              className="w-full h-full pointer-events-none"
               title={presentation.name}
             />
+            {/* Transparent overlay to prevent PDF interaction but allow our controls */}
+            <div className="absolute inset-0 pointer-events-none" style={{ top: '48px' }}></div>
           </div>
         </div>
 
