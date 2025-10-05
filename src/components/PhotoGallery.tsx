@@ -215,6 +215,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
       const userName = localStorage.getItem('userName') || 'Unknown User';
 
+      console.log('📸 Photo upload - User info:', { userId, userName });
+
       for (const file of Array.from(files)) {
         // Resize for full image (max 1920px)
         const full = await resizeImage(file, 1920, 0.85);
@@ -358,6 +360,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             quality_score: newPhoto.qualityScore,
             confidence_score: newPhoto.confidenceScore,
           };
+          console.log('📝 Database insert data:', dbPhoto);
           const { data, error } = await supabase
             .from('photos')
             .insert([dbPhoto])
