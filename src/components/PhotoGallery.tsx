@@ -1179,8 +1179,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                 )}
               </div>
 
-              {/* Edit/Select Mode Button (for Gallery/Saved/Archived, Managers/Admins only) */}
-              {(userRole === 'sales-manager' || userRole === 'admin') && activeTab !== 'pending' && (
+              {/* Edit/Select Mode Button (for all tabs, Managers/Admins only) */}
+              {(userRole === 'sales-manager' || userRole === 'admin') && (
                 <button
                   onClick={() => {
                     setEditMode(!editMode);
