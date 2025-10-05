@@ -41,7 +41,6 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
   ]);
   const [showGallery, setShowGallery] = useState(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   // Advanced settings
@@ -118,8 +117,6 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
         type: 'image',
         caption: 'Left: Wood Defender stained | Right: Untreated after 2 years'
       }]);
-    } finally {
-      setLoading(false);
     }
   };
 
