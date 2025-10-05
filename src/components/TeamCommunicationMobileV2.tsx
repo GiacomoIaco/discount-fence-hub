@@ -79,7 +79,10 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
   }, [user, profile, viewMode, filterMode]);
 
   const loadMessages = async () => {
-    if (!user || !profile) return;
+    if (!user || !profile) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -91,6 +94,8 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+      // Set empty messages on error to prevent blank screen
+      setMessages([]);
     } finally {
       setLoading(false);
     }
@@ -102,17 +107,29 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
     // Get messages targeted to user
     const { data: messagesData, error } = await supabase
       .from('company_messages')
-      .select(`
-        *,
-        message_engagement!left(opened_at, acknowledged_at, responded_at, is_archived, is_pinned)
-      `)
+      .select('*')
       .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
       .eq('is_draft', false)
       .order('priority', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error loading inbox messages:', error);
+      throw error;
+    }
+
+    // Get engagement data for current user
+    const messageIds = messagesData?.map(m => m.id) || [];
+    const { data: engagementData } = messageIds.length > 0
+      ? await supabase
+          .from('message_engagement')
+          .select('*')
+          .in('message_id', messageIds)
+          .eq('user_id', user.id)
+      : { data: [] };
+
+    const engagementMap = new Map(engagementData?.map(e => [e.message_id, e]) || []);
 
     // Get creator names
     const creatorIds = [...new Set(messagesData?.map(m => m.created_by) || [])];
@@ -125,7 +142,7 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
 
     // Filter by engagement state
     const enrichedMessages = messagesData?.map(msg => {
-      const engagement = msg.message_engagement?.find((e: any) => e);
+      const engagement = engagementMap.get(msg.id);
       const isArchived = engagement?.is_archived || false;
 
       // Determine message state
@@ -176,7 +193,10 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error loading sent messages:', error);
+      throw error;
+    }
 
     // Get engagement stats for each message
     const messageIds = messagesData?.map(m => m.id) || [];
