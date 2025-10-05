@@ -387,6 +387,18 @@ function App() {
               </button>
             )}
           </div>
+
+          {/* Version Number */}
+          {sidebarOpen && (
+            <div className="px-3 py-2 text-center border-t border-gray-800 mt-2">
+              <p className="text-xs text-gray-500">
+                {import.meta.env.MODE === 'development'
+                  ? 'v1.0.dev'
+                  : `v1.0 • ${new Date(__BUILD_TIME__).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                }
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
