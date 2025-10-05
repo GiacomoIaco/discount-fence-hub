@@ -500,7 +500,15 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
             console.log('Client Presentation button clicked!');
             setActiveSection('presentation');
           }}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative z-10"
+          onTouchStart={(e) => {
+            console.log('Client Presentation button touched!');
+            e.currentTarget.classList.add('scale-95');
+          }}
+          onTouchEnd={(e) => {
+            e.currentTarget.classList.remove('scale-95');
+          }}
+          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg transition-transform touch-manipulation"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           <div className="flex items-center space-x-4">
             <div className="bg-white/20 p-3 rounded-lg">
