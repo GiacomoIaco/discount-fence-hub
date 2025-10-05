@@ -88,44 +88,78 @@ export default function PresentationUpload({ onBack, onUploadComplete }: Present
 
   const matchTalkingPointsWithAI = async (slideTexts: string[], talkingPointsText: string) => {
     try {
-      console.log('Calling serverless function with', slideTexts.length, 'slides');
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
-      const response = await fetch('/.netlify/functions/match-talking-points', {
+      if (!apiKey) {
+        throw new Error('VITE_ANTHROPIC_API_KEY is not configured');
+      }
+
+      console.log('Calling Claude API directly with', slideTexts.length, 'slides');
+
+      // Call Claude API directly from client - no timeout limit!
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          slideTexts,
-          talkingPointsText
+          model: 'claude-3-7-sonnet-20250219',
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: `You are helping match talking points to presentation slides for a sales presentation.
+
+I have ${slideTexts.length} slides with the following content:
+${slideTexts.map((text, i) => `Slide ${i + 1}: ${text.substring(0, 250)}...`).join('\n\n')}
+
+And these talking points:
+${talkingPointsText}
+
+Please match the talking points to the appropriate slides. For each slide, provide:
+1. A brief, descriptive title (4-6 words)
+2. Detailed talking points from the document that relate to that slide
+
+IMPORTANT:
+- Include ALL relevant details from the talking points document for each slide
+- Each talking point should be a complete sentence or phrase (not just a few words)
+- Include context, explanations, and specific details where provided
+- Aim for 3-6 detailed talking points per slide when available
+- Use the exact wording from the document when possible
+- Format each point as a complete thought
+
+Return ONLY a valid JSON array with this exact structure:
+[
+  {
+    "slide_number": 1,
+    "title": "Brief slide title",
+    "talking_points": "• Detailed point 1 with full context and explanation\\n• Detailed point 2 with specific information\\n• Detailed point 3 with complete thought"
+  }
+]
+
+Make sure every slide (1-${slideTexts.length}) is included. If no talking points match a slide, write "• No specific talking points available for this slide"`
+          }]
         })
       });
 
-      console.log('Function response status:', response.status);
+      console.log('API response status:', response.status);
 
       if (!response.ok) {
-        // Handle timeout or empty response
-        if (response.status === 504) {
-          throw new Error('Request timed out - your presentation might be too large. Try with fewer slides or shorter talking points.');
-        }
-
-        const text = await response.text();
-        if (!text) {
-          throw new Error('Empty response from server');
-        }
-
-        try {
-          const errorData = JSON.parse(text);
-          console.error('Function error response:', errorData);
-          throw new Error(errorData.error || 'AI matching failed');
-        } catch (e) {
-          console.error('Function error response (raw):', text);
-          throw new Error(`AI matching failed: ${response.status}`);
-        }
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`AI matching failed: ${response.status}`);
       }
 
       const data = await response.json();
-      return data.matchedSlides;
+      const content = data.content[0].text;
+
+      // Extract JSON from response
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error('Could not parse AI response');
+
+      return JSON.parse(jsonMatch[0]);
     } catch (error) {
       console.error('AI matching error:', error);
       throw error;
