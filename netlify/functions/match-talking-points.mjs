@@ -14,7 +14,7 @@ export default async (req, context) => {
       });
     }
 
-    const apiKey = process.env.VITE_ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'API key not configured' }), {
         status: 500,
@@ -32,7 +32,7 @@ export default async (req, context) => {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-7-sonnet-20250219',
         max_tokens: 4000,
         messages: [{
           role: 'user',
