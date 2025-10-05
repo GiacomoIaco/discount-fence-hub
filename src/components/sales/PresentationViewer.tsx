@@ -185,7 +185,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
     );
   }
 
-  // Desktop: Split view with talking points and notes
+  // Desktop: PDF at top, talking points and notes at bottom
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-white border-b border-gray-200 p-4">
@@ -198,9 +198,9 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
         <h1 className="text-2xl font-bold text-gray-900">{presentation.name}</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 p-6" style={{ height: 'calc(100vh - 120px)' }}>
-        {/* Left: PDF Viewer */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col">
+      <div className="p-6 flex flex-col gap-4" style={{ height: 'calc(100vh - 120px)' }}>
+        {/* Top: PDF Viewer - Takes 65% of height */}
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col" style={{ height: '65%' }}>
           <div className="bg-gray-800 text-white p-3 flex items-center justify-between">
             <span className="font-semibold">Slide {currentSlide} of {presentation.slide_count}</span>
             <div className="flex gap-2">
@@ -229,31 +229,31 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
           </div>
         </div>
 
-        {/* Right: Talking Points & Notes */}
-        <div className="flex flex-col gap-4">
+        {/* Bottom: Talking Points & Notes - Takes 35% of height */}
+        <div className="grid grid-cols-2 gap-4" style={{ height: '35%' }}>
           {/* Talking Points */}
-          <div className="bg-white rounded-lg shadow-lg p-6 flex-shrink-0">
+          <div className="bg-white rounded-lg shadow-lg p-4 overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-2">
               {currentSlideData?.title || `Slide ${currentSlide}`}
             </h3>
-            <div className="text-gray-700 whitespace-pre-wrap">
+            <div className="text-sm text-gray-700 whitespace-pre-wrap">
               {currentSlideData?.talking_points || 'No talking points for this slide'}
             </div>
           </div>
 
           {/* Your Notes */}
-          <div className="bg-white rounded-lg shadow-lg p-6 flex-1 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <StickyNote className="w-5 h-5" />
+          <div className="bg-white rounded-lg shadow-lg p-4 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <StickyNote className="w-4 h-4" />
                 Your Notes
               </h3>
               <button
                 onClick={saveNote}
                 disabled={savingNote || !currentNote.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
               >
-                <Save className="w-4 h-4" />
+                <Save className="w-3 h-3" />
                 {savingNote ? 'Saving...' : 'Save'}
               </button>
             </div>
@@ -261,7 +261,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
               value={currentNote}
               onChange={(e) => setCurrentNote(e.target.value)}
               placeholder="Add your personal notes for this slide..."
-              className="flex-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
             />
           </div>
         </div>

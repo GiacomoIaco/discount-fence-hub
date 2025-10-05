@@ -36,28 +36,36 @@ export default async (req, context) => {
         max_tokens: 4000,
         messages: [{
           role: 'user',
-          content: `You are helping match talking points to presentation slides.
+          content: `You are helping match talking points to presentation slides for a sales presentation.
 
 I have ${slideTexts.length} slides with the following content:
-${slideTexts.map((text, i) => `Slide ${i + 1}: ${text.substring(0, 200)}...`).join('\n\n')}
+${slideTexts.map((text, i) => `Slide ${i + 1}: ${text.substring(0, 300)}...`).join('\n\n')}
 
 And these talking points:
 ${talkingPointsText}
 
 Please match the talking points to the appropriate slides. For each slide, provide:
-1. A brief title (3-5 words)
-2. The relevant talking points from the document
+1. A brief, descriptive title (4-6 words)
+2. Detailed talking points from the document that relate to that slide
+
+IMPORTANT:
+- Include ALL relevant details from the talking points document for each slide
+- Each talking point should be a complete sentence or phrase (not just a few words)
+- Include context, explanations, and specific details where provided
+- Aim for 3-6 detailed talking points per slide when available
+- Use the exact wording from the document when possible
+- Format each point as a complete thought
 
 Return ONLY a valid JSON array with this exact structure:
 [
   {
     "slide_number": 1,
     "title": "Brief slide title",
-    "talking_points": "• Point 1\\n• Point 2\\n• Point 3"
+    "talking_points": "• Detailed point 1 with full context and explanation\\n• Detailed point 2 with specific information\\n• Detailed point 3 with complete thought"
   }
 ]
 
-Make sure every slide (1-${slideTexts.length}) is included. If no talking points match a slide, write "• No specific talking points for this slide"`
+Make sure every slide (1-${slideTexts.length}) is included. If no talking points match a slide, write "• No specific talking points available for this slide"`
         }]
       })
     });
