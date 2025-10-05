@@ -55,23 +55,20 @@ export const handler: Handler = async (event) => {
             {
               parts: [
                 {
-                  text: 'Enhance this fence/construction photo: improve brightness and clarity, sharpen details, reduce noise, enhance colors naturally while maintaining realistic look. Make it suitable for professional portfolio display.',
-                },
-                {
                   inline_data: {
                     mime_type: 'image/jpeg',
                     data: imageBase64,
                   },
+                },
+                {
+                  text: 'Enhance this fence/construction photo: improve brightness and clarity, sharpen details, reduce noise, enhance colors naturally while maintaining realistic look. Make it suitable for professional portfolio display.',
                 },
               ],
             },
           ],
           generationConfig: {
             temperature: 0.4,
-            topK: 32,
-            topP: 1,
-            maxOutputTokens: 4096,
-            responseMimeType: 'image/jpeg',
+            responseModalities: ['image'],
           },
         }),
       }
