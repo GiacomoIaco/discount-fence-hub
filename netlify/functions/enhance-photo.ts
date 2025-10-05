@@ -82,12 +82,28 @@ export const handler: Handler = async (event) => {
 
     const data = await response.json();
 
+    // Log the full response for debugging
+    console.log('Gemini API response:', JSON.stringify(data, null, 2));
+
     // Extract the enhanced image from response
-    if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.inline_data) {
-      throw new Error('No enhanced image in response');
+    // Check multiple possible response formats
+    let enhancedImageBase64;
+
+    if (data.candidates && data.candidates[0]?.content?.parts) {
+      // Find the part with inline_data (image)
+      const imagePart = data.candidates[0].content.parts.find(
+        (part: any) => part.inline_data || part.inlineData
+      );
+
+      if (imagePart) {
+        enhancedImageBase64 = imagePart.inline_data?.data || imagePart.inlineData?.data;
+      }
     }
 
-    const enhancedImageBase64 = data.candidates[0].content.parts[0].inline_data.data;
+    if (!enhancedImageBase64) {
+      console.error('Full API response:', JSON.stringify(data, null, 2));
+      throw new Error('No enhanced image in response - check logs for full response');
+    }
 
     return {
       statusCode: 200,
