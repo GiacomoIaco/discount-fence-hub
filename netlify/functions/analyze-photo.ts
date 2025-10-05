@@ -164,7 +164,7 @@ Respond ONLY with valid JSON in this exact format:
       ...TAG_CATEGORIES.material,
       ...TAG_CATEGORIES.style,
     ];
-    analysisResult.suggestedTags = analysisResult.suggestedTags.filter(tag =>
+    analysisResult.suggestedTags = (analysisResult.suggestedTags || []).filter(tag =>
       allValidTags.includes(tag)
     );
 
