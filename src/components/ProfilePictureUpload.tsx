@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Camera, Upload, X, Check } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Camera, Upload, X, Check, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -19,8 +19,11 @@ export default function ProfilePictureUpload({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useCamera, setUseCamera] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -142,27 +145,112 @@ export default function ProfilePictureUpload({
     }
   };
 
-  const handleChoosePhoto = () => {
-    // Reset file input to clear any previous selection
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' }, // Front camera
+        audio: false
+      });
+      setStream(mediaStream);
+      setShowCamera(true);
+
+      // Wait for video element to be ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      }, 100);
+    } catch (err: any) {
+      console.error('Camera error:', err);
+      setError('Failed to access camera. Please check permissions.');
     }
-    setUseCamera(false);
-    setTimeout(() => {
-      fileInputRef.current?.click();
-    }, 10);
   };
 
-  const handleTakePhoto = () => {
-    // Reset file input to clear any previous selection
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    setUseCamera(true);
-    setTimeout(() => {
-      fileInputRef.current?.click();
-    }, 10);
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Draw current video frame to canvas
+    context?.drawImage(video, 0, 0);
+
+    // Convert canvas to blob
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+        setSelectedFile(file);
+
+        // Create preview
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+
+        // Stop camera and close camera view
+        stopCamera();
+      }
+    }, 'image/jpeg', 0.9);
   };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
+  };
+
+  const handleChoosePhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Camera view
+  if (showCamera) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <div className="relative w-full h-full">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover"
+          />
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Camera controls */}
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black to-transparent">
+            <div className="flex items-center justify-center space-x-4">
+              <button
+                onClick={stopCamera}
+                className="p-4 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <button
+                onClick={capturePhoto}
+                className="p-6 bg-white rounded-full hover:bg-gray-200 transition-all transform hover:scale-105 shadow-lg"
+              >
+                <Camera className="w-8 h-8 text-gray-900" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -206,11 +294,9 @@ export default function ProfilePictureUpload({
 
           {/* File Input */}
           <input
-            key={useCamera ? 'camera' : 'file'}
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture={useCamera ? 'user' : undefined}
             onChange={handleFileSelect}
             className="hidden"
           />
@@ -219,7 +305,7 @@ export default function ProfilePictureUpload({
           {!selectedFile ? (
             <div className="space-y-3">
               <button
-                onClick={handleTakePhoto}
+                onClick={startCamera}
                 className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Camera className="w-5 h-5" />
@@ -234,17 +320,30 @@ export default function ProfilePictureUpload({
               </button>
             </div>
           ) : (
-            <div className="flex space-x-3">
-              <button
-                onClick={handleChoosePhoto}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Choose Different
-              </button>
+            <div className="space-y-3">
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setPreviewUrl(null);
+                    startCamera();
+                  }}
+                  className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Retake</span>
+                </button>
+                <button
+                  onClick={handleChoosePhoto}
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Choose File
+                </button>
+              </div>
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploading ? (
                   <>
