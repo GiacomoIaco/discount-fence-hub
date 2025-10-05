@@ -609,14 +609,18 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         .update(dbUpdate)
         .eq('id', reviewingPhoto.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
 
       // Reload photos and close modal
       await loadPhotos();
       closeReviewModal();
     } catch (error) {
       console.error('Error publishing photo:', error);
-      alert('Failed to publish photo. Please try again.');
+      const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+      alert(`Failed to publish photo: ${errorMsg}`);
     } finally {
       setReviewLoading(false);
     }
