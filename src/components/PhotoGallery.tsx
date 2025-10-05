@@ -1429,7 +1429,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">PRODUCT TYPE</h3>
               <div className="flex flex-wrap gap-2">
-                {TAG_CATEGORIES.productType.map((tag) => {
+                {getAllTags().productType.map((tag) => {
                   const count = getTagCount(photos, tag);
                   const isSelected = filters.productTypes.includes(tag);
                   return (
@@ -1453,7 +1453,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">MATERIAL</h3>
               <div className="flex flex-wrap gap-2">
-                {TAG_CATEGORIES.material.map((tag) => {
+                {getAllTags().material.map((tag) => {
                   const count = getTagCount(photos, tag);
                   const isSelected = filters.materials.includes(tag);
                   return (
@@ -1477,7 +1477,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">STYLE</h3>
               <div className="flex flex-wrap gap-2">
-                {TAG_CATEGORIES.style.map((tag) => {
+                {getAllTags().style.map((tag) => {
                   const count = getTagCount(photos, tag);
                   const isSelected = filters.styles.includes(tag);
                   return (
@@ -1760,7 +1760,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
               {/* Tag Selection */}
               <div className="mb-6">
                 <h3 className="font-semibold text-gray-900 mb-3">Tags</h3>
-                {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
+                {Object.entries(getAllTags()).map(([category, tags]) => (
                   <div key={category} className="mb-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2 capitalize">
                       {category.replace(/([A-Z])/g, ' $1').trim()}
