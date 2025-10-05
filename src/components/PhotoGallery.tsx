@@ -100,6 +100,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       status: dbPhoto.status || 'pending',
       suggestedTags: dbPhoto.suggested_tags,
       qualityScore: dbPhoto.quality_score,
+      confidenceScore: dbPhoto.confidence_score,
       reviewedBy: dbPhoto.reviewed_by,
       reviewedAt: dbPhoto.reviewed_at,
       reviewNotes: dbPhoto.review_notes,
@@ -203,6 +204,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         // Call AI analysis function
         let suggestedTags: string[] = [];
         let qualityScore: number | undefined;
+        let confidenceScore: number | undefined;
 
         try {
           console.log('Calling AI photo analysis...');
@@ -216,9 +218,11 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             const analysis = await analysisResponse.json();
             suggestedTags = analysis.suggestedTags || [];
             qualityScore = analysis.qualityScore;
+            confidenceScore = analysis.confidenceScore;
             console.log('✅ AI analysis complete:', {
               suggestedTags,
               qualityScore,
+              confidenceScore,
               notes: analysis.analysisNotes
             });
           } else {
@@ -258,6 +262,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           status: 'pending',
           suggestedTags,
           qualityScore,
+          confidenceScore,
         };
 
         // Upload to Supabase Storage (photos bucket)
@@ -325,6 +330,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
             status: newPhoto.status,
             suggested_tags: newPhoto.suggestedTags,
             quality_score: newPhoto.qualityScore,
+            confidence_score: newPhoto.confidenceScore,
           };
           const { data, error } = await supabase
             .from('photos')
@@ -836,6 +842,14 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setSelectedPhotoIds(new Set());
   };
 
+  const selectAIRecommended = () => {
+    // Select photos with 80%+ confidence score
+    const aiRecommended = filteredPhotos
+      .filter((p) => p.confidenceScore && p.confidenceScore >= 80)
+      .map((p) => p.id);
+    setSelectedPhotoIds(new Set(aiRecommended));
+  };
+
   const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'saved') => {
     if (selectedPhotoIds.size === 0) {
       alert('No photos selected');
@@ -1116,6 +1130,24 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                   </div>
                 )}
 
+                {/* Confidence Score Badge (only in pending tab with confidence score) */}
+                {!editMode && activeTab === 'pending' && photo.confidenceScore !== undefined && (
+                  <div className="absolute top-2 left-2">
+                    <div
+                      className={`text-white text-xs px-2 py-1 rounded font-bold flex items-center space-x-1 ${
+                        photo.confidenceScore >= 80
+                          ? 'bg-green-600'
+                          : photo.confidenceScore >= 60
+                          ? 'bg-yellow-600'
+                          : 'bg-red-600'
+                      }`}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{photo.confidenceScore}%</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Pending badge and delete button (only show when not in edit mode) */}
                 {!editMode && photo.status === 'pending' && (
                   <>
@@ -1163,6 +1195,18 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                   Select All
                 </button>
                 <span className="text-gray-400">|</span>
+                {activeTab === 'pending' && (
+                  <>
+                    <button
+                      onClick={selectAIRecommended}
+                      className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center space-x-1"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>AI Recommended</span>
+                    </button>
+                    <span className="text-gray-400">|</span>
+                  </>
+                )}
                 <button
                   onClick={deselectAll}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
