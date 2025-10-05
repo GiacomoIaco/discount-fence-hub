@@ -471,6 +471,10 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
     return <StainCalculator onBack={() => setActiveSection('home')} />;
   }
 
+  if (activeSection === 'presentation') {
+    return <ClientPresentation onBack={() => setActiveSection('home')} isMobile={true} />;
+  }
+
   if (activeSection === 'sales-coach') {
     return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
   }
