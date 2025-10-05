@@ -1,32 +1,35 @@
--- Fix user_unread_messages view to use correct profiles table
+-- Fix user_unread_messages view - view already exists with correct table name
 -- Run this in Supabase SQL Editor
 
--- Drop existing view
+-- The view is already correctly defined in create-team-communication-tables.sql
+-- This file is only needed if the view needs to be recreated
+
+-- Drop existing view (if any issues)
 DROP VIEW IF EXISTS user_unread_messages;
 
--- Recreate view with correct table name (profiles instead of user_profiles)
+-- Recreate view (already uses correct user_profiles table)
 CREATE OR REPLACE VIEW user_unread_messages AS
 SELECT
   u.id as user_id,
-  p.role as user_role,
+  up.role as user_role,
   COUNT(DISTINCT m.id) as unread_count
 FROM auth.users u
-JOIN profiles p ON p.id = u.id
+JOIN user_profiles up ON up.id = u.id
 CROSS JOIN company_messages m
 LEFT JOIN message_receipts mr ON mr.message_id = m.id AND mr.user_id = u.id
 WHERE
   m.is_archived = false
   AND (m.expires_at IS NULL OR m.expires_at > NOW())
   AND (
-    p.role = ANY(m.target_roles)
+    up.role = ANY(m.target_roles)
     OR u.id = ANY(COALESCE(m.target_user_ids, ARRAY[]::UUID[]))
   )
   AND mr.id IS NULL -- not read yet
-GROUP BY u.id, p.role;
+GROUP BY u.id, up.role;
 
 -- Success message
 DO $$
 BEGIN
-  RAISE NOTICE 'Successfully fixed user_unread_messages view!';
-  RAISE NOTICE 'View now uses profiles table instead of user_profiles';
+  RAISE NOTICE 'Successfully recreated user_unread_messages view!';
+  RAISE NOTICE 'View uses user_profiles table';
 END $$;

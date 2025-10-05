@@ -55,16 +55,16 @@ ON photo_flags FOR UPDATE
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-    AND profiles.role IN ('admin', 'sales-manager')
+    SELECT 1 FROM user_profiles
+    WHERE user_profiles.id = auth.uid()
+    AND user_profiles.role IN ('admin', 'sales-manager')
   )
 )
 WITH CHECK (
   EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-    AND profiles.role IN ('admin', 'sales-manager')
+    SELECT 1 FROM user_profiles
+    WHERE user_profiles.id = auth.uid()
+    AND user_profiles.role IN ('admin', 'sales-manager')
   )
 );
 
