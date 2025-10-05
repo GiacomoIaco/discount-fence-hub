@@ -15,6 +15,9 @@ import {
   Check,
   CheckSquare,
   Save,
+  Settings,
+  Plus,
+  Edit2,
 } from 'lucide-react';
 import type { Photo, FilterState } from '../lib/photos';
 import {
@@ -73,8 +76,28 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
   const [showingEnhanced, setShowingEnhanced] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
 
+  // Tag management state (Admin only)
+  const [showTagManagement, setShowTagManagement] = useState(false);
+  const [customTags, setCustomTags] = useState<{
+    productType: string[];
+    material: string[];
+    style: string[];
+  }>({ productType: [], material: [], style: [] });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Load custom tags from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('customPhotoTags');
+    if (saved) {
+      try {
+        setCustomTags(JSON.parse(saved));
+      } catch (e) {
+        console.error('Error loading custom tags:', e);
+      }
+    }
+  }, []);
 
   // Load photos from Supabase
   useEffect(() => {
@@ -850,6 +873,43 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setSelectedPhotoIds(new Set(aiRecommended));
   };
 
+  // Get all available tags (built-in + custom)
+  const getAllTags = () => {
+    return {
+      productType: [...TAG_CATEGORIES.productType, ...customTags.productType],
+      material: [...TAG_CATEGORIES.material, ...customTags.material],
+      style: [...TAG_CATEGORIES.style, ...customTags.style],
+    };
+  };
+
+  const addCustomTag = (category: 'productType' | 'material' | 'style', tag: string) => {
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+
+    const allTags = getAllTags();
+    // Check if tag already exists (case-insensitive)
+    if (allTags[category].some(t => t.toLowerCase() === trimmed.toLowerCase())) {
+      alert('This tag already exists!');
+      return;
+    }
+
+    const updated = {
+      ...customTags,
+      [category]: [...customTags[category], trimmed],
+    };
+    setCustomTags(updated);
+    localStorage.setItem('customPhotoTags', JSON.stringify(updated));
+  };
+
+  const deleteCustomTag = (category: 'productType' | 'material' | 'style', tag: string) => {
+    const updated = {
+      ...customTags,
+      [category]: customTags[category].filter(t => t !== tag),
+    };
+    setCustomTags(updated);
+    localStorage.setItem('customPhotoTags', JSON.stringify(updated));
+  };
+
   const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'saved') => {
     if (selectedPhotoIds.size === 0) {
       alert('No photos selected');
@@ -1059,6 +1119,17 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
                       <span>Select</span>
                     </>
                   )}
+                </button>
+              )}
+
+              {/* Manage Tags Button (Admin only) */}
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => setShowTagManagement(true)}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Manage Tags</span>
                 </button>
               )}
             </div>
@@ -1832,7 +1903,188 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           </div>
         </div>
       )}
+
+      {/* Tag Management Modal (Admin only) */}
+      {showTagManagement && userRole === 'admin' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Manage Tags</h2>
+                <button
+                  onClick={() => setShowTagManagement(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <p className="text-gray-600 mb-6">
+                Add new tags to each category. Built-in tags cannot be deleted, but custom tags can be removed.
+              </p>
+
+              {/* Product Types */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
+                  <span>Product Types</span>
+                  <span className="text-sm text-gray-500 font-normal">
+                    ({getAllTags().productType.length} total)
+                  </span>
+                </h3>
+
+                <AddTagInput
+                  onAdd={(tag) => addCustomTag('productType', tag)}
+                  placeholder="Add new product type..."
+                />
+
+                <div className="mt-3 space-y-2">
+                  {TAG_CATEGORIES.productType.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between bg-gray-100 px-3 py-2 rounded">
+                      <span>{tag}</span>
+                      <span className="text-xs text-gray-500">Built-in</span>
+                    </div>
+                  ))}
+                  {customTags.productType.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded">
+                      <span className="font-medium">{tag}</span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete custom tag "${tag}"?`)) {
+                            deleteCustomTag('productType', tag);
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Materials */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
+                  <span>Materials</span>
+                  <span className="text-sm text-gray-500 font-normal">
+                    ({getAllTags().material.length} total)
+                  </span>
+                </h3>
+
+                <AddTagInput
+                  onAdd={(tag) => addCustomTag('material', tag)}
+                  placeholder="Add new material..."
+                />
+
+                <div className="mt-3 space-y-2">
+                  {TAG_CATEGORIES.material.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between bg-gray-100 px-3 py-2 rounded">
+                      <span>{tag}</span>
+                      <span className="text-xs text-gray-500">Built-in</span>
+                    </div>
+                  ))}
+                  {customTags.material.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded">
+                      <span className="font-medium">{tag}</span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete custom tag "${tag}"?`)) {
+                            deleteCustomTag('material', tag);
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Styles */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
+                  <span>Styles</span>
+                  <span className="text-sm text-gray-500 font-normal">
+                    ({getAllTags().style.length} total)
+                  </span>
+                </h3>
+
+                <AddTagInput
+                  onAdd={(tag) => addCustomTag('style', tag)}
+                  placeholder="Add new style..."
+                />
+
+                <div className="mt-3 space-y-2">
+                  {TAG_CATEGORIES.style.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between bg-gray-100 px-3 py-2 rounded">
+                      <span>{tag}</span>
+                      <span className="text-xs text-gray-500">Built-in</span>
+                    </div>
+                  ))}
+                  {customTags.style.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded">
+                      <span className="font-medium">{tag}</span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete custom tag "${tag}"?`)) {
+                            deleteCustomTag('style', tag);
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowTagManagement(false)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+};
+
+// Helper component for adding tags
+const AddTagInput = ({ onAdd, placeholder }: { onAdd: (tag: string) => void; placeholder: string }) => {
+  const [value, setValue] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (value.trim()) {
+      onAdd(value);
+      setValue('');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex space-x-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <button
+        type="submit"
+        className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center space-x-1"
+      >
+        <Plus className="w-4 h-4" />
+        <span>Add</span>
+      </button>
+    </form>
   );
 };
 
