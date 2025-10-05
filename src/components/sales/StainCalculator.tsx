@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, DollarSign, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface StainCalculatorProps {
   onBack: () => void;
@@ -26,14 +27,24 @@ interface MediaItem {
 }
 
 const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
+  const { profile } = useAuth();
   const [fenceLength, setFenceLength] = useState<number>(100);
   const [fenceHeight, setFenceHeight] = useState<number>(6);
   const [showResults, setShowResults] = useState<boolean>(false);
 
   // Media gallery state
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([
-    { url: '/fence-comparison.jpg', type: 'image', caption: 'Left: Wood Defender stained | Right: Untreated after 2 years' }
-  ]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
+    // Load from localStorage on mount
+    const saved = localStorage.getItem('stainCalculatorMedia');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [{ url: '/fence-comparison.jpg', type: 'image', caption: 'Left: Wood Defender stained | Right: Untreated after 2 years' }];
+      }
+    }
+    return [{ url: '/fence-comparison.jpg', type: 'image', caption: 'Left: Wood Defender stained | Right: Untreated after 2 years' }];
+  });
   const [showGallery, setShowGallery] = useState(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
@@ -79,9 +90,13 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     files.forEach(file => {
-      const url = URL.createObjectURL(file);
-      const type = file.type.startsWith('video') ? 'video' : 'image';
-      setMediaItems(prev => [...prev, { url, type }]);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        const type = file.type.startsWith('video') ? 'video' : 'image';
+        setMediaItems(prev => [...prev, { url, type }]);
+      };
+      reader.readAsDataURL(file);
     });
   };
 
@@ -97,6 +112,11 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
   const prevMedia = () => {
     setCurrentMediaIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
   };
+
+  // Save media items to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('stainCalculatorMedia', JSON.stringify(mediaItems));
+  }, [mediaItems]);
 
   useEffect(() => {
     if (showResults) {
@@ -117,7 +137,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
         <div className="bg-gradient-to-r from-red-700 to-red-900 rounded-lg shadow-lg mb-6 p-6 md:p-8">
           <div className="text-center">
             <div className="flex items-center justify-center gap-4 mb-4">
-              <img src="/Logo-DF-Transparent.png" alt="Discount Fence USA" className="h-16 md:h-20 w-auto" />
+              <img src="/wood-defender-logo.png" alt="Wood Defender" className="h-16 md:h-20 w-auto" />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
               Premium Oil-Based Pre-Stain System
@@ -165,18 +185,20 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
                 </p>
               )}
 
-              {/* Upload button */}
-              <label className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-red-600 hover:bg-red-50 transition-colors">
-                <Upload className="w-5 h-5 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">Add Photos or Videos</span>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,video/*"
-                  onChange={handleMediaUpload}
-                  className="hidden"
-                />
-              </label>
+              {/* Upload button - Admin only */}
+              {profile?.role === 'admin' && (
+                <label className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-red-600 hover:bg-red-50 transition-colors">
+                  <Upload className="w-5 h-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Add Photos or Videos</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleMediaUpload}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
 
             {/* Benefits */}
@@ -221,28 +243,6 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* No profit message */}
-              <div className="bg-yellow-400 text-gray-900 p-4 rounded-lg mt-6 border-2 border-yellow-500">
-                <p className="text-center font-semibold">
-                  <strong>Our Promise:</strong> We're not making money on staining. We want your fence to be the best fence on the street!
-                </p>
-              </div>
-
-              <div className="bg-white text-gray-800 p-6 rounded-lg mt-6 text-center shadow-lg border-4 border-yellow-400">
-                <p className="text-3xl font-bold mb-2 text-red-600">
-                  Ready for the Best Fence on Your Block?
-                </p>
-                <p className="text-xl mb-4 text-gray-700">
-                  Contact Discount Fence USA today for a quote
-                </p>
-                <a
-                  href="https://discountfenceusa.com/contact"
-                  className="inline-block bg-red-600 text-white px-10 py-4 rounded-lg text-xl font-bold hover:bg-red-700 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  Get Your Quote
-                </a>
               </div>
             </div>
           </div>
@@ -491,10 +491,36 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
           </div>
         </div>
 
+        {/* Our Promise and CTA sections */}
+        <div className="mt-6 space-y-6">
+          {/* No profit message */}
+          <div className="bg-yellow-400 text-gray-900 p-4 rounded-lg border-2 border-yellow-500">
+            <p className="text-center font-semibold">
+              <strong>Our Promise:</strong> We're not making money on staining. We want your fence to be the best fence on the street!
+            </p>
+          </div>
+
+          {/* Ready for Best Fence CTA */}
+          <div className="bg-white text-gray-800 p-6 rounded-lg text-center shadow-lg border-4 border-yellow-400">
+            <p className="text-3xl font-bold mb-2 text-red-600">
+              Ready for the Best Fence on Your Block?
+            </p>
+            <p className="text-xl mb-4 text-gray-700">
+              Contact Discount Fence USA today for a quote
+            </p>
+            <a
+              href="https://discountfenceusa.com/contact"
+              className="inline-block bg-red-600 text-white px-10 py-4 rounded-lg text-xl font-bold hover:bg-red-700 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              Get Your Quote
+            </a>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="mt-6 bg-white rounded-lg shadow-lg p-6 text-center border-t-4 border-red-600">
           <div className="flex items-center justify-center gap-6 mb-4">
-            <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-16 w-auto" />
+            <img src="/dfusa-logo.png" alt="Discount Fence USA" className="h-16 w-auto" />
             <div className="border-l-2 border-gray-300 h-16"></div>
             <img src="/wood-defender-logo.png" alt="Wood Defender" className="h-16 w-auto" />
           </div>
