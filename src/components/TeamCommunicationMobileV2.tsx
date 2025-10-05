@@ -75,25 +75,33 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    console.log('TeamCommunication: Effect triggered', { viewMode, filterMode, user: !!user, profile: !!profile });
     loadMessages();
   }, [user, profile, viewMode, filterMode]);
 
   const loadMessages = async () => {
+    console.log('TeamCommunication: loadMessages called', { viewMode, user: !!user, profile: !!profile });
+
     if (!user || !profile) {
+      console.log('TeamCommunication: No user or profile, setting loading false');
       setLoading(false);
+      setMessages([]);
       return;
     }
 
     try {
       setLoading(true);
+      console.log(`TeamCommunication: Loading ${viewMode} messages...`);
 
       if (viewMode === 'inbox') {
         await loadInboxMessages();
       } else {
         await loadSentMessages();
       }
+
+      console.log(`TeamCommunication: ${viewMode} messages loaded successfully`);
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('TeamCommunication: Error loading messages:', error);
       // Set empty messages on error to prevent blank screen
       setMessages([]);
     } finally {
@@ -343,8 +351,15 @@ export default function TeamCommunicationMobileV2({ onBack }: TeamCommunicationM
     return labels[state];
   };
 
-  const getUnreadCount = () => messages.filter(m => m.message_state === 'unread' || m.message_state === 'read_needs_action').length;
-  const getDraftsCount = () => messages.filter(m => m.is_draft).length;
+  const getUnreadCount = () => {
+    if (viewMode !== 'inbox') return 0;
+    return messages.filter(m => m.message_state === 'unread' || m.message_state === 'read_needs_action').length;
+  };
+
+  const getDraftsCount = () => {
+    if (viewMode !== 'sent') return 0;
+    return messages.filter(m => m.is_draft).length;
+  };
 
   if (loading) {
     return (
