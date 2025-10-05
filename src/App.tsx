@@ -500,17 +500,9 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
       {/* Sales Tools Section - No Title */}
       <div className="space-y-3">
         <button
-          onClick={() => {
-            console.log('Client Presentation button clicked!');
-            setActiveSection('presentation');
-          }}
-          onTouchStart={(e) => {
-            console.log('Client Presentation button touched!');
-            e.currentTarget.classList.add('scale-95');
-          }}
-          onTouchEnd={(e) => {
-            e.currentTarget.classList.remove('scale-95');
-          }}
+          onClick={() => setActiveSection('presentation')}
+          onTouchStart={(e) => e.currentTarget.classList.add('scale-95')}
+          onTouchEnd={(e) => e.currentTarget.classList.remove('scale-95')}
           className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg transition-transform touch-manipulation"
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >

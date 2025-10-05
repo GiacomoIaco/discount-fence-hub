@@ -80,6 +80,37 @@ export default function PresentationUpload({ onBack, onUploadComplete }: Present
     return { pages, pageCount };
   };
 
+  const generatePDFThumbnail = async (file: File): Promise<Blob | null> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1); // First page
+
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      if (!context) return null;
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, 'image/jpeg', 0.8);
+      });
+    } catch (error) {
+      console.error('Error generating thumbnail:', error);
+      return null;
+    }
+  };
+
   const extractWordText = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer });
@@ -228,6 +259,26 @@ Make sure every slide (1-${slideTexts.length}) is included. If no talking points
         .from('client-presentations')
         .getPublicUrl(filePath);
 
+      // Generate and upload thumbnail
+      let thumbnailUrl: string | null = null;
+      const thumbnailBlob = await generatePDFThumbnail(presentationFile);
+
+      if (thumbnailBlob) {
+        const thumbnailFileName = `thumbnails/${Date.now()}-thumb.jpg`;
+        const { error: thumbError } = await supabase.storage
+          .from('client-presentations')
+          .upload(thumbnailFileName, thumbnailBlob, {
+            contentType: 'image/jpeg'
+          });
+
+        if (!thumbError) {
+          const { data: { publicUrl: thumbUrl } } = supabase.storage
+            .from('client-presentations')
+            .getPublicUrl(thumbnailFileName);
+          thumbnailUrl = thumbUrl;
+        }
+      }
+
       // Insert presentation record
       const { data: presentation, error: dbError } = await supabase
         .from('client_presentations')
@@ -236,6 +287,7 @@ Make sure every slide (1-${slideTexts.length}) is included. If no talking points
           description: description || null,
           file_path: filePath,
           file_url: publicUrl,
+          thumbnail_url: thumbnailUrl,
           file_type: 'pdf',
           slide_count: slides.length,
           uploaded_by: user.id

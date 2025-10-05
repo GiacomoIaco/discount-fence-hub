@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save, Edit2, X, Check } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -34,17 +34,46 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
   const [currentNote, setCurrentNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingNote, setSavingNote] = useState(false);
+  const [editingTalkingPoints, setEditingTalkingPoints] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [editedTalkingPoints, setEditedTalkingPoints] = useState('');
+  const [savingTalkingPoints, setSavingTalkingPoints] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
 
   useEffect(() => {
     loadSlides();
     loadNotes();
+    loadUserRole();
   }, []);
+
+  const loadUserRole = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+      setUserRole(data?.role || '');
+    } catch (error) {
+      console.error('Error loading user role:', error);
+    }
+  };
 
   useEffect(() => {
     // Load note for current slide
     const note = notes.find(n => n.slide_number === currentSlide);
     setCurrentNote(note?.note || '');
-  }, [currentSlide, notes]);
+
+    // Reset editing state and load talking points for current slide
+    setEditingTalkingPoints(false);
+    const slideData = slides.find(s => s.slide_number === currentSlide);
+    setEditedTitle(slideData?.title || '');
+    setEditedTalkingPoints(slideData?.talking_points || '');
+  }, [currentSlide, notes, slides]);
 
   const loadSlides = async () => {
     try {
@@ -55,7 +84,6 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
         .order('slide_number');
 
       if (error) throw error;
-      console.log('Loaded slides:', data);
       setSlides(data || []);
     } catch (error) {
       console.error('Error loading slides:', error);
@@ -82,34 +110,23 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
   };
 
   const saveNote = async () => {
-    if (!user || !currentNote.trim()) {
-      console.log('Cannot save - user:', user, 'note:', currentNote);
-      return;
-    }
+    if (!user || !currentNote.trim()) return;
 
-    console.log('Saving note for slide:', currentSlide, 'content:', currentNote);
     setSavingNote(true);
 
     try {
       const existingNote = notes.find(n => n.slide_number === currentSlide);
-      console.log('Existing note:', existingNote);
 
       if (existingNote?.id) {
         // Update existing note
-        console.log('Updating existing note with id:', existingNote.id);
         const { error } = await supabase
           .from('presentation_notes')
           .update({ note: currentNote })
           .eq('id', existingNote.id);
 
-        if (error) {
-          console.error('Error updating note:', error);
-          throw error;
-        }
-        console.log('Note updated successfully');
+        if (error) throw error;
       } else {
         // Insert new note
-        console.log('Inserting new note');
         const { data, error } = await supabase
           .from('presentation_notes')
           .insert({
@@ -121,16 +138,11 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
           .select()
           .single();
 
-        if (error) {
-          console.error('Error inserting note:', error);
-          throw error;
-        }
-        console.log('Note inserted successfully:', data);
+        if (error) throw error;
         setNotes(prev => [...prev, data]);
       }
 
       await loadNotes();
-      console.log('Notes reloaded after save');
     } catch (error: any) {
       alert(`Failed to save note: ${error.message}`);
     } finally {
@@ -138,12 +150,39 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
     }
   };
 
-  const currentSlideData = slides.find(s => s.slide_number === currentSlide);
+  const saveTalkingPoints = async () => {
+    if (!editedTitle.trim() && !editedTalkingPoints.trim()) return;
 
-  // Debug logging
-  console.log('Current slide:', currentSlide);
-  console.log('Current slide data:', currentSlideData);
-  console.log('All slides:', slides.map(s => ({ num: s.slide_number, title: s.title })));
+    setSavingTalkingPoints(true);
+
+    try {
+      const { error } = await supabase
+        .from('presentation_slides')
+        .update({
+          title: editedTitle,
+          talking_points: editedTalkingPoints
+        })
+        .eq('presentation_id', presentation.id)
+        .eq('slide_number', currentSlide);
+
+      if (error) throw error;
+
+      // Update local state
+      setSlides(prev => prev.map(s =>
+        s.slide_number === currentSlide
+          ? { ...s, title: editedTitle, talking_points: editedTalkingPoints }
+          : s
+      ));
+
+      setEditingTalkingPoints(false);
+    } catch (error: any) {
+      alert(`Failed to save talking points: ${error.message}`);
+    } finally {
+      setSavingTalkingPoints(false);
+    }
+  };
+
+  const currentSlideData = slides.find(s => s.slide_number === currentSlide);
 
   if (loading) {
     return (
@@ -228,22 +267,14 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
             <span className="font-semibold">Slide {currentSlide} of {presentation.slide_count}</span>
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  const newSlide = Math.max(1, currentSlide - 1);
-                  console.log('Previous button clicked. Current:', currentSlide, 'New:', newSlide);
-                  setCurrentSlide(newSlide);
-                }}
+                onClick={() => setCurrentSlide(Math.max(1, currentSlide - 1))}
                 disabled={currentSlide === 1}
                 className="p-2 hover:bg-gray-700 rounded disabled:opacity-30"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
-                onClick={() => {
-                  const newSlide = Math.min(presentation.slide_count, currentSlide + 1);
-                  console.log('Next button clicked. Current:', currentSlide, 'New:', newSlide);
-                  setCurrentSlide(newSlide);
-                }}
+                onClick={() => setCurrentSlide(Math.min(presentation.slide_count, currentSlide + 1))}
                 disabled={currentSlide === presentation.slide_count}
                 className="p-2 hover:bg-gray-700 rounded disabled:opacity-30"
               >
@@ -266,13 +297,71 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
         {/* Bottom: Talking Points & Notes - Takes 35% of height */}
         <div className="grid grid-cols-2 gap-4" style={{ height: '35%' }}>
           {/* Talking Points */}
-          <div className="bg-white rounded-lg shadow-lg p-4 overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              {currentSlideData?.title || `Slide ${currentSlide}`}
-            </h3>
-            <div className="text-sm text-gray-700 whitespace-pre-wrap">
-              {currentSlideData?.talking_points || 'No talking points for this slide'}
+          <div className="bg-white rounded-lg shadow-lg p-4 overflow-y-auto flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              {editingTalkingPoints ? (
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  placeholder="Slide title"
+                  className="flex-1 text-lg font-bold text-gray-900 border-b-2 border-blue-500 focus:outline-none"
+                />
+              ) : (
+                <h3 className="text-lg font-bold text-gray-900">
+                  {currentSlideData?.title || `Slide ${currentSlide}`}
+                </h3>
+              )}
+
+              {(userRole === 'admin' || userRole === 'sales-manager') && (
+                <div className="flex gap-2 ml-2">
+                  {editingTalkingPoints ? (
+                    <>
+                      <button
+                        onClick={saveTalkingPoints}
+                        disabled={savingTalkingPoints}
+                        className="p-1 text-green-600 hover:bg-green-50 rounded"
+                        title="Save changes"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingTalkingPoints(false);
+                          setEditedTitle(currentSlideData?.title || '');
+                          setEditedTalkingPoints(currentSlideData?.talking_points || '');
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setEditingTalkingPoints(true)}
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Edit talking points"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+
+            {editingTalkingPoints ? (
+              <textarea
+                value={editedTalkingPoints}
+                onChange={(e) => setEditedTalkingPoints(e.target.value)}
+                placeholder="Enter talking points..."
+                className="flex-1 w-full px-2 py-1 text-sm text-gray-700 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+            ) : (
+              <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                {currentSlideData?.talking_points || 'No talking points for this slide'}
+              </div>
+            )}
           </div>
 
           {/* Your Notes */}
