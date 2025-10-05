@@ -126,9 +126,9 @@ Respond ONLY with valid JSON in this exact format:
   "analysisNotes": "Brief description of what you see and quality assessment"
 }`;
 
-    // Call GPT-5 Mini Vision API (no registration required)
+    // Call GPT-5 Vision API
     const response = await openai.chat.completions.create({
-      model: 'gpt-5-mini',
+      model: 'gpt-5-2025-08-07',
       max_completion_tokens: 1024,
       messages: [
         {
