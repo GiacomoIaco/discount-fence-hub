@@ -96,14 +96,20 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
 
       if (existingNote?.id) {
         // Update existing note
+        console.log('Updating existing note with id:', existingNote.id);
         const { error } = await supabase
           .from('presentation_notes')
           .update({ note: currentNote })
           .eq('id', existingNote.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating note:', error);
+          throw error;
+        }
+        console.log('Note updated successfully');
       } else {
         // Insert new note
+        console.log('Inserting new note');
         const { data, error } = await supabase
           .from('presentation_notes')
           .insert({
@@ -115,11 +121,16 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting note:', error);
+          throw error;
+        }
+        console.log('Note inserted successfully:', data);
         setNotes(prev => [...prev, data]);
       }
 
       await loadNotes();
+      console.log('Notes reloaded after save');
     } catch (error: any) {
       alert(`Failed to save note: ${error.message}`);
     } finally {
@@ -217,14 +228,22 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
             <span className="font-semibold">Slide {currentSlide} of {presentation.slide_count}</span>
             <div className="flex gap-2">
               <button
-                onClick={() => setCurrentSlide(Math.max(1, currentSlide - 1))}
+                onClick={() => {
+                  const newSlide = Math.max(1, currentSlide - 1);
+                  console.log('Previous button clicked. Current:', currentSlide, 'New:', newSlide);
+                  setCurrentSlide(newSlide);
+                }}
                 disabled={currentSlide === 1}
                 className="p-2 hover:bg-gray-700 rounded disabled:opacity-30"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
-                onClick={() => setCurrentSlide(Math.min(presentation.slide_count, currentSlide + 1))}
+                onClick={() => {
+                  const newSlide = Math.min(presentation.slide_count, currentSlide + 1);
+                  console.log('Next button clicked. Current:', currentSlide, 'New:', newSlide);
+                  setCurrentSlide(newSlide);
+                }}
                 disabled={currentSlide === presentation.slide_count}
                 className="p-2 hover:bg-gray-700 rounded disabled:opacity-30"
               >
