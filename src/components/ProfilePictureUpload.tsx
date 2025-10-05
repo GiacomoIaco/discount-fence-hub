@@ -201,7 +201,7 @@ export default function ProfilePictureUpload({
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture={useCamera ? 'environment' : undefined}
+            capture={useCamera ? 'user' : undefined}
             onChange={handleFileSelect}
             className="hidden"
           />
