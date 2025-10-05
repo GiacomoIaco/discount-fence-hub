@@ -737,89 +737,45 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setIsEnhancing(true);
 
     try {
-      // Load image
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = reviewingPhoto.url;
+      // Convert image URL to base64
+      const response = await fetch(reviewingPhoto.url);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = (reader.result as string).split(',')[1];
+          resolve(base64String);
+        };
+        reader.readAsDataURL(blob);
       });
 
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
+      // Call Gemini 2.5 Flash Image API for enhancement
+      const apiResponse = await fetch('/.netlify/functions/enhance-photo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64: base64,
+        }),
+      });
 
-      if (!ctx) {
-        throw new Error('Could not get canvas context');
+      if (!apiResponse.ok) {
+        const error = await apiResponse.json();
+        throw new Error(error.details || 'Enhancement failed');
       }
 
-      // Draw original image
-      ctx.drawImage(img, 0, 0);
+      const { enhancedImageBase64 } = await apiResponse.json();
 
-      // Get image data
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      // Auto-enhance adjustments - subtle and realistic
-      const brightness = 1.05;  // 5% brighter (subtle)
-      const contrast = 1.08;    // 8% more contrast (gentle)
-      const saturation = 1.10;  // 10% more saturated (natural)
-      const shadows = 1.15;     // Lift shadows by 15%
-
-      for (let i = 0; i < data.length; i += 4) {
-        let r = data[i];
-        let g = data[i + 1];
-        let b = data[i + 2];
-
-        // Calculate luminance
-        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-
-        // Lift shadows (brighten dark areas more than bright areas)
-        if (luminance < 128) {
-          const shadowBoost = shadows * (1 - luminance / 128);
-          r *= shadowBoost;
-          g *= shadowBoost;
-          b *= shadowBoost;
-        }
-
-        // Apply gentle brightness
-        r *= brightness;
-        g *= brightness;
-        b *= brightness;
-
-        // Apply gentle contrast (centered around midpoint)
-        r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
-        g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
-        b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
-
-        // Apply subtle saturation
-        const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
-        r = gray + saturation * (r - gray);
-        g = gray + saturation * (g - gray);
-        b = gray + saturation * (b - gray);
-
-        // Clamp values
-        data[i] = Math.max(0, Math.min(255, r));
-        data[i + 1] = Math.max(0, Math.min(255, g));
-        data[i + 2] = Math.max(0, Math.min(255, b));
-      }
-
-      // Put enhanced image back
-      ctx.putImageData(imageData, 0, 0);
-
-      // Convert to data URL
-      const enhancedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      // Convert base64 back to data URL
+      const enhancedDataUrl = `data:image/jpeg;base64,${enhancedImageBase64}`;
       setEnhancedUrl(enhancedDataUrl);
       setShowingEnhanced(true);
 
-      console.log('✅ Photo auto-enhanced');
+      console.log('✅ Photo enhanced with Gemini 2.5 Flash Image');
     } catch (error) {
       console.error('❌ Auto-enhance failed:', error);
-      alert('Failed to enhance photo. Please try again.');
+      alert(`Failed to enhance photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsEnhancing(false);
     }
