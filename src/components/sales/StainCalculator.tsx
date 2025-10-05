@@ -87,15 +87,74 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
     };
   };
 
-  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    files.forEach(file => {
+
+    for (const file of files) {
+      // Check file size (max 5MB to prevent localStorage issues)
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`${file.name} is too large. Please use files under 5MB.`);
+        continue;
+      }
+
+      try {
+        if (file.type.startsWith('image')) {
+          // Compress image before storing
+          const compressed = await compressImage(file);
+          const type = 'image' as const;
+          setMediaItems(prev => [...prev, { url: compressed, type }]);
+        } else if (file.type.startsWith('video')) {
+          // For videos, use object URL (won't persist but won't crash)
+          const url = URL.createObjectURL(file);
+          const type = 'video' as const;
+          setMediaItems(prev => [...prev, { url, type }]);
+        }
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        alert(`Failed to upload ${file.name}. Please try a smaller file.`);
+      }
+    }
+
+    // Reset input
+    e.target.value = '';
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const url = event.target?.result as string;
-        const type = file.type.startsWith('video') ? 'video' : 'image';
-        setMediaItems(prev => [...prev, { url, type }]);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Resize if too large (max 1200px)
+          let width = img.width;
+          let height = img.height;
+          const maxSize = 1200;
+
+          if (width > maxSize || height > maxSize) {
+            if (width > height) {
+              height = (height / width) * maxSize;
+              width = maxSize;
+            } else {
+              width = (width / height) * maxSize;
+              height = maxSize;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with 80% quality
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(compressed);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
       };
+      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };
@@ -115,7 +174,26 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
 
   // Save media items to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('stainCalculatorMedia', JSON.stringify(mediaItems));
+    try {
+      const data = JSON.stringify(mediaItems);
+      // Check if data is too large (localStorage limit is ~5-10MB)
+      if (data.length > 5 * 1024 * 1024) {
+        console.warn('Media items too large for localStorage, keeping only first item');
+        // Keep only the default image
+        localStorage.setItem('stainCalculatorMedia', JSON.stringify([mediaItems[0]]));
+      } else {
+        localStorage.setItem('stainCalculatorMedia', data);
+      }
+    } catch (error) {
+      console.error('Failed to save media to localStorage:', error);
+      // If storage fails, keep only default image
+      try {
+        localStorage.setItem('stainCalculatorMedia', JSON.stringify([mediaItems[0]]));
+      } catch {
+        // If still fails, clear it
+        localStorage.removeItem('stainCalculatorMedia');
+      }
+    }
   }, [mediaItems]);
 
   useEffect(() => {
