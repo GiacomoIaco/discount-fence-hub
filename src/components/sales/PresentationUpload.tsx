@@ -88,11 +88,19 @@ export default function PresentationUpload({ onBack, onUploadComplete }: Present
 
   const matchTalkingPointsWithAI = async (slideTexts: string[], talkingPointsText: string) => {
     try {
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+      if (!apiKey) {
+        throw new Error('VITE_ANTHROPIC_API_KEY is not configured');
+      }
+
+      console.log('Calling Claude API with', slideTexts.length, 'slides');
+
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
@@ -126,7 +134,13 @@ Make sure every slide (1-${slideTexts.length}) is included. If no talking points
         })
       });
 
-      if (!response.ok) throw new Error('AI matching failed');
+      console.log('API response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`AI matching failed: ${response.status} - ${errorText}`);
+      }
 
       const data = await response.json();
       const content = data.content[0].text;
