@@ -8,6 +8,8 @@ import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
 import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
+import UserProfileEditor from './components/UserProfileEditor';
+import UserProfileView from './components/UserProfileView';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
 import { useAuth } from './contexts/AuthContext';
@@ -54,6 +56,8 @@ function App() {
   });
   const [unreadCount, setUnreadCount] = useState(0);
   const [showMessageComposer, setShowMessageComposer] = useState(false);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [showProfileView, setShowProfileView] = useState(false);
 
   // Save viewMode to localStorage when it changes
   useEffect(() => {
@@ -208,9 +212,23 @@ function App() {
               >
                 Desktop
               </button>
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-6 h-6 text-white" />
-              </div>
+              {/* Profile Avatar */}
+              <button
+                onClick={() => setShowProfileView(true)}
+                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
+              >
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={userName}
+                    className="w-10 h-10 rounded-full object-cover border-2 border-blue-600"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -220,6 +238,27 @@ function App() {
 
         {/* Install App Banner */}
         <InstallAppBanner />
+
+        {/* Profile Modals */}
+        {showProfileView && (
+          <UserProfileView
+            onClose={() => setShowProfileView(false)}
+            onEdit={() => {
+              setShowProfileView(false);
+              setShowProfileEditor(true);
+            }}
+          />
+        )}
+
+        {showProfileEditor && (
+          <UserProfileEditor
+            onClose={() => setShowProfileEditor(false)}
+            onSave={() => {
+              setShowProfileEditor(false);
+              window.location.reload(); // Reload to refresh profile data
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -311,19 +350,30 @@ function App() {
 
           <div className="space-y-3">
             {/* User Profile */}
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-6 h-6 text-white" />
-              </div>
+            <button
+              onClick={() => setShowProfileView(true)}
+              className="flex items-center space-x-3 w-full hover:bg-gray-800 rounded-lg p-2 transition-colors"
+            >
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={userName}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 flex-shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-6 h-6 text-white" />
+                </div>
+              )}
               {sidebarOpen && (
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 text-left">
                   <p className="font-medium text-sm text-white truncate">
                     {profile?.full_name || userName}
                   </p>
                   <p className="text-xs text-gray-400 capitalize">{profile?.role || userRole}</p>
                 </div>
               )}
-            </div>
+            </button>
 
             {/* Logout Button */}
             {user && sidebarOpen && (
@@ -368,6 +418,27 @@ function App() {
             // Reload messages by re-rendering TeamCommunication
             setActiveSection('home');
             setTimeout(() => setActiveSection('team-communication'), 0);
+          }}
+        />
+      )}
+
+      {/* Profile Modals */}
+      {showProfileView && (
+        <UserProfileView
+          onClose={() => setShowProfileView(false)}
+          onEdit={() => {
+            setShowProfileView(false);
+            setShowProfileEditor(true);
+          }}
+        />
+      )}
+
+      {showProfileEditor && (
+        <UserProfileEditor
+          onClose={() => setShowProfileEditor(false)}
+          onSave={() => {
+            setShowProfileEditor(false);
+            window.location.reload(); // Reload to refresh profile data
           }}
         />
       )}

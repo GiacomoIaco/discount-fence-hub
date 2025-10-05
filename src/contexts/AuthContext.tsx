@@ -10,6 +10,7 @@ interface UserProfile {
   full_name: string;
   role: UserRole;
   phone?: string;
+  avatar_url?: string;
   created_at: string;
 }
 
