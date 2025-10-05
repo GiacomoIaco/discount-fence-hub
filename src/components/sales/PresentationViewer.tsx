@@ -55,6 +55,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
         .order('slide_number');
 
       if (error) throw error;
+      console.log('Loaded slides:', data);
       setSlides(data || []);
     } catch (error) {
       console.error('Error loading slides:', error);
@@ -81,12 +82,17 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
   };
 
   const saveNote = async () => {
-    if (!user || !currentNote.trim()) return;
+    if (!user || !currentNote.trim()) {
+      console.log('Cannot save - user:', user, 'note:', currentNote);
+      return;
+    }
 
+    console.log('Saving note for slide:', currentSlide, 'content:', currentNote);
     setSavingNote(true);
 
     try {
       const existingNote = notes.find(n => n.slide_number === currentSlide);
+      console.log('Existing note:', existingNote);
 
       if (existingNote?.id) {
         // Update existing note
@@ -122,6 +128,11 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
   };
 
   const currentSlideData = slides.find(s => s.slide_number === currentSlide);
+
+  // Debug logging
+  console.log('Current slide:', currentSlide);
+  console.log('Current slide data:', currentSlideData);
+  console.log('All slides:', slides.map(s => ({ num: s.slide_number, title: s.title })));
 
   if (loading) {
     return (
