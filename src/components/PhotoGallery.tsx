@@ -37,11 +37,13 @@ interface PhotoGalleryProps {
   onBack: () => void;
   userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
   viewMode?: 'mobile' | 'desktop';
+  userId?: string;
+  userName?: string;
 }
 
 type GalleryTab = 'gallery' | 'pending' | 'saved' | 'archived';
 
-const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: PhotoGalleryProps) => {
+const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId, userName }: PhotoGalleryProps) => {
   const [activeTab, setActiveTab] = useState<GalleryTab>('gallery');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [filteredPhotos, setFilteredPhotos] = useState<Photo[]>([]);
@@ -133,7 +135,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
 
   const loadPhotos = async () => {
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const currentUserId = userId || '00000000-0000-0000-0000-000000000001';
 
       let query = supabase
         .from('photos')
@@ -212,12 +214,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setUploading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
-      const userName = localStorage.getItem('userName') || 'Unknown User';
+      const uploadUserId = userId || '00000000-0000-0000-0000-000000000001';
+      const uploadUserName = userName || 'Unknown User';
 
-      console.log('📸 Photo upload - User info:', { userId, userName });
-      console.log('📸 localStorage keys:', Object.keys(localStorage));
-      console.log('📸 All localStorage:', { ...localStorage });
+      console.log('📸 Photo upload - User info:', { uploadUserId, uploadUserName });
 
       for (const file of Array.from(files)) {
         // Resize for full image (max 1920px)
@@ -282,8 +282,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
           id: generateUUID(),
           url: full.dataUrl,
           thumbnailUrl: thumb.dataUrl,
-          uploadedBy: userId,
-          uploaderName: userName,
+          uploadedBy: uploadUserId,
+          uploaderName: uploadUserName,
           uploadedAt: new Date().toISOString(),
           tags: suggestedTags,
           isFavorite: false,
@@ -295,8 +295,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         };
 
         // Upload to Supabase Storage (photos bucket)
-        const fileName = `${userId}/full/${newPhoto.id}.jpg`;
-        const thumbFileName = `${userId}/thumb/${newPhoto.id}.jpg`;
+        const fileName = `${uploadUserId}/full/${newPhoto.id}.jpg`;
+        const thumbFileName = `${uploadUserId}/thumb/${newPhoto.id}.jpg`;
 
         try {
           console.log('Uploading to Supabase storage:', fileName);
@@ -484,7 +484,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     }
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
 
       // Delete from storage
       const fileName = `${userId}/full/${photo.id}.jpg`;
@@ -543,9 +543,9 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
       // Set uploader name from photo object, or fall back to current user if missing
       if (photo.uploaderName) {
         setUploaderName(photo.uploaderName);
-      } else if (photo.uploadedBy === localStorage.getItem('userId')) {
+      } else if (photo.uploadedBy === userId) {
         // If photo was uploaded by current user but name wasn't stored, use current user's name
-        setUploaderName(localStorage.getItem('userName') || 'Unknown User');
+        setUploaderName(userName || 'Unknown User');
       } else {
         // Photo uploaded by different user and name not stored
         setUploaderName('Unknown User');
@@ -577,7 +577,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setReviewLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
 
       // If using enhanced version, upload it to replace the original
       if (showingEnhanced && enhancedUrl) {
@@ -636,7 +636,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setReviewLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         // Keep status as pending - this is an incomplete draft review
         tags: editingTags,
@@ -669,7 +669,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setReviewLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         status: 'saved',
         tags: editingTags,
@@ -702,7 +702,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setReviewLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         // Keep status as 'saved', just update the metadata
         tags: editingTags,
@@ -736,7 +736,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setReviewLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
       const dbUpdate = {
         status: 'archived',
         reviewed_by: userId,
@@ -825,7 +825,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     setReviewLoading(true);
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
 
       // Delete from storage
       const fileName = `${userId}/full/${reviewingPhoto.id}.jpg`;
@@ -928,7 +928,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
     if (!confirm(`Move ${selectedPhotoIds.size} photo(s) to ${statusLabel}?`)) return;
 
     try {
-      const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+      const userId = userId || '00000000-0000-0000-0000-000000000001';
 
       for (const photoId of selectedPhotoIds) {
         const updateData: any = {
@@ -972,7 +972,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile' }: Photo
         const photo = photos.find((p) => p.id === photoId);
         if (!photo) continue;
 
-        const userId = localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000001';
+        const userId = userId || '00000000-0000-0000-0000-000000000001';
         const fileName = `${userId}/full/${photoId}.jpg`;
         const thumbFileName = `${userId}/thumb/${photoId}.jpg`;
 

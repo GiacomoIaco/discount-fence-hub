@@ -145,7 +145,7 @@ function App() {
       return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
     }
     if (activeSection === 'photo-gallery') {
-      return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
+      return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />;
     }
     if (activeSection === 'stain-calculator') {
       return <StainCalculator onBack={() => setActiveSection('home')} />;
@@ -503,7 +503,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
   }
 
   if (activeSection === 'photo-gallery') {
-    return <PhotoGallery onBack={() => setActiveSection('home')} />;
+    return <PhotoGallery onBack={() => setActiveSection('home')} userId={user?.id} userName={profile?.full_name} />;
   }
 
   if (activeSection === 'sales-resources') {
