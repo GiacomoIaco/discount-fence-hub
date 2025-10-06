@@ -2,7 +2,8 @@ import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock
 import type { Request } from '../../lib/requests';
 import { useRequestAge } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 interface RequestDetailProps {
   request: Request;
@@ -15,6 +16,45 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
   const { activity, loading: activityLoading } = useRequestActivity(request.id);
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
+  const [submitterName, setSubmitterName] = useState<string>('');
+  const [userProfiles, setUserProfiles] = useState<Map<string, string>>(new Map());
+
+  // Fetch submitter profile
+  useEffect(() => {
+    const fetchSubmitter = async () => {
+      if (request.submitter_id) {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('full_name, email')
+          .eq('id', request.submitter_id)
+          .single();
+
+        if (data) {
+          setSubmitterName(data.full_name || data.email || 'Unknown User');
+        }
+      }
+    };
+    fetchSubmitter();
+  }, [request.submitter_id]);
+
+  // Fetch user profiles for notes
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const userIds = [...new Set(notes.map(n => n.user_id))];
+      if (userIds.length > 0) {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (data) {
+          const profileMap = new Map(data.map(p => [p.id, p.full_name || p.email || 'Unknown']));
+          setUserProfiles(profileMap);
+        }
+      }
+    };
+    fetchProfiles();
+  }, [notes]);
 
   const getRequestTypeInfo = () => {
     switch (request.request_type) {
@@ -64,9 +104,14 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           <div className="flex-1">
             <h1 className="text-lg font-bold text-gray-900">{request.title}</h1>
             <p className="text-xs text-gray-600">{typeInfo.label} Request</p>
+            {submitterName && (
+              <p className="text-xs text-gray-600 mt-1">
+                Submitted by: <span className="font-medium">{submitterName}</span>
+              </p>
+            )}
             {request.submitted_at && (
-              <p className="text-xs text-gray-500 mt-1">
-                Submitted {new Date(request.submitted_at).toLocaleDateString()} at {new Date(request.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <p className="text-xs text-gray-500">
+                {new Date(request.submitted_at).toLocaleDateString()} at {new Date(request.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             )}
           </div>
@@ -207,7 +252,7 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
                 <div key={note.id} className="bg-blue-50 border border-blue-100 rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <p className="text-xs font-medium text-blue-900">
-                      {note.user_id === request.submitter_id ? 'Submitter' : 'Team Member'}
+                      {userProfiles.get(note.user_id) || 'Unknown User'}
                     </p>
                     <p className="text-xs text-blue-600">
                       {new Date(note.created_at).toLocaleDateString()} {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
