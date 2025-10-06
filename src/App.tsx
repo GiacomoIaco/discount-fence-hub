@@ -483,6 +483,10 @@ interface SalesRepViewProps {
 }
 
 const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }: SalesRepViewProps) => {
+  if (activeSection === 'requests') {
+    return <RequestHub onBack={() => setActiveSection('home')} />;
+  }
+
   if (activeSection === 'custom-pricing') {
     return <CustomPricingRequest onBack={() => setActiveSection('home')} viewMode={viewMode} />;
   }
