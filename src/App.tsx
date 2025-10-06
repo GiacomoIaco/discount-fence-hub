@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, Settings } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, Settings as SettingsIcon } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import ClientPresentation from './components/sales/ClientPresentation';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
-import TeamManagement from './components/TeamManagement';
-import AssignmentRules from './components/admin/AssignmentRules';
 import Analytics from './components/Analytics';
+import Settings from './components/Settings';
 import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
 import UserProfileEditor from './components/UserProfileEditor';
@@ -142,13 +141,8 @@ function App() {
       { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket },
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, name: 'Sales Resources', icon: FolderOpen },
-      { id: 'team' as Section, name: 'Team', icon: User, separator: true },
+      { id: 'team' as Section, name: 'Settings', icon: SettingsIcon, separator: true },
     ];
-
-    // Admin-only items
-    if (userRole === 'admin') {
-      items.push({ id: 'assignment-rules' as Section, name: 'Assignment Rules', icon: Settings });
-    }
 
     // Photo Review is now accessed via tabs in Photo Gallery (desktop only)
     return items;
@@ -192,16 +186,13 @@ function App() {
       return <Analytics userRole={userRole} />;
     }
     if (activeSection === 'team') {
-      return <TeamManagement userRole={userRole} />;
+      return <Settings onBack={() => setActiveSection('home')} userRole={userRole} />;
     }
     if (activeSection === 'sales-resources') {
       return <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
     }
     if (activeSection === 'team-communication') {
       return <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />;
-    }
-    if (activeSection === 'assignment-rules') {
-      return <AssignmentRules onBack={() => setActiveSection('home')} />;
     }
 
     // Default home view
@@ -302,16 +293,31 @@ function App() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
-        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+        <div className="p-3 border-b border-gray-800">
           {sidebarOpen ? (
             <>
-              <div className="flex items-center gap-3">
-                <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-12 w-auto" />
-                <p className="text-xs text-gray-400 capitalize">{userRole}</p>
+              <div className="flex items-center justify-between mb-2">
+                <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
+                <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center justify-between text-xs">
+                <p className="text-gray-400 capitalize">{userRole}</p>
+                <p className="text-gray-500">
+                  {import.meta.env.MODE === 'development'
+                    ? 'v1.0.dev'
+                    : (() => {
+                        try {
+                          const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
+                          return `v1.0 • ${new Date(buildTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+                        } catch {
+                          return 'v1.0';
+                        }
+                      })()
+                  }
+                </p>
+              </div>
             </>
           ) : (
             <div className="flex flex-col items-center gap-2">
@@ -323,22 +329,22 @@ function App() {
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
               <div key={item.id}>
-                {item.separator && <div className="my-4 border-t border-gray-700"></div>}
+                {item.separator && <div className="my-2 border-t border-gray-700"></div>}
                 <button
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
                     isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {sidebarOpen && (
-                    <span className="font-medium flex-1 text-left">{item.name}</span>
+                    <span className="font-medium text-sm flex-1 text-left">{item.name}</span>
                   )}
                   {item.badge && item.badge > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -384,26 +390,26 @@ function App() {
             </div>
           )}
 
-          <div className="space-y-3">
-            {/* User Profile */}
+          {/* User Profile and Sign Out */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowProfileView(true)}
-              className="flex items-center space-x-3 w-full hover:bg-gray-800 rounded-lg p-2 transition-colors"
+              className="flex items-center space-x-2 flex-1 hover:bg-gray-800 rounded-lg p-2 transition-colors"
             >
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
                   alt={userName}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-600 flex-shrink-0"
+                  className="w-8 h-8 rounded-full object-cover border-2 border-blue-600 flex-shrink-0"
                 />
               ) : (
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <User className="w-6 h-6 text-white" />
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-white" />
                 </div>
               )}
               {sidebarOpen && (
                 <div className="flex-1 min-w-0 text-left">
-                  <p className="font-medium text-sm text-white truncate">
+                  <p className="font-medium text-xs text-white truncate">
                     {profile?.full_name || userName}
                   </p>
                   <p className="text-xs text-gray-400 capitalize">{profile?.role || userRole}</p>
@@ -415,32 +421,13 @@ function App() {
             {user && sidebarOpen && (
               <button
                 onClick={() => signOut()}
-                className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-2 text-gray-300 hover:bg-gray-800 hover:text-red-400 rounded-lg transition-colors"
+                title="Sign Out"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
+                <LogOut className="w-5 h-5" />
               </button>
             )}
           </div>
-
-          {/* Version Number */}
-          {sidebarOpen && (
-            <div className="px-3 py-2 text-center border-t border-gray-800 mt-2">
-              <p className="text-xs text-gray-500">
-                {import.meta.env.MODE === 'development'
-                  ? 'v1.0.dev'
-                  : (() => {
-                      try {
-                        const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
-                        return `v1.0 • ${new Date(buildTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
-                      } catch {
-                        return 'v1.0';
-                      }
-                    })()
-                }
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
