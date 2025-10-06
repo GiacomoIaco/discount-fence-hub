@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": {
+        "CHROME_EXECUTABLE_PATH": ""
+      }
+    }
+  },
+  "_instructions": {
+    "setup": "Copy this file to mcp.json and configure CHROME_EXECUTABLE_PATH if needed",
+    "windows": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "macos": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "linux": "/usr/bin/google-chrome",
+    "docs": "https://github.com/ChromeDevTools/chrome-devtools-mcp"
+  }
+}
