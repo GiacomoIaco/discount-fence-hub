@@ -80,6 +80,7 @@ export function useAllRequests(filters?: {
   stage?: RequestStage;
   request_type?: RequestType;
   assigned_to?: string;
+  submitter_id?: string;
   sla_status?: SLAStatus;
   search?: string;
 }) {
@@ -102,7 +103,7 @@ export function useAllRequests(filters?: {
 
   useEffect(() => {
     loadRequests();
-  }, [filters?.stage, filters?.request_type, filters?.assigned_to, filters?.search]);
+  }, [filters?.stage, filters?.request_type, filters?.assigned_to, filters?.submitter_id, filters?.sla_status, filters?.search]);
 
   // Subscribe to realtime updates
   useEffect(() => {
