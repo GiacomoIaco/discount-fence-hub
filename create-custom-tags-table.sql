@@ -7,15 +7,16 @@ CREATE TABLE IF NOT EXISTS custom_photo_tags (
   category TEXT NOT NULL CHECK (category IN ('productType', 'material', 'style')),
   tag_name TEXT NOT NULL,
   created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-  -- Ensure unique tags per category (case-insensitive)
-  UNIQUE(category, LOWER(tag_name))
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_custom_tags_category ON custom_photo_tags(category);
 CREATE INDEX IF NOT EXISTS idx_custom_tags_created_by ON custom_photo_tags(created_by);
+
+-- Ensure unique tags per category (case-insensitive) using a unique index
+CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_tags_unique
+ON custom_photo_tags(category, LOWER(tag_name));
 
 -- RLS Policies
 ALTER TABLE custom_photo_tags ENABLE ROW LEVEL SECURITY;
