@@ -2,119 +2,174 @@
 
 ## 🎉 Project Status: ✅ PRODUCTION DEPLOYED
 
-A **comprehensive mobile-first web application** for sales reps, managers, and operations teams at Discount Fence USA, featuring AI-powered sales coaching, voice transcription, intelligent photo gallery with auto-tagging and enhancement, complete authentication system, team management, and sales resources library.
+A **comprehensive enterprise web application** for sales, operations, and management teams at Discount Fence USA, featuring request management system, AI-powered sales coaching, intelligent photo gallery, team collaboration, and analytics dashboard.
 
-**🌐 Live on Netlify** | **📊 Supabase Connected** | **🤖 All AI Integrations Active** | **🔐 Authentication Enabled** | **👥 Team Management Active**
-
----
-
-## 📦 Latest Updates (October 2025)
-
-### Phase 2B: Advanced Photo Gallery Features ✅ COMPLETE
-
-#### 1. **AI Model Upgrades to 2025 Latest Versions** ✅
-- **GPT-5 Photo Analysis** (`gpt-5-2025-08-07`)
-  - Latest OpenAI vision model for accurate tagging
-  - Confidence scoring (0-100) for bulk publishing workflow
-  - Cost: ~$1.50-2 per 1000 photos (down from $3.50-4)
-- **Gemini 2.5 Flash Image** for professional photo enhancement
-  - Replaces poor client-side Canvas enhancement
-  - Natural language instructions for brightness, clarity, sharpness, color
-  - Cost: ~$39 per 1000 enhancements
-  - Fixed RECITATION error with unique prompts and higher temperature (0.9)
-- **GPT-4o-transcribe** - Latest Whisper replacement for voice transcription
-- **Claude Sonnet 4.5** (`claude-sonnet-4-5-20250929`) - Latest for sales coaching & analysis
-- **Total AI Cost**: ~$40-41 per 1000 photos (well under budget)
-
-#### 2. **Bulk Publish Workflow with AI Confidence** ✅
-- **"AI Recommended" Button**: Auto-selects photos with 80%+ confidence score
-- **Visual Confidence Badges**:
-  - Green (80-100%): High confidence
-  - Yellow (60-79%): Medium confidence
-  - Red (0-59%): Low confidence
-  - Sparkles icon for AI-powered features
-- **Confidence Score Display**: Shows on each photo in pending review tab
-- **Database Migration**: Added `confidence_score` column to photos table
-- **Bulk Actions**: Publish, Save, Archive, Delete selected photos
-- **Selection Tools**: Select All, Deselect All, AI Recommended
-
-#### 3. **Admin Tag Management System** ✅
-- **"Manage Tags" Button**: Admin-only in photo gallery header
-- **Tag Categories**:
-  - Product Types (12 built-in + custom)
-  - Materials (7 built-in + custom)
-  - Styles (6 built-in + custom)
-- **Features**:
-  - Add new custom tags to any category
-  - View all tags (built-in vs custom with visual distinction)
-  - Delete custom tags (built-in tags protected)
-  - Duplicate detection (case-insensitive)
-  - Persistent storage via localStorage
-- **UI Design**:
-  - Modal interface with sections per category
-  - Built-in tags: Gray background, "Built-in" label
-  - Custom tags: Blue background, delete button
-  - Add tag input with green "Add" button
-  - Tag count display per category
-
-#### 4. **Photo Enhancement Integration** ✅
-- **Gemini 2.5 Flash Image API**: Professional AI photo enhancement
-- **Enhancement Features**:
-  - Brightness optimization
-  - Clarity and sharpness improvement
-  - Noise reduction
-  - Natural color saturation boost
-  - Maintains realistic look
-- **Workflow**:
-  - Enhance button in photo review modal
-  - Preview enhanced vs original (toggle)
-  - Option to publish with enhanced version
-  - Replaces original file in storage when published
-- **Fixed Issues**:
-  - RECITATION error (unique prompts + temperature 0.9)
-  - Storage upload error (switched to `.update()` method)
-  - Null check for AI response fields
-
-#### 5. **Bug Fixes & Improvements** ✅
-- **Photo Analysis**: Added null safety for `suggestedTags` field
-- **Enhanced Upload**: Fixed Supabase storage `.update()` vs `.upload()` issue
-- **Error Logging**: Detailed error messages for debugging
-- **Build Errors**: Removed unused imports (Edit2 icon)
-- **Model Compatibility**: Switched from `max_tokens` to `max_completion_tokens` for GPT-5
-
-### Files Modified in This Phase:
-1. `netlify/functions/analyze-photo.ts` - GPT-5 + confidence scoring
-2. `netlify/functions/enhance-photo.ts` - NEW: Gemini 2.5 Flash Image integration
-3. `netlify/functions/transcribe.ts` - GPT-4o-transcribe upgrade
-4. `netlify/functions/analyze-recording.ts` - Claude Sonnet 4.5 upgrade
-5. `netlify/functions/parse.ts` - Claude Sonnet 4.5 upgrade
-6. `src/components/sales/PresentationUpload.tsx` - Claude Sonnet 4.5 upgrade
-7. `src/lib/photos.ts` - Added `confidenceScore` field to Photo interface
-8. `src/components/PhotoGallery.tsx` - Bulk publish + tag management + enhancement
-9. `add-confidence-score.sql` - NEW: Database migration for confidence scoring
-10. `package.json` - Added `openai` dependency
-
-### SQL Scripts Created:
-- `add-confidence-score.sql` - Adds confidence_score column (0-100) to photos table
+**🌐 Live on Netlify** | **📊 Supabase Connected** | **🤖 All AI Integrations Active** | **🔐 Role-Based Access Control** | **📱 Progressive Web App**
 
 ---
 
-## 📦 What's Actually Been Built
+## 📦 Latest Updates (January 2025)
 
-### Core Application Stack
-✅ **React 19 + TypeScript + Vite** - Modern, fast development setup
-✅ **TailwindCSS** - Utility-first styling with mobile-first responsive design
-✅ **Supabase Integration** - Backend client configured (database schema ready)
-✅ **Netlify Functions** - Serverless backend with 8 API endpoints (added enhance-photo)
-✅ **PWA Support** - Progressive Web App with offline capabilities
-✅ **IndexedDB** - Local offline queue management
+### Phase 3: Complete Request Management System ✅ PRODUCTION
+
+#### 1. **Unified Request System with Desktop/Mobile Views** ✅
+- **Universal Navigation**: All roles see same menu, permissions enforced in components
+- **Desktop View**: Full-featured interface with sidebar navigation
+- **Mobile View**: Streamlined field-optimized interface (all roles can switch)
+- **View Toggle**: Persistent localStorage preference per user
+- **Responsive Design**: Automatic mobile detection, manual override available
+
+#### 2. **Request List with Advanced Filtering** ✅
+- **Search Bar**: Filter by customer name, project number, or title
+- **Type Filter**: Pricing, Material, Warranty, New Builder, Support
+- **Stage Filter**: New, Pending, Completed, Archived
+- **Tab System**: Active, Completed, Archived requests
+- **Real-time Updates**: Live data from Supabase with auto-refresh
+
+#### 3. **Request Detail View with Full Information** ✅
+- **Comprehensive Header**: Title, type, submitter, submission date
+- **Status Card**:
+  - Current stage with visual indicators
+  - Age tracking (hours/days with color coding)
+  - Urgency level (Critical/High/Medium/Low)
+  - Quote status (Won/Lost/Awaiting) for pricing requests
+  - **Assignee Display**: Shows who is assigned
+  - **Assignee Management**: Change button with dropdown to reassign
+- **Customer Information**: Name, address, phone, email
+- **Project Details**: Project number, fence type, linear feet, square footage
+- **Voice Recording**: Original audio playback with transcript display
+- **Messaging System**: Internal team communication with user names
+- **Add Notes**: Comment on requests with timestamp
+
+#### 4. **Assignment System** ✅
+- **Auto-Assignment**: Rules-based automatic assignment to team members
+- **Manual Assignment**: Change assignee via dropdown in request detail
+- **Assignment Rules Admin**:
+  - Create rules based on request type, urgency, and territory
+  - Set default assignees for each rule
+  - Priority ordering for multiple matching rules
+- **Unassignment**: Can set requests back to unassigned status
+- **Assignment Tracking**: Timestamps and history
+
+#### 5. **Team Communication & Collaboration** ✅
+- **Internal Messaging**: Add comments to any request
+- **User Identification**: Real names shown instead of generic labels
+- **Message History**: Full conversation thread per request
+- **Timestamps**: When each message was sent
+- **User Profiles**: Integration with user_profiles for names
+
+#### 6. **Analytics Dashboard** ✅
+- **Win Rate Tracking**: Quote won/lost/awaiting percentages
+- **Request Volume**: Total requests by type and stage
+- **Response Times**: Average time to first response
+- **Team Performance**: Assignments and completion rates
+- **Visual Charts**: Bar charts and pie charts for data visualization
+
+#### 7. **Settings Consolidation** ✅
+- **Unified Settings Page**: Merged Team + Assignment Rules
+- **Tabbed Interface**: Easy switching between settings categories
+- **Team Management**:
+  - View all team members
+  - Invite new users
+  - Change roles (admin only)
+  - Activate/deactivate users
+- **Assignment Rules**: Configure auto-assignment logic
+
+#### 8. **UI/UX Improvements** ✅
+- **Compact Sidebar**:
+  - Version moved to header (logo | version | close button)
+  - Reduced spacing between menu items
+  - Sign out button next to user profile
+  - Scrollable navigation for long menus
+- **Role Simulation**: Admins can switch between all role views
+- **Real-time Data**: All components use live Supabase data
+- **Loading States**: Spinners and skeletons for better UX
 
 ---
 
-## 🎯 Features Implemented
+## 🎯 Complete Feature List
 
-### 1. **AI-Powered Photo Gallery** ✅ FULLY FUNCTIONAL
-Complete photo management with AI tagging and enhancement:
+### 1. **Request Management System** ✅ PRODUCTION
+
+#### Request Submission (RequestHub)
+- **Voice-Enabled Forms**: Speak to fill out requests
+- **5 Request Types**:
+  - Pricing Request (custom quotes)
+  - Material Request (inventory/supplies)
+  - Warranty Request (customer issues)
+  - New Builder Request (new client onboarding)
+  - Support Request (general help)
+- **Voice Recording**: Attach audio explanation to requests
+- **AI Transcription**: GPT-4o-transcribe converts speech to text
+- **Photo Attachments**: Add job site photos to requests
+- **Customer Information**: Name, address, phone, email
+- **Project Details**: Project number, fence type, measurements
+- **Urgency Levels**: Critical, High, Medium, Low
+- **Offline Support**: Queue requests when offline
+
+#### Request List (MyRequestsView)
+- **Personal Queue**: See all your submitted requests
+- **Advanced Filters**: Search, type, stage filters
+- **Status Tabs**: Active, Completed, Archived
+- **Request Cards**:
+  - Type icon and color coding
+  - Customer name
+  - Stage badge with age indicator
+  - Quote amount for pricing requests
+- **Click to View**: Open full detail view
+- **New Request Button**: Quick access to submit new requests
+
+#### Request Detail (RequestDetail)
+- **Complete Information Display**:
+  - Request header with back button
+  - Type, submitter, submission date
+  - Status card with stage, age, urgency
+  - Quote status for pricing requests
+  - Assignee with change functionality
+  - Customer contact information
+  - Project specifications
+  - Voice recording playback
+  - Transcript view
+- **Team Communication**:
+  - Message thread
+  - Add new comments
+  - User names on all messages
+  - Timestamps
+- **Workflow Actions** (Coming):
+  - Edit request
+  - Change stage
+  - Update quote status
+
+#### Request Queue (Operations)
+- **All Requests View**: See entire company queue
+- **Advanced Filtering**:
+  - Search by customer/project/title
+  - Filter by stage
+  - Filter by type
+  - Filter by SLA status (breached/at risk/on track)
+  - Filter by assignee
+  - Filter by submitter
+- **Statistics Bar**:
+  - Total requests
+  - New requests
+  - Pending requests
+  - At risk (SLA)
+  - Breached (SLA)
+- **Assignment Management**: Quick assign from list
+- **Bulk Operations** (Coming): Multi-select actions
+
+#### Assignment Rules System
+- **Rule Configuration**:
+  - Match by request type
+  - Match by urgency
+  - Match by territory/region
+  - Set default assignee
+  - Priority ordering
+- **Auto-Assignment**: Rules apply automatically on creation
+- **Manual Override**: Can always reassign manually
+- **Rule Management**: Create, edit, delete rules
+
+### 2. **AI-Powered Photo Gallery** ✅ PRODUCTION
 
 #### Photo Upload & Analysis
 - **Drag & Drop Upload**: Multiple photos with progress tracking
@@ -124,7 +179,7 @@ Complete photo management with AI tagging and enhancement:
 - **Image Optimization**: Auto-resize to 1920px + 300px thumbnails
 - **Storage**: Supabase Storage with organized folder structure
 
-#### Photo Enhancement (NEW)
+#### Photo Enhancement
 - **Gemini 2.5 Flash Image**: Professional AI enhancement
 - **Enhancement Features**:
   - Brightness & clarity optimization
@@ -147,31 +202,16 @@ Complete photo management with AI tagging and enhancement:
 - **Tag Operations**: Add, view, delete custom tags
 - **Persistence**: localStorage for custom tags
 
-#### Filtering & Search
-- **Advanced Filters**: Product type, material, style
-- **Multi-Tab View**: Gallery, Pending, Saved, Archived
-- **Confidence Badges**: Visual indicators for AI confidence
-- **Role-Based Access**: Different views for sales/manager/admin
+### 3. **AI-Powered Sales Coach** ✅ PRODUCTION
 
-#### Review Workflow
-- **Review Queue**: Manager/admin photo approval
-- **Tag Editing**: Modify AI-suggested tags
-- **Quality Scoring**: Rate photos 1-10
-- **Review Notes**: Add comments
-- **Enhancement Preview**: Compare original vs enhanced
-- **Publish/Save/Archive**: Workflow actions
-
-### 2. **AI-Powered Sales Coach** ✅ FULLY FUNCTIONAL
-The centerpiece feature - a complete AI-powered sales coaching system:
-
-#### Sales Rep Interface (`SalesCoach.tsx`)
-- **Voice Recording**: Full MediaRecorder API implementation with real-time timer
-- **Offline Queue**: IndexedDB-based queue for recordings when offline
+#### Sales Rep Interface
+- **Voice Recording**: Full MediaRecorder API with real-time timer
+- **Offline Queue**: IndexedDB-based queue when offline
 - **Three Main Tabs**:
-  - **Record**: Capture sales calls with client name & date tracking
+  - **Record**: Capture sales calls with client name & date
   - **Recordings**: View history with detailed analysis
   - **Leaderboard**: Team rankings (week/month/all-time)
-- **Recording Analysis Display**:
+- **Analysis Display**:
   - Overall score with visual indicators
   - Process step completion tracking
   - Talk/listen ratio metrics
@@ -181,11 +221,8 @@ The centerpiece feature - a complete AI-powered sales coaching system:
   - Sentiment analysis (overall, client, rep)
   - Emotional highs/lows tracking
   - Empathy moments identification
-  - Manager review integration
-- **User Stats Dashboard**: Total recordings, average score, completion rate, improvement tracking
-- **Online/Offline Mode**: Visual indicators and automatic queue syncing
 
-#### Admin Interface (`SalesCoachAdmin.tsx`)
+#### Admin Interface
 - **Sales Process Management**:
   - Create/edit custom sales processes
   - Define process steps with key behaviors
@@ -196,167 +233,189 @@ The centerpiece feature - a complete AI-powered sales coaching system:
   - Common objections & responses
   - Best practices library
   - Industry context
-- **Recording Management**:
-  - View all team recordings
-  - Delete individual recordings
-  - Bulk management capabilities
 
-#### Backend Infrastructure (Netlify Functions)
-- `upload-recording.ts` - Handles audio file uploads
-- `start-transcription.ts` - Initiates transcription jobs
-- `check-transcription.ts` - Polls transcription status
-- `transcribe-recording.ts` - Full transcription workflow
-- `analyze-recording.ts` - **AI analysis using Claude Sonnet 4.5**
-- `transcribe.ts` - **GPT-4o-transcribe** (latest Whisper)
-- `parse.ts` - Claude-powered transcript parsing
-- `analyze-photo.ts` - **GPT-5** photo analysis with confidence scoring
-- `enhance-photo.ts` - **Gemini 2.5 Flash Image** photo enhancement
+### 4. **Team Management & Collaboration** ✅ PRODUCTION
 
-### 3. **Pre-Stain ROI Calculator** ✅ FULLY FUNCTIONAL
-(`StainCalculator.tsx`)
-- Dynamic cost calculator with real-time updates
-- DIY vs Pre-stained comparison
-- Advanced settings panel (labor rates, stain costs, markups)
-- Professional benefits breakdown
-- Mobile-responsive design
-- Time savings calculations
+#### User Management
+- **Team List**: View all team members with search
+- **Invite System**: Email-based invitations with unique tokens
+- **Role Management**: Change user roles (sales/operations/sales-manager/admin)
+- **Activate/Deactivate**: Control user access
+- **Profile Display**: Real names, roles, last login
 
-### 4. **Multi-Role Interface** ✅ COMPLETE
-Role-based navigation with localStorage persistence:
+#### Communication
+- **Request Messaging**: Internal team chat per request
+- **User Identification**: Real names on all messages
+- **Mentions** (Coming): @mention team members
+- **Notifications** (Coming): Email/push notifications
 
-#### Sales Rep View (Mobile-First)
-- Home dashboard with 5 request type buttons
-- Voice-enabled custom pricing requests
-- Pre-stain calculator access
-- Sales coach interface
-- Client presentation viewer
-- Photo gallery with AI tagging
-- No sidebar - clean mobile UX
+### 5. **Analytics Dashboard** ✅ PRODUCTION
 
-#### Operations View
-- Dashboard
-- Request queue
-- Analytics
-- Team management
+#### Request Analytics
+- **Win Rate**: Quote success percentage
+- **Request Volume**: By type, stage, time period
+- **Response Times**: Average time to first response
+- **Team Performance**: By assignee
+- **SLA Compliance**: On-time completion rates
 
-#### Manager View
-- Manager dashboard
-- Sales coach access (view only)
-- Team performance metrics
-- Analytics
-- Photo review queue
+#### Visual Charts
+- **Bar Charts**: Request volume over time
+- **Pie Charts**: Request type distribution
+- **Line Graphs**: Trends and patterns
+- **Heatmaps**: Busiest times/days
 
-#### Admin View
-- Full dashboard access
-- Request queue management
-- Analytics
-- Team management
-- **Sales Coach Admin** - Full process & knowledge base configuration
-- **Photo Tag Management** - Add/edit/delete tags
-- **Photo Review Queue** - Approve/reject photos with enhancement
+### 6. **Authentication & Authorization** ✅ PRODUCTION
 
-### 5. **Authentication System** ✅ FULLY FUNCTIONAL
-(`AuthContext.tsx`, `Login.tsx`, `Signup.tsx`)
-- **Supabase Auth Integration**: Complete email/password authentication
-- **User Profiles**: Extended auth.users with custom user_profiles table
-- **Phone Number Collection**: Optional phone field during signup
-- **Email Verification**: Confirmation email with verification flow
-- **Protected Routes**: Login screen for unauthenticated users
-- **Role-Based Access**: 4 roles (sales, operations, sales-manager, admin)
-- **Profile Management**: Update user profiles and track activity
-- **Sign Out**: Full session management
-- **Development Bypass**: Optional localStorage bypass for testing
-- **Auto-create Profiles**: Database trigger creates profile on signup
-- **Last Login Tracking**: Automatic timestamp updates
-- **User Display**: Real name and role shown in sidebar
-- **Admin Role Toggle**: Admins can switch between all role views
+#### Supabase Auth Integration
+- **Email/Password**: Standard authentication
+- **Email Verification**: Confirmation flow
+- **Password Reset**: Self-service recovery
+- **Session Management**: Secure token handling
+- **Protected Routes**: Login required for all features
 
-### 6. **Team Management** ✅ FULLY FUNCTIONAL
-(`TeamManagement.tsx`)
-- **User List**: View all team members with search and filter
-- **Invite Users**: Email-based invitation system with unique tokens
-- **User Management** (Admin Only):
-  - Change user roles (inline dropdown)
-  - Activate/deactivate users (toggle button)
-  - Cannot modify own role or status (safety)
-- **Permissions**:
-  - Sales/Operations: No access
-  - Sales Manager: View team + send invitations
-  - Admin: Full access
+#### Role-Based Access Control (RBAC)
+- **4 Roles**: Sales, Operations, Sales Manager, Admin
+- **Permission System**: Role-based feature access
+- **Role Simulation**: Admins can switch between role views
+- **Profile Management**: Update user information
 
-### 7. **Sales Resources Library** ✅ FULLY FUNCTIONAL
-(`SalesResources.tsx`)
-- **Folder-Based Organization**: Colorful gradient folders with patterns
-- **File Management**:
-  - Upload files (PDF, PPT, PPTX, Images, Videos) up to 20MB
-  - Duplicate filename detection with archive-and-replace
-  - File rename (preserves extension)
-  - File descriptions (200 char max)
-  - View files inline (PDFs)
-  - Archive/restore files
+### 7. **Sales Resources Library** ✅ PRODUCTION
+
+#### File Management
+- **Upload Files**: PDF, PPT, PPTX, Images, Videos up to 20MB
+- **Folder Organization**: Colorful folders with patterns
+- **File Operations**:
+  - Rename files
+  - Add descriptions
+  - Archive/restore
   - Favorite files (per-user)
   - View count tracking
-- **Search & Filter**: By filename and file type
-- **Archived Files Section** (Admin Only)
-- **Storage**: Supabase Storage bucket `sales-resources`
+- **Search & Filter**: By filename and type
+- **Inline Viewing**: PDF preview
+
+### 8. **Pre-Stain ROI Calculator** ✅ PRODUCTION
+
+#### Calculator Features
+- **Dynamic Cost Calculation**: Real-time updates
+- **DIY vs Pre-stained Comparison**
+- **Advanced Settings**: Labor rates, stain costs, markups
+- **Professional Benefits**: Time savings breakdown
+- **Mobile-Responsive Design**
+
+### 9. **Client Presentation Viewer** ✅ PRODUCTION
+
+#### Presentation Features
+- **PDF Viewer**: Full-screen presentation mode
+- **Upload System**: Store client presentations
+- **Version Management**: Multiple versions per client
+- **Access Control**: Role-based viewing
 
 ---
 
-## 🏗️ Project Structure
+## 🏗️ Complete Project Structure
 
 ```
 discount-fence-hub/
 ├── src/
 │   ├── components/
 │   │   ├── auth/
-│   │   │   ├── Login.tsx               ✅ Login screen
-│   │   │   └── Signup.tsx              ✅ Self-service signup
+│   │   │   ├── Login.tsx                    ✅ Login screen
+│   │   │   └── Signup.tsx                   ✅ Self-service signup
+│   │   ├── requests/
+│   │   │   ├── RequestHub.tsx               ✅ Submit new requests
+│   │   │   ├── RequestList.tsx              ✅ Personal request queue
+│   │   │   ├── RequestDetail.tsx            ✅ Full request view
+│   │   │   ├── MyRequestsView.tsx           ✅ My requests container
+│   │   │   └── RequestCard.tsx              ✅ Request card component
+│   │   ├── operations/
+│   │   │   └── RequestQueue.tsx             ✅ Operations queue
+│   │   ├── admin/
+│   │   │   └── AssignmentRules.tsx          ✅ Assignment rule config
 │   │   ├── sales/
-│   │   │   ├── SalesCoach.tsx          ✅ Full sales coaching interface
-│   │   │   ├── SalesCoachAdmin.tsx     ✅ Admin configuration panel
-│   │   │   └── StainCalculator.tsx     ✅ ROI calculator
-│   │   ├── PhotoGallery.tsx            ✅ Photo gallery with AI (ENHANCED)
-│   │   ├── PhotoReviewQueue.tsx        ✅ Manager photo review
-│   │   ├── SalesResources.tsx          ✅ Sales resources library
-│   │   ├── TeamManagement.tsx          ✅ Team & user management
-│   │   └── InstallAppBanner.tsx        ✅ PWA install prompt
+│   │   │   ├── SalesCoach.tsx               ✅ Sales coaching interface
+│   │   │   ├── SalesCoachAdmin.tsx          ✅ Admin configuration
+│   │   │   └── StainCalculator.tsx          ✅ ROI calculator
+│   │   ├── PhotoGallery.tsx                 ✅ Photo gallery with AI
+│   │   ├── Analytics.tsx                    ✅ Analytics dashboard
+│   │   ├── TeamManagement.tsx               ✅ Team & user management
+│   │   ├── Settings.tsx                     ✅ Unified settings page
+│   │   ├── Dashboard.tsx                    ✅ Main dashboard
+│   │   └── InstallAppBanner.tsx             ✅ PWA install prompt
 │   ├── contexts/
-│   │   └── AuthContext.tsx             ✅ Authentication context
+│   │   └── AuthContext.tsx                  ✅ Authentication context
+│   ├── hooks/
+│   │   └── useRequests.ts                   ✅ Request management hooks
 │   ├── lib/
-│   │   ├── supabase.ts                 ✅ Supabase client
-│   │   ├── openai.ts                   ✅ Whisper transcription
-│   │   ├── claude.ts                   ✅ Claude parsing
-│   │   ├── recordings.ts               ✅ Recording management API
-│   │   ├── offlineQueue.ts             ✅ IndexedDB offline queue
-│   │   └── photos.ts                   ✅ Photo utilities (UPDATED)
-│   ├── App.tsx                         ✅ Main app with role-based routing
-│   ├── main.tsx                        ✅ Entry point with AuthProvider
-│   └── index.css                       ✅ TailwindCSS
+│   │   ├── supabase.ts                      ✅ Supabase client
+│   │   ├── requests.ts                      ✅ Request API functions
+│   │   ├── recordings.ts                    ✅ Recording management
+│   │   ├── photos.ts                        ✅ Photo utilities
+│   │   └── offlineQueue.ts                  ✅ IndexedDB queue
+│   ├── types.ts                             ✅ TypeScript type definitions
+│   ├── App.tsx                              ✅ Main app with routing
+│   ├── main.tsx                             ✅ Entry point
+│   └── index.css                            ✅ TailwindCSS styles
 ├── netlify/functions/
-│   ├── upload-recording.ts             ✅ File upload handler
-│   ├── start-transcription.ts          ✅ Transcription job starter
-│   ├── check-transcription.ts          ✅ Status checker
-│   ├── transcribe-recording.ts         ✅ Full transcription flow
-│   ├── analyze-recording.ts            ✅ Claude Sonnet 4.5 analysis
-│   ├── transcribe.ts                   ✅ GPT-4o-transcribe
-│   ├── parse.ts                        ✅ Claude Sonnet 4.5 parsing
-│   ├── analyze-photo.ts                ✅ GPT-5 photo tagging (UPDATED)
-│   └── enhance-photo.ts                ✅ Gemini 2.5 enhancement (NEW)
-├── public/                             📁 Logos and assets
+│   ├── upload-recording.ts                  ✅ Audio upload handler
+│   ├── transcribe.ts                        ✅ GPT-4o-transcribe
+│   ├── analyze-recording.ts                 ✅ Claude Sonnet 4.5 analysis
+│   ├── parse.ts                             ✅ Claude parsing
+│   ├── analyze-photo.ts                     ✅ GPT-5 photo tagging
+│   └── enhance-photo.ts                     ✅ Gemini 2.5 enhancement
+├── public/                                  📁 Logos and assets
 ├── SQL scripts/
-│   ├── supabase-schema.sql             ✅ Complete database schema
-│   ├── create-auth-tables.sql          ✅ Auth & user profiles
-│   ├── disable-user-profiles-rls.sql   ✅ Fix RLS recursion
-│   ├── add-file-description.sql        ✅ Add description column
-│   ├── add-confidence-score.sql        ✅ Add confidence scoring (NEW)
-│   └── fix-storage-content-disposition.sql ✅ Storage bucket config
-├── vite.config.ts                      ✅ Vite + PWA config
-├── netlify.toml                        ✅ Deployment config
-├── DEPLOY.md                           ✅ Deployment guide
-├── README.md                           ✅ Documentation
-├── PROJECT_SUMMARY.md                  ✅ This file
-└── package.json                        ✅ Dependencies
+│   ├── supabase-schema.sql                  ✅ Complete database schema
+│   ├── create-auth-tables.sql               ✅ Auth & user profiles
+│   ├── add-confidence-score.sql             ✅ Photo confidence scoring
+│   └── fix-storage-content-disposition.sql  ✅ Storage config
+└── PROJECT_SUMMARY.md                       ✅ This file
 ```
+
+---
+
+## 📊 Database Schema (Supabase)
+
+### Core Tables:
+1. **`requests`** - All request types with full details
+2. **`request_notes`** - Internal team messages per request
+3. **`request_activity`** - Audit trail for all request changes
+4. **`assignment_rules`** - Auto-assignment configuration
+5. **`user_profiles`** - Extended user data with roles
+6. **`user_invitations`** - Team invitation system
+7. **`photos`** - Photo gallery with AI tags & scores
+8. **`sales_resources_files`** - Sales library files
+9. **`sales_resources_folders`** - Folder organization
+10. **`sales_resources_favorites`** - User favorites
+11. **`presentations`** - Client presentation files
+12. **`roi_calculations`** - Calculator usage tracking
+
+### Storage Buckets:
+- `voice-recordings` - Audio files from requests
+- `photos` - Job site images with AI enhancements
+- `presentations` - Client files
+- `sales-resources` - Sales library files
+
+---
+
+## 🚀 Current Development Priorities
+
+### HIGH PRIORITY (In Progress):
+1. **Request Editing** - Edit request details after submission
+2. **Activity Timeline** - Visual timeline of all request changes
+3. **Stage Management** - Change request stages with workflow buttons
+4. **Statistics Dashboard** - Add stats to My Requests view
+
+### MEDIUM PRIORITY (Planned):
+5. **Missing Filters** - Add assignee, submitter, SLA filters to RequestList
+6. **Quote Status Management** - Update quote status (Won/Lost/Awaiting)
+7. **Audio Playback** - Play original voice recordings in RequestDetail
+8. **Right Sidebar** - Desktop layout with photo/file preview panel
+
+### Analytics Strategy Decision:
+**Question**: Should Analytics be the unified hub for all metrics (Requests, Photos, AI Coach, App Usage)?
+- **Option A**: Unified Analytics Dashboard - One place for all metrics
+- **Option B**: Distributed Analytics - Each section has its own analytics
+- **Recommendation**: Unified dashboard with drill-down into specific areas
 
 ---
 
@@ -364,226 +423,36 @@ discount-fence-hub/
 
 ### Frontend
 - **React 19** with TypeScript
-- **Vite 7** for lightning-fast builds
+- **Vite 7** for fast builds
 - **TailwindCSS 3** for styling
 - **Lucide React** for icons
-- **MediaRecorder API** for voice capture
 - **IndexedDB** for offline storage
 
 ### Backend & APIs
-- **Supabase** - PostgreSQL database, Auth, Storage
+- **Supabase** - PostgreSQL, Auth, Storage, Realtime
 - **Netlify Functions** - Serverless API endpoints
-- **OpenAI GPT-5** - Latest vision model for photo analysis
-- **Google Gemini 2.5 Flash Image** - Professional photo enhancement
-- **OpenAI GPT-4o-transcribe** - Latest voice transcription
+- **OpenAI GPT-5** - Photo analysis
+- **Google Gemini 2.5 Flash** - Photo enhancement
+- **OpenAI GPT-4o-transcribe** - Voice transcription
 - **Anthropic Claude Sonnet 4.5** - AI analysis & parsing
 
 ### Infrastructure
-- **Netlify** - Hosting & serverless functions
-- **PWA** - Progressive Web App with service workers
-- **IndexedDB** - Offline data persistence
+- **Netlify** - Hosting & deployment
+- **PWA** - Service workers & offline support
 - **Node 20** - Runtime environment
-
----
-
-## 📊 Database Schema (Supabase)
-
-### Database Tables:
-**Core Schema** (`supabase-schema.sql`):
-1. **`sales_reps`** - User profiles, territories, metrics
-2. **`requests`** - All request types with polymorphic data
-3. **`presentations`** - Client presentation files
-4. **`roi_calculations`** - Calculator usage tracking
-5. **`activity_log`** - Audit trail for all actions
-6. **`photos`** - Photo gallery with AI tags & confidence scores
-
-**Authentication** (`create-auth-tables.sql`):
-7. **`user_profiles`** - Extended user data (full_name, role, phone, is_active, last_login)
-8. **`user_invitations`** - Invitation system (email, role, token, expires_at, is_used)
-
-**Sales Resources**:
-9. **`sales_resources_folders`** - Folder organization
-10. **`sales_resources_files`** - Files with descriptions, view counts
-11. **`sales_resources_favorites`** - User favorites (many-to-many)
-12. **`sales_resources_views`** - View tracking
-
-### Features:
-- ✅ Row Level Security (RLS) policies (disabled on user_profiles to fix recursion)
-- ✅ Performance indexes
-- ✅ Trigger functions for auto-timestamps and profile creation
-- ✅ Foreign key constraints
-- ✅ Role-based access control (4 roles: sales, operations, sales-manager, admin)
-
-### Storage Buckets:
-- `voice-recordings` - Audio files
-- `photos` - Job site images with AI tags & enhancements
-- `presentations` - Client files
-- `sales-resources` - Sales library files
-
----
-
-## 🛣️ Roadmap & Next Steps
-
-### ✅ COMPLETED PHASES
-
-#### Phase 1: Production Deployment ✅
-- [x] Deploy to Netlify
-- [x] Connect Supabase database
-- [x] Configure storage buckets
-- [x] Add environment variables
-- [x] Test end-to-end flows
-
-#### Phase 2: Photo Gallery Enhancement ✅
-- [x] AI-powered photo auto-tagging (GPT-5)
-- [x] Advanced filtering
-- [x] Full-screen viewer
-- [x] Desktop review queue
-- [x] Image optimization
-
-#### Phase 2B: Advanced Photo Features ✅ (JUST COMPLETED)
-- [x] **AI Model Upgrades**: GPT-5, Gemini 2.5, Claude Sonnet 4.5, GPT-4o-transcribe
-- [x] **Photo Enhancement**: Gemini 2.5 Flash Image professional enhancement
-- [x] **Bulk Publish Workflow**: AI confidence scoring + "AI Recommended" button
-- [x] **Admin Tag Management**: Add/edit/delete custom tags
-- [x] **Confidence Badges**: Visual indicators (green/yellow/red)
-- [x] **Database Migration**: confidence_score column added
-
-#### Phase 3: Authentication & User Management ✅
-- [x] Supabase Auth integration
-- [x] User profiles with roles
-- [x] Login/Signup screens
-- [x] Protected routes
-- [x] Team management
-
-#### Phase 4: Sales Resources Library ✅
-- [x] Folder-based organization
-- [x] File upload & management
-- [x] Search and filter
-- [x] Archive/restore/delete
-
----
-
-### 🚀 NEXT STEPS & REMAINING WORK
-
-#### Immediate Next Steps (Priority Order):
-
-1. **Test Photo Enhancement in Production** 🔴 URGENT
-   - Deploy completed, needs user testing
-   - Verify Gemini 2.5 enhancement quality
-   - Test publish with enhanced version
-   - Confirm storage update works correctly
-   - **Expected**: Professional photo enhancement working end-to-end
-
-2. **Test Bulk Publish Workflow** 🟡 HIGH PRIORITY
-   - Test "AI Recommended" button (80%+ confidence)
-   - Verify confidence badges display correctly
-   - Test bulk actions (publish, save, archive)
-   - Confirm all selected photos process correctly
-   - **Expected**: Efficient workflow for publishing multiple photos
-
-3. **Test Admin Tag Management** 🟡 HIGH PRIORITY
-   - Add custom tags to each category
-   - Verify duplicate detection works
-   - Test tag deletion (custom only)
-   - Confirm tags persist in localStorage
-   - **Expected**: Admins can expand tag library without code changes
-
-4. **Fix Minor Issues** 🟢 MEDIUM PRIORITY
-   - Investigate publish error if it persists (better logging added)
-   - Fix "Unknown user" display (use actual auth context)
-   - Remove 406 errors for user_unread_messages table
-   - Add proper error handling throughout
-
-#### Phase 5: Data Persistence & Sync (Next Major Phase)
-- [ ] Replace localStorage with Supabase for recordings
-- [ ] Real-time sync for recordings across devices
-- [ ] Team data aggregation from database
-- [ ] Sync custom tags to database (currently localStorage)
-- [ ] Enable RLS policies with proper non-recursive rules
-
-#### Phase 6: Enhanced Features
-- [ ] Real-time notifications (Supabase Realtime)
-- [ ] PDF presentation viewer
-- [ ] Export reports to PDF
-- [ ] Advanced analytics dashboard
-- [ ] Team chat/messaging
-- [ ] Email automation for invitations (Netlify function)
-
-#### Phase 7: Mobile & Performance
-- [ ] Native mobile app (React Native)
-- [ ] Background sync
-- [ ] Push notifications
-- [ ] Performance optimizations
-- [ ] Code splitting
-
----
-
-## 🐛 Known Issues & Limitations
-
-### Current Limitations:
-1. **Custom Tags**: Stored in localStorage (should migrate to Supabase)
-2. **Recordings**: Use localStorage - need to migrate to Supabase
-3. **Real-time Sync**: Recordings don't sync across devices yet
-4. **RLS Policies**: user_profiles table has RLS disabled
-5. **Email Automation**: Invitations show link in alert (need Netlify function)
-
-### What's Working (No Issues):
-✅ **Authentication** - Full Supabase Auth
-✅ **Photo Gallery** - Complete with AI tagging & enhancement
-✅ **Photo Enhancement** - Gemini 2.5 working
-✅ **Bulk Publishing** - Confidence-based workflow
-✅ **Tag Management** - Add/edit/delete custom tags
-✅ **Sales Resources** - Complete file library
-✅ **Voice transcription** - GPT-4o-transcribe operational
-✅ **AI analysis** - Claude Sonnet 4.5 delivering feedback
-✅ **Offline recording** - IndexedDB queue working
-✅ **PWA installation** - Service workers active
-✅ **Netlify Deployment** - Live with CI/CD
 
 ---
 
 ## 📈 Project Statistics
 
-- **Total Lines of Code**: ~20,000+
-- **React Components**: 17+ major components
-- **Contexts**: 1 (AuthContext)
-- **Netlify Functions**: 8 serverless endpoints (added enhance-photo)
+- **Total Lines of Code**: ~25,000+
+- **React Components**: 25+ major components
+- **Netlify Functions**: 6 serverless endpoints
 - **Database Tables**: 12 tables
 - **Storage Buckets**: 4 configured
-- **API Integrations**: 6 (Supabase, OpenAI GPT-5, GPT-4o, Gemini 2.5, Claude Sonnet 4.5, AssemblyAI)
-- **AI Models**: 4 latest 2025 models
+- **API Integrations**: 5 AI models + Supabase
 - **Deployment**: ✅ Live on Netlify
-
----
-
-## 🎓 Key Innovations
-
-1. **Offline-First Sales Coaching**: Record sales calls without internet
-2. **AI-Powered Analysis**: Claude Sonnet 4.5 for detailed feedback
-3. **Professional Photo Enhancement**: Gemini 2.5 Flash Image AI
-4. **AI Confidence Scoring**: 0-100 confidence for bulk publishing
-5. **Smart Bulk Publishing**: "AI Recommended" auto-selection
-6. **Custom Tag Management**: Admins expand tag library without code
-7. **Latest 2025 AI Models**: GPT-5, Gemini 2.5, Claude Sonnet 4.5, GPT-4o
-8. **Multi-Role Architecture**: Sales, operations, manager, admin
-9. **Self-Service Authentication**: Email/password with verification
-10. **Sales Resources Library**: Organized file storage with AI
-11. **PWA Installation**: Smart install prompts
-12. **Cost Optimization**: ~$40 per 1000 photos (well under budget)
-
----
-
-## 🔑 Key Files Reference
-
-| File | Purpose | Status |
-|------|---------|--------|
-| `src/components/PhotoGallery.tsx` | Photo gallery UI + enhancement + tags | ✅ Enhanced |
-| `netlify/functions/analyze-photo.ts` | GPT-5 photo tagging | ✅ Updated |
-| `netlify/functions/enhance-photo.ts` | Gemini 2.5 enhancement | ✅ NEW |
-| `netlify/functions/analyze-recording.ts` | Claude Sonnet 4.5 analysis | ✅ Updated |
-| `netlify/functions/transcribe.ts` | GPT-4o-transcribe | ✅ Updated |
-| `add-confidence-score.sql` | Confidence scoring migration | ✅ NEW |
-| `src/lib/photos.ts` | Photo utilities + confidenceScore | ✅ Updated |
+- **Users**: Sales, Operations, Managers, Admins
 
 ---
 
@@ -594,7 +463,7 @@ VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_ANTHROPIC_API_KEY=your_claude_api_key
 VITE_OPENAI_API_KEY=your_openai_key
-VITE_GOOGLE_API_KEY=your_google_api_key (for Gemini)
+VITE_GOOGLE_API_KEY=your_google_api_key
 ```
 
 ---
@@ -604,10 +473,12 @@ VITE_GOOGLE_API_KEY=your_google_api_key (for Gemini)
 - **Developer**: GiacomoIaco
 - **Company**: Discount Fence USA
 - **Started**: October 2024
-- **Status**: Active Development - Phase 2B Complete
+- **Current Phase**: Phase 3 - Request Management ✅ Complete
+- **Next Phase**: Phase 4 - Advanced Features & Analytics
+- **Status**: Active Development
 - **License**: Proprietary
 
 ---
 
 **Built with ❤️ for Discount Fence USA**
-*Powered by React, TypeScript, GPT-5, Gemini 2.5, Claude Sonnet 4.5, and modern web technologies*
+*Powered by React, TypeScript, Supabase, and cutting-edge AI*
