@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, DollarSign, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { showError } from '../../lib/toast';
 
 interface StainCalculatorProps {
   onBack: () => void;
@@ -129,7 +130,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
     for (const file of files) {
       // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert(`${file.name} is too large. Please use files under 5MB.`);
+        showError(`${file.name} is too large. Please use files under 5MB.`);
         continue;
       }
 
@@ -176,7 +177,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
 
       } catch (error: any) {
         console.error('Error uploading file:', error);
-        alert(`Failed to upload ${file.name}: ${error.message}`);
+        showError(`Failed to upload ${file.name}: ${error.message}`);
       }
     }
 
@@ -263,7 +264,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
 
     } catch (error: any) {
       console.error('Error deleting media:', error);
-      alert(`Failed to delete image: ${error.message}`);
+      showError(`Failed to delete image: ${error.message}`);
     }
   };
 

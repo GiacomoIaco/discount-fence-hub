@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic } from 'lucide-react';
 import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getRecordings, deleteRecording, type SalesProcess, type KnowledgeBase, type Recording } from '../../lib/recordings';
+import { showSuccess } from '../../lib/toast';
 
 interface SalesCoachAdminProps {
   onBack: () => void;
@@ -71,19 +72,19 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
     saveSalesProcess(selectedProcess);
     loadProcesses();
     setEditingProcess(false);
-    alert('Process saved successfully!');
+    showSuccess('Process saved successfully!');
   };
 
   const deleteProcess = (id: string) => {
     // Prevent deleting default process
     if (id === 'standard') {
-      alert('Cannot delete the default sales process');
+      showSuccess('Cannot delete the default sales process');
       return;
     }
 
     // Only admin can delete
     if (userRole !== 'admin') {
-      alert('Only admins can delete sales processes');
+      showSuccess('Only admins can delete sales processes');
       return;
     }
 
@@ -148,7 +149,7 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
 
   const saveKnowledgeBaseChanges = () => {
     saveKnowledgeBase(knowledgeBase);
-    alert('Knowledge base saved successfully!');
+    showSuccess('Knowledge base saved successfully!');
   };
 
   const addArrayItem = (field: 'products' | 'commonObjections' | 'bestPractices', value: string) => {

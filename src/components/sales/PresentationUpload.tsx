@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
+import { showError } from '../../lib/toast';
 
 // Set up PDF.js worker - using local worker from node_modules
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -49,7 +50,7 @@ export default function PresentationUpload({ onBack, onUploadComplete }: Present
         setPresentationName(file.name.replace('.pdf', ''));
       }
     } else {
-      alert('Please select a PDF file');
+      showError('Please select a PDF file');
     }
   };
 
@@ -58,7 +59,7 @@ export default function PresentationUpload({ onBack, onUploadComplete }: Present
     if (file && (file.type === 'application/pdf' || file.name.endsWith('.docx') || file.name.endsWith('.doc'))) {
       setTalkingPointsFile(file);
     } else {
-      alert('Please select a PDF or Word document');
+      showError('Please select a PDF or Word document');
     }
   };
 
@@ -225,7 +226,7 @@ Make sure every slide (1-${slideTexts.length}) is included. If no talking points
       setStep('review');
     } catch (error: any) {
       console.error('Processing error:', error);
-      alert(`Error processing files: ${error.message}`);
+      showError(`Error processing files: ${error.message}`);
       setStep('upload');
     }
   };
@@ -314,7 +315,7 @@ Make sure every slide (1-${slideTexts.length}) is included. If no talking points
       onUploadComplete();
     } catch (error: any) {
       console.error('Upload error:', error);
-      alert(`Upload failed: ${error.message}`);
+      showError(`Upload failed: ${error.message}`);
     } finally {
       setUploading(false);
     }

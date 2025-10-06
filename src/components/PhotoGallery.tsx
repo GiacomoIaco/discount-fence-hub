@@ -34,6 +34,7 @@ import {
   isSelectedInSession,
 } from '../lib/photos';
 import { supabase } from '../lib/supabase';
+import { showError, showSuccess, showWarning } from '../lib/toast';
 
 interface PhotoGalleryProps {
   onBack: () => void;
@@ -430,7 +431,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
           if (error) {
             console.error('Database insert error:', error);
-            alert(`DB Error: ${error.message || JSON.stringify(error)}`);
+            showError(`DB Error: ${error.message || JSON.stringify(error)}`);
             throw error;
           }
 
@@ -453,7 +454,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       }
     } catch (error) {
       console.error('Error uploading photos:', error);
-      alert('Failed to upload photos. Please try again.');
+      showError('Failed to upload photos. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -680,7 +681,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     } catch (error) {
       console.error('Error publishing photo:', error);
       const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
-      alert(`Failed to publish photo: ${errorMsg}`);
+      showError(`Failed to publish photo: ${errorMsg}`);
     } finally {
       setReviewLoading(false);
     }
@@ -712,7 +713,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       closeReviewModal();
     } catch (error) {
       console.error('Error saving draft:', error);
-      alert('Failed to save draft. Please try again.');
+      showError('Failed to save draft. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -744,7 +745,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       closeReviewModal();
     } catch (error) {
       console.error('Error saving photo:', error);
-      alert('Failed to save photo. Please try again.');
+      showError('Failed to save photo. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -776,7 +777,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       closeReviewModal();
     } catch (error) {
       console.error('Error updating photo:', error);
-      alert('Failed to update photo. Please try again.');
+      showError('Failed to update photo. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -807,7 +808,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       closeReviewModal();
     } catch (error) {
       console.error('Error archiving photo:', error);
-      alert('Failed to archive photo. Please try again.');
+      showError('Failed to archive photo. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -863,7 +864,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       console.log('✅ Photo enhanced with Gemini 2.5 Flash Image');
     } catch (error) {
       console.error('❌ Auto-enhance failed:', error);
-      alert(`Failed to enhance photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showError(`Failed to enhance photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsEnhancing(false);
     }
@@ -893,10 +894,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       // Remove from photos list and close modal
       setPhotos((prev) => prev.filter((p) => p.id !== reviewingPhoto.id));
       setReviewingPhoto(null);
-      alert('Photo permanently deleted.');
+      showSuccess('Photo permanently deleted.');
     } catch (error) {
       console.error('Error deleting photo:', error);
-      alert('Failed to delete photo. Please try again.');
+      showError('Failed to delete photo. Please try again.');
     } finally {
       setReviewLoading(false);
     }
@@ -946,7 +947,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     const allTags = getAllTags();
     // Check if tag already exists (case-insensitive)
     if (allTags[category].some(t => t.toLowerCase() === trimmed.toLowerCase())) {
-      alert('This tag already exists!');
+      showWarning('This tag already exists!');
       return;
     }
 
@@ -965,7 +966,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       await loadCustomTags();
     } catch (e) {
       console.error('Error adding custom tag:', e);
-      alert('Failed to add tag. Please try again.');
+      showError('Failed to add tag. Please try again.');
     }
   };
 
@@ -983,7 +984,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       await loadCustomTags();
     } catch (e) {
       console.error('Error deleting custom tag:', e);
-      alert('Failed to delete tag. Please try again.');
+      showError('Failed to delete tag. Please try again.');
     }
   };
 
@@ -1012,22 +1013,22 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
       if (error) throw error;
 
-      alert('Photo flagged for review successfully!');
+      showSuccess('Photo flagged for review successfully!');
       setShowFlagModal(false);
       setFlaggingPhoto(null);
     } catch (e: any) {
       console.error('Error flagging photo:', e);
       if (e.code === '23505') {
-        alert('You have already flagged this photo for review.');
+        showWarning('You have already flagged this photo for review.');
       } else {
-        alert('Failed to flag photo. Please try again.');
+        showError('Failed to flag photo. Please try again.');
       }
     }
   };
 
   const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'saved') => {
     if (selectedPhotoIds.size === 0) {
-      alert('No photos selected');
+      showWarning('No photos selected');
       return;
     }
 
@@ -1057,16 +1058,16 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       await loadPhotos();
       setSelectedPhotoIds(new Set());
       setEditMode(false);
-      alert(`Successfully moved ${selectedPhotoIds.size} photo(s) to ${statusLabel}`);
+      showSuccess(`Successfully moved ${selectedPhotoIds.size} photo(s) to ${statusLabel}`);
     } catch (error) {
       console.error('Error updating photos:', error);
-      alert('Failed to update photos. Please try again.');
+      showError('Failed to update photos. Please try again.');
     }
   };
 
   const handleBulkDelete = async () => {
     if (selectedPhotoIds.size === 0) {
-      alert('No photos selected');
+      showWarning('No photos selected');
       return;
     }
 
@@ -1088,16 +1089,16 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       await loadPhotos();
       setSelectedPhotoIds(new Set());
       setEditMode(false);
-      alert(`Successfully deleted ${selectedPhotoIds.size} photo(s)`);
+      showSuccess(`Successfully deleted ${selectedPhotoIds.size} photo(s)`);
     } catch (error) {
       console.error('Error deleting photos:', error);
-      alert('Failed to delete photos. Please try again.');
+      showError('Failed to delete photos. Please try again.');
     }
   };
 
   const handleBulkEnhance = async () => {
     if (selectedPhotoIds.size === 0) {
-      alert('No photos selected');
+      showWarning('No photos selected');
       return;
     }
 
@@ -1176,13 +1177,13 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
       setEditMode(false);
 
       if (failed === 0) {
-        alert(`✅ Successfully enhanced all ${completed} photo(s)!`);
+        showSuccess(`Successfully enhanced all ${completed} photo(s)!`);
       } else {
-        alert(`Enhanced ${completed} photo(s). ${failed} photo(s) failed.`);
+        showWarning(`Enhanced ${completed} photo(s). ${failed} photo(s) failed.`);
       }
     } catch (error) {
       console.error('Bulk enhance error:', error);
-      alert('Failed to enhance photos. Please try again.');
+      showError('Failed to enhance photos. Please try again.');
     } finally {
       setIsEnhancing(false);
     }
@@ -2541,7 +2542,7 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
                               setViewingFlags(null);
                               loadPhotos();
-                              alert('Flag marked as resolved. Photo remains published.');
+                              showSuccess('Flag marked as resolved. Photo remains published.');
                             }}
                             className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                           >

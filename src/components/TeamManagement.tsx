@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users, UserPlus, Mail, Shield, Trash2, Ban, CheckCircle, X, Search, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { showInfo } from '../lib/toast';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
 
@@ -132,7 +133,7 @@ ${inviteLink}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-      alert(message);
+      showInfo(message);
 
       setInviteEmail('');
       setInviteRole('sales');
@@ -140,7 +141,7 @@ ${inviteLink}
       loadInvitations();
     } catch (error) {
       console.error('Error inviting user:', error);
-      alert('Failed to send invitation. Please try again.');
+      showInfo('Failed to send invitation. Please try again.');
     } finally {
       setInviting(false);
     }
@@ -159,7 +160,7 @@ ${inviteLink}
       loadTeamMembers();
     } catch (error) {
       console.error('Error updating role:', error);
-      alert('Failed to update role');
+      showInfo('Failed to update role');
     }
   };
 
@@ -176,7 +177,7 @@ ${inviteLink}
       loadTeamMembers();
     } catch (error) {
       console.error('Error toggling user status:', error);
-      alert('Failed to update user status');
+      showInfo('Failed to update user status');
     }
   };
 
@@ -195,7 +196,7 @@ ${inviteLink}
       loadInvitations();
     } catch (error) {
       console.error('Error deleting invitation:', error);
-      alert('Failed to delete invitation');
+      showInfo('Failed to delete invitation');
     }
   };
 

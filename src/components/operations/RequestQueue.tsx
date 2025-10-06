@@ -3,6 +3,7 @@ import { Clock, AlertCircle, Users, Filter, TrendingUp, ArrowLeft } from 'lucide
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
 import { useAllRequests, useAssignRequest, useUpdateRequestStage, useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useAuth } from '../../contexts/AuthContext';
+import { showError } from '../../lib/toast';
 
 interface RequestQueueProps {
   onBack: () => void;
@@ -231,7 +232,7 @@ function RequestCard({
       await assign(request.id, currentUserId);
     } catch (error) {
       console.error('Failed to assign request:', error);
-      alert('Failed to assign request');
+      showError('Failed to assign request');
     }
   };
 
@@ -243,7 +244,7 @@ function RequestCard({
       await updateStage(request.id, 'pending');
     } catch (error) {
       console.error('Failed to update stage:', error);
-      alert('Failed to update stage');
+      showError('Failed to update stage');
     }
   };
 
@@ -255,7 +256,7 @@ function RequestCard({
       await updateStage(request.id, 'completed');
     } catch (error) {
       console.error('Failed to update stage:', error);
-      alert('Failed to update stage');
+      showError('Failed to update stage');
     }
   };
 

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PresentationUpload from './PresentationUpload';
 import PresentationViewer from './PresentationViewer';
+import { showError } from '../../lib/toast';
 
 interface ClientPresentationProps {
   onBack: () => void;
@@ -68,7 +69,7 @@ export default function ClientPresentation({ onBack, isMobile = false }: ClientP
       if (error) throw error;
       await loadPresentations();
     } catch (error: any) {
-      alert(`Failed to archive: ${error.message}`);
+      showError(`Failed to archive: ${error.message}`);
     }
   };
 
@@ -93,7 +94,7 @@ export default function ClientPresentation({ onBack, isMobile = false }: ClientP
 
       await loadPresentations();
     } catch (error: any) {
-      alert(`Failed to delete: ${error.message}`);
+      showError(`Failed to delete: ${error.message}`);
     }
   };
 

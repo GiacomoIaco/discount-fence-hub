@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save, Edit2, X, Check, Download, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { showError } from '../../lib/toast';
 
 interface PresentationViewerProps {
   presentation: {
@@ -144,7 +145,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
 
       await loadNotes();
     } catch (error: any) {
-      alert(`Failed to save note: ${error.message}`);
+      showError(`Failed to save note: ${error.message}`);
     } finally {
       setSavingNote(false);
     }
@@ -176,7 +177,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
 
       setEditingTalkingPoints(false);
     } catch (error: any) {
-      alert(`Failed to save talking points: ${error.message}`);
+      showError(`Failed to save talking points: ${error.message}`);
     } finally {
       setSavingTalkingPoints(false);
     }

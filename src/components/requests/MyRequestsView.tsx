@@ -5,6 +5,7 @@ import RequestList from './RequestList';
 import RequestDetail from './RequestDetail';
 import RequestHub from './RequestHub';
 import { useMyRequests } from '../../hooks/useRequests';
+import { RequestListSkeleton } from '../skeletons';
 
 interface MyRequestsViewProps {
   onBack: () => void;
@@ -17,7 +18,7 @@ export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Fetch all requests for statistics
-  const { requests, refresh } = useMyRequests({});
+  const { requests, loading, refresh } = useMyRequests({});
 
   // Calculate statistics
   const stats = {
@@ -94,10 +95,14 @@ export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps)
         </div>
       </div>
 
-      <RequestList
-        onRequestClick={handleRequestClick}
-        onNewRequest={handleNewRequest}
-      />
+      {loading ? (
+        <RequestListSkeleton count={5} />
+      ) : (
+        <RequestList
+          onRequestClick={handleRequestClick}
+          onNewRequest={handleNewRequest}
+        />
+      )}
     </div>
   );
 }

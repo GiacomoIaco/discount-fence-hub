@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Trophy, Medal, Crown } from 'lucide-react';
 import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getTeamLeaderboard, type Recording, type LeaderboardEntry } from '../../lib/recordings';
 import { initOfflineDB, getOfflineQueueSize } from '../../lib/offlineQueue';
+import { showError } from '../../lib/toast';
 
 interface SalesCoachProps {
   userId: string;
@@ -144,7 +145,7 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
       setIsRecording(true);
       setRecordingTime(0);
     } catch (err) {
-      alert('Microphone access denied. Please enable microphone permissions.');
+      showError('Microphone access denied. Please enable microphone permissions.');
     }
   };
 
@@ -152,7 +153,7 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
     if (!mediaRecorderRef.current || !isRecording) return;
 
     if (!clientName.trim()) {
-      alert('Please enter a client name before stopping the recording.');
+      showError('Please enter a client name before stopping the recording.');
       return;
     }
 
@@ -178,7 +179,7 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
         loadRecordings();
       } catch (error) {
         console.error('Recording upload failed:', error);
-        alert('Failed to upload recording. Please try again.');
+        showError('Failed to upload recording. Please try again.');
       }
     }, 100);
   };

@@ -3,6 +3,7 @@ import { ArrowLeft, Sparkles, Check, Save, Trash2 } from 'lucide-react';
 import type { Photo } from '../lib/photos';
 import { TAG_CATEGORIES } from '../lib/photos';
 import { supabase } from '../lib/supabase';
+import { showSuccess } from '../lib/toast';
 
 interface PhotoReviewQueueProps {
   onBack: () => void;
@@ -129,7 +130,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
 
       if (error) {
         console.error('Publish error:', error);
-        alert(`Error: ${error.message}`);
+        showSuccess(`Error: ${error.message}`);
         throw error;
       }
 
@@ -138,7 +139,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
       // Remove from pending list
       setPendingPhotos((prev) => prev.filter((p) => p.id !== selectedPhoto.id));
       setSelectedPhoto(null);
-      alert('Photo published successfully!');
+      showSuccess('Photo published successfully!');
     } catch (error) {
       console.error('Error publishing photo:', error);
       // Fallback to localStorage
@@ -161,7 +162,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
         localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
         setPendingPhotos((prev) => prev.filter((p) => p.id !== selectedPhoto.id));
         setSelectedPhoto(null);
-        alert('Photo published successfully (saved locally)!');
+        showSuccess('Photo published successfully (saved locally)!');
       }
     } finally {
       setLoading(false);
@@ -203,10 +204,10 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
         prev.map((p) => (p.id === selectedPhoto.id ? { ...p, ...updated } : p))
       );
       setSelectedPhoto(null);
-      alert('Changes saved!');
+      showSuccess('Changes saved!');
     } catch (error) {
       console.error('Error saving draft:', error);
-      alert('Failed to save changes. Please try again.');
+      showSuccess('Failed to save changes. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -240,7 +241,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
       // Remove from pending list
       setPendingPhotos((prev) => prev.filter((p) => p.id !== selectedPhoto.id));
       setSelectedPhoto(null);
-      alert('Photo archived.');
+      showSuccess('Photo archived.');
     } catch (error) {
       console.error('Error archiving photo:', error);
       // Fallback to localStorage
@@ -261,7 +262,7 @@ const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps
         localStorage.setItem('photoGallery', JSON.stringify(updatedPhotos));
         setPendingPhotos((prev) => prev.filter((p) => p.id !== selectedPhoto.id));
         setSelectedPhoto(null);
-        alert('Photo archived (saved locally).');
+        showSuccess('Photo archived (saved locally).');
       }
     } finally {
       setLoading(false);

@@ -5,6 +5,7 @@ import { useCreateRequest } from '../../hooks/useRequests';
 import { transcribeAudio } from '../../lib/openai';
 import { parseVoiceTranscript } from '../../lib/claude';
 import { supabase } from '../../lib/supabase';
+import { showError } from '../../lib/toast';
 
 interface RequestFormProps {
   requestType: RequestType;
@@ -141,7 +142,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       setRecordingState('recording');
     } catch (error) {
       console.error('Error starting recording:', error);
-      alert('Failed to start recording. Please check microphone permissions.');
+      showError('Failed to start recording. Please check microphone permissions.');
     }
   };
 
@@ -194,7 +195,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       setRecordingState('recorded');
     } catch (error) {
       console.error('Error processing voice:', error);
-      alert('Failed to process voice recording. Please try again.');
+      showError('Failed to process voice recording. Please try again.');
       setRecordingState('recorded');
     }
   };
@@ -244,7 +245,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       }, 100);
     } catch (error) {
       console.error('Camera access error:', error);
-      alert('Could not access camera. Please use file upload instead.');
+      showError('Could not access camera. Please use file upload instead.');
     }
   };
 
@@ -320,7 +321,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     e.preventDefault();
 
     if (!title.trim()) {
-      alert('Please enter a title for this request');
+      showError('Please enter a title for this request');
       return;
     }
 
@@ -359,7 +360,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       console.error('Error creating request:', error);
       console.error('Request data:', requestData);
       const errorMessage = error?.message || error?.details || 'Unknown error';
-      alert(`Failed to create request: ${errorMessage}\n\nPlease check console for details.`);
+      showError(`Failed to create request: ${errorMessage}\n\nPlease check console for details.`);
     }
   };
 

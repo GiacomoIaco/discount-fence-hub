@@ -15,6 +15,7 @@ import {
   Save
 } from 'lucide-react';
 import SurveyBuilder, { type SurveyQuestion } from './SurveyBuilder';
+import { showError } from '../lib/toast';
 
 interface MessageComposerProps {
   onClose: () => void;
@@ -120,7 +121,7 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
 
   const handleSaveDraft = async () => {
     if (!user || !title.trim()) {
-      alert('Please enter a title for the draft');
+      showError('Please enter a title for the draft');
       return;
     }
 
@@ -177,12 +178,12 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
 
       if (error) throw error;
 
-      alert('Draft saved successfully!');
+      showError('Draft saved successfully!');
       onMessageSent();
       onClose();
     } catch (error) {
       console.error('Error saving draft:', error);
-      alert('Failed to save draft');
+      showError('Failed to save draft');
     } finally {
       setSending(false);
     }
@@ -190,28 +191,28 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
 
   const handleSend = async () => {
     if (!user || !title.trim() || !content.trim()) {
-      alert('Please fill in title and content');
+      showError('Please fill in title and content');
       return;
     }
 
     if (targetRoles.length === 0) {
-      alert('Please select at least one role');
+      showError('Please select at least one role');
       return;
     }
 
     if (messageType === 'survey' && surveyQuestions.length > 0) {
       const invalidQuestions = surveyQuestions.filter(q => !q.text.trim());
       if (invalidQuestions.length > 0) {
-        alert('Please fill in all question texts');
+        showError('Please fill in all question texts');
         return;
       }
     } else if (messageType === 'survey' && surveyQuestions.length === 0) {
-      alert('Please add at least one survey question');
+      showError('Please add at least one survey question');
       return;
     }
 
     if (messageType === 'recognition' && !recognizedUserId) {
-      alert('Please select a user to recognize');
+      showError('Please select a user to recognize');
       return;
     }
 
@@ -267,12 +268,12 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
 
       if (error) throw error;
 
-      alert('Message sent successfully!');
+      showError('Message sent successfully!');
       onMessageSent();
       onClose();
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message');
+      showError('Failed to send message');
     } finally {
       setSending(false);
     }

@@ -16,6 +16,7 @@ import {
   Edit
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { showError } from '../lib/toast';
 
 interface SalesResourcesProps {
   onBack: () => void;
@@ -158,7 +159,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       loadFolders();
     } catch (error) {
       console.error('Error creating folder:', error);
-      alert('Failed to create folder');
+      showError('Failed to create folder');
     }
   };
 
@@ -169,7 +170,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     const maxSize = 20 * 1024 * 1024; // 20MB
 
     if (file.size > maxSize) {
-      alert('File size must be less than 20MB');
+      showError('File size must be less than 20MB');
       return;
     }
 
@@ -186,7 +187,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      alert('Invalid file type. Allowed: PDF, PPT, PPTX, Images, Videos');
+      showError('Invalid file type. Allowed: PDF, PPT, PPTX, Images, Videos');
       return;
     }
 
@@ -296,7 +297,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     } catch (error) {
       console.error('Error uploading file:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to upload file: ${errorMessage}`);
+      showError(`Failed to upload file: ${errorMessage}`);
     } finally {
       setUploading(false);
     }
@@ -419,7 +420,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       }
     } catch (error) {
       console.error('Error archiving file:', error);
-      alert('Failed to archive file');
+      showError('Failed to archive file');
     }
   };
 
@@ -447,7 +448,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       loadArchivedFiles();
     } catch (error) {
       console.error('Error deleting file:', error);
-      alert('Failed to delete file permanently');
+      showError('Failed to delete file permanently');
     }
   };
 
@@ -467,7 +468,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       loadArchivedFiles();
     } catch (error) {
       console.error('Error restoring file:', error);
-      alert('Failed to restore file');
+      showError('Failed to restore file');
     }
   };
 
@@ -488,7 +489,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
     if (!editingFile || !canEdit) return;
 
     if (!editFileName.trim()) {
-      alert('File name cannot be empty');
+      showError('File name cannot be empty');
       return;
     }
 
@@ -513,7 +514,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
         if (checkError) throw checkError;
 
         if (existingFiles && existingFiles.length > 0) {
-          alert(`A file named "${newFullName}" already exists in this folder`);
+          showError(`A file named "${newFullName}" already exists in this folder`);
           return;
         }
       }
@@ -538,7 +539,7 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
       }
     } catch (error) {
       console.error('Error updating file:', error);
-      alert('Failed to update file');
+      showError('Failed to update file');
     }
   };
 

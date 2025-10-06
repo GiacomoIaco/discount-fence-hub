@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2, Edit2, Save, X, ArrowLeft } from 'lucide-react';
 import type { RequestType } from '../../lib/requests';
 import { useAssignmentRules, useUsers } from '../../hooks/useRequests';
+import { showError, showWarning } from '../../lib/toast';
 
 interface AssignmentRulesProps {
   onBack: () => void;
@@ -24,7 +25,7 @@ export default function AssignmentRules({ onBack }: AssignmentRulesProps) {
 
   const handleCreateRule = async () => {
     if (!newAssigneeId) {
-      alert('Please select an assignee');
+      showWarning('Please select an assignee');
       return;
     }
 
@@ -36,7 +37,7 @@ export default function AssignmentRules({ onBack }: AssignmentRulesProps) {
       setNewPriority(1);
     } catch (error) {
       console.error('Failed to create rule:', error);
-      alert('Failed to create rule');
+      showError('Failed to create rule');
     }
   };
 
@@ -55,7 +56,7 @@ export default function AssignmentRules({ onBack }: AssignmentRulesProps) {
       setEditingId(null);
     } catch (error) {
       console.error('Failed to update rule:', error);
-      alert('Failed to update rule');
+      showError('Failed to update rule');
     }
   };
 
@@ -64,7 +65,7 @@ export default function AssignmentRules({ onBack }: AssignmentRulesProps) {
       await updateRule(ruleId, { is_active: !currentStatus });
     } catch (error) {
       console.error('Failed to toggle rule:', error);
-      alert('Failed to toggle rule');
+      showError('Failed to toggle rule');
     }
   };
 
@@ -75,7 +76,7 @@ export default function AssignmentRules({ onBack }: AssignmentRulesProps) {
       await deleteRule(ruleId);
     } catch (error) {
       console.error('Failed to delete rule:', error);
-      alert('Failed to delete rule');
+      showError('Failed to delete rule');
     }
   };
 
