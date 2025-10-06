@@ -17,7 +17,7 @@ export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Fetch all requests for statistics
-  const { requests } = useMyRequests({});
+  const { requests, refresh } = useMyRequests({});
 
   // Calculate statistics
   const stats = {
@@ -48,7 +48,13 @@ export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps)
 
   // Show detail view
   if (view === 'detail' && selectedRequest) {
-    return <RequestDetail request={selectedRequest} onClose={handleCloseDetail} />;
+    return (
+      <RequestDetail
+        request={selectedRequest}
+        onClose={handleCloseDetail}
+        onUpdate={refresh}
+      />
+    );
   }
 
   // Show list view

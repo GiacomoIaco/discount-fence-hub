@@ -8,9 +8,10 @@ import { supabase } from '../../lib/supabase';
 interface RequestDetailProps {
   request: Request;
   onClose: () => void;
+  onUpdate?: () => void;
 }
 
-export default function RequestDetail({ request, onClose }: RequestDetailProps) {
+export default function RequestDetail({ request, onClose, onUpdate }: RequestDetailProps) {
   const age = useRequestAge(request);
   const { notes, addNote, loading: notesLoading } = useRequestNotes(request.id);
   const { activity, loading: activityLoading } = useRequestActivity(request.id);
@@ -138,7 +139,11 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
       }
 
       setIsChangingAssignee(false);
-      window.location.reload();
+      if (onUpdate) {
+        onUpdate();
+      } else {
+        window.location.reload();
+      }
     } catch (error: any) {
       console.error('Failed to change assignee:', error);
       alert(`Failed to change assignee: ${error.message || 'Please try again.'}`);
@@ -156,7 +161,11 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
       if (error) throw error;
 
       setIsChangingStage(false);
-      window.location.reload();
+      if (onUpdate) {
+        onUpdate();
+      } else {
+        window.location.reload();
+      }
     } catch (error: any) {
       console.error('Failed to change stage:', error);
       alert(`Failed to change stage: ${error.message || 'Please try again.'}`);
@@ -174,7 +183,11 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
       if (error) throw error;
 
       setIsChangingQuoteStatus(false);
-      window.location.reload();
+      if (onUpdate) {
+        onUpdate();
+      } else {
+        window.location.reload();
+      }
     } catch (error: any) {
       console.error('Failed to change quote status:', error);
       alert(`Failed to change quote status: ${error.message || 'Please try again.'}`);
@@ -192,7 +205,11 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
       if (error) throw error;
 
       setIsEditingRequest(false);
-      window.location.reload();
+      if (onUpdate) {
+        onUpdate();
+      } else {
+        window.location.reload();
+      }
     } catch (error: any) {
       console.error('Failed to save request:', error);
       alert(`Failed to save request: ${error.message || 'Please try again.'}`);
