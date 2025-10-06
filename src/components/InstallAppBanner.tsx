@@ -49,7 +49,7 @@ const InstallAppBanner = () => {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-blue-600 text-white p-4 shadow-lg z-50 md:left-64">
+    <div className="fixed bottom-0 left-0 right-0 bg-blue-600 text-white p-4 shadow-lg z-50 md:hidden">
       <div className="max-w-4xl mx-auto flex items-start justify-between space-x-4">
         <div className="flex items-start space-x-3 flex-1">
           <Download className="w-6 h-6 flex-shrink-0 mt-0.5" />
