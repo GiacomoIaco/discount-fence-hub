@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save, Edit2, X, Check } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save, Edit2, X, Check, Download, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -195,53 +195,63 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
     );
   }
 
-  // Mobile: Fullscreen presentation mode
+  // Mobile: Fullscreen presentation mode with scrollable PDF
   if (isMobile) {
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col">
+        {/* Info Banner - Explains mobile behavior */}
+        <div className="bg-blue-600 text-white px-4 py-2 text-xs sm:text-sm flex items-center justify-between">
+          <span className="flex-1">
+            📱 Scroll down to view all {presentation.slide_count} slides
+          </span>
+          <a
+            href={presentation.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-800 px-2 py-1 rounded text-xs whitespace-nowrap"
+          >
+            <ExternalLink className="w-3 h-3" />
+            <span className="hidden sm:inline">Open in App</span>
+          </a>
+        </div>
+
         {/* Header */}
-        <div className="bg-gray-900 p-4 flex items-center justify-between">
+        <div className="bg-gray-900 p-3 flex items-center justify-between">
           <button
             onClick={onBack}
             className="text-white p-2 hover:bg-gray-800 rounded"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-white font-semibold text-lg flex-1 mx-4 truncate">
+          <h2 className="text-white font-semibold text-base flex-1 mx-3 truncate">
             {presentation.name}
           </h2>
-          <span className="text-white text-sm">
-            {currentSlide} / {presentation.slide_count}
-          </span>
+          <a
+            href={presentation.file_url}
+            download
+            className="text-white p-2 hover:bg-gray-800 rounded"
+            title="Download PDF"
+          >
+            <Download className="w-5 h-5" />
+          </a>
         </div>
 
-        {/* PDF Viewer */}
-        <div className="flex-1 relative bg-white overflow-hidden">
+        {/* PDF Viewer - Scrollable, all pages visible */}
+        <div className="flex-1 bg-white overflow-auto">
           <iframe
-            key={currentSlide}
-            src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
-            className="w-full h-full pointer-events-none"
+            src={presentation.file_url}
+            className="w-full border-0"
+            style={{
+              minHeight: '100vh',
+              height: '100%'
+            }}
             title={presentation.name}
           />
         </div>
 
-        {/* Navigation */}
-        <div className="bg-gray-900 p-4 flex items-center justify-between">
-          <button
-            onClick={() => setCurrentSlide(Math.max(1, currentSlide - 1))}
-            disabled={currentSlide === 1}
-            className="p-3 bg-gray-800 text-white rounded-full hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-
-          <button
-            onClick={() => setCurrentSlide(Math.min(presentation.slide_count, currentSlide + 1))}
-            disabled={currentSlide === presentation.slide_count}
-            className="p-3 bg-gray-800 text-white rounded-full hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
+        {/* Footer - Shows total slides */}
+        <div className="bg-gray-900 text-white px-4 py-2 text-center text-xs">
+          {presentation.slide_count} slides total • Scroll to navigate
         </div>
       </div>
     );
