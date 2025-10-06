@@ -503,12 +503,34 @@ export function useAssignmentRules() {
       setLoading(true);
       const { data, error } = await supabase
         .from('request_assignment_rules')
-        .select('*, assignee:user_profiles!assignee_id(id, full_name)')
+        .select('*')
         .order('priority', { ascending: true })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setRules(data || []);
+
+      // Fetch user profiles separately if needed
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(rule => rule.assignee_id).filter(Boolean))];
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .in('id', userIds);
+
+          // Map profiles to rules
+          const rulesWithProfiles = data.map(rule => ({
+            ...rule,
+            assignee: profiles?.find(p => p.id === rule.assignee_id)
+          }));
+          setRules(rulesWithProfiles);
+        } else {
+          setRules(data);
+        }
+      } else {
+        setRules(data || []);
+      }
+
       setError(null);
     } catch (err) {
       setError(err as Error);
