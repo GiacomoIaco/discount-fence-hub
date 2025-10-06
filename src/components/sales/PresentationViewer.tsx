@@ -219,7 +219,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
         <div className="flex-1 relative bg-white overflow-hidden">
           <iframe
             key={currentSlide}
-            src={`${presentation.file_url}#page=${currentSlide}`}
+            src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
             className="w-full h-full pointer-events-none"
             title={presentation.name}
           />
@@ -285,7 +285,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
           <div className="flex-1 overflow-hidden">
             <iframe
               key={currentSlide}
-              src={`${presentation.file_url}#page=${currentSlide}`}
+              src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
               className="w-full h-full pointer-events-none"
               title={presentation.name}
             />
