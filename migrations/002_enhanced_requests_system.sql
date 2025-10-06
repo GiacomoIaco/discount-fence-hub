@@ -80,6 +80,11 @@ ALTER TABLE requests DROP COLUMN IF EXISTS status;
 -- Copy data from rep_id to submitter_id for existing requests
 UPDATE requests SET submitter_id = rep_id WHERE submitter_id IS NULL;
 
+-- Drop old RLS policies that depend on rep_id before dropping the column
+DROP POLICY IF EXISTS "Sales reps can view their own requests" ON requests;
+DROP POLICY IF EXISTS "Sales reps can insert their own requests" ON requests;
+DROP POLICY IF EXISTS "Sales reps can update their own requests" ON requests;
+
 -- Drop old rep_id column (it referenced sales_reps, but we're now using auth.users)
 ALTER TABLE requests DROP COLUMN IF EXISTS rep_id;
 
