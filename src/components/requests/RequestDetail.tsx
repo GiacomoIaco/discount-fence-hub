@@ -686,7 +686,10 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                         <p className="text-gray-900 font-medium capitalize mb-1">
                           {item.action.replace('_', ' ')}
                         </p>
-                        {item.details && (
+                        {item.details && typeof item.details === 'object' && (item.details as any).message && (
+                          <p className="text-xs text-gray-600 mb-1">{(item.details as any).message}</p>
+                        )}
+                        {item.details && typeof item.details === 'string' && (
                           <p className="text-xs text-gray-600 mb-1">{item.details}</p>
                         )}
                         <p className="text-xs text-blue-600">
