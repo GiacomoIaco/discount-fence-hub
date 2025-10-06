@@ -43,9 +43,6 @@ export interface Request {
   voice_duration?: number;
   transcript?: string;
   transcript_confidence?: number;
-  ai_extracted_data?: any;
-  field_confidences?: any;
-  extraction_notes?: string;
 
   // Photos
   photo_urls?: string[];
@@ -100,9 +97,6 @@ export interface CreateRequestInput {
   voice_duration?: number;
   transcript?: string;
   transcript_confidence?: number;
-  ai_extracted_data?: any;
-  field_confidences?: any;
-  extraction_notes?: string;
   photo_urls?: string[];
 }
 

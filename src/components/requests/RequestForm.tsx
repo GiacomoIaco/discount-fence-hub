@@ -56,7 +56,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [transcript, setTranscript] = useState('');
-  const [parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const [_parsedData, setParsedData] = useState<ParsedData | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -334,8 +334,6 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         voice_recording_url: audioUrl || undefined,
         voice_duration: audioDuration || undefined,
         transcript: transcript || undefined,
-        ai_extracted_data: parsedData || undefined,
-        field_confidences: parsedData?.confidence || undefined,
         photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined
       };
 
