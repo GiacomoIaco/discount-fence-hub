@@ -197,50 +197,68 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
 
   // Mobile: Fullscreen presentation mode
   if (isMobile) {
+    // Decode URL to handle %20 and other encoded characters (fixes Android)
+    const decodedUrl = decodeURIComponent(presentation.file_url);
+
     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col">
-        {/* Header */}
-        <div className="bg-gray-900 p-4 flex items-center justify-between">
+      <div
+        className="fixed inset-0 bg-black z-50 flex flex-col"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          position: 'fixed',
+          top: 0,
+          left: 0
+        }}
+      >
+        {/* Header - Minimal for more screen space */}
+        <div className="bg-gray-900 px-3 py-2 flex items-center justify-between flex-shrink-0">
           <button
             onClick={onBack}
-            className="text-white p-2 hover:bg-gray-800 rounded"
+            className="text-white p-1 hover:bg-gray-800 rounded"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-white font-semibold text-lg flex-1 mx-4 truncate">
+          <h2 className="text-white font-semibold text-base flex-1 mx-3 truncate">
             {presentation.name}
           </h2>
-          <span className="text-white text-sm">
+          <span className="text-white text-sm font-medium">
             {currentSlide} / {presentation.slide_count}
           </span>
         </div>
 
-        {/* PDF Viewer */}
+        {/* PDF Viewer - Force reload on page change for iOS compatibility */}
         <div className="flex-1 relative bg-white overflow-hidden">
           <iframe
-            key={currentSlide}
-            src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
-            className="w-full h-full pointer-events-none"
-            title={presentation.name}
+            key={`slide-${currentSlide}-${Date.now()}`}
+            src={`${decodedUrl}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
+            className="w-full h-full border-0"
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              display: 'block'
+            }}
+            title={`${presentation.name} - Slide ${currentSlide}`}
           />
         </div>
 
-        {/* Navigation */}
-        <div className="bg-gray-900 p-4 flex items-center justify-between">
+        {/* Navigation - Minimal for more screen space */}
+        <div className="bg-gray-900 px-4 py-2 flex items-center justify-between flex-shrink-0">
           <button
             onClick={() => setCurrentSlide(Math.max(1, currentSlide - 1))}
             disabled={currentSlide === 1}
-            className="p-3 bg-gray-800 text-white rounded-full hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
 
           <button
             onClick={() => setCurrentSlide(Math.min(presentation.slide_count, currentSlide + 1))}
             disabled={currentSlide === presentation.slide_count}
-            className="p-3 bg-gray-800 text-white rounded-full hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -282,12 +300,17 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden relative">
             <iframe
-              key={currentSlide}
-              src={`${presentation.file_url}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
-              className="w-full h-full pointer-events-none"
-              title={presentation.name}
+              key={`desktop-slide-${currentSlide}-${Date.now()}`}
+              src={`${decodeURIComponent(presentation.file_url)}#page=${currentSlide}&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
+              className="w-full h-full pointer-events-none border-0"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none'
+              }}
+              title={`${presentation.name} - Slide ${currentSlide}`}
             />
             {/* Transparent overlay to prevent PDF interaction but allow our controls */}
             <div className="absolute inset-0 pointer-events-none" style={{ top: '48px' }}></div>
