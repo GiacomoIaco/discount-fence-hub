@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw } from 'lucide-react';
+
+// @ts-ignore - virtual module from vite-plugin-pwa
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
 export default function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -9,10 +11,10 @@ export default function PWAUpdatePrompt() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
+    onRegistered(r: any) {
       console.log('SW Registered:', r);
     },
-    onRegisterError(error) {
+    onRegisterError(error: any) {
       console.log('SW registration error', error);
     },
   });
