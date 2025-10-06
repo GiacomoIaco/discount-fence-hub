@@ -80,8 +80,9 @@ function App() {
         if (!error && data) {
           setUnreadCount(data.unread_count || 0);
         }
+        // Silently ignore errors - team communication feature not fully implemented
       } catch (error) {
-        console.error('Error loading unread count:', error);
+        // Silently ignore - team communication feature not critical
       }
     };
 
