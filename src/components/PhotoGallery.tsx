@@ -43,7 +43,7 @@ interface PhotoGalleryProps {
   userName?: string;
 }
 
-type GalleryTab = 'gallery' | 'pending' | 'saved' | 'archived';
+type GalleryTab = 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';
 
 const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId, userName }: PhotoGalleryProps) => {
   const [activeTab, setActiveTab] = useState<GalleryTab>('gallery');
@@ -96,6 +96,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
   // Analytics state
   const [showAnalytics, setShowAnalytics] = useState(false);
+
+  // Photo flags state
+  const [photoFlags, setPhotoFlags] = useState<Map<string, any[]>>(new Map());
+  const [viewingFlags, setViewingFlags] = useState<{photo: Photo, flags: any[]} | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -185,9 +189,39 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
           // Archived tab: Photos marked for deletion
           query = query.eq('status', 'archived');
           break;
+        case 'flagged':
+          // Flagged tab: Published photos with pending flags (managers/admins only)
+          query = query.eq('status', 'published');
+          break;
       }
 
       const { data, error } = await query;
+
+      // If on flagged tab, filter to only show photos with flags and load flag data
+      if (activeTab === 'flagged' && data) {
+        const { data: flags } = await supabase
+          .from('photo_flags')
+          .select('*')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
+        if (flags) {
+          // Create a map of photo_id to flags
+          const flagsMap = new Map<string, any[]>();
+          flags.forEach(flag => {
+            const existing = flagsMap.get(flag.photo_id) || [];
+            existing.push(flag);
+            flagsMap.set(flag.photo_id, existing);
+          });
+          setPhotoFlags(flagsMap);
+
+          // Filter photos to only those with flags
+          const flaggedPhotoIds = new Set(flags.map(f => f.photo_id));
+          const flaggedPhotos = data.filter(p => flaggedPhotoIds.has(p.id));
+          setPhotos(flaggedPhotos);
+          return;
+        }
+      }
 
       if (error) {
         console.error('Error loading photos:', error);
@@ -1265,6 +1299,16 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                     >
                       Archived
                     </button>
+                    <button
+                      onClick={() => setActiveTab('flagged')}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        activeTab === 'flagged'
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                      }`}
+                    >
+                      Flagged
+                    </button>
                   </>
                 )}
               </div>
@@ -1343,6 +1387,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                 onClick={() => {
                   if (editMode) {
                     togglePhotoSelection(photo.id);
+                  } else if (activeTab === 'flagged' && photoFlags.has(photo.id)) {
+                    setViewingFlags({ photo, flags: photoFlags.get(photo.id) || [] });
                   } else {
                     openFullScreen(index);
                   }
@@ -1429,8 +1475,18 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                   </>
                 )}
 
-                {/* Flag button for published photos (only show when not in edit mode) */}
-                {!editMode && photo.status === 'published' && (
+                {/* Flag badge (show on flagged tab) */}
+                {!editMode && activeTab === 'flagged' && photoFlags.has(photo.id) && (
+                  <div className="absolute top-2 left-2">
+                    <div className="bg-orange-600 text-white text-xs px-2 py-1 rounded font-bold flex items-center space-x-1">
+                      <Flag className="w-3 h-3" />
+                      <span>{photoFlags.get(photo.id)?.length || 0} flag(s)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Flag button for published photos (only show when not in edit mode and NOT on flagged tab) */}
+                {!editMode && photo.status === 'published' && activeTab !== 'flagged' && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2379,6 +2435,107 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                 >
                   Submit Flag
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Flags Modal */}
+      {viewingFlags && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Photo Flags</h2>
+              <button
+                onClick={() => setViewingFlags(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Photo Preview */}
+              <div>
+                <img
+                  src={viewingFlags.photo.url}
+                  alt="Flagged"
+                  className="w-full h-64 object-cover rounded-lg"
+                />
+              </div>
+
+              {/* Flags List */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Flags ({viewingFlags.flags.length})</h3>
+                {viewingFlags.flags.map((flag) => (
+                  <div key={flag.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="inline-block bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm font-medium">
+                          {flag.flag_reason.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Flagged by <span className="font-medium">{flag.flagged_by_name}</span> on{' '}
+                          {new Date(flag.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {flag.notes && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Notes:</p>
+                        <p className="text-sm text-gray-600 mt-1">{flag.notes}</p>
+                      </div>
+                    )}
+
+                    {flag.suggested_tags && flag.suggested_tags.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Suggested Tags:</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {flag.suggested_tags.map((tag: string) => (
+                            <span key={tag} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(userRole === 'admin' || userRole === 'sales-manager') && flag.status === 'pending' && (
+                      <div className="flex space-x-2 pt-2">
+                        <button
+                          onClick={async () => {
+                            await supabase
+                              .from('photo_flags')
+                              .update({ status: 'resolved', resolved_by: userId, resolved_at: new Date().toISOString() })
+                              .eq('id', flag.id);
+
+                            setViewingFlags(null);
+                            loadPhotos();
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                        >
+                          Resolve
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await supabase
+                              .from('photo_flags')
+                              .delete()
+                              .eq('id', flag.id);
+
+                            setViewingFlags(null);
+                            loadPhotos();
+                          }}
+                          className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
