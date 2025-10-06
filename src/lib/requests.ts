@@ -164,7 +164,51 @@ export async function createRequest(data: CreateRequestInput) {
   // Log creation activity
   await logActivity(request.id, 'created', { request_type: data.request_type });
 
+  // Auto-assign based on rules
+  await applyAssignmentRules(request);
+
   return request as Request;
+}
+
+/**
+ * Apply assignment rules to a request
+ */
+async function applyAssignmentRules(request: Request) {
+  try {
+    // Find active assignment rules for this request type, ordered by priority
+    const { data: rules, error } = await supabase
+      .from('request_assignment_rules')
+      .select('*')
+      .eq('request_type', request.request_type)
+      .eq('is_active', true)
+      .order('priority', { ascending: true })
+      .limit(1);
+
+    if (error) throw error;
+
+    // If a rule exists, auto-assign
+    if (rules && rules.length > 0) {
+      const rule = rules[0];
+      await supabase
+        .from('requests')
+        .update({
+          assigned_to: rule.assignee_id,
+          assigned_at: new Date().toISOString(),
+          stage: 'pending'
+        })
+        .eq('id', request.id);
+
+      // Log auto-assignment
+      await logActivity(request.id, 'auto_assigned', {
+        assignee_id: rule.assignee_id,
+        rule_id: rule.id,
+        rule_priority: rule.priority
+      });
+    }
+  } catch (err) {
+    // Log error but don't fail request creation
+    console.error('Auto-assignment failed:', err);
+  }
 }
 
 /**
@@ -213,6 +257,7 @@ export async function getAllRequests(filters?: {
   stage?: RequestStage;
   request_type?: RequestType;
   assigned_to?: string;
+  submitter_id?: string;
   sla_status?: SLAStatus;
   search?: string;
 }) {
@@ -231,7 +276,15 @@ export async function getAllRequests(filters?: {
   }
 
   if (filters?.assigned_to) {
-    query = query.eq('assigned_to', filters.assigned_to);
+    if (filters.assigned_to === 'unassigned') {
+      query = query.is('assigned_to', null);
+    } else {
+      query = query.eq('assigned_to', filters.assigned_to);
+    }
+  }
+
+  if (filters?.submitter_id) {
+    query = query.eq('submitter_id', filters.submitter_id);
   }
 
   if (filters?.sla_status) {

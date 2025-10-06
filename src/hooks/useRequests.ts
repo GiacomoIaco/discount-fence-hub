@@ -22,6 +22,7 @@ import {
   getRequestActivity,
   subscribeToRequests
 } from '../lib/requests';
+import { supabase } from '../lib/supabase';
 
 // ============================================
 // HOOKS
@@ -450,4 +451,117 @@ export function useRequestAge(request: Request | null) {
   }, [request]);
 
   return age;
+}
+
+/**
+ * Hook to get all users for filters/assignment
+ */
+export function useUsers() {
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('id, full_name, email')
+          .order('full_name');
+
+        if (error) throw error;
+
+        setUsers(data.map(u => ({ id: u.id, name: u.full_name || u.email, email: u.email })));
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
+  return { users, loading, error };
+}
+
+/**
+ * Hook to get assignment rules
+ */
+export function useAssignmentRules() {
+  const [rules, setRules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const loadRules = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('request_assignment_rules')
+        .select('*, assignee:user_profiles!assignee_id(id, full_name)')
+        .order('priority', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setRules(data || []);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRules();
+  }, []);
+
+  const createRule = async (requestType: RequestType, assigneeId: string, priority: number = 1) => {
+    const { error } = await supabase
+      .from('request_assignment_rules')
+      .insert({
+        request_type: requestType,
+        assignee_id: assigneeId,
+        priority,
+        is_active: true
+      });
+
+    if (error) throw error;
+    await loadRules();
+  };
+
+  const updateRule = async (ruleId: string, updates: { assignee_id?: string; priority?: number; is_active?: boolean }) => {
+    const { error } = await supabase
+      .from('request_assignment_rules')
+      .update(updates)
+      .eq('id', ruleId);
+
+    if (error) throw error;
+    await loadRules();
+  };
+
+  const deleteRule = async (ruleId: string) => {
+    const { error } = await supabase
+      .from('request_assignment_rules')
+      .delete()
+      .eq('id', ruleId);
+
+    if (error) throw error;
+    await loadRules();
+  };
+
+  return {
+    rules,
+    loading,
+    error,
+    createRule,
+    updateRule,
+    deleteRule,
+    refresh: loadRules
+  };
 }

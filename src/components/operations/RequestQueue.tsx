@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Clock, AlertCircle, Users, Filter, TrendingUp, ArrowLeft } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
-import { useAllRequests, useAssignRequest, useUpdateRequestStage, useRequestAge } from '../../hooks/useRequests';
+import { useAllRequests, useAssignRequest, useUpdateRequestStage, useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface RequestQueueProps {
@@ -14,12 +14,18 @@ export default function RequestQueue({ onBack, onRequestClick }: RequestQueuePro
   const [filterStage, setFilterStage] = useState<RequestStage | 'all'>('all');
   const [filterType, setFilterType] = useState<RequestType | 'all'>('all');
   const [filterSLA, setFilterSLA] = useState<SLAStatus | 'all'>('all');
+  const [filterAssignee, setFilterAssignee] = useState<string>('all');
+  const [filterSubmitter, setFilterSubmitter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const { users } = useUsers();
 
   const { requests, loading, error } = useAllRequests({
     stage: filterStage !== 'all' ? filterStage : undefined,
     request_type: filterType !== 'all' ? filterType : undefined,
     sla_status: filterSLA !== 'all' ? filterSLA : undefined,
+    assigned_to: filterAssignee !== 'all' ? filterAssignee : undefined,
+    submitter_id: filterSubmitter !== 'all' ? filterSubmitter : undefined,
     search: searchTerm || undefined
   });
 
@@ -151,6 +157,31 @@ export default function RequestQueue({ onBack, onRequestClick }: RequestQueuePro
           <option value="breached">Breached</option>
           <option value="at_risk">At Risk</option>
           <option value="on_track">On Track</option>
+        </select>
+
+        {/* Assignee Filter */}
+        <select
+          value={filterAssignee}
+          onChange={(e) => setFilterAssignee(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="all">All Assignees</option>
+          <option value="unassigned">Unassigned</option>
+          {users.map(user => (
+            <option key={user.id} value={user.id}>{user.name}</option>
+          ))}
+        </select>
+
+        {/* Submitter Filter */}
+        <select
+          value={filterSubmitter}
+          onChange={(e) => setFilterSubmitter(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="all">All Submitters</option>
+          {users.map(user => (
+            <option key={user.id} value={user.id}>{user.name}</option>
+          ))}
         </select>
       </div>
 

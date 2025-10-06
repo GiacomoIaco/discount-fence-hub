@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, Settings } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import ClientPresentation from './components/sales/ClientPresentation';
 import SalesCoach from './components/sales/SalesCoach';
@@ -7,6 +7,7 @@ import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
 import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
+import AssignmentRules from './components/admin/AssignmentRules';
 import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
 import UserProfileEditor from './components/UserProfileEditor';
@@ -26,7 +27,7 @@ import { useEscalationEngine } from './hooks/useEscalationEngine';
 import type { Request } from './lib/requests';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'assignment-rules';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -143,6 +144,11 @@ function App() {
       { id: 'team' as Section, name: 'Team', icon: User, separator: true },
     ];
 
+    // Admin-only items
+    if (userRole === 'admin') {
+      items.push({ id: 'assignment-rules' as Section, name: 'Assignment Rules', icon: Settings });
+    }
+
     // Photo Review is now accessed via tabs in Photo Gallery (desktop only)
     return items;
   };
@@ -192,6 +198,9 @@ function App() {
     }
     if (activeSection === 'team-communication') {
       return <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />;
+    }
+    if (activeSection === 'assignment-rules') {
+      return <AssignmentRules onBack={() => setActiveSection('home')} />;
     }
 
     // Default home view
