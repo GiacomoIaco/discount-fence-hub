@@ -300,8 +300,8 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-screen bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           {sidebarOpen ? (
             <>
