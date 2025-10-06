@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import {
+import type {
   Request,
   RequestStage,
   RequestType,
+  CreateRequestInput,
+  QuoteStatus
+} from '../lib/requests';
+import {
   getMyRequests,
   getAllRequests,
   getRequestById,
@@ -15,9 +19,7 @@ import {
   getRequestNotes,
   addRequestNote,
   getRequestActivity,
-  subscribeToRequests,
-  CreateRequestInput,
-  QuoteStatus
+  subscribeToRequests
 } from '../lib/requests';
 
 // ============================================
