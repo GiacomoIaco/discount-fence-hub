@@ -41,17 +41,13 @@ export default function PWAUpdatePrompt() {
     setNeedRefresh(false);
   };
 
-  const handleForceRefresh = () => {
+  const handleForceRefresh = async () => {
     // Clear all caches and reload
     if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => caches.delete(name));
-      }).then(() => {
-        window.location.reload();
-      });
-    } else {
-      window.location.reload();
+      const names = await caches.keys();
+      await Promise.all(names.map(name => caches.delete(name)));
     }
+    window.location.reload();
   };
 
   if (!showPrompt) {
