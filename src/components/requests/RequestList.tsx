@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter } from 'lucide-react';
 import type { Request, RequestStage, RequestType } from '../../lib/requests';
 import { useMyRequests } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
@@ -109,20 +109,48 @@ const RequestAgeIndicator = ({ request }: { request: Request }) => {
 
 export default function RequestList({ onRequestClick, onNewRequest }: RequestListProps) {
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'archived'>('active');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<RequestType | 'all'>('all');
+  const [filterStage, setFilterStage] = useState<RequestStage | 'all'>('all');
 
   const { requests, loading, error, refresh } = useMyRequests({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
   });
 
-  // Filter requests by tab
+  // Filter requests by tab and advanced filters
   const filteredRequests = requests.filter(req => {
-    if (activeTab === 'active') {
-      return req.stage === 'new' || req.stage === 'pending';
+    // Tab filter
+    if (activeTab === 'active' && !(req.stage === 'new' || req.stage === 'pending')) {
+      return false;
     }
-    if (activeTab === 'completed') {
-      return req.stage === 'completed';
+    if (activeTab === 'completed' && req.stage !== 'completed') {
+      return false;
     }
-    return req.stage === 'archived';
+    if (activeTab === 'archived' && req.stage !== 'archived') {
+      return false;
+    }
+
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const matchesSearch =
+        req.title?.toLowerCase().includes(search) ||
+        req.customer_name?.toLowerCase().includes(search) ||
+        req.project_number?.toLowerCase().includes(search);
+      if (!matchesSearch) return false;
+    }
+
+    // Type filter
+    if (filterType !== 'all' && req.request_type !== filterType) {
+      return false;
+    }
+
+    // Stage filter
+    if (filterStage !== 'all' && req.stage !== filterStage) {
+      return false;
+    }
+
+    return true;
   });
 
   if (loading) {
@@ -192,6 +220,52 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
         >
           Archived
         </button>
+      </div>
+
+      {/* Advanced Filters */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+          <Filter className="w-4 h-4" />
+          Filters
+        </div>
+
+        {/* Search */}
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by customer, project, title..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          {/* Type Filter */}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as RequestType | 'all')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Types</option>
+            <option value="pricing">Pricing</option>
+            <option value="material">Material</option>
+            <option value="warranty">Warranty</option>
+            <option value="new_builder">New Builder</option>
+            <option value="support">Support</option>
+          </select>
+
+          {/* Stage Filter */}
+          <select
+            value={filterStage}
+            onChange={(e) => setFilterStage(e.target.value as RequestStage | 'all')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Stages</option>
+            <option value="new">New</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
       </div>
 
       {/* Request List */}

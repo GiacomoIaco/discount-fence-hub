@@ -504,7 +504,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
   }
 
   if (activeSection === 'my-requests') {
-    return <RequestHub onBack={() => setActiveSection('home')} />;
+    return <MyRequestsView onBack={() => setActiveSection('home')} />;
   }
 
   if (activeSection === 'stain-calculator') {
