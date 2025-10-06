@@ -1,4 +1,4 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare } from 'lucide-react';
 import type { Request } from '../../lib/requests';
 import { useRequestAge } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
@@ -64,6 +64,11 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           <div className="flex-1">
             <h1 className="text-lg font-bold text-gray-900">{request.title}</h1>
             <p className="text-xs text-gray-600">{typeInfo.label} Request</p>
+            {request.submitted_at && (
+              <p className="text-xs text-gray-500 mt-1">
+                Submitted {new Date(request.submitted_at).toLocaleDateString()} at {new Date(request.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -184,17 +189,43 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           </div>
         )}
 
-        {/* Notes Section */}
+        {/* Notes/Chat Section */}
         <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-          <h3 className="font-semibold text-gray-900">Notes</h3>
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" />
+            Messages & Notes
+          </h3>
+
+          {/* Notes List */}
+          <div className="max-h-96 overflow-y-auto space-y-2 mb-3">
+            {notesLoading ? (
+              <p className="text-sm text-gray-600">Loading messages...</p>
+            ) : notes.length === 0 ? (
+              <p className="text-sm text-gray-600 text-center py-4">No messages yet. Start the conversation!</p>
+            ) : (
+              notes.map((note) => (
+                <div key={note.id} className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p className="text-xs font-medium text-blue-900">
+                      {note.user_id === request.submitter_id ? 'Submitter' : 'Team Member'}
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      {new Date(note.created_at).toLocaleDateString()} {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <p className="text-sm text-gray-800">{note.content}</p>
+                </div>
+              ))
+            )}
+          </div>
 
           {/* Add Note */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 border-t border-gray-200 pt-3">
             <input
               type="text"
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Add a note..."
+              placeholder="Type your message..."
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               onKeyPress={(e) => e.key === 'Enter' && handleAddNote()}
             />
@@ -203,27 +234,9 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
               disabled={addingNote || !newNote.trim()}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
             >
-              {addingNote ? 'Adding...' : 'Add'}
+              {addingNote ? 'Sending...' : 'Send'}
             </button>
           </div>
-
-          {/* Notes List */}
-          {notesLoading ? (
-            <p className="text-sm text-gray-600">Loading notes...</p>
-          ) : notes.length === 0 ? (
-            <p className="text-sm text-gray-600">No notes yet</p>
-          ) : (
-            <div className="space-y-2">
-              {notes.map((note) => (
-                <div key={note.id} className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-sm text-gray-700">{note.content}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(note.created_at).toLocaleString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Activity Log */}
