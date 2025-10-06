@@ -8,6 +8,7 @@ import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import TeamManagement from './components/TeamManagement';
 import AssignmentRules from './components/admin/AssignmentRules';
+import Analytics from './components/Analytics';
 import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
 import UserProfileEditor from './components/UserProfileEditor';
@@ -1336,23 +1337,4 @@ const Dashboard = ({ userRole }: DashboardProps) => {
 };
 
 // Placeholder Analytics Component
-interface AnalyticsProps {
-  userRole: UserRole;
-}
-
-const Analytics = ({ userRole }: AnalyticsProps) => {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics</h1>
-        <p className="text-gray-600">Performance metrics and insights</p>
-      </div>
-
-      <div className="bg-gray-100 border-2 border-gray-300 p-8 rounded-xl text-center">
-        <p className="text-gray-600">Analytics dashboard coming soon for role: <span className="font-semibold capitalize">{userRole}</span></p>
-      </div>
-    </div>
-  );
-};
-
 export default App;
