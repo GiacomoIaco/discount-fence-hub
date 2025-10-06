@@ -1,6 +1,6 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users } from 'lucide-react';
 import type { Request } from '../../lib/requests';
-import { useRequestAge } from '../../hooks/useRequests';
+import { useRequestAge, useUsers, useAssignRequest } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -14,10 +14,14 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
   const age = useRequestAge(request);
   const { notes, addNote, loading: notesLoading } = useRequestNotes(request.id);
   const { activity, loading: activityLoading } = useRequestActivity(request.id);
+  const { users } = useUsers();
+  const { assign: assignRequest } = useAssignRequest();
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [submitterName, setSubmitterName] = useState<string>('');
+  const [assigneeName, setAssigneeName] = useState<string>('');
   const [userProfiles, setUserProfiles] = useState<Map<string, string>>(new Map());
+  const [isChangingAssignee, setIsChangingAssignee] = useState(false);
 
   // Fetch submitter profile
   useEffect(() => {
@@ -36,6 +40,26 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
     };
     fetchSubmitter();
   }, [request.submitter_id]);
+
+  // Fetch assignee profile
+  useEffect(() => {
+    const fetchAssignee = async () => {
+      if (request.assigned_to) {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('full_name, email')
+          .eq('id', request.assigned_to)
+          .single();
+
+        if (data) {
+          setAssigneeName(data.full_name || data.email || 'Unknown User');
+        }
+      } else {
+        setAssigneeName('');
+      }
+    };
+    fetchAssignee();
+  }, [request.assigned_to]);
 
   // Fetch user profiles for notes
   useEffect(() => {
@@ -87,6 +111,27 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
       alert('Failed to add note. Please try again.');
     } finally {
       setAddingNote(false);
+    }
+  };
+
+  const handleChangeAssignee = async (newAssigneeId: string) => {
+    try {
+      if (newAssigneeId === 'unassigned') {
+        // Unassign - use updateRequest directly
+        await supabase
+          .from('requests')
+          .update({ assigned_to: null, assigned_at: null })
+          .eq('id', request.id);
+      } else {
+        // Assign to user
+        await assignRequest(request.id, newAssigneeId);
+      }
+      setIsChangingAssignee(false);
+      // Reload to reflect changes
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to change assignee:', error);
+      alert('Failed to change assignee. Please try again.');
     }
   };
 
@@ -165,6 +210,50 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
               </span>
             </div>
           )}
+
+          {/* Assignee */}
+          <div className="border-t border-gray-200 pt-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <Users className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-600">Assigned to:</span>
+                {!isChangingAssignee && (
+                  <span className="font-medium text-gray-900">
+                    {assigneeName || 'Unassigned'}
+                  </span>
+                )}
+              </div>
+              {!isChangingAssignee && (
+                <button
+                  onClick={() => setIsChangingAssignee(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Change
+                </button>
+              )}
+            </div>
+
+            {isChangingAssignee && (
+              <div className="mt-2 space-y-2">
+                <select
+                  defaultValue={request.assigned_to || 'unassigned'}
+                  onChange={(e) => handleChangeAssignee(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="unassigned">Unassigned</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setIsChangingAssignee(false)}
+                  className="text-xs text-gray-600 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Customer Info */}
