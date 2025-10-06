@@ -295,16 +295,10 @@ function App() {
       <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
         <div className="p-3 border-b border-gray-800">
           {sidebarOpen ? (
-            <>
-              <div className="flex items-center justify-between mb-2">
-                <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
-                <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <p className="text-gray-400 capitalize">{userRole}</p>
-                <p className="text-gray-500">
+            <div className="flex items-center justify-between">
+              <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
+              <div className="flex items-center gap-3">
+                <p className="text-gray-500 text-xs">
                   {import.meta.env.MODE === 'development'
                     ? 'v1.0.dev'
                     : (() => {
@@ -317,8 +311,11 @@ function App() {
                       })()
                   }
                 </p>
+                <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
               <img src="/logo-transparent.png" alt="Logo" className="h-10 w-auto" />
