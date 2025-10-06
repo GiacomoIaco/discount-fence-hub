@@ -4,6 +4,7 @@ import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { showError } from '../../lib/toast';
 
 interface RequestDetailProps {
   request: Request;
@@ -112,7 +113,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       setNewNote('');
     } catch (error) {
       console.error('Failed to add note:', error);
-      alert('Failed to add note. Please try again.');
+      showError('Failed to add note. Please try again.');
     } finally {
       setAddingNote(false);
     }
@@ -146,7 +147,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     } catch (error: any) {
       console.error('Failed to change assignee:', error);
-      alert(`Failed to change assignee: ${error.message || 'Please try again.'}`);
+      showError(`Failed to change assignee: ${error.message || 'Please try again.'}`);
       setIsChangingAssignee(false);
     }
   };
@@ -168,7 +169,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     } catch (error: any) {
       console.error('Failed to change stage:', error);
-      alert(`Failed to change stage: ${error.message || 'Please try again.'}`);
+      showError(`Failed to change stage: ${error.message || 'Please try again.'}`);
       setIsChangingStage(false);
     }
   };
@@ -190,7 +191,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     } catch (error: any) {
       console.error('Failed to change quote status:', error);
-      alert(`Failed to change quote status: ${error.message || 'Please try again.'}`);
+      showError(`Failed to change quote status: ${error.message || 'Please try again.'}`);
       setIsChangingQuoteStatus(false);
     }
   };
@@ -212,7 +213,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     } catch (error: any) {
       console.error('Failed to save request:', error);
-      alert(`Failed to save request: ${error.message || 'Please try again.'}`);
+      showError(`Failed to save request: ${error.message || 'Please try again.'}`);
     }
   };
 

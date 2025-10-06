@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, Settings as SettingsIcon } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
+import { showError, showWarning } from './lib/toast';
 import StainCalculator from './components/sales/StainCalculator';
 import ClientPresentation from './components/sales/ClientPresentation';
 import SalesCoach from './components/sales/SalesCoach';
@@ -19,6 +21,7 @@ import RequestDetail from './components/requests/RequestDetail';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { transcribeAudio } from './lib/openai';
@@ -153,50 +156,110 @@ function App() {
   const renderContent = () => {
     // Handle common sections for all roles
     if (activeSection === 'requests') {
-      return <RequestHub onBack={() => setActiveSection('home')} />;
+      return (
+        <ErrorBoundary>
+          <RequestHub onBack={() => setActiveSection('home')} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'request-queue') {
       if (selectedRequest) {
-        return <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} />;
+        return (
+          <ErrorBoundary>
+            <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} />
+          </ErrorBoundary>
+        );
       }
-      return <OperationsQueue onBack={() => setActiveSection('home')} onRequestClick={setSelectedRequest} />;
+      return (
+        <ErrorBoundary>
+          <OperationsQueue onBack={() => setActiveSection('home')} onRequestClick={setSelectedRequest} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'presentation') {
-      return <ClientPresentation onBack={() => setActiveSection('home')} isMobile={viewMode === 'mobile'} />;
+      return (
+        <ErrorBoundary>
+          <ClientPresentation onBack={() => setActiveSection('home')} isMobile={viewMode === 'mobile'} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'sales-coach') {
-      return <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />;
+      return (
+        <ErrorBoundary>
+          <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'photo-gallery') {
-      return <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />;
+      return (
+        <ErrorBoundary>
+          <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'stain-calculator') {
-      return <StainCalculator onBack={() => setActiveSection('home')} />;
+      return (
+        <ErrorBoundary>
+          <StainCalculator onBack={() => setActiveSection('home')} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'my-requests') {
-      return <MyRequestsView onBack={() => setActiveSection('home')} />;
+      return (
+        <ErrorBoundary>
+          <MyRequestsView onBack={() => setActiveSection('home')} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'sales-coach-admin') {
-      return <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole={userRole} />;
+      return (
+        <ErrorBoundary>
+          <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole={userRole} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'dashboard') {
-      return <Dashboard userRole={userRole} />;
+      return (
+        <ErrorBoundary>
+          <Dashboard userRole={userRole} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'analytics') {
-      return <Analytics userRole={userRole} />;
+      return (
+        <ErrorBoundary>
+          <Analytics userRole={userRole} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'team') {
-      return <Settings onBack={() => setActiveSection('home')} userRole={userRole} />;
+      return (
+        <ErrorBoundary>
+          <Settings onBack={() => setActiveSection('home')} userRole={userRole} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'sales-resources') {
-      return <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />;
+      return (
+        <ErrorBoundary>
+          <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />
+        </ErrorBoundary>
+      );
     }
     if (activeSection === 'team-communication') {
-      return <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />;
+      return (
+        <ErrorBoundary>
+          <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />
+        </ErrorBoundary>
+      );
     }
 
     // Default home view
-    return <Dashboard userRole={userRole} />;
+    return (
+      <ErrorBoundary>
+        <Dashboard userRole={userRole} />
+      </ErrorBoundary>
+    );
   };
 
   // Show loading screen while checking authentication
@@ -221,78 +284,85 @@ function App() {
   // Mobile view - same for all roles
   if (viewMode === 'mobile') {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3 flex-1">
-              <img src="/Logo-DF-Transparent.png" alt="Discount Fence USA" className="h-12 w-auto" />
-              <p className="text-sm text-gray-500">Hey {userName}! 👋</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* View Mode Switcher */}
-              <button
-                onClick={() => setViewMode('desktop')}
-                className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded text-gray-700 hover:bg-gray-200"
-              >
-                Desktop
-              </button>
-              {/* Profile Avatar */}
-              <button
-                onClick={() => setShowProfileView(true)}
-                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
-              >
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={userName}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-blue-600"
-                  />
-                ) : (
-                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
-                  </div>
-                )}
-              </button>
+      <>
+        <Toaster position="top-center" />
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1">
+                <img src="/Logo-DF-Transparent.png" alt="Discount Fence USA" className="h-12 w-auto" />
+                <p className="text-sm text-gray-500">Hey {userName}! 👋</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* View Mode Switcher */}
+                <button
+                  onClick={() => setViewMode('desktop')}
+                  className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded text-gray-700 hover:bg-gray-200"
+                >
+                  Desktop
+                </button>
+                {/* Profile Avatar */}
+                <button
+                  onClick={() => setShowProfileView(true)}
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={userName}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-blue-600"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                      <User className="w-6 h-6 text-white" />
+                    </div>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
+          <div className="pb-20">
+            <ErrorBoundary>
+              <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} userId={user?.id} userName={profile?.full_name} />
+            </ErrorBoundary>
+          </div>
+
+          {/* Install App Banner */}
+          <InstallAppBanner />
+
+          {/* PWA Update Prompt */}
+          <PWAUpdatePrompt />
+
+          {/* Profile Modals */}
+          {showProfileView && (
+            <UserProfileView
+              onClose={() => setShowProfileView(false)}
+              onEdit={() => {
+                setShowProfileView(false);
+                setShowProfileEditor(true);
+              }}
+            />
+          )}
+
+          {showProfileEditor && (
+            <UserProfileEditor
+              onClose={() => setShowProfileEditor(false)}
+              onSave={() => {
+                setShowProfileEditor(false);
+                window.location.reload(); // Reload to refresh profile data
+              }}
+            />
+          )}
         </div>
-        <div className="pb-20">
-          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} userId={user?.id} userName={profile?.full_name} />
-        </div>
-
-        {/* Install App Banner */}
-        <InstallAppBanner />
-
-        {/* PWA Update Prompt */}
-        <PWAUpdatePrompt />
-
-        {/* Profile Modals */}
-        {showProfileView && (
-          <UserProfileView
-            onClose={() => setShowProfileView(false)}
-            onEdit={() => {
-              setShowProfileView(false);
-              setShowProfileEditor(true);
-            }}
-          />
-        )}
-
-        {showProfileEditor && (
-          <UserProfileEditor
-            onClose={() => setShowProfileEditor(false)}
-            onSave={() => {
-              setShowProfileEditor(false);
-              window.location.reload(); // Reload to refresh profile data
-            }}
-          />
-        )}
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
+    <>
+      <Toaster position="top-center" />
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
         <div className="p-3 border-b border-gray-800">
           {sidebarOpen ? (
             <div className="flex items-center justify-between">
@@ -481,7 +551,8 @@ function App() {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -748,7 +819,7 @@ const CustomPricingRequest = ({ onBack, viewMode: _viewMode }: CustomPricingRequ
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (err) {
-      alert('Microphone access denied. Please enable microphone permissions.');
+      showError('Microphone access denied. Please enable microphone permissions.');
     }
   };
 
@@ -799,7 +870,7 @@ const CustomPricingRequest = ({ onBack, viewMode: _viewMode }: CustomPricingRequ
           setStep('choice');
         } catch (error) {
           console.error('Error processing audio:', error);
-          alert('Failed to process audio. Using demo mode.\n\nError: ' + (error as Error).message);
+          showWarning('Failed to process audio. Using demo mode. Error: ' + (error as Error).message);
 
           // Fallback to demo data if API fails
           const demoData = {
