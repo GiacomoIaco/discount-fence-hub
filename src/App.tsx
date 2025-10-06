@@ -12,6 +12,8 @@ import MessageComposer from './components/MessageComposer';
 import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
 import RequestHub from './components/requests/RequestHub';
+import OperationsQueue from './components/operations/RequestQueue';
+import RequestDetail from './components/requests/RequestDetail';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -19,6 +21,8 @@ import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
+import { useEscalationEngine } from './hooks/useEscalationEngine';
+import type { Request } from './lib/requests';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
 type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication';
@@ -61,6 +65,11 @@ function App() {
   const [showMessageComposer, setShowMessageComposer] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+
+  // Enable escalation engine for operations/admin roles
+  const isOperationsRole = ['operations', 'sales-manager', 'admin'].includes(userRole);
+  useEscalationEngine(isOperationsRole);
 
   // Save viewMode to localStorage when it changes
   useEffect(() => {
@@ -143,6 +152,12 @@ function App() {
     // Handle common sections for all roles
     if (activeSection === 'requests') {
       return <RequestHub onBack={() => setActiveSection('home')} />;
+    }
+    if (activeSection === 'request-queue') {
+      if (selectedRequest) {
+        return <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} />;
+      }
+      return <OperationsQueue onBack={() => setActiveSection('home')} onRequestClick={setSelectedRequest} />;
     }
     if (activeSection === 'presentation') {
       return <ClientPresentation onBack={() => setActiveSection('home')} isMobile={viewMode === 'mobile'} />;

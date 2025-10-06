@@ -4,7 +4,8 @@ import type {
   RequestStage,
   RequestType,
   CreateRequestInput,
-  QuoteStatus
+  QuoteStatus,
+  SLAStatus
 } from '../lib/requests';
 import {
   getMyRequests,
@@ -79,6 +80,7 @@ export function useAllRequests(filters?: {
   stage?: RequestStage;
   request_type?: RequestType;
   assigned_to?: string;
+  sla_status?: SLAStatus;
   search?: string;
 }) {
   const [requests, setRequests] = useState<Request[]>([]);
