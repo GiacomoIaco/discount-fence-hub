@@ -47,6 +47,9 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   const [specialRequirements, setSpecialRequirements] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Voice recording
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
@@ -225,39 +228,50 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     }
   };
 
-  const handleCameraCapture = async () => {
+  const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
       });
+      setStream(mediaStream);
+      setShowCamera(true);
 
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.play();
-
-      // Wait for video to be ready
-      await new Promise(resolve => {
-        video.onloadedmetadata = resolve;
-      });
-
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(video, 0, 0);
-
-      stream.getTracks().forEach(track => track.stop());
-
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-          setPhotos(prev => [...prev, file]);
+      // Wait for video element to be ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
         }
-      }, 'image/jpeg', 0.9);
+      }, 100);
     } catch (error) {
-      console.error('Camera capture error:', error);
+      console.error('Camera access error:', error);
       alert('Could not access camera. Please use file upload instead.');
     }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !stream) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx?.drawImage(videoRef.current, 0, 0);
+
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setPhotos(prev => [...prev, file]);
+        closeCamera();
+      }
+    }, 'image/jpeg', 0.9);
+  };
+
+  const closeCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
   };
 
   const removePhoto = (index: number) => {
@@ -310,6 +324,8 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       return;
     }
 
+    let requestData: CreateRequestInput | null = null;
+
     try {
       // Upload photos first if there are any
       let uploadedPhotoUrls: string[] = [];
@@ -317,7 +333,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         uploadedPhotoUrls = await uploadPhotosToStorage();
       }
 
-      const requestData: CreateRequestInput = {
+      requestData = {
         request_type: requestType,
         title,
         description: description || undefined,
@@ -339,9 +355,11 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
 
       await create(requestData);
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating request:', error);
-      alert('Failed to create request. Please try again.');
+      console.error('Request data:', requestData);
+      const errorMessage = error?.message || error?.details || 'Unknown error';
+      alert(`Failed to create request: ${errorMessage}\n\nPlease check console for details.`);
     }
   };
 
@@ -599,7 +617,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
             <div className="flex gap-2 mb-3">
               <button
                 type="button"
-                onClick={handleCameraCapture}
+                onClick={startCamera}
                 className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
               >
                 <Camera className="w-4 h-4" />
@@ -680,6 +698,35 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
           </div>
         </form>
       </div>
+
+      {/* Camera Preview Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 bg-black z-[60] flex flex-col">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="flex-1 w-full object-cover"
+          />
+          <div className="p-4 bg-black flex justify-between items-center">
+            <button
+              type="button"
+              onClick={closeCamera}
+              className="px-4 py-2 bg-gray-700 text-white rounded-lg font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={capturePhoto}
+              className="w-16 h-16 bg-white rounded-full flex items-center justify-center"
+            >
+              <div className="w-14 h-14 bg-blue-600 rounded-full"></div>
+            </button>
+            <div className="w-20"></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
