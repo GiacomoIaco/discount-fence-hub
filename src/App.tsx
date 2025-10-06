@@ -256,7 +256,7 @@ function App() {
           </div>
         </div>
         <div className="pb-20">
-          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} />
+          <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} userId={user?.id} userName={profile?.full_name} />
         </div>
 
         {/* Install App Banner */}
@@ -496,9 +496,11 @@ interface SalesRepViewProps {
   setActiveSection: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
   unreadCount: number;
+  userId?: string;
+  userName?: string;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, userId, userName }: SalesRepViewProps) => {
   if (activeSection === 'requests') {
     return <RequestHub onBack={() => setActiveSection('home')} />;
   }
@@ -528,7 +530,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
   }
 
   if (activeSection === 'photo-gallery') {
-    return <PhotoGallery onBack={() => setActiveSection('home')} />;
+    return <PhotoGallery onBack={() => setActiveSection('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />;
   }
 
   if (activeSection === 'sales-resources') {
