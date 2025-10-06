@@ -13,6 +13,12 @@ export default function PWAUpdatePrompt() {
   } = useRegisterSW({
     onRegistered(r: any) {
       console.log('SW Registered:', r);
+      // Check for updates every 60 seconds
+      if (r) {
+        setInterval(() => {
+          r.update();
+        }, 60000);
+      }
     },
     onRegisterError(error: any) {
       console.log('SW registration error', error);
@@ -35,7 +41,31 @@ export default function PWAUpdatePrompt() {
     setNeedRefresh(false);
   };
 
-  if (!showPrompt) return null;
+  const handleForceRefresh = () => {
+    // Clear all caches and reload
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      }).then(() => {
+        window.location.reload();
+      });
+    } else {
+      window.location.reload();
+    }
+  };
+
+  if (!showPrompt) {
+    // Show a small update check button in bottom right
+    return (
+      <button
+        onClick={handleForceRefresh}
+        className="fixed bottom-20 right-4 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 z-40"
+        title="Check for updates"
+      >
+        <RefreshCw className="w-5 h-5" />
+      </button>
+    );
+  }
 
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-blue-600 text-white rounded-lg shadow-2xl p-4 z-50 animate-slide-up">
