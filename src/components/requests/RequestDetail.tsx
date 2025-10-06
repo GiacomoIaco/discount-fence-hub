@@ -1,4 +1,4 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2 } from 'lucide-react';
 import type { Request } from '../../lib/requests';
 import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
@@ -322,13 +322,42 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           </div>
         )}
 
-        {/* Transcript */}
-        {request.transcript && (
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-2">
+        {/* Voice Recording & Transcript */}
+        {(request.voice_recording_url || request.transcript) && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3">
             <h3 className="font-semibold text-purple-900 flex items-center gap-2">
-              🎤 Voice Transcript
+              <Volume2 className="w-5 h-5" />
+              Voice Recording
             </h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.transcript}</p>
+
+            {/* Audio Player */}
+            {request.voice_recording_url && (
+              <div className="bg-white rounded-lg p-3 shadow-sm">
+                <audio
+                  controls
+                  className="w-full"
+                  preload="metadata"
+                  src={request.voice_recording_url}
+                >
+                  Your browser does not support the audio element.
+                </audio>
+                {request.voice_duration && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Duration: {Math.floor(request.voice_duration / 60)}:{(request.voice_duration % 60).toString().padStart(2, '0')}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Transcript */}
+            {request.transcript && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-purple-800">Transcript:</h4>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap bg-white rounded-lg p-3">
+                  {request.transcript}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
