@@ -1,6 +1,6 @@
 import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users } from 'lucide-react';
 import type { Request } from '../../lib/requests';
-import { useRequestAge, useUsers, useAssignRequest } from '../../hooks/useRequests';
+import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -15,7 +15,6 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
   const { notes, addNote, loading: notesLoading } = useRequestNotes(request.id);
   const { activity, loading: activityLoading } = useRequestActivity(request.id);
   const { users } = useUsers();
-  const { assign: assignRequest } = useAssignRequest();
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [submitterName, setSubmitterName] = useState<string>('');
@@ -116,22 +115,32 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
 
   const handleChangeAssignee = async (newAssigneeId: string) => {
     try {
-      if (newAssigneeId === 'unassigned') {
-        // Unassign - use updateRequest directly
-        await supabase
-          .from('requests')
-          .update({ assigned_to: null, assigned_at: null })
-          .eq('id', request.id);
-      } else {
-        // Assign to user
-        await assignRequest(request.id, newAssigneeId);
+      // Update assignment directly via Supabase
+      const updates = newAssigneeId === 'unassigned'
+        ? { assigned_to: null, assigned_at: null }
+        : {
+            assigned_to: newAssigneeId,
+            assigned_at: new Date().toISOString(),
+            stage: 'pending' as const
+          };
+
+      const { error } = await supabase
+        .from('requests')
+        .update(updates)
+        .eq('id', request.id);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
       }
+
       setIsChangingAssignee(false);
       // Reload to reflect changes
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to change assignee:', error);
-      alert('Failed to change assignee. Please try again.');
+      alert(`Failed to change assignee: ${error.message || 'Please try again.'}`);
+      setIsChangingAssignee(false);
     }
   };
 
