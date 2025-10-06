@@ -190,6 +190,12 @@ git push
 - Make sure you're logged in when testing
 - Or temporarily disable RLS: `ALTER TABLE requests DISABLE ROW LEVEL SECURITY;`
 
+**Error: invalid input value for enum request_type: "pricing"**
+- This error has been fixed in the updated migration script
+- The migration now converts the old ENUM type to TEXT with proper value mapping
+- Old values automatically converted: 'custom_pricing' → 'pricing', 'material_request' → 'material', etc.
+- Re-run the migration after getting the latest version
+
 **Triggers not firing**
 - Check function exists: `\df update_sla_status`
 - Check trigger exists: `SELECT * FROM pg_trigger WHERE tgname = 'trigger_update_sla_status';`

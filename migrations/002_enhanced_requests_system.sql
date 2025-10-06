@@ -31,16 +31,57 @@ ALTER TABLE requests
   ADD COLUMN IF NOT EXISTS activity_log JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS submitter_id UUID REFERENCES auth.users(id);
 
--- Update request_type to support more types
-ALTER TABLE requests
-  DROP CONSTRAINT IF EXISTS requests_request_type_check;
+-- Convert request_type from ENUM to TEXT type to allow new values
+-- Step 1: Create a temporary column with TEXT type
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS request_type_new TEXT;
 
+-- Step 2: Copy data from enum column to text column, mapping old values to new
+UPDATE requests SET request_type_new =
+  CASE request_type::text
+    WHEN 'custom_pricing' THEN 'pricing'
+    WHEN 'builder_community' THEN 'new_builder'
+    WHEN 'installation_issue' THEN 'warranty'
+    WHEN 'material_request' THEN 'material'
+    WHEN 'customer_escalation' THEN 'support'
+    ELSE 'other'
+  END;
+
+-- Step 3: Drop the old enum column
+ALTER TABLE requests DROP COLUMN IF EXISTS request_type;
+
+-- Step 4: Rename new column to request_type
+ALTER TABLE requests RENAME COLUMN request_type_new TO request_type;
+
+-- Step 5: Set NOT NULL constraint
+ALTER TABLE requests ALTER COLUMN request_type SET NOT NULL;
+
+-- Step 6: Add check constraint for valid values
 ALTER TABLE requests
   ADD CONSTRAINT requests_request_type_check
   CHECK (request_type IN ('pricing', 'material', 'support', 'new_builder', 'warranty', 'other'));
 
--- Update old 'custom-pricing' to 'pricing'
-UPDATE requests SET request_type = 'pricing' WHERE request_type = 'custom-pricing';
+-- Migrate old 'status' enum to new 'stage' TEXT column
+-- The old status enum has: 'pending', 'in_progress', 'completed', 'cancelled'
+-- New stage uses: 'new', 'pending', 'completed', 'archived'
+-- Note: 'stage' column was already added above with default 'new'
+UPDATE requests SET stage =
+  CASE status::text
+    WHEN 'pending' THEN 'new'
+    WHEN 'in_progress' THEN 'pending'
+    WHEN 'completed' THEN 'completed'
+    WHEN 'cancelled' THEN 'archived'
+    ELSE 'new'
+  END;
+
+-- Drop old status column
+ALTER TABLE requests DROP COLUMN IF EXISTS status;
+
+-- Migrate rep_id to submitter_id
+-- Copy data from rep_id to submitter_id for existing requests
+UPDATE requests SET submitter_id = rep_id WHERE submitter_id IS NULL;
+
+-- Drop old rep_id column (it referenced sales_reps, but we're now using auth.users)
+ALTER TABLE requests DROP COLUMN IF EXISTS rep_id;
 
 -- Add indexes for performance
 CREATE INDEX IF NOT EXISTS idx_requests_stage ON requests(stage);
