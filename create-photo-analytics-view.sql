@@ -1,7 +1,7 @@
 -- Photo Analytics System
 -- Run this in Supabase SQL Editor
 
--- Create a materialized view for photo analytics by uploader
+-- Create a view for photo analytics by uploader
 CREATE OR REPLACE VIEW photo_analytics_by_uploader AS
 SELECT
   p.uploaded_by as user_id,
@@ -9,21 +9,20 @@ SELECT
   COUNT(DISTINCT CASE WHEN p.status = 'published' THEN p.id END) as photos_published,
   COALESCE(SUM(CASE WHEN p.status = 'published' THEN p.likes ELSE 0 END), 0) as total_likes,
   COUNT(DISTINCT CASE WHEN p.status = 'published' AND p.is_favorite = true THEN p.id END) as total_favorites,
-  COUNT(DISTINCT cs.photo_id) as total_client_selections,
+  COUNT(DISTINCT cs.selection_id) as total_client_selections,
   ROUND(AVG(CASE WHEN p.status = 'published' AND p.quality_score IS NOT NULL THEN p.quality_score END), 2) as avg_quality_score,
   ROUND(AVG(CASE WHEN p.status = 'published' AND p.confidence_score IS NOT NULL THEN p.confidence_score END), 2) as avg_confidence_score,
   MIN(CASE WHEN p.status = 'published' THEN p.uploaded_at END) as first_published_at,
   MAX(CASE WHEN p.status = 'published' THEN p.uploaded_at END) as last_published_at
 FROM photos p
 LEFT JOIN LATERAL (
-  SELECT DISTINCT photo_id, jsonb_array_elements(
+  SELECT p.id as photo_id, jsonb_array_elements(
     CASE
-      WHEN jsonb_typeof(client_selections) = 'array' THEN client_selections
+      WHEN p.client_selections IS NOT NULL AND jsonb_typeof(p.client_selections) = 'array'
+      THEN p.client_selections
       ELSE '[]'::jsonb
     END
-  ) as selection
-  FROM photos
-  WHERE id = p.id
+  )->>'sessionId' as selection_id
 ) cs ON true
 GROUP BY p.uploaded_by, p.uploader_name;
 
