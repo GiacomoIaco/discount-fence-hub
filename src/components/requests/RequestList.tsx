@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter } from 'lucide-react';
-import type { Request, RequestStage, RequestType } from '../../lib/requests';
-import { useMyRequests } from '../../hooks/useRequests';
+import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
+import { useMyRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
 
 interface RequestListProps {
@@ -112,10 +112,14 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<RequestType | 'all'>('all');
   const [filterStage, setFilterStage] = useState<RequestStage | 'all'>('all');
+  const [filterAssignee, setFilterAssignee] = useState<string>('all');
+  const [filterSubmitter, setFilterSubmitter] = useState<string>('all');
+  const [filterSLA, setFilterSLA] = useState<SLAStatus | 'all'>('all');
 
   const { requests, loading, error, refresh } = useMyRequests({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
   });
+  const { users } = useUsers();
 
   // Filter requests by tab and advanced filters
   const filteredRequests = requests.filter(req => {
@@ -147,6 +151,26 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
 
     // Stage filter
     if (filterStage !== 'all' && req.stage !== filterStage) {
+      return false;
+    }
+
+    // Assignee filter
+    if (filterAssignee !== 'all') {
+      if (filterAssignee === 'unassigned' && req.assigned_to) {
+        return false;
+      }
+      if (filterAssignee !== 'unassigned' && req.assigned_to !== filterAssignee) {
+        return false;
+      }
+    }
+
+    // Submitter filter
+    if (filterSubmitter !== 'all' && req.submitter_id !== filterSubmitter) {
+      return false;
+    }
+
+    // SLA filter
+    if (filterSLA !== 'all' && req.sla_status !== filterSLA) {
       return false;
     }
 
@@ -264,6 +288,43 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
             <option value="pending">Pending</option>
             <option value="completed">Completed</option>
             <option value="archived">Archived</option>
+          </select>
+
+          {/* Assignee Filter */}
+          <select
+            value={filterAssignee}
+            onChange={(e) => setFilterAssignee(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Assignees</option>
+            <option value="unassigned">Unassigned</option>
+            {users.map(user => (
+              <option key={user.id} value={user.id}>{user.name}</option>
+            ))}
+          </select>
+
+          {/* Submitter Filter */}
+          <select
+            value={filterSubmitter}
+            onChange={(e) => setFilterSubmitter(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Submitters</option>
+            {users.map(user => (
+              <option key={user.id} value={user.id}>{user.name}</option>
+            ))}
+          </select>
+
+          {/* SLA Status Filter */}
+          <select
+            value={filterSLA}
+            onChange={(e) => setFilterSLA(e.target.value as SLAStatus | 'all')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent col-span-2"
+          >
+            <option value="all">All SLA Statuses</option>
+            <option value="on_track">On Track</option>
+            <option value="at_risk">At Risk</option>
+            <option value="breached">Breached</option>
           </select>
         </div>
       </div>

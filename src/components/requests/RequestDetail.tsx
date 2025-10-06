@@ -1,4 +1,4 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2 } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image } from 'lucide-react';
 import type { Request } from '../../lib/requests';
 import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
@@ -21,6 +21,10 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
   const [assigneeName, setAssigneeName] = useState<string>('');
   const [userProfiles, setUserProfiles] = useState<Map<string, string>>(new Map());
   const [isChangingAssignee, setIsChangingAssignee] = useState(false);
+  const [isEditingRequest, setIsEditingRequest] = useState(false);
+  const [isChangingStage, setIsChangingStage] = useState(false);
+  const [isChangingQuoteStatus, setIsChangingQuoteStatus] = useState(false);
+  const [editedRequest, setEditedRequest] = useState<Partial<Request>>(request);
 
   // Fetch submitter profile
   useEffect(() => {
@@ -115,7 +119,6 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
 
   const handleChangeAssignee = async (newAssigneeId: string) => {
     try {
-      // Update assignment directly via Supabase
       const updates = newAssigneeId === 'unassigned'
         ? { assigned_to: null, assigned_at: null }
         : {
@@ -135,7 +138,6 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
       }
 
       setIsChangingAssignee(false);
-      // Reload to reflect changes
       window.location.reload();
     } catch (error: any) {
       console.error('Failed to change assignee:', error);
@@ -144,10 +146,63 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
     }
   };
 
+  const handleChangeStage = async (newStage: string) => {
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ stage: newStage })
+        .eq('id', request.id);
+
+      if (error) throw error;
+
+      setIsChangingStage(false);
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Failed to change stage:', error);
+      alert(`Failed to change stage: ${error.message || 'Please try again.'}`);
+      setIsChangingStage(false);
+    }
+  };
+
+  const handleChangeQuoteStatus = async (newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ quote_status: newStatus === 'none' ? null : newStatus })
+        .eq('id', request.id);
+
+      if (error) throw error;
+
+      setIsChangingQuoteStatus(false);
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Failed to change quote status:', error);
+      alert(`Failed to change quote status: ${error.message || 'Please try again.'}`);
+      setIsChangingQuoteStatus(false);
+    }
+  };
+
+  const handleSaveRequest = async () => {
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .update(editedRequest)
+        .eq('id', request.id);
+
+      if (error) throw error;
+
+      setIsEditingRequest(false);
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Failed to save request:', error);
+      alert(`Failed to save request: ${error.message || 'Please try again.'}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 lg:static">
         <div className="px-4 py-3 flex items-center gap-3">
           <button
             onClick={onClose}
@@ -169,10 +224,43 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
               </p>
             )}
           </div>
+          {!isEditingRequest ? (
+            <button
+              onClick={() => {
+                setIsEditingRequest(true);
+                setEditedRequest(request);
+              }}
+              className="p-2 hover:bg-blue-50 rounded-lg transition-colors text-blue-600"
+              title="Edit Request"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveRequest}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditingRequest(false);
+                  setEditedRequest(request);
+                }}
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      {/* Desktop Layout: Two-column with sidebar */}
+      <div className="lg:flex lg:gap-6 lg:p-6">
+        {/* Main Content */}
+        <div className="flex-1 p-4 lg:p-0 space-y-4">
         {/* Status Card */}
         <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -207,18 +295,53 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
             </div>
           )}
 
-          {request.quote_status && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-600">Quote Status:</span>
-              <span className={`font-medium capitalize ${
-                request.quote_status === 'won' ? 'text-green-600' :
-                request.quote_status === 'lost' ? 'text-red-600' :
-                'text-blue-600'
-              }`}>
-                {request.quote_status}
-              </span>
+          {/* Quote Status */}
+          <div className="border-t border-gray-200 pt-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-600">Quote Status:</span>
+                {!isChangingQuoteStatus && (
+                  <span className={`font-medium capitalize ${
+                    request.quote_status === 'won' ? 'text-green-600' :
+                    request.quote_status === 'lost' ? 'text-red-600' :
+                    request.quote_status === 'awaiting' ? 'text-blue-600' :
+                    'text-gray-500'
+                  }`}>
+                    {request.quote_status || 'Not Set'}
+                  </span>
+                )}
+              </div>
+              {!isChangingQuoteStatus && request.request_type === 'pricing' && (
+                <button
+                  onClick={() => setIsChangingQuoteStatus(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Change
+                </button>
+              )}
             </div>
-          )}
+
+            {isChangingQuoteStatus && (
+              <div className="mt-2 space-y-2">
+                <select
+                  defaultValue={request.quote_status || 'none'}
+                  onChange={(e) => handleChangeQuoteStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="none">Not Set</option>
+                  <option value="won">Won</option>
+                  <option value="lost">Lost</option>
+                  <option value="awaiting">Awaiting</option>
+                </select>
+                <button
+                  onClick={() => setIsChangingQuoteStatus(false)}
+                  className="text-xs text-gray-600 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Assignee */}
           <div className="border-t border-gray-200 pt-3">
@@ -265,19 +388,107 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           </div>
         </div>
 
+        {/* Stage Management Workflow Buttons */}
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 text-sm">Change Stage</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {request.stage !== 'new' && (
+              <button
+                onClick={() => handleChangeStage('new')}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                disabled={isChangingStage}
+              >
+                <PlayCircle className="w-4 h-4" />
+                New
+              </button>
+            )}
+            {request.stage !== 'pending' && (
+              <button
+                onClick={() => handleChangeStage('pending')}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-medium"
+                disabled={isChangingStage}
+              >
+                <Clock className="w-4 h-4" />
+                In Progress
+              </button>
+            )}
+            {request.stage !== 'completed' && (
+              <button
+                onClick={() => handleChangeStage('completed')}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                disabled={isChangingStage}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Complete
+              </button>
+            )}
+            {request.stage !== 'archived' && (
+              <button
+                onClick={() => handleChangeStage('archived')}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                disabled={isChangingStage}
+              >
+                <Archive className="w-4 h-4" />
+                Archive
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Customer Info */}
-        {request.customer_name && (
+        {(request.customer_name || isEditingRequest) && (
           <div className="bg-white rounded-xl shadow-sm p-4 space-y-2">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <User className="w-4 h-4" />
               Customer Information
             </h3>
-            <div className="space-y-1 text-sm">
-              <p><span className="text-gray-600">Name:</span> <span className="font-medium">{request.customer_name}</span></p>
-              {request.customer_address && <p><span className="text-gray-600">Address:</span> <span className="font-medium">{request.customer_address}</span></p>}
-              {request.customer_phone && <p><span className="text-gray-600">Phone:</span> <span className="font-medium">{request.customer_phone}</span></p>}
-              {request.customer_email && <p><span className="text-gray-600">Email:</span> <span className="font-medium">{request.customer_email}</span></p>}
-            </div>
+            {isEditingRequest ? (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-gray-600">Name:</label>
+                  <input
+                    type="text"
+                    value={editedRequest.customer_name || ''}
+                    onChange={(e) => setEditedRequest({...editedRequest, customer_name: e.target.value})}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Address:</label>
+                  <input
+                    type="text"
+                    value={editedRequest.customer_address || ''}
+                    onChange={(e) => setEditedRequest({...editedRequest, customer_address: e.target.value})}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Phone:</label>
+                  <input
+                    type="tel"
+                    value={editedRequest.customer_phone || ''}
+                    onChange={(e) => setEditedRequest({...editedRequest, customer_phone: e.target.value})}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Email:</label>
+                  <input
+                    type="email"
+                    value={editedRequest.customer_email || ''}
+                    onChange={(e) => setEditedRequest({...editedRequest, customer_email: e.target.value})}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1 text-sm">
+                <p><span className="text-gray-600">Name:</span> <span className="font-medium">{request.customer_name}</span></p>
+                {request.customer_address && <p><span className="text-gray-600">Address:</span> <span className="font-medium">{request.customer_address}</span></p>}
+                {request.customer_phone && <p><span className="text-gray-600">Phone:</span> <span className="font-medium">{request.customer_phone}</span></p>}
+                {request.customer_email && <p><span className="text-gray-600">Email:</span> <span className="font-medium">{request.customer_email}</span></p>}
+              </div>
+            )}
           </div>
         )}
 
@@ -294,18 +505,36 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
         )}
 
         {/* Description */}
-        {request.description && (
+        {(request.description || isEditingRequest) && (
           <div className="bg-white rounded-xl shadow-sm p-4 space-y-2">
             <h3 className="font-semibold text-gray-900">Description</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.description}</p>
+            {isEditingRequest ? (
+              <textarea
+                value={editedRequest.description || ''}
+                onChange={(e) => setEditedRequest({...editedRequest, description: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[100px]"
+                placeholder="Enter description..."
+              />
+            ) : (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.description}</p>
+            )}
           </div>
         )}
 
         {/* Special Requirements */}
-        {request.special_requirements && (
+        {(request.special_requirements || isEditingRequest) && (
           <div className="bg-white rounded-xl shadow-sm p-4 space-y-2">
             <h3 className="font-semibold text-gray-900">Special Requirements</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.special_requirements}</p>
+            {isEditingRequest ? (
+              <textarea
+                value={editedRequest.special_requirements || ''}
+                onChange={(e) => setEditedRequest({...editedRequest, special_requirements: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[100px]"
+                placeholder="Enter special requirements..."
+              />
+            ) : (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.special_requirements}</p>
+            )}
           </div>
         )}
 
@@ -411,11 +640,11 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           </div>
         </div>
 
-        {/* Activity Log */}
+        {/* Activity Timeline */}
         <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <Calendar className="w-4 h-4" />
-            Activity Log
+            Activity Timeline
           </h3>
 
           {activityLoading ? (
@@ -423,20 +652,128 @@ export default function RequestDetail({ request, onClose }: RequestDetailProps) 
           ) : activity.length === 0 ? (
             <p className="text-sm text-gray-600">No activity yet</p>
           ) : (
-            <div className="space-y-2">
-              {activity.map((item) => (
-                <div key={item.id} className="flex gap-3 text-sm">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5 flex-shrink-0"></div>
-                  <div className="flex-1">
-                    <p className="text-gray-900 font-medium capitalize">{item.action.replace('_', ' ')}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(item.created_at).toLocaleString()}
-                    </p>
+            <div className="relative">
+              {/* Timeline Line */}
+              <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-blue-200"></div>
+
+              <div className="space-y-4">
+                {activity.map((item, index) => (
+                  <div key={item.id} className="flex gap-3 text-sm relative">
+                    {/* Timeline Dot */}
+                    <div className={`w-4 h-4 rounded-full flex-shrink-0 z-10 ${
+                      index === 0 ? 'bg-blue-600' : 'bg-blue-400'
+                    } border-2 border-white`}></div>
+
+                    <div className="flex-1 pb-2">
+                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                        <p className="text-gray-900 font-medium capitalize mb-1">
+                          {item.action.replace('_', ' ')}
+                        </p>
+                        {item.details && (
+                          <p className="text-xs text-gray-600 mb-1">{item.details}</p>
+                        )}
+                        <p className="text-xs text-blue-600">
+                          {new Date(item.created_at).toLocaleDateString()} at {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
+        </div>
+        </div>
+
+        {/* Right Sidebar - Desktop Only */}
+        <div className="hidden lg:block lg:w-96 space-y-4">
+          {/* Photos Preview */}
+          {request.photo_urls && request.photo_urls.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Image className="w-4 h-4" />
+                Photos ({request.photo_urls.length})
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {request.photo_urls.map((url, index) => (
+                  <a
+                    key={index}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                  >
+                    <img
+                      src={url}
+                      alt={`Photo ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+            <h3 className="font-semibold text-gray-900">Quick Actions</h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => window.print()}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-left"
+              >
+                Print Request
+              </button>
+              {request.customer_email && (
+                <a
+                  href={`mailto:${request.customer_email}`}
+                  className="block w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-left"
+                >
+                  Email Customer
+                </a>
+              )}
+              {request.customer_phone && (
+                <a
+                  href={`tel:${request.customer_phone}`}
+                  className="block w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-left"
+                >
+                  Call Customer
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Request Metadata */}
+          <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+            <h3 className="font-semibold text-gray-900">Details</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Created:</span>
+                <span className="font-medium">{new Date(request.submitted_at).toLocaleDateString()}</span>
+              </div>
+              {request.project_number && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Project #:</span>
+                  <span className="font-medium">{request.project_number}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Type:</span>
+                <span className="font-medium capitalize">{request.request_type.replace('_', ' ')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Urgency:</span>
+                <span className={`font-medium capitalize ${
+                  request.urgency === 'critical' ? 'text-red-600' :
+                  request.urgency === 'high' ? 'text-orange-600' :
+                  request.urgency === 'medium' ? 'text-yellow-600' :
+                  'text-green-600'
+                }`}>
+                  {request.urgency}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
