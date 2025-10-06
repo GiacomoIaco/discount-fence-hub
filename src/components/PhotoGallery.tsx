@@ -2465,6 +2465,30 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                 />
               </div>
 
+              {/* Current Tags */}
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Current Tags</h3>
+                <div className="flex flex-wrap gap-2">
+                  {viewingFlags.photo.tags.map((tag) => (
+                    <span key={tag} className="bg-gray-200 text-gray-800 px-3 py-1 rounded-lg text-sm">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                {(userRole === 'admin' || userRole === 'sales-manager') && (
+                  <button
+                    onClick={() => {
+                      setReviewingPhoto(viewingFlags.photo);
+                      setEditingTags(viewingFlags.photo.tags);
+                      setViewingFlags(null);
+                    }}
+                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Edit Tags
+                  </button>
+                )}
+              </div>
+
               {/* Flags List */}
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg">Flags ({viewingFlags.flags.length})</h3>
@@ -2503,35 +2527,43 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
                     )}
 
                     {(userRole === 'admin' || userRole === 'sales-manager') && flag.status === 'pending' && (
-                      <div className="flex space-x-2 pt-2">
-                        <button
-                          onClick={async () => {
-                            await supabase
-                              .from('photo_flags')
-                              .update({ status: 'resolved', resolved_by: userId, resolved_at: new Date().toISOString() })
-                              .eq('id', flag.id);
+                      <div className="space-y-2 pt-2">
+                        <p className="text-xs text-gray-500 italic">
+                          Resolving marks this flag as fixed. Photo stays published. Dismissing deletes the flag.
+                        </p>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={async () => {
+                              await supabase
+                                .from('photo_flags')
+                                .update({ status: 'resolved', resolved_by: userId, resolved_at: new Date().toISOString() })
+                                .eq('id', flag.id);
 
-                            setViewingFlags(null);
-                            loadPhotos();
-                          }}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                        >
-                          Resolve
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await supabase
-                              .from('photo_flags')
-                              .delete()
-                              .eq('id', flag.id);
+                              setViewingFlags(null);
+                              loadPhotos();
+                              alert('Flag marked as resolved. Photo remains published.');
+                            }}
+                            className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                          >
+                            ✓ Mark Resolved
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Delete this flag? This cannot be undone.')) return;
 
-                            setViewingFlags(null);
-                            loadPhotos();
-                          }}
-                          className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                        >
-                          Dismiss
-                        </button>
+                              await supabase
+                                .from('photo_flags')
+                                .delete()
+                                .eq('id', flag.id);
+
+                              setViewingFlags(null);
+                              loadPhotos();
+                            }}
+                            className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                          >
+                            ✕ Dismiss Flag
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
