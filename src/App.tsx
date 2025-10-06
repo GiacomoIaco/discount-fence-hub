@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Building2, Wrench, Package, AlertTriangle, Camera, ArrowLeft, FolderOpen, LogOut, MessageSquare } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, ArrowLeft, FolderOpen, LogOut, MessageSquare } from 'lucide-react';
 import StainCalculator from './components/sales/StainCalculator';
 import ClientPresentation from './components/sales/ClientPresentation';
 import SalesCoach from './components/sales/SalesCoach';
@@ -11,6 +11,7 @@ import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
 import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
+import RequestHub from './components/requests/RequestHub';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -20,7 +21,7 @@ import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -140,6 +141,9 @@ function App() {
 
   const renderContent = () => {
     // Handle common sections for all roles
+    if (activeSection === 'requests') {
+      return <RequestHub onBack={() => setActiveSection('home')} />;
+    }
     if (activeSection === 'presentation') {
       return <ClientPresentation onBack={() => setActiveSection('home')} isMobile={viewMode === 'mobile'} />;
     }
@@ -479,10 +483,6 @@ interface SalesRepViewProps {
 }
 
 const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }: SalesRepViewProps) => {
-  // Count pending/quoted requests
-  const savedRequests = JSON.parse(localStorage.getItem('myRequests') || '[]');
-  const pendingCount = savedRequests.filter((r: any) => r.status === 'pending' || r.status === 'quoted').length;
-
   if (activeSection === 'custom-pricing') {
     return <CustomPricingRequest onBack={() => setActiveSection('home')} viewMode={viewMode} />;
   }
@@ -612,90 +612,22 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount }
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Requests</h2>
 
         <button
-          onClick={() => setActiveSection('my-requests')}
-          className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white p-5 rounded-xl shadow-md active:scale-98 transition-transform"
+          onClick={() => setActiveSection('requests')}
+          className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
         >
           <div className="flex items-center space-x-4">
             <div className="bg-white/20 p-3 rounded-lg">
-              <Ticket className="w-7 h-7" />
+              <Ticket className="w-8 h-8" />
             </div>
             <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Track Requests</div>
-              <div className="text-sm text-green-100">View status & pricing responses</div>
+              <div className="font-bold text-lg">Requests</div>
+              <div className="text-sm text-green-100">Submit & track all requests</div>
             </div>
-            {pendingCount > 0 && (
-              <div className="bg-white/30 px-3 py-1 rounded-full font-bold">{pendingCount}</div>
-            )}
+            <div className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
+              🎤 Voice
+            </div>
           </div>
         </button>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          <button
-            onClick={() => setActiveSection('custom-pricing')}
-            className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50 relative"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-orange-100 p-2 rounded-lg">
-                <DollarSign className="w-6 h-6 text-orange-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Custom Pricing</div>
-                <div className="text-xs text-gray-600">Special projects</div>
-              </div>
-              <div className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                🎤
-              </div>
-            </div>
-          </button>
-
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <Building2 className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">New Builder</div>
-                <div className="text-xs text-gray-600">Submit client info</div>
-              </div>
-            </div>
-          </button>
-
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <div className="bg-red-100 p-2 rounded-lg">
-                <Wrench className="w-6 h-6 text-red-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Installation Issue</div>
-                <div className="text-xs text-gray-600">Report problems</div>
-              </div>
-            </div>
-          </button>
-
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <div className="bg-yellow-100 p-2 rounded-lg">
-                <Package className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Material Request</div>
-                <div className="text-xs text-gray-600">Request supplies</div>
-              </div>
-            </div>
-          </button>
-
-          <button className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <div className="bg-purple-100 p-2 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-gray-900">Escalation</div>
-                <div className="text-xs text-gray-600">Customer issues</div>
-              </div>
-            </div>
-          </button>
-        </div>
       </div>
 
       {/* Other Tools Section */}
@@ -2359,7 +2291,7 @@ const AdminView = ({ activeSection, setActiveSection }: AdminViewProps) => {
         >
           <div className="flex items-center space-x-4">
             <div className="bg-white/20 p-3 rounded-lg">
-              <Wrench className="w-8 h-8" />
+              <FileText className="w-8 h-8" />
             </div>
             <div>
               <div className="font-bold text-xl">Sales Coach Admin</div>
