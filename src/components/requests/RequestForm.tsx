@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Mic, StopCircle, Play, Pause, Send, Loader2 } from 'lucide-react';
+import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2 } from 'lucide-react';
 import type { RequestType, Urgency, CreateRequestInput } from '../../lib/requests';
 import { useCreateRequest } from '../../hooks/useRequests';
 import { transcribeAudio } from '../../lib/openai';
 import { parseVoiceTranscript } from '../../lib/claude';
+import { supabase } from '../../lib/supabase';
 
 interface RequestFormProps {
   requestType: RequestType;
@@ -44,7 +45,8 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   const [expectedValue, setExpectedValue] = useState('');
   const [deadline, setDeadline] = useState('');
   const [specialRequirements, setSpecialRequirements] = useState('');
-  const [photoUrls] = useState<string[]>([]); // TODO: Implement photo upload
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
   // Voice recording
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
@@ -216,6 +218,90 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     }
   }, [audioUrl]);
 
+  // Photo handling functions
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.play();
+
+      // Wait for video to be ready
+      await new Promise(resolve => {
+        video.onloadedmetadata = resolve;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0);
+
+      stream.getTracks().forEach(track => track.stop());
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          setPhotos(prev => [...prev, file]);
+        }
+      }, 'image/jpeg', 0.9);
+    } catch (error) {
+      console.error('Camera capture error:', error);
+      alert('Could not access camera. Please use file upload instead.');
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadPhotosToStorage = async (): Promise<string[]> => {
+    if (photos.length === 0) return [];
+
+    setUploadingPhotos(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (const photo of photos) {
+        const fileName = `request-photos/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, photo, {
+            contentType: 'image/jpeg',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('Photo upload error:', uploadError);
+          continue;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+
+        uploadedUrls.push(publicUrl);
+      }
+
+      return uploadedUrls;
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      throw error;
+    } finally {
+      setUploadingPhotos(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -225,6 +311,12 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     }
 
     try {
+      // Upload photos first if there are any
+      let uploadedPhotoUrls: string[] = [];
+      if (photos.length > 0) {
+        uploadedPhotoUrls = await uploadPhotosToStorage();
+      }
+
       const requestData: CreateRequestInput = {
         request_type: requestType,
         title,
@@ -244,7 +336,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         transcript: transcript || undefined,
         ai_extracted_data: parsedData || undefined,
         field_confidences: parsedData?.confidence || undefined,
-        photo_urls: photoUrls.length > 0 ? photoUrls : undefined
+        photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined
       };
 
       await create(requestData);
@@ -499,6 +591,63 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
             />
           </div>
 
+          {/* Photo Upload */}
+          <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-gray-600" />
+              Photos (Optional)
+            </h3>
+
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={handleCameraCapture}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Camera className="w-4 h-4" />
+                Take Photo
+              </button>
+              <label className="flex-1 bg-gray-700 text-white py-2 px-4 rounded-lg font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                <ImageIcon className="w-4 h-4" />
+                Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {photos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((photo, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={URL.createObjectURL(photo)}
+                      alt={`Upload ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {photos.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-3">
+                Add photos to help with your request
+              </p>
+            )}
+          </div>
+
           {/* Submit Buttons */}
           <div className="flex gap-3 pt-4 border-t">
             <button
@@ -510,10 +659,15 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
             </button>
             <button
               type="submit"
-              disabled={creating || !title.trim()}
+              disabled={creating || uploadingPhotos || !title.trim()}
               className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {creating ? (
+              {uploadingPhotos ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Uploading photos...
+                </>
+              ) : creating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Submitting...
