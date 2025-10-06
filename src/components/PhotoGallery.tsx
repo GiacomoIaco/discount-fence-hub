@@ -1506,8 +1506,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
       {/* Bulk Action Bar - Show when in edit mode */}
       {editMode && (
-        <div className={`fixed bottom-0 right-0 p-4 bg-white border-t-2 border-gray-300 shadow-lg z-40 ${
-          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        <div className={`fixed bottom-0 p-4 bg-white border-t-2 border-gray-300 shadow-lg z-40 ${
+          viewMode === 'desktop' ? 'left-64 right-0' : 'left-0 right-0'
         }`}>
           <div className="max-w-7xl mx-auto">
             {/* Selection count and select all/deselect all */}
@@ -1608,8 +1608,8 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
       {/* Floating Action Buttons - Only show on Gallery tab or mobile, and when NOT in edit mode */}
       {!editMode && (activeTab === 'gallery' || viewMode === 'mobile') && (
-        <div className={`fixed bottom-0 right-0 p-4 bg-gradient-to-t from-white to-transparent pointer-events-none ${
-          viewMode === 'desktop' ? 'left-64' : 'left-0'
+        <div className={`fixed bottom-4 right-4 pointer-events-none ${
+          viewMode === 'desktop' ? 'left-auto' : 'left-4'
         }`}>
           <div className="flex justify-between items-center pointer-events-auto">
             <button

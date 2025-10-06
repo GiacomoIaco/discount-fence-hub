@@ -690,7 +690,7 @@ interface CustomPricingRequestProps {
   viewMode: 'mobile' | 'desktop';
 }
 
-const CustomPricingRequest = ({ onBack, viewMode }: CustomPricingRequestProps) => {
+const CustomPricingRequest = ({ onBack, viewMode: _viewMode }: CustomPricingRequestProps) => {
   const [step, setStep] = useState<RequestStep>('choice');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -1146,9 +1146,7 @@ const CustomPricingRequest = ({ onBack, viewMode }: CustomPricingRequestProps) =
         </div>
 
         {/* Submit Button */}
-        <div className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 p-4 ${
-          viewMode === 'desktop' ? 'left-64' : 'left-0'
-        }`}>
+        <div className="p-4 mt-4">
           {isRecording && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-3 text-center">
               <p className="text-sm text-yellow-800 font-semibold">
@@ -1242,9 +1240,7 @@ const CustomPricingRequest = ({ onBack, viewMode }: CustomPricingRequestProps) =
           })}
         </div>
 
-        <div className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 p-4 ${
-          viewMode === 'desktop' ? 'left-64' : 'left-0'
-        }`}>
+        <div className="p-4 mt-4">
           <button
             onClick={submitRequest}
             className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-98 transition-transform flex items-center justify-center space-x-2"
