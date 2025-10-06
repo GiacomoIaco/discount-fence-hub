@@ -13,6 +13,7 @@ import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
 import Login from './components/auth/Login';
 import InstallAppBanner from './components/InstallAppBanner';
+import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { transcribeAudio } from './lib/openai';
@@ -240,6 +241,9 @@ function App() {
 
         {/* Install App Banner */}
         <InstallAppBanner />
+
+        {/* PWA Update Prompt */}
+        <PWAUpdatePrompt />
 
         {/* Profile Modals */}
         {showProfileView && (
