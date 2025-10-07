@@ -20,31 +20,39 @@ Extract the following information from this transcript and provide confidence sc
 Transcript: "${transcript}"
 
 Extract:
-1. Customer name
-2. Address/location
-3. Fence type (height, material, style)
-4. Linear feet
-5. Special requirements (staining, slope, gates, etc.)
-6. Deadline/timeline
-7. Urgency level
+1. Title: Generate a concise, professional title for this request (e.g., "6ft Wood Fence - 150LF - Smith Residence")
+2. Customer name
+3. Address/location
+4. Fence type (height, material, style)
+5. Linear feet
+6. Special requirements (staining, slope, gates, etc.)
+7. Deadline/timeline
+8. Urgency level (low, medium, high, urgent)
+9. Expected value/quote amount (if mentioned)
+10. Structured description: Create a brief, structured summary with bullet points highlighting key details. NOT a raw transcript.
 
 Respond ONLY with valid JSON in this exact format:
 {
+  "title": "concise professional title or empty string",
   "customerName": "extracted name or empty string",
   "address": "extracted address or empty string",
   "fenceType": "extracted fence type or empty string",
   "linearFeet": "extracted number or empty string",
   "specialRequirements": "extracted requirements or empty string",
   "deadline": "extracted deadline or empty string",
-  "urgency": "extracted urgency or empty string",
+  "urgency": "low|medium|high|urgent or empty string",
+  "expectedValue": "extracted dollar amount as number or empty string",
+  "description": "structured summary with key points, NOT raw transcript",
   "confidence": {
+    "title": 90,
     "customerName": 85,
     "address": 90,
     "fenceType": 95,
     "linearFeet": 80,
     "specialRequirements": 75,
     "deadline": 85,
-    "urgency": 90
+    "urgency": 90,
+    "expectedValue": 70
   }
 }`;
 

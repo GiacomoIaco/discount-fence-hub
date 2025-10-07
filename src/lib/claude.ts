@@ -1,6 +1,7 @@
 // Anthropic Claude API integration for intelligent parsing via Netlify function
 
 interface ParsedRequestData {
+  title: string;
   customerName: string;
   address: string;
   fenceType: string;
@@ -8,7 +9,10 @@ interface ParsedRequestData {
   specialRequirements: string;
   deadline: string;
   urgency: string;
+  expectedValue: string;
+  description: string;
   confidence: {
+    title: number;
     customerName: number;
     address: number;
     fenceType: number;
@@ -16,6 +20,7 @@ interface ParsedRequestData {
     specialRequirements: number;
     deadline: number;
     urgency: number;
+    expectedValue: number;
   };
 }
 

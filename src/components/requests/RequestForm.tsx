@@ -138,7 +138,8 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
+      // Start recording with 100ms timeslice to ensure continuous data collection
+      mediaRecorder.start(100);
       setRecordingState('recording');
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -180,17 +181,18 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       const parsed = await parseVoiceTranscript(transcriptionText);
       setParsedData(parsed as any); // Type cast to avoid complex type mismatch
 
-      // Auto-fill form fields (parseVoiceTranscript returns camelCase)
+      // Auto-fill form fields with AI-generated data
+      if (parsed.title) setTitle(parsed.title);
       if (parsed.customerName) setCustomerName(parsed.customerName);
       if (parsed.address) setCustomerAddress(parsed.address);
-      // parsed doesn't return phone/email - AI extracts them from address/transcript
       if (parsed.fenceType) setFenceType(parsed.fenceType);
       if (parsed.linearFeet) setLinearFeet(parsed.linearFeet);
       if (parsed.specialRequirements) setSpecialRequirements(parsed.specialRequirements);
       if (parsed.deadline) setDeadline(parsed.deadline);
       if (parsed.urgency) setUrgency(parsed.urgency as Urgency);
-      // Description typically comes from the full transcript
-      setDescription(transcriptionText);
+      if (parsed.expectedValue) setExpectedValue(parsed.expectedValue);
+      // Use AI-generated structured description instead of raw transcript
+      if (parsed.description) setDescription(parsed.description);
 
       setRecordingState('recorded');
     } catch (error) {

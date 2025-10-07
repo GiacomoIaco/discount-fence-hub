@@ -26,6 +26,8 @@ export const handler: Handler = async (event) => {
       contentType: 'audio/webm',
     });
     formData.append('model', 'gpt-4o-transcribe');
+    // Limit language to English and Spanish to improve accuracy
+    formData.append('language', 'en');
 
     const response = await axios.post(
       'https://api.openai.com/v1/audio/transcriptions',
