@@ -400,7 +400,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       {/* Desktop Layout: Two-column with sidebar */}
       <div className="lg:flex lg:gap-6 lg:p-6">
         {/* Main Content */}
-        <div className="flex-1 p-4 lg:p-0 space-y-4">
+        <div className="flex-1 p-4 lg:p-0 space-y-4 lg:pb-24">
         {/* Status Card */}
         <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -419,21 +419,6 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
               {age.days > 0 ? `${age.days}d ${age.hours % 24}h` : `${age.hours}h`}
             </div>
           </div>
-
-          {request.urgency && (
-            <div className="flex items-center gap-2 text-sm">
-              <TrendingUp className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-600">Urgency:</span>
-              <span className={`font-medium capitalize ${
-                request.urgency === 'critical' ? 'text-red-600' :
-                request.urgency === 'high' ? 'text-orange-600' :
-                request.urgency === 'medium' ? 'text-yellow-600' :
-                'text-green-600'
-              }`}>
-                {request.urgency}
-              </span>
-            </div>
-          )}
 
           {/* Quote Status */}
           <div className="border-t border-gray-200 pt-3">
@@ -475,50 +460,6 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                 </select>
                 <button
                   onClick={() => setIsChangingQuoteStatus(false)}
-                  className="text-xs text-gray-600 hover:text-gray-700"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Assignee */}
-          <div className="border-t border-gray-200 pt-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">Assigned to:</span>
-                {!isChangingAssignee && (
-                  <span className="font-medium text-gray-900">
-                    {assigneeName || 'Unassigned'}
-                  </span>
-                )}
-              </div>
-              {!isChangingAssignee && canEdit && (
-                <button
-                  onClick={() => setIsChangingAssignee(true)}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Change
-                </button>
-              )}
-            </div>
-
-            {isChangingAssignee && (
-              <div className="mt-2 space-y-2">
-                <select
-                  defaultValue={request.assigned_to || 'unassigned'}
-                  onChange={(e) => handleChangeAssignee(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="unassigned">Unassigned</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>{user.name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setIsChangingAssignee(false)}
                   className="text-xs text-gray-600 hover:text-gray-700"
                 >
                   Cancel
@@ -700,9 +641,9 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
           </div>
         )}
 
-        {/* Voice Recording & Transcript */}
+        {/* Voice Recording & Transcript - Mobile Only */}
         {(request.voice_recording_url || request.transcript) && (
-          <div className="bg-purple-50 border border-purple-200 rounded-xl overflow-hidden">
+          <div className="bg-purple-50 border border-purple-200 rounded-xl overflow-hidden lg:hidden">
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-purple-900 flex items-center gap-2">
@@ -922,6 +863,62 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Right Sidebar - Desktop Only */}
         <div className="hidden lg:block lg:w-96 space-y-4">
+          {/* Voice Recording & Transcript - Desktop Only */}
+          {(request.voice_recording_url || request.transcript) && (
+            <div className="bg-purple-50 border border-purple-200 rounded-xl overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-purple-900 flex items-center gap-2">
+                    <Volume2 className="w-5 h-5" />
+                    Recording
+                    {request.transcript && (
+                      <span className="ml-2 text-xs text-purple-600 font-normal">
+                        ({transcriptExpanded ? 'Expanded' : 'Collapsed'})
+                      </span>
+                    )}
+                  </h3>
+                  {request.transcript && (
+                    <button
+                      onClick={() => setTranscriptExpanded(!transcriptExpanded)}
+                      className="text-sm text-purple-700 hover:text-purple-900 font-medium"
+                    >
+                      {transcriptExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+
+                {/* Audio Player */}
+                {request.voice_recording_url && (
+                  <div className="bg-white rounded-lg p-3 shadow-sm">
+                    <audio
+                      controls
+                      className="w-full"
+                      preload="metadata"
+                      src={request.voice_recording_url}
+                    >
+                      Your browser does not support the audio element.
+                    </audio>
+                    {request.voice_duration && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        {Math.floor(request.voice_duration / 60)}:{(request.voice_duration % 60).toString().padStart(2, '0')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Transcript - Collapsed by default */}
+                {request.transcript && transcriptExpanded && (
+                  <div className="mt-3">
+                    <h4 className="text-xs font-medium text-purple-800 mb-2">Transcript:</h4>
+                    <p className="text-xs text-gray-700 whitespace-pre-wrap bg-white rounded-lg p-3 max-h-96 overflow-y-auto">
+                      {request.transcript}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Photos Preview */}
           {request.photo_urls && request.photo_urls.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
@@ -991,17 +988,6 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
               <div className="flex justify-between">
                 <span className="text-gray-600">Type:</span>
                 <span className="font-medium capitalize">{request.request_type.replace('_', ' ')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Urgency:</span>
-                <span className={`font-medium capitalize ${
-                  request.urgency === 'critical' ? 'text-red-600' :
-                  request.urgency === 'high' ? 'text-orange-600' :
-                  request.urgency === 'medium' ? 'text-yellow-600' :
-                  'text-green-600'
-                }`}>
-                  {request.urgency}
-                </span>
               </div>
             </div>
           </div>
