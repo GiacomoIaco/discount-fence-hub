@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
 import { useMyRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
@@ -115,6 +115,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [filterAssignee, setFilterAssignee] = useState<string>('all');
   const [filterSubmitter, setFilterSubmitter] = useState<string>('all');
   const [filterSLA, setFilterSLA] = useState<SLAStatus | 'all'>('all');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const { requests, loading, error, refresh } = useMyRequests({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
@@ -247,22 +248,35 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
       </div>
 
       {/* Advanced Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-          <Filter className="w-4 h-4" />
-          Filters
-        </div>
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setFiltersExpanded(!filtersExpanded)}
+          className="w-full px-4 py-3 flex items-center justify-between text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4" />
+            Filters
+            {(searchTerm || filterType !== 'all' || filterStage !== 'all' || filterAssignee !== 'all' || filterSubmitter !== 'all' || filterSLA !== 'all') && (
+              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-bold">
+                Active
+              </span>
+            )}
+          </div>
+          {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
 
-        {/* Search */}
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search by customer, project, title..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+        {filtersExpanded && (
+          <div className="p-4 space-y-3 border-t border-gray-200">
+            {/* Search */}
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by customer, project, title..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
 
-        <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
           {/* Type Filter */}
           <select
             value={filterType}
@@ -315,18 +329,20 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
             ))}
           </select>
 
-          {/* SLA Status Filter */}
-          <select
-            value={filterSLA}
-            onChange={(e) => setFilterSLA(e.target.value as SLAStatus | 'all')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent col-span-2"
-          >
-            <option value="all">All SLA Statuses</option>
-            <option value="on_track">On Track</option>
-            <option value="at_risk">At Risk</option>
-            <option value="breached">Breached</option>
-          </select>
-        </div>
+              {/* SLA Status Filter */}
+              <select
+                value={filterSLA}
+                onChange={(e) => setFilterSLA(e.target.value as SLAStatus | 'all')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent col-span-2"
+              >
+                <option value="all">All SLA Statuses</option>
+                <option value="on_track">On Track</option>
+                <option value="at_risk">At Risk</option>
+                <option value="breached">Breached</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Request List */}
@@ -347,52 +363,78 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredRequests.map((request) => (
-            <button
-              key={request.id}
-              onClick={() => onRequestClick(request)}
-              className="w-full bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all text-left"
-            >
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-gray-50 rounded-lg">
-                  <RequestTypeIcon type={request.request_type} />
-                </div>
+          {filteredRequests.map((request) => {
+            const submitter = users.find(u => u.id === request.submitter_id);
+            const assignee = users.find(u => u.id === request.assigned_to);
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <h3 className="font-semibold text-gray-900 truncate">
-                      {request.title}
-                    </h3>
-                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+            return (
+              <button
+                key={request.id}
+                onClick={() => onRequestClick(request)}
+                className="w-full bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all text-left"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-gray-50 rounded-lg">
+                    <RequestTypeIcon type={request.request_type} />
                   </div>
 
-                  {request.customer_name && (
-                    <p className="text-sm text-gray-600 mb-2">
-                      {request.customer_name}
-                    </p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {request.title}
+                      </h3>
+                      <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 lg:hidden" />
+                    </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <RequestStageBadge stage={request.stage} quoteStatus={request.quote_status} />
-                    <RequestAgeIndicator request={request} />
+                    {request.customer_name && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        {request.customer_name}
+                      </p>
+                    )}
 
-                    {request.pricing_quote && (
-                      <span className="text-xs text-gray-600">
-                        ${request.pricing_quote.toLocaleString()}
-                      </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <RequestStageBadge stage={request.stage} quoteStatus={request.quote_status} />
+                      <RequestAgeIndicator request={request} />
+
+                      {request.pricing_quote && (
+                        <span className="text-xs text-gray-600">
+                          ${request.pricing_quote.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+
+                    {request.sla_status === 'breached' && (
+                      <div className="mt-2 flex items-center gap-1 text-xs text-red-600">
+                        <AlertCircle className="w-3 h-3" />
+                        SLA breached
+                      </div>
                     )}
                   </div>
 
-                  {request.sla_status === 'breached' && (
-                    <div className="mt-2 flex items-center gap-1 text-xs text-red-600">
-                      <AlertCircle className="w-3 h-3" />
-                      SLA breached
+                  {/* Desktop: Additional info on the right */}
+                  <div className="hidden lg:flex lg:items-center lg:gap-6 lg:ml-4">
+                    <div className="text-sm text-right min-w-[120px]">
+                      <div className="text-gray-500 text-xs">Submitted by</div>
+                      <div className="font-medium text-gray-900">{submitter?.name || 'Unknown'}</div>
                     </div>
-                  )}
+                    <div className="text-sm text-right min-w-[120px]">
+                      <div className="text-gray-500 text-xs">Assigned to</div>
+                      <div className="font-medium text-gray-900">{assignee?.name || 'Unassigned'}</div>
+                    </div>
+                    {(request.pricing_quote || request.expected_value) && (
+                      <div className="text-sm text-right min-w-[100px]">
+                        <div className="text-gray-500 text-xs">Value</div>
+                        <div className="font-semibold text-green-600">
+                          ${(request.pricing_quote || request.expected_value || 0).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
