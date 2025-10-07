@@ -403,6 +403,28 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                       )}
                     </div>
 
+                    {/* Last Activity */}
+                    <div className="mt-1.5 text-xs text-gray-500">
+                      Last activity: {(() => {
+                        // Use updated_at if available, fallback to created_at
+                        const timestamp = request.updated_at || request.created_at;
+                        if (!timestamp) return 'unknown';
+
+                        const updated = new Date(timestamp);
+                        const now = new Date();
+                        const diffMs = now.getTime() - updated.getTime();
+                        const diffMins = Math.floor(diffMs / 60000);
+                        const diffHours = Math.floor(diffMs / 3600000);
+                        const diffDays = Math.floor(diffMs / 86400000);
+
+                        if (diffMins < 1) return 'just now';
+                        if (diffMins < 60) return `${diffMins}m ago`;
+                        if (diffHours < 24) return `${diffHours}h ago`;
+                        if (diffDays < 7) return `${diffDays}d ago`;
+                        return updated.toLocaleDateString();
+                      })()}
+                    </div>
+
                     {request.sla_status === 'breached' && (
                       <div className="mt-2 flex items-center gap-1 text-xs text-red-600">
                         <AlertCircle className="w-3 h-3" />
