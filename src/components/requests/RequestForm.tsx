@@ -319,6 +319,33 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     }
   };
 
+  const uploadAudioToStorage = async (blob: Blob): Promise<string> => {
+    try {
+      const fileName = `request-audio/${Date.now()}-${Math.random().toString(36).substring(7)}.webm`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('voice-recordings')
+        .upload(fileName, blob, {
+          contentType: 'audio/webm',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Audio upload error:', uploadError);
+        throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('voice-recordings')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -336,6 +363,12 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         uploadedPhotoUrls = await uploadPhotosToStorage();
       }
 
+      // Upload audio if there is any
+      let uploadedAudioUrl: string | undefined = undefined;
+      if (audioBlob) {
+        uploadedAudioUrl = await uploadAudioToStorage(audioBlob);
+      }
+
       requestData = {
         request_type: requestType,
         title,
@@ -350,7 +383,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         expected_value: expectedValue ? parseFloat(expectedValue) : undefined,
         deadline: deadline || undefined,
         special_requirements: specialRequirements || undefined,
-        voice_recording_url: audioUrl || undefined,
+        voice_recording_url: uploadedAudioUrl,
         voice_duration: audioDuration || undefined,
         transcript: transcript || undefined,
         photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined
