@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
 import { useMyRequests, useAllRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
@@ -121,6 +121,15 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
 
+  // Quick filter states
+  const [quickFilters, setQuickFilters] = useState({
+    older24h: false,
+    older48h: false,
+    mine: false,
+    unassigned: false,
+    hasUnread: false
+  });
+
   // Sales role sees only their requests, everyone else sees all requests
   const isSalesOnly = profile?.role === 'sales';
 
@@ -159,6 +168,36 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     }
     if (activeTab === 'archived' && req.stage !== 'archived') {
       return false;
+    }
+
+    // Quick filters
+    if (quickFilters.older24h) {
+      const created = new Date(req.created_at).getTime();
+      const now = Date.now();
+      const ageMs = now - created;
+      const hours = Math.floor(ageMs / (1000 * 60 * 60));
+      if (hours < 24) return false;
+    }
+
+    if (quickFilters.older48h) {
+      const created = new Date(req.created_at).getTime();
+      const now = Date.now();
+      const ageMs = now - created;
+      const hours = Math.floor(ageMs / (1000 * 60 * 60));
+      if (hours < 48) return false;
+    }
+
+    if (quickFilters.mine && req.submitter_id !== profile?.id) {
+      return false;
+    }
+
+    if (quickFilters.unassigned && req.assigned_to) {
+      return false;
+    }
+
+    if (quickFilters.hasUnread) {
+      const unreadCount = unreadCounts.get(req.id);
+      if (!unreadCount || unreadCount === 0) return false;
     }
 
     // Search filter
@@ -271,6 +310,90 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
         >
           Archived
         </button>
+      </div>
+
+      {/* Quick Filters Bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setQuickFilters(prev => ({ ...prev, older24h: !prev.older24h }))}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            quickFilters.older24h
+              ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-400'
+              : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Older than 24h
+          {quickFilters.older24h && <X className="w-3.5 h-3.5" />}
+        </button>
+
+        <button
+          onClick={() => setQuickFilters(prev => ({ ...prev, older48h: !prev.older48h }))}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            quickFilters.older48h
+              ? 'bg-red-100 text-red-700 border-2 border-red-400'
+              : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Older than 48h
+          {quickFilters.older48h && <X className="w-3.5 h-3.5" />}
+        </button>
+
+        <button
+          onClick={() => setQuickFilters(prev => ({ ...prev, mine: !prev.mine }))}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            quickFilters.mine
+              ? 'bg-blue-100 text-blue-700 border-2 border-blue-400'
+              : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <User className="w-3.5 h-3.5" />
+          Mine
+          {quickFilters.mine && <X className="w-3.5 h-3.5" />}
+        </button>
+
+        <button
+          onClick={() => setQuickFilters(prev => ({ ...prev, unassigned: !prev.unassigned }))}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            quickFilters.unassigned
+              ? 'bg-orange-100 text-orange-700 border-2 border-orange-400'
+              : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <AlertCircle className="w-3.5 h-3.5" />
+          Unassigned
+          {quickFilters.unassigned && <X className="w-3.5 h-3.5" />}
+        </button>
+
+        <button
+          onClick={() => setQuickFilters(prev => ({ ...prev, hasUnread: !prev.hasUnread }))}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            quickFilters.hasUnread
+              ? 'bg-purple-100 text-purple-700 border-2 border-purple-400'
+              : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <MessageCircle className="w-3.5 h-3.5" />
+          Has Unread
+          {quickFilters.hasUnread && <X className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Clear all quick filters button */}
+        {Object.values(quickFilters).some(v => v) && (
+          <button
+            onClick={() => setQuickFilters({
+              older24h: false,
+              older48h: false,
+              mine: false,
+              unassigned: false,
+              hasUnread: false
+            })}
+            className="ml-2 text-xs text-gray-600 hover:text-gray-900 underline"
+          >
+            Clear all
+          </button>
+        )}
       </div>
 
       {/* Advanced Filters */}
