@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
-import { useMyRequests, useUsers } from '../../hooks/useRequests';
+import { useMyRequests, useAllRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface RequestListProps {
   onRequestClick: (request: Request) => void;
@@ -108,6 +109,7 @@ const RequestAgeIndicator = ({ request }: { request: Request }) => {
 };
 
 export default function RequestList({ onRequestClick, onNewRequest }: RequestListProps) {
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'archived'>('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<RequestType | 'all'>('all');
@@ -117,9 +119,18 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [filterSLA, setFilterSLA] = useState<SLAStatus | 'all'>('all');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  const { requests, loading, error, refresh } = useMyRequests({
+  // Sales role sees only their requests, everyone else sees all requests
+  const isSalesOnly = profile?.role === 'sales';
+
+  const myRequestsHook = useMyRequests({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
   });
+
+  const allRequestsHook = useAllRequests({
+    stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
+  });
+
+  const { requests, loading, error, refresh } = isSalesOnly ? myRequestsHook : allRequestsHook;
   const { users } = useUsers();
 
   // Filter requests by tab and advanced filters
