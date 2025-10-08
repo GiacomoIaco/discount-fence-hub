@@ -700,3 +700,54 @@ export function subscribeToRequests(
     supabase.removeChannel(channel);
   };
 }
+
+// ============================================
+// UNREAD MESSAGE TRACKING
+// ============================================
+
+/**
+ * Mark request as viewed by current user
+ */
+export async function markRequestAsViewed(requestId: string) {
+  const { error } = await supabase.rpc('mark_request_viewed', {
+    req_id: requestId
+  });
+
+  if (error) console.error('Failed to mark request as viewed:', error);
+}
+
+/**
+ * Get unread count for a request
+ */
+export async function getUnreadCount(requestId: string, userId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('get_unread_count', {
+    req_id: requestId,
+    usr_id: userId
+  });
+
+  if (error) {
+    console.error('Failed to get unread count:', error);
+    return 0;
+  }
+
+  return data || 0;
+}
+
+/**
+ * Get unread counts for multiple requests
+ */
+export async function getUnreadCounts(requestIds: string[], userId: string): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+
+  // Batch fetch unread counts
+  await Promise.all(
+    requestIds.map(async (requestId) => {
+      const count = await getUnreadCount(requestId, userId);
+      if (count > 0) {
+        counts.set(requestId, count);
+      }
+    })
+  );
+
+  return counts;
+}

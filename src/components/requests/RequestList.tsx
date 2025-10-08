@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
 import { useMyRequests, useAllRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
+import { getUnreadCounts } from '../../lib/requests';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface RequestListProps {
@@ -118,6 +119,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [filterSubmitter, setFilterSubmitter] = useState<string>('all');
   const [filterSLA, setFilterSLA] = useState<SLAStatus | 'all'>('all');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
 
   // Sales role sees only their requests, everyone else sees all requests
   const isSalesOnly = profile?.role === 'sales';
@@ -132,6 +134,19 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
 
   const { requests, loading, error, refresh } = isSalesOnly ? myRequestsHook : allRequestsHook;
   const { users } = useUsers();
+
+  // Fetch unread counts when requests change
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      if (!profile?.id || requests.length === 0) return;
+
+      const requestIds = requests.map(r => r.id);
+      const counts = await getUnreadCounts(requestIds, profile.id);
+      setUnreadCounts(counts);
+    };
+
+    fetchUnreadCounts();
+  }, [requests, profile?.id]);
 
   // Filter requests by tab and advanced filters
   const filteredRequests = requests.filter(req => {
@@ -406,6 +421,13 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                     <div className="flex items-center gap-2 flex-wrap">
                       <RequestStageBadge stage={request.stage} quoteStatus={request.quote_status} />
                       <RequestAgeIndicator request={request} />
+
+                      {unreadCounts.get(request.id) && unreadCounts.get(request.id)! > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                          <MessageCircle className="w-3 h-3" />
+                          {unreadCounts.get(request.id)} new
+                        </span>
+                      )}
 
                       {request.pricing_quote && (
                         <span className="text-xs text-gray-600">

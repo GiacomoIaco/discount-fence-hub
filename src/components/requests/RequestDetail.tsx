@@ -2,6 +2,7 @@ import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock
 import type { Request } from '../../lib/requests';
 import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
+import { markRequestAsViewed } from '../../lib/requests';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { showError } from '../../lib/toast';
@@ -58,6 +59,11 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
   // Check if user can edit (admin or operations)
   const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
+
+  // Mark request as viewed when component mounts
+  useEffect(() => {
+    markRequestAsViewed(request.id);
+  }, [request.id]);
 
   // Fetch submitter profile
   useEffect(() => {
