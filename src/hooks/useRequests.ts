@@ -437,9 +437,13 @@ export function useRequestAge(request: Request | null) {
       const hours = Math.floor(ageMs / (1000 * 60 * 60));
       const days = Math.floor(hours / 24);
 
+      // Color based on age: <24hr = green, 24-48hr = yellow, >48hr = red
       let color = 'green';
-      if (request.sla_status === 'breached') color = 'red';
-      else if (request.sla_status === 'at_risk') color = 'yellow';
+      if (hours >= 48) {
+        color = 'red';
+      } else if (hours >= 24) {
+        color = 'yellow';
+      }
 
       setAge({ hours, days, color });
     };
