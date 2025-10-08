@@ -468,22 +468,22 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
 
                   {/* Desktop: Additional info on the right */}
                   <div className="hidden lg:flex lg:items-center lg:gap-6 lg:ml-4">
-                    <div className="text-sm text-right min-w-[120px]">
+                    <div className="text-sm text-right w-[120px]">
                       <div className="text-gray-500 text-xs">Submitted by</div>
                       <div className="font-medium text-gray-900">{submitter?.name || 'Unknown'}</div>
                     </div>
-                    <div className="text-sm text-right min-w-[120px]">
+                    <div className="text-sm text-right w-[120px]">
                       <div className="text-gray-500 text-xs">Assigned to</div>
                       <div className="font-medium text-gray-900">{assignee?.name || 'Unassigned'}</div>
                     </div>
-                    {(request.pricing_quote || request.expected_value) && (
-                      <div className="text-sm text-right min-w-[100px]">
-                        <div className="text-gray-500 text-xs">Value</div>
-                        <div className="font-semibold text-green-600">
-                          ${(request.pricing_quote || request.expected_value || 0).toLocaleString()}
-                        </div>
+                    <div className="text-sm text-right w-[100px]">
+                      <div className="text-gray-500 text-xs">Value</div>
+                      <div className="font-semibold text-green-600">
+                        {(request.pricing_quote || request.expected_value)
+                          ? `$${(request.pricing_quote || request.expected_value || 0).toLocaleString()}`
+                          : '—'}
                       </div>
-                    )}
+                    </div>
                     <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   </div>
                 </div>
