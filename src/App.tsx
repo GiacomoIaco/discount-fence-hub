@@ -369,17 +369,17 @@ function App() {
               <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
               <div className="flex items-center gap-3">
                 <p className="text-gray-500 text-xs">
-                  {import.meta.env.MODE === 'development'
-                    ? 'v1.0.dev'
-                    : (() => {
-                        try {
-                          const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
-                          return `v1.0 • ${new Date(buildTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
-                        } catch {
-                          return 'v1.0';
-                        }
-                      })()
-                  }
+                  {(() => {
+                    try {
+                      const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
+                      const dateStr = new Date(buildTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      return import.meta.env.MODE === 'development'
+                        ? `v1.0.dev • ${dateStr}`
+                        : `v1.0 • ${dateStr}`;
+                    } catch {
+                      return import.meta.env.MODE === 'development' ? 'v1.0.dev' : 'v1.0';
+                    }
+                  })()}
                 </p>
                 <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
                   <X className="w-5 h-5" />
