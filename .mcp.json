@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": {
+        "CHROME_EXECUTABLE_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+      }
+    }
+  }
+}

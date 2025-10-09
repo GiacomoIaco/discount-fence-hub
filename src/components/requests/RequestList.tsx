@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X, Star } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
 import { useMyRequests, useAllRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
-import { getUnreadCounts, getRequestViewStatus } from '../../lib/requests';
+import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin } from '../../lib/requests';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface RequestListProps {
@@ -121,6 +121,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [viewedRequestIds, setViewedRequestIds] = useState<Set<string>>(new Set());
+  const [pinnedRequestIds, setPinnedRequestIds] = useState<Set<string>>(new Set());
 
   // Quick filter states
   const [quickFilters, setQuickFilters] = useState({
@@ -148,18 +149,42 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const { requests, loading, error, refresh } = isSalesOnly ? myRequestsHook : allRequestsHook;
   const { users } = useUsers();
 
-  // Fetch unread counts and view status when requests change
+  // Handler for toggling pin status
+  const handleTogglePin = async (e: React.MouseEvent, requestId: string) => {
+    e.stopPropagation(); // Prevent request card click
+
+    try {
+      const isPinned = await toggleRequestPin(requestId);
+
+      // Update local state
+      setPinnedRequestIds(prev => {
+        const newSet = new Set(prev);
+        if (isPinned) {
+          newSet.add(requestId);
+        } else {
+          newSet.delete(requestId);
+        }
+        return newSet;
+      });
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+    }
+  };
+
+  // Fetch unread counts, view status, and pinned status when requests change
   useEffect(() => {
     const fetchRequestMetadata = async () => {
       if (!profile?.id || requests.length === 0) return;
 
       const requestIds = requests.map(r => r.id);
-      const [counts, viewedIds] = await Promise.all([
+      const [counts, viewedIds, pinnedIds] = await Promise.all([
         getUnreadCounts(requestIds, profile.id),
-        getRequestViewStatus(requestIds, profile.id)
+        getRequestViewStatus(requestIds, profile.id),
+        getPinnedRequestIds(profile.id)
       ]);
       setUnreadCounts(counts);
       setViewedRequestIds(viewedIds);
+      setPinnedRequestIds(pinnedIds);
     };
 
     fetchRequestMetadata();
@@ -251,8 +276,16 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     return true;
   });
 
-  // Sort filtered requests
+  // Sort filtered requests (pinned requests always stay on top)
   const sortedRequests = [...filteredRequests].sort((a, b) => {
+    const aIsPinned = pinnedRequestIds.has(a.id);
+    const bIsPinned = pinnedRequestIds.has(b.id);
+
+    // Pinned requests always come first
+    if (aIsPinned && !bIsPinned) return -1;
+    if (!aIsPinned && bIsPinned) return 1;
+
+    // If both pinned or both unpinned, sort by selected criteria
     switch (sortBy) {
       case 'newest':
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -556,6 +589,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
             const submitter = users.find(u => u.id === request.submitter_id);
             const assignee = users.find(u => u.id === request.assigned_to);
             const isUnviewed = !viewedRequestIds.has(request.id);
+            const isPinned = pinnedRequestIds.has(request.id);
 
             return (
               <button
@@ -573,9 +607,20 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
-                        {request.title}
-                      </h3>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate">
+                          {request.title}
+                        </h3>
+                        <button
+                          onClick={(e) => handleTogglePin(e, request.id)}
+                          className={`flex-shrink-0 p-1 rounded hover:bg-gray-100 transition-colors ${
+                            isPinned ? 'text-yellow-500' : 'text-gray-400'
+                          }`}
+                          title={isPinned ? 'Unpin request' : 'Pin request'}
+                        >
+                          <Star className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
+                        </button>
+                      </div>
                       <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 lg:hidden" />
                     </div>
 

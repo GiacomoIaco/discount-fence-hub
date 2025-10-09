@@ -804,3 +804,44 @@ export async function getRequestViewStatus(requestIds: string[], userId: string)
 
   return viewedIds;
 }
+
+// ============================================
+// REQUEST PINS
+// ============================================
+
+/**
+ * Toggle pin status for a request
+ */
+export async function toggleRequestPin(requestId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_request_pin', {
+    req_id: requestId
+  });
+
+  if (error) {
+    console.error('Failed to toggle request pin:', error);
+    throw error;
+  }
+
+  return data as boolean; // Returns true if pinned, false if unpinned
+}
+
+/**
+ * Get pinned request IDs for current user
+ */
+export async function getPinnedRequestIds(userId: string): Promise<Set<string>> {
+  const pinnedIds = new Set<string>();
+
+  const { data, error } = await supabase
+    .from('request_pins')
+    .select('request_id')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Failed to get pinned requests:', error);
+    return pinnedIds;
+  }
+
+  data?.forEach(pin => pinnedIds.add(pin.request_id));
+
+  return pinnedIds;
+}
