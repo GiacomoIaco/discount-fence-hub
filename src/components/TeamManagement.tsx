@@ -99,23 +99,27 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
 
     setInviting(true);
     try {
-      // Create invitation
-      const { data: invitation, error: invError } = await supabase
-        .from('user_invitations')
-        .insert({
+      // Call Netlify function to send invitation email
+      const response = await fetch('/.netlify/functions/send-invitation-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           email: inviteEmail,
           role: inviteRole,
-          invited_by: profile.id,
-        })
-        .select()
-        .single();
+          invitedBy: profile.id,
+          invitedByName: profile.full_name,
+        }),
+      });
 
-      if (invError) throw invError;
+      const result = await response.json();
 
-      // TODO: Send invitation email via Netlify function
-      // For now, just show success message with invitation link
-      const inviteLink = `${window.location.origin}/signup?token=${invitation.token}`;
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send invitation');
+      }
 
+      // Show success message with invitation link (until email sending is fully implemented)
       const message = `Invitation created! Share this message with ${inviteEmail}:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -124,7 +128,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
 You've been invited to join our team.
 
 1️⃣ Click this link to sign up:
-${inviteLink}
+${result.invitationLink}
 
 2️⃣ After signing in, install the app:
    • iPhone/iPad: Tap Share → Add to Home Screen
@@ -141,7 +145,7 @@ ${inviteLink}
       loadInvitations();
     } catch (error) {
       console.error('Error inviting user:', error);
-      showInfo('Failed to send invitation. Please try again.');
+      showInfo(error instanceof Error ? error.message : 'Failed to send invitation. Please try again.');
     } finally {
       setInviting(false);
     }
@@ -178,6 +182,42 @@ ${inviteLink}
     } catch (error) {
       console.error('Error toggling user status:', error);
       showInfo('Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (userRole !== 'admin' || !profile) return;
+    if (userId === profile.id) {
+      showInfo('You cannot delete your own account');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete ${userName}? This action cannot be undone and will remove all their data.`)) return;
+
+    try {
+      // Call Netlify function to delete user
+      const response = await fetch('/.netlify/functions/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          requestingUserId: profile.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user');
+      }
+
+      showInfo(result.message);
+      loadTeamMembers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showInfo(error instanceof Error ? error.message : 'Failed to delete user');
     }
   };
 
@@ -399,17 +439,26 @@ ${inviteLink}
 
                     {/* Actions (Admin only, not on self) */}
                     {userRole === 'admin' && member.id !== profile?.id && (
-                      <button
-                        onClick={() => handleToggleActive(member.id, member.is_active)}
-                        className={`p-2 rounded-lg ${
-                          member.is_active
-                            ? 'text-orange-600 hover:bg-orange-50'
-                            : 'text-green-600 hover:bg-green-50'
-                        }`}
-                        title={member.is_active ? 'Deactivate user' : 'Activate user'}
-                      >
-                        {member.is_active ? <Ban className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleToggleActive(member.id, member.is_active)}
+                          className={`p-2 rounded-lg ${
+                            member.is_active
+                              ? 'text-orange-600 hover:bg-orange-50'
+                              : 'text-green-600 hover:bg-green-50'
+                          }`}
+                          title={member.is_active ? 'Deactivate user' : 'Activate user'}
+                        >
+                          {member.is_active ? <Ban className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(member.id, member.full_name)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                          title="Delete user permanently"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

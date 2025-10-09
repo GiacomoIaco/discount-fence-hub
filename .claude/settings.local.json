@@ -30,7 +30,11 @@
       "mcp__chrome-devtools__new_page",
       "mcp__chrome-devtools__select_page",
       "Bash(git checkout:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm install:*)",
+      "Bash(tasklist)",
+      "Bash(npx netlify-cli deploy:*)",
+      "Bash(if exist netlify.toml type netlify.toml)"
     ]
   },
   "enableAllProjectMcpServers": true,
