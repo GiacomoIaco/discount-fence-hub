@@ -206,17 +206,17 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
 
     // Quick filters
     if (quickFilters.older24h) {
-      const created = new Date(req.created_at).getTime();
+      const submitted = new Date(req.submitted_at).getTime();
       const now = Date.now();
-      const ageMs = now - created;
+      const ageMs = now - submitted;
       const hours = Math.floor(ageMs / (1000 * 60 * 60));
       if (hours < 24) return false;
     }
 
     if (quickFilters.older48h) {
-      const created = new Date(req.created_at).getTime();
+      const submitted = new Date(req.submitted_at).getTime();
       const now = Date.now();
-      const ageMs = now - created;
+      const ageMs = now - submitted;
       const hours = Math.floor(ageMs / (1000 * 60 * 60));
       if (hours < 48) return false;
     }
@@ -289,12 +289,12 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     // If both pinned or both unpinned, sort by selected criteria
     switch (sortBy) {
       case 'newest':
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime();
       case 'oldest':
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
       case 'updated':
-        const aTime = new Date(a.updated_at || a.created_at).getTime();
-        const bTime = new Date(b.updated_at || b.created_at).getTime();
+        const aTime = new Date(a.updated_at || a.submitted_at).getTime();
+        const bTime = new Date(b.updated_at || b.submitted_at).getTime();
         return bTime - aTime;
       default:
         return 0;
@@ -654,8 +654,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                     {/* Last Activity */}
                     <div className="mt-1.5 text-xs text-gray-500">
                       Last activity: {(() => {
-                        // Use updated_at if available, fallback to created_at
-                        const timestamp = request.updated_at || request.created_at;
+                        // Use updated_at if available, fallback to submitted_at
+                        const timestamp = request.updated_at || request.submitted_at;
                         if (!timestamp) return 'unknown';
 
                         const updated = new Date(timestamp);
