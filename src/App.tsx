@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, Settings as SettingsIcon } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, MessageCircle, Settings as SettingsIcon } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { showError, showWarning } from './lib/toast';
 import StainCalculator from './components/sales/StainCalculator';
@@ -12,6 +12,7 @@ import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import MessageComposer from './components/MessageComposer';
 import TeamCommunication from './components/TeamCommunication';
+import DirectMessages from './components/DirectMessages';
 import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
 import RequestHub from './components/requests/RequestHub';
@@ -29,7 +30,7 @@ import { useEscalationEngine } from './hooks/useEscalationEngine';
 import type { Request } from './lib/requests';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'assignment-rules';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -130,7 +131,8 @@ function App() {
   const getNavigationItems = () => {
     const items = [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-      { id: 'team-communication' as Section, name: 'Messages', icon: MessageSquare, badge: unreadCount },
+      { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: unreadCount },
+      { id: 'direct-messages' as Section, name: 'Chat', icon: MessageCircle },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
       { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
@@ -244,6 +246,13 @@ function App() {
       return (
         <ErrorBoundary>
           <TeamCommunication />
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'direct-messages') {
+      return (
+        <ErrorBoundary>
+          <DirectMessages />
         </ErrorBoundary>
       );
     }
@@ -600,6 +609,10 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
     return <TeamCommunication onBack={() => setActiveSection('home')} />;
   }
 
+  if (activeSection === 'direct-messages') {
+    return <DirectMessages />;
+  }
+
   return (
     <div className="space-y-4 p-4">
       {/* Sales Tools Section - No Title */}
@@ -668,6 +681,21 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
         </button>
 
         <button
+          onClick={() => setActiveSection('direct-messages')}
+          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/20 p-3 rounded-lg">
+              <MessageCircle className="w-8 h-8" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-bold text-lg">Chat</div>
+              <div className="text-sm text-blue-100">Direct messages with team</div>
+            </div>
+          </div>
+        </button>
+
+        <button
           onClick={() => setActiveSection('team-communication')}
           className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative"
         >
@@ -676,7 +704,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
               <MessageSquare className="w-8 h-8" />
             </div>
             <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Messages</div>
+              <div className="font-bold text-lg">Announcements</div>
               <div className="text-sm text-indigo-100">Team updates & announcements</div>
             </div>
             {unreadCount > 0 && (

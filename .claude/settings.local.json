@@ -1,6 +1,11 @@
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
       "mcp__chrome-devtools__list_pages",
       "mcp__chrome-devtools__navigate_page",
       "Bash(npm run dev:*)",
@@ -35,7 +40,12 @@
       "Bash(tasklist)",
       "Bash(npx netlify-cli deploy:*)",
       "Bash(if exist netlify.toml type netlify.toml)",
-      "mcp__chrome-devtools__handle_dialog"
+      "mcp__chrome-devtools__handle_dialog",
+      "Bash(git ls-tree:*)",
+      "WebFetch(domain:app.netlify.com)",
+      "Bash(git rev-parse:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
