@@ -67,9 +67,9 @@ export const handler: Handler = async (event) => {
     // Check if there's already a pending invitation
     const { data: existingInvitation } = await supabase
       .from('user_invitations')
-      .select('id, status')
+      .select('id, is_used')
       .eq('email', email)
-      .eq('status', 'pending')
+      .eq('is_used', false)
       .single();
 
     if (existingInvitation) {
@@ -103,7 +103,7 @@ export const handler: Handler = async (event) => {
         token,
         sent_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString(),
-        status: 'pending',
+        is_used: false,
       })
       .select()
       .single();
