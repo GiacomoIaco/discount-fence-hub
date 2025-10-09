@@ -453,6 +453,12 @@ export async function addRequestNote(
 
   if (error) throw error;
 
+  // Update the request's updated_at timestamp to reflect this activity
+  await supabase
+    .from('requests')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', requestId);
+
   await logActivity(requestId, 'note_added', { note_type: noteType });
 
   return data as RequestNote;
