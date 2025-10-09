@@ -330,7 +330,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
@@ -455,8 +455,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
         )}
         </div>
 
-        {/* Sort dropdown */}
-        <div className="flex items-center gap-2">
+        {/* Sort dropdown and Filters button */}
+        <div className="flex items-center gap-3">
           <span className="text-xs text-gray-600">Sort:</span>
           <select
             value={sortBy}
@@ -467,44 +467,47 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
             <option value="oldest">Oldest First</option>
             <option value="updated">Recently Updated</option>
           </select>
+
+          {/* Filters button */}
+          <button
+            onClick={() => setFiltersExpanded(!filtersExpanded)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+              filtersExpanded
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            Filters
+            {(searchTerm || filterType !== 'all' || filterStage !== 'all' || filterAssignee !== 'all' || filterSubmitter !== 'all' || filterSLA !== 'all') && (
+              <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-bold">
+                •
+              </span>
+            )}
+            {filtersExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 
       {/* Advanced Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <button
-          onClick={() => setFiltersExpanded(!filtersExpanded)}
-          className="w-full px-4 py-3 flex items-center justify-between text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4" />
-            Filters
-            {(searchTerm || filterType !== 'all' || filterStage !== 'all' || filterAssignee !== 'all' || filterSubmitter !== 'all' || filterSLA !== 'all') && (
-              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-bold">
-                Active
-              </span>
-            )}
-          </div>
-          {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-
-        {filtersExpanded && (
-          <div className="p-4 space-y-3 border-t border-gray-200">
+      {filtersExpanded && (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="p-3 space-y-2">
             {/* Search */}
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by customer, project, title..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
           {/* Type Filter */}
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as RequestType | 'all')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Types</option>
             <option value="pricing">Pricing</option>
@@ -518,7 +521,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           <select
             value={filterStage}
             onChange={(e) => setFilterStage(e.target.value as RequestStage | 'all')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Stages</option>
             <option value="new">New</option>
@@ -531,7 +534,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           <select
             value={filterAssignee}
             onChange={(e) => setFilterAssignee(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Assignees</option>
             <option value="unassigned">Unassigned</option>
@@ -544,7 +547,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           <select
             value={filterSubmitter}
             onChange={(e) => setFilterSubmitter(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Submitters</option>
             {users.map(user => (
@@ -556,7 +559,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
               <select
                 value={filterSLA}
                 onChange={(e) => setFilterSLA(e.target.value as SLAStatus | 'all')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent col-span-2"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent col-span-2"
               >
                 <option value="all">All SLA Statuses</option>
                 <option value="on_track">On Track</option>
@@ -565,8 +568,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
               </select>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Request List */}
       {sortedRequests.length === 0 ? (
@@ -585,7 +588,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {sortedRequests.map((request) => {
             const submitter = users.find(u => u.id === request.submitter_id);
             const assignee = users.find(u => u.id === request.assigned_to);
@@ -596,10 +599,14 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
               <button
                 key={request.id}
                 onClick={() => onRequestClick(request)}
-                className="w-full bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all text-left"
+                className={`w-full border rounded-xl p-3 hover:shadow-md transition-all text-left ${
+                  isPinned
+                    ? 'bg-gray-50 border-gray-300'
+                    : 'bg-white border-gray-200'
+                }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="relative p-2 bg-gray-50 rounded-lg">
+                <div className="flex items-start gap-2.5">
+                  <div className={`relative p-1.5 rounded-lg ${isPinned ? 'bg-white' : 'bg-gray-50'}`}>
                     <RequestTypeIcon type={request.request_type} />
                     {isUnviewed && (
                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
@@ -607,28 +614,28 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900 truncate">
                           {request.title}
                         </h3>
                         <button
                           onClick={(e) => handleTogglePin(e, request.id)}
                           onTouchStart={(e) => e.stopPropagation()}
-                          className={`flex-shrink-0 p-2 rounded hover:bg-gray-100 transition-colors ${
+                          className={`flex-shrink-0 p-1 rounded hover:bg-gray-100 transition-colors ${
                             isPinned ? 'text-yellow-500' : 'text-gray-400'
                           }`}
                           title={isPinned ? 'Unpin request' : 'Pin request'}
                           aria-label={isPinned ? 'Unpin request' : 'Pin request'}
                         >
-                          <Star className={`w-5 h-5 ${isPinned ? 'fill-current' : ''}`} />
+                          <Star className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
                         </button>
                       </div>
                       <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 lg:hidden" />
                     </div>
 
                     {request.customer_name && (
-                      <p className="text-sm text-gray-600 mb-2">
+                      <p className="text-sm text-gray-600 mb-1.5">
                         {request.customer_name}
                       </p>
                     )}
@@ -652,7 +659,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                     </div>
 
                     {/* Last Activity */}
-                    <div className="mt-1.5 text-xs text-gray-500">
+                    <div className="mt-1 text-xs text-gray-500">
                       Last activity: {(() => {
                         // Use updated_at if available, fallback to submitted_at
                         const timestamp = request.updated_at || request.submitted_at;
