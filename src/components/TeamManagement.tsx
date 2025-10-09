@@ -137,7 +137,7 @@ ${result.invitationLink}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-      showInfo(message);
+      showInfo(message, 10000); // Show for 10 seconds
 
       setInviteEmail('');
       setInviteRole('sales');

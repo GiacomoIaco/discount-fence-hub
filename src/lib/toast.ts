@@ -22,14 +22,17 @@ export const showError = (message: string) => {
   });
 };
 
-export const showInfo = (message: string) => {
+export const showInfo = (message: string, duration?: number) => {
   toast(message, {
-    duration: 3000,
+    duration: duration || 3000,
     icon: 'ℹ️',
     style: {
       background: '#3B82F6',
       color: '#fff',
       fontWeight: '500',
+      maxWidth: '600px',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
     },
   });
 };
