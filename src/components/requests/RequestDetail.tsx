@@ -1,8 +1,8 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText, X } from 'lucide-react';
 import type { Request } from '../../lib/requests';
 import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
-import { markRequestAsViewed } from '../../lib/requests';
+import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, type RequestAttachment } from '../../lib/requests';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { showError } from '../../lib/toast';
@@ -57,6 +57,9 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
   const [internalNote, setInternalNote] = useState('');
   const [addingInternalNote, setAddingInternalNote] = useState(false);
   const [mobileTab, setMobileTab] = useState<'chat' | 'details' | 'files'>('chat');
+  const [attachments, setAttachments] = useState<RequestAttachment[]>([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(true);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Check if user can edit (admin or operations)
   const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
@@ -122,6 +125,21 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
     };
     fetchProfiles();
   }, [notes]);
+
+  // Fetch attachments
+  useEffect(() => {
+    const fetchAttachments = async () => {
+      try {
+        const data = await getRequestAttachments(request.id);
+        setAttachments(data);
+      } catch (error) {
+        console.error('Failed to fetch attachments:', error);
+      } finally {
+        setLoadingAttachments(false);
+      }
+    };
+    fetchAttachments();
+  }, [request.id]);
 
   const getRequestTypeInfo = () => {
     switch (request.request_type) {
@@ -252,6 +270,26 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
     } catch (error: any) {
       console.error('Failed to save request:', error);
       showError(`Failed to save request: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingFile(true);
+    try {
+      for (const file of Array.from(files)) {
+        const attachment = await addRequestAttachment(request.id, file);
+        setAttachments(prev => [attachment, ...prev]);
+      }
+    } catch (error) {
+      console.error('Failed to upload file:', error);
+      showError('Failed to upload file. Please try again.');
+    } finally {
+      setUploadingFile(false);
+      // Reset file input
+      event.target.value = '';
     }
   };
 
@@ -443,7 +481,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
         {/* Main Content */}
         <div className="flex-1 p-4 lg:p-0 space-y-4 lg:pb-24">
         {/* Status Card */}
-        <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 ${mobileTab !== 'details' ? 'lg:block hidden' : ''}`}>
+        <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className={`p-2 bg-${typeInfo.color}-100 rounded-lg text-${typeInfo.color}-600`}>
@@ -512,7 +550,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Stage Management Workflow Buttons - Only for Admin/Operations */}
         {canEdit && (
-          <div className="bg-white rounded-xl shadow-sm p-4 lg:hidden">
+          <div className={`bg-white rounded-xl shadow-sm p-4 lg:hidden ${mobileTab !== 'details' ? 'hidden' : ''}`}>
             <h3 className="font-semibold text-gray-900 mb-3 text-sm">Change Stage</h3>
             <div className="grid grid-cols-2 gap-2">
             {request.stage !== 'new' && (
@@ -561,7 +599,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Customer Info */}
         {(request.customer_name || isEditingRequest) && (
-          <div className="bg-white rounded-xl shadow-sm p-4 space-y-2">
+          <div className={`bg-white rounded-xl shadow-sm p-4 space-y-2 ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <User className="w-4 h-4" />
               Customer Information
@@ -618,7 +656,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Project Details */}
         {(request.fence_type || request.linear_feet || request.expected_value) && (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden lg:p-4">
+          <div className={`bg-white rounded-xl shadow-sm overflow-hidden lg:p-4 ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
             <button
               onClick={() => setProjectDetailsExpanded(!projectDetailsExpanded)}
               className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors lg:hidden"
@@ -637,7 +675,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Description */}
         {(request.description || isEditingRequest) && (
-          <div className="bg-white rounded-xl shadow-sm p-4 space-y-2">
+          <div className={`bg-white rounded-xl shadow-sm p-4 space-y-2 ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
             <h3 className="font-semibold text-gray-900">Description</h3>
             {isEditingRequest ? (
               <textarea
@@ -654,7 +692,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Special Requirements */}
         {(request.special_requirements || isEditingRequest) && (
-          <div className="bg-white rounded-xl shadow-sm p-4 space-y-2">
+          <div className={`bg-white rounded-xl shadow-sm p-4 space-y-2 ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
             <h3 className="font-semibold text-gray-900">Special Requirements</h3>
             {isEditingRequest ? (
               <textarea
@@ -671,7 +709,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Pricing Quote */}
         {request.pricing_quote && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <div className={`bg-green-50 border border-green-200 rounded-xl p-4 ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
             <h3 className="font-semibold text-green-900 mb-1">Pricing Quote</h3>
             <p className="text-2xl font-bold text-green-700">${request.pricing_quote.toLocaleString()}</p>
             {request.quoted_at && (
@@ -684,7 +722,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
         {/* Voice Recording & Transcript - Mobile Only */}
         {(request.voice_recording_url || request.transcript) && (
-          <div className="bg-purple-50 border border-purple-200 rounded-xl overflow-hidden lg:hidden">
+          <div className={`bg-purple-50 border border-purple-200 rounded-xl overflow-hidden lg:hidden ${mobileTab !== 'files' ? 'hidden' : ''}`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-purple-900 flex items-center gap-2">
@@ -746,8 +784,77 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
           </div>
         )}
 
+        {/* Photos - Mobile Only */}
+        {request.photo_urls && request.photo_urls.length > 0 && (
+          <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 lg:hidden ${mobileTab !== 'files' ? 'hidden' : ''}`}>
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Image className="w-4 h-4" />
+              Photos ({request.photo_urls.length})
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {request.photo_urls.map((url, index) => (
+                <a
+                  key={index}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                >
+                  <img
+                    src={url}
+                    alt={`Photo ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Attachments - Mobile Only */}
+        {(attachments.length > 0 || loadingAttachments) && (
+          <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 lg:hidden ${mobileTab !== 'files' ? 'hidden' : ''}`}>
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Attachments ({attachments.length})
+            </h3>
+            {loadingAttachments ? (
+              <p className="text-sm text-gray-600">Loading attachments...</p>
+            ) : attachments.length === 0 ? (
+              <p className="text-sm text-gray-600">No attachments yet</p>
+            ) : (
+              <div className="space-y-2">
+                {attachments.map((attachment) => (
+                  <a
+                    key={attachment.id}
+                    href={attachment.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <div className="flex-shrink-0">
+                      {attachment.file_type === 'image' && <Image className="w-5 h-5 text-blue-600" />}
+                      {attachment.file_type === 'document' && <FileText className="w-5 h-5 text-green-600" />}
+                      {attachment.file_type === 'audio' && <Volume2 className="w-5 h-5 text-purple-600" />}
+                      {attachment.file_type === 'video' && <PlayCircle className="w-5 h-5 text-red-600" />}
+                      {attachment.file_type === 'other' && <Paperclip className="w-5 h-5 text-gray-600" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{attachment.file_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {attachment.file_size ? `${(attachment.file_size / 1024).toFixed(1)} KB • ` : ''}
+                        {new Date(attachment.uploaded_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Notes/Chat Section */}
-        <div className="bg-white rounded-xl shadow-sm p-4 space-y-3 pb-20 lg:pb-4">
+        <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 pb-20 lg:pb-4 ${mobileTab !== 'chat' ? 'hidden lg:block' : ''}`}>
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
             Messages & Notes
@@ -840,7 +947,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
         </div>
 
         {/* Activity Timeline - Collapsed by default */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className={`bg-white rounded-xl shadow-sm overflow-hidden ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
           <button
             onClick={() => setActivityExpanded(!activityExpanded)}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
@@ -987,6 +1094,47 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
             </div>
           )}
 
+          {/* Attachments Preview */}
+          {(attachments.length > 0 || loadingAttachments) && (
+            <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Attachments ({attachments.length})
+              </h3>
+              {loadingAttachments ? (
+                <p className="text-sm text-gray-600">Loading...</p>
+              ) : attachments.length === 0 ? (
+                <p className="text-sm text-gray-600">No attachments yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {attachments.map((attachment) => (
+                    <a
+                      key={attachment.id}
+                      href={attachment.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <div className="flex-shrink-0">
+                        {attachment.file_type === 'image' && <Image className="w-4 h-4 text-blue-600" />}
+                        {attachment.file_type === 'document' && <FileText className="w-4 h-4 text-green-600" />}
+                        {attachment.file_type === 'audio' && <Volume2 className="w-4 h-4 text-purple-600" />}
+                        {attachment.file_type === 'video' && <PlayCircle className="w-4 h-4 text-red-600" />}
+                        {attachment.file_type === 'other' && <Paperclip className="w-4 h-4 text-gray-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-900 truncate">{attachment.file_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {attachment.file_size ? `${(attachment.file_size / 1024).toFixed(1)} KB` : ''}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quick Actions */}
           {(request.customer_email || request.customer_phone) && (
             <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
@@ -1036,8 +1184,38 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       </div>
 
       {/* Sticky Message Bar at Bottom - Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 shadow-lg z-20 lg:hidden">
+      <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 shadow-lg z-20 lg:hidden ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
         <div className="flex gap-2">
+          <div className="relative">
+            <input
+              type="file"
+              id="mobile-file-input"
+              className="hidden"
+              onChange={handleFileUpload}
+              multiple
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+            />
+            <label
+              htmlFor="mobile-file-input"
+              className="flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+            >
+              <Paperclip className="w-5 h-5" />
+            </label>
+          </div>
+          <input
+            type="file"
+            id="mobile-camera-input"
+            className="hidden"
+            onChange={handleFileUpload}
+            accept="image/*"
+            capture="environment"
+          />
+          <label
+            htmlFor="mobile-camera-input"
+            className="flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+          >
+            <Camera className="w-5 h-5" />
+          </label>
           <input
             type="text"
             value={newNote}
@@ -1058,12 +1236,50 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
             <Send className="w-4 h-4" />
           </button>
         </div>
+        {uploadingFile && (
+          <div className="mt-2 text-xs text-blue-600 flex items-center gap-2">
+            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            Uploading file...
+          </div>
+        )}
       </div>
 
       {/* Sticky Message Bar at Bottom - Desktop (doesn't overlap sidebar) */}
       <div className="hidden lg:block fixed bottom-0 left-0 right-0 lg:left-64 bg-white border-t border-gray-200 p-3 shadow-lg z-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex gap-2">
+            <div className="flex gap-1">
+              <input
+                type="file"
+                id="desktop-file-input"
+                className="hidden"
+                onChange={handleFileUpload}
+                multiple
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+              />
+              <label
+                htmlFor="desktop-file-input"
+                className="flex items-center justify-center px-3 py-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                title="Attach file"
+              >
+                <Paperclip className="w-5 h-5" />
+              </label>
+              <input
+                type="file"
+                id="desktop-camera-input"
+                className="hidden"
+                onChange={handleFileUpload}
+                accept="image/*"
+                capture="environment"
+              />
+              <label
+                htmlFor="desktop-camera-input"
+                className="flex items-center justify-center px-3 py-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                title="Take photo"
+              >
+                <Camera className="w-5 h-5" />
+              </label>
+            </div>
             <input
               type="text"
               value={newNote}
@@ -1085,6 +1301,12 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
               {addingNote ? 'Sending...' : 'Send'}
             </button>
           </div>
+          {uploadingFile && (
+            <div className="mt-2 text-sm text-blue-600 flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              Uploading file...
+            </div>
+          )}
         </div>
       </div>
     </div>

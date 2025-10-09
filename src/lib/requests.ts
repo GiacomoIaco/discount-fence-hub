@@ -118,6 +118,19 @@ export interface RequestActivity {
   created_at: string;
 }
 
+export interface RequestAttachment {
+  id: string;
+  request_id: string;
+  user_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: 'image' | 'document' | 'audio' | 'video' | 'other';
+  file_size?: number;
+  mime_type?: string;
+  uploaded_at: string;
+  description?: string;
+}
+
 export interface AssignmentRule {
   id: string;
   request_type: RequestType;
@@ -844,4 +857,170 @@ export async function getPinnedRequestIds(userId: string): Promise<Set<string>> 
   data?.forEach(pin => pinnedIds.add(pin.request_id));
 
   return pinnedIds;
+}
+
+// ============================================
+// REQUEST ATTACHMENTS
+// ============================================
+
+/**
+ * Upload file to Supabase Storage
+ */
+export async function uploadRequestFile(
+  file: File,
+  requestId: string
+): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  // Generate unique file name
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${requestId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+  // Upload to storage
+  const { data, error } = await supabase.storage
+    .from('request-attachments')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    console.error('File upload error:', error);
+    throw error;
+  }
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('request-attachments')
+    .getPublicUrl(data.path);
+
+  return publicUrl;
+}
+
+/**
+ * Determine file type from MIME type
+ */
+function getFileType(mimeType: string): 'image' | 'document' | 'audio' | 'video' | 'other' {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text')) return 'document';
+  return 'other';
+}
+
+/**
+ * Add attachment to request
+ */
+export async function addRequestAttachment(
+  requestId: string,
+  file: File,
+  description?: string
+): Promise<RequestAttachment> {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  // Upload file first
+  const fileUrl = await uploadRequestFile(file, requestId);
+
+  // Save attachment metadata to database
+  const { data, error } = await supabase
+    .from('request_attachments')
+    .insert({
+      request_id: requestId,
+      user_id: user.id,
+      file_name: file.name,
+      file_url: fileUrl,
+      file_type: getFileType(file.type),
+      file_size: file.size,
+      mime_type: file.type,
+      description
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to save attachment metadata:', error);
+    throw error;
+  }
+
+  // Log activity
+  await logActivity(requestId, 'attachment_added', {
+    file_name: file.name,
+    file_type: getFileType(file.type)
+  });
+
+  return data as RequestAttachment;
+}
+
+/**
+ * Get attachments for a request
+ */
+export async function getRequestAttachments(requestId: string): Promise<RequestAttachment[]> {
+  const { data, error } = await supabase
+    .from('request_attachments')
+    .select('*')
+    .eq('request_id', requestId)
+    .order('uploaded_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to get attachments:', error);
+    throw error;
+  }
+
+  return data as RequestAttachment[];
+}
+
+/**
+ * Delete attachment
+ */
+export async function deleteRequestAttachment(attachmentId: string): Promise<void> {
+  // Get attachment details first
+  const { data: attachment, error: fetchError } = await supabase
+    .from('request_attachments')
+    .select('*')
+    .eq('id', attachmentId)
+    .single();
+
+  if (fetchError) {
+    console.error('Failed to fetch attachment:', fetchError);
+    throw fetchError;
+  }
+
+  // Extract file path from URL
+  const url = new URL(attachment.file_url);
+  const pathParts = url.pathname.split('/');
+  const filePath = pathParts.slice(pathParts.indexOf('request-attachments') + 1).join('/');
+
+  // Delete from storage
+  const { error: storageError } = await supabase.storage
+    .from('request-attachments')
+    .remove([filePath]);
+
+  if (storageError) {
+    console.error('Failed to delete from storage:', storageError);
+    // Continue anyway to delete database record
+  }
+
+  // Delete from database
+  const { error: dbError } = await supabase
+    .from('request_attachments')
+    .delete()
+    .eq('id', attachmentId);
+
+  if (dbError) {
+    console.error('Failed to delete attachment record:', dbError);
+    throw dbError;
+  }
+
+  // Log activity
+  await logActivity(attachment.request_id, 'attachment_deleted', {
+    file_name: attachment.file_name
+  });
 }
