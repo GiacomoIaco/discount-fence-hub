@@ -65,7 +65,7 @@ function App() {
     const saved = localStorage.getItem('viewMode');
     return (saved as 'mobile' | 'desktop') || 'mobile';
   });
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = 0; // Disabled: TeamCommunication has its own notification system
   const [showMessageComposer, setShowMessageComposer] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
@@ -80,28 +80,28 @@ function App() {
     localStorage.setItem('viewMode', viewMode);
   }, [viewMode]);
 
-  // Load unread message count
-  useEffect(() => {
-    if (!user) return;
+  // Load unread message count - DISABLED: TeamCommunication uses its own system
+  // useEffect(() => {
+  //   if (!user) return;
 
-    const loadUnreadCount = async () => {
-      try {
-        // Use the new direct messages unread count
-        const { getUnreadMessagesCount } = await import('./lib/messages');
-        const count = await getUnreadMessagesCount();
-        setUnreadCount(count);
-      } catch (error) {
-        // Silently ignore errors - feature may not be fully set up yet
-        console.log('Direct messages not available:', error);
-      }
-    };
+  //   const loadUnreadCount = async () => {
+  //     try {
+  //       // Use the new direct messages unread count
+  //       const { getUnreadMessagesCount } = await import('./lib/messages');
+  //       const count = await getUnreadMessagesCount();
+  //       setUnreadCount(count);
+  //     } catch (error) {
+  //       // Silently ignore errors - feature may not be fully set up yet
+  //       console.log('Direct messages not available:', error);
+  //     }
+  //   };
 
-    loadUnreadCount();
+  //   loadUnreadCount();
 
-    // Refresh every 30 seconds
-    const interval = setInterval(loadUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
+  //   // Refresh every 30 seconds
+  //   const interval = setInterval(loadUnreadCount, 30000);
+  //   return () => clearInterval(interval);
+  // }, [user]);
 
   // Handle browser back button to prevent app close
   useEffect(() => {
