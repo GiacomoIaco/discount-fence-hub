@@ -186,7 +186,7 @@ async function applyAssignmentRules(request: Request) {
 
     if (error) throw error;
 
-    // If a rule exists, auto-assign
+    // If a rule exists, auto-assign (keep in 'new' stage until assignee views it)
     if (rules && rules.length > 0) {
       const rule = rules[0];
       await supabase
@@ -194,7 +194,7 @@ async function applyAssignmentRules(request: Request) {
         .update({
           assigned_to: rule.assignee_id,
           assigned_at: new Date().toISOString(),
-          stage: 'pending'
+          stage: 'new'  // Stay in 'new' until assignee views it
         })
         .eq('id', request.id);
 
@@ -338,12 +338,13 @@ export async function updateRequest(id: string, updates: Partial<Request>) {
 
 /**
  * Assign request to user
+ * Sets stage to 'new' until assignee views the request
  */
 export async function assignRequest(requestId: string, assigneeId: string) {
   const request = await updateRequest(requestId, {
     assigned_to: assigneeId,
     assigned_at: new Date().toISOString(),
-    stage: 'pending'
+    stage: 'new'  // Will auto-transition to 'pending' when assignee views it
   });
 
   await logActivity(requestId, 'assigned', { assignee_id: assigneeId });
@@ -707,6 +708,7 @@ export function subscribeToRequests(
 
 /**
  * Mark request as viewed by current user
+ * Also auto-transitions "new" stage to "pending" if the viewer is the assignee
  */
 export async function markRequestAsViewed(requestId: string) {
   const { error } = await supabase.rpc('mark_request_viewed', {
@@ -714,6 +716,35 @@ export async function markRequestAsViewed(requestId: string) {
   });
 
   if (error) console.error('Failed to mark request as viewed:', error);
+
+  // Auto-transition from "new" to "pending" if viewer is the assignee
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get the request
+    const { data: request } = await supabase
+      .from('requests')
+      .select('id, stage, assigned_to')
+      .eq('id', requestId)
+      .single();
+
+    // If request is "new" and current user is the assignee, move to "pending"
+    if (request && request.stage === 'new' && request.assigned_to === user.id) {
+      await supabase
+        .from('requests')
+        .update({ stage: 'pending' })
+        .eq('id', requestId);
+
+      await logActivity(requestId, 'status_changed', {
+        from: 'new',
+        to: 'pending',
+        reason: 'Auto-transitioned when assignee viewed request'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to auto-transition request:', err);
+  }
 }
 
 /**
