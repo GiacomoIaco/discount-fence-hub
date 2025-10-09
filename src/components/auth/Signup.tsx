@@ -19,7 +19,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [invitationRole, setInvitationRole] = useState<string>('sales');
   const [validatingInvitation, setValidatingInvitation] = useState(true);
-  const { signUp } = useAuth();
+  const { signUp, user } = useAuth();
 
   // Check for invitation token in URL
   useEffect(() => {
@@ -28,6 +28,13 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
     const inviteEmail = params.get('email');
 
     if (token && inviteEmail) {
+      // Check if user is already logged in with a different email
+      if (user && user.email !== inviteEmail) {
+        setValidatingInvitation(false);
+        setError(`You are currently logged in as ${user.email}. Please log out first to accept this invitation for ${inviteEmail}.`);
+        return;
+      }
+
       setInvitationToken(token);
       setEmail(inviteEmail);
       validateInvitation(inviteEmail, token);
@@ -35,7 +42,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
       setValidatingInvitation(false);
       setError('This app requires an invitation to sign up. Please contact an administrator for an invitation link.');
     }
-  }, []);
+  }, [user]);
 
   const validateInvitation = async (inviteEmail: string, token: string) => {
     try {
@@ -96,13 +103,18 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
     setLoading(true);
 
     try {
-      const { error: signUpError } = await signUp(
+      // Sign up the user
+      const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email,
         password,
-        fullName,
-        invitationRole as any,
-        phone || undefined
-      );
+        options: {
+          data: {
+            full_name: fullName,
+            role: invitationRole,
+            phone: phone || undefined
+          }
+        }
+      });
 
       if (signUpError) {
         setError(signUpError.message);
@@ -110,11 +122,20 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
         return;
       }
 
-      // Mark invitation as accepted
+      // Get the newly created user's ID
+      const newUserId = signUpData?.user?.id;
+
+      if (!newUserId) {
+        setError('Failed to create user account');
+        setLoading(false);
+        return;
+      }
+
+      // Mark invitation as accepted with the new user's ID
       const { error: acceptError } = await supabase.rpc('accept_invitation', {
         p_email: email,
         p_token: invitationToken,
-        p_user_id: (await supabase.auth.getUser()).data.user?.id
+        p_user_id: newUserId
       });
 
       if (acceptError) {
@@ -124,6 +145,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
 
       setSuccess(true);
     } catch (err) {
+      console.error('Signup error:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);

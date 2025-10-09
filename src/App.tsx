@@ -12,6 +12,7 @@ import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import MessageComposer from './components/MessageComposer';
 import { MessagesView } from './components/messages/MessagesView';
+import TeamCommunication from './components/TeamCommunication';
 import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
 import RequestHub from './components/requests/RequestHub';
@@ -243,7 +244,7 @@ function App() {
     if (activeSection === 'team-communication') {
       return (
         <ErrorBoundary>
-          <MessagesView />
+          <TeamCommunication />
         </ErrorBoundary>
       );
     }
@@ -597,7 +598,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
   }
 
   if (activeSection === 'team-communication') {
-    return <MessagesView />;
+    return <TeamCommunication onBack={() => setActiveSection('home')} />;
   }
 
   return (
