@@ -131,6 +131,9 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     awaiting: false
   });
 
+  // Sort state
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'updated'>('newest');
+
   // Sales role sees only their requests, everyone else sees all requests
   const isSalesOnly = profile?.role === 'sales';
 
@@ -250,6 +253,22 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     return true;
   });
 
+  // Sort filtered requests
+  const sortedRequests = [...filteredRequests].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'updated':
+        const aTime = new Date(a.updated_at || a.created_at).getTime();
+        const bTime = new Date(b.updated_at || b.created_at).getTime();
+        return bTime - aTime;
+      default:
+        return 0;
+    }
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -320,7 +339,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
       </div>
 
       {/* Quick Filters Bar */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setQuickFilters(prev => ({ ...prev, older24h: !prev.older24h }))}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
@@ -415,6 +435,21 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
             Clear all
           </button>
         )}
+        </div>
+
+        {/* Sort dropdown */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'updated')}
+            className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="updated">Recently Updated</option>
+          </select>
+        </div>
       </div>
 
       {/* Advanced Filters */}
@@ -516,7 +551,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
       </div>
 
       {/* Request List */}
-      {filteredRequests.length === 0 ? (
+      {sortedRequests.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
             <Archive className="w-16 h-16 mx-auto" />
@@ -533,7 +568,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredRequests.map((request) => {
+          {sortedRequests.map((request) => {
             const submitter = users.find(u => u.id === request.submitter_id);
             const assignee = users.find(u => u.id === request.assigned_to);
 
