@@ -1,4 +1,4 @@
-import { Activity, Clock, CheckCircle, Target, DollarSign, BarChart, TrendingUp, Users } from 'lucide-react';
+import { Activity, Camera, MessageSquare, TrendingUp, AlertCircle, CheckCircle, Clock, Target } from 'lucide-react';
 import type { AnalyticsData } from '../../hooks/useAnalytics';
 import type { UserRole } from '../../types';
 
@@ -8,204 +8,275 @@ interface OverviewTabProps {
 }
 
 export function OverviewTab({ data, userRole }: OverviewTabProps) {
-  const getTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      pricing: 'Pricing',
-      material: 'Material',
-      warranty: 'Warranty',
-      new_builder: 'New Builder',
-      support: 'Support'
-    };
-    return labels[type] || type;
-  };
+  // Calculate recent activity (last 7 days snapshot)
+  const recentWeek = data.timeSeries.slice(-1)[0];
+  const previousWeek = data.timeSeries.slice(-2)[0];
 
-  const getStageLabel = (stage: string) => {
-    const labels: Record<string, string> = {
-      new: 'New',
-      pending: 'Pending',
-      completed: 'Completed',
-      archived: 'Archived'
-    };
-    return labels[stage] || stage;
-  };
+  const requestTrend = recentWeek && previousWeek
+    ? ((recentWeek.requestsCreated - previousWeek.requestsCreated) / (previousWeek.requestsCreated || 1)) * 100
+    : 0;
+
+  // Identify critical items
+  const criticalRequests = data.requestMetricsByType.filter(
+    r => r.percentOver48h > 30 || r.percentOver24h > 50
+  );
 
   return (
     <div className="space-y-6">
-      {/* Overview Stats */}
+      {/* High-Level Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
+        <SummaryCard
           icon={Activity}
           label="Total Requests"
           value={data.overview.totalRequests.toString()}
+          subtitle={`${data.overview.completedRequests} completed`}
+          trend={requestTrend}
           color="blue"
         />
-        <StatCard
-          icon={CheckCircle}
-          label="Completed"
-          value={data.overview.completedRequests.toString()}
-          color="green"
-        />
-        <StatCard
-          icon={Clock}
-          label="Avg Response Time"
-          value={`${data.overview.averageResponseTime.toFixed(1)}h`}
-          color="yellow"
-        />
-        <StatCard
-          icon={Target}
-          label="SLA Compliance"
-          value={`${data.overview.slaComplianceRate.toFixed(1)}%`}
+        <SummaryCard
+          icon={Camera}
+          label="Photos"
+          value="--"
+          subtitle="See Photos tab"
           color="purple"
         />
+        <SummaryCard
+          icon={MessageSquare}
+          label="Messages"
+          value="--"
+          subtitle="Coming soon"
+          color="green"
+        />
+        <SummaryCard
+          icon={TrendingUp}
+          label="AI Coach"
+          value="--"
+          subtitle="Coming soon"
+          color="orange"
+        />
       </div>
 
-      {/* Pricing Analytics */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <DollarSign className="w-6 h-6 text-green-600" />
-          <h2 className="text-xl font-bold text-gray-900">Pricing Request Analytics</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="text-sm text-green-600 mb-1">Win Rate</div>
-            <div className="text-3xl font-bold text-green-700">
-              {data.pricingAnalytics.winRate.toFixed(1)}%
-            </div>
-            <div className="text-xs text-green-600 mt-1">
-              {data.pricingAnalytics.wonRequests} won / {data.pricingAnalytics.wonRequests + data.pricingAnalytics.lostRequests} total
-            </div>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="text-sm text-blue-600 mb-1">Avg Quote Value</div>
-            <div className="text-3xl font-bold text-blue-700">
-              ${data.pricingAnalytics.averageQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-xs text-blue-600 mt-1">
-              Based on {data.pricingAnalytics.totalPricingRequests} pricing requests
-            </div>
-          </div>
-
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <div className="text-sm text-purple-600 mb-1">Total Won Value</div>
-            <div className="text-3xl font-bold text-purple-700">
-              ${data.pricingAnalytics.totalQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-xs text-purple-600 mt-1">
-              From {data.pricingAnalytics.wonRequests} won requests
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Request Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Requests by Type */}
+      {/* Key Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Requests Overview */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
-            <BarChart className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Requests by Type</h3>
+            <Activity className="w-5 h-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Requests</h3>
           </div>
           <div className="space-y-3">
-            {data.requestsByType.map((item) => (
-              <div key={item.type}>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-gray-600">{getTypeLabel(item.type)}</span>
-                  <span className="font-medium text-gray-900">{item.count} ({item.percentage.toFixed(1)}%)</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${item.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+            <MetricRow
+              icon={CheckCircle}
+              label="Completion Rate"
+              value={`${((data.overview.completedRequests / data.overview.totalRequests) * 100).toFixed(1)}%`}
+              iconColor="text-green-600"
+            />
+            <MetricRow
+              icon={Clock}
+              label="Avg Response Time"
+              value={`${data.overview.averageResponseTime.toFixed(1)}h`}
+              iconColor="text-yellow-600"
+            />
+            <MetricRow
+              icon={Target}
+              label="SLA Compliance"
+              value={`${data.overview.slaComplianceRate.toFixed(1)}%`}
+              iconColor="text-purple-600"
+            />
           </div>
+          <button className="mt-4 w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
+            View Detailed Analytics →
+          </button>
         </div>
 
-        {/* Requests by Stage */}
+        {/* Pricing Overview */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-green-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Requests by Stage</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Pricing Requests</h3>
           </div>
           <div className="space-y-3">
-            {data.requestsByStage.map((item) => (
-              <div key={item.stage} className="flex items-center justify-between">
-                <span className="text-gray-600">{getStageLabel(item.stage)}</span>
-                <span className="font-semibold text-gray-900 text-lg">{item.count}</span>
+            <div>
+              <div className="text-sm text-gray-600">Win Rate</div>
+              <div className="text-2xl font-bold text-green-700">
+                {data.pricingAnalytics.winRate.toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600">Total Value Won</div>
+              <div className="text-xl font-bold text-gray-900">
+                ${data.pricingAnalytics.totalValueWon.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600">Active Quotes</div>
+              <div className="text-lg font-semibold text-gray-700">
+                {data.pricingAnalytics.totalPricingRequests - data.pricingAnalytics.wonRequests - data.pricingAnalytics.lostRequests}
+              </div>
+            </div>
+          </div>
+          <button className="mt-4 w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
+            View Pricing Details →
+          </button>
+        </div>
+
+        {/* Photos Overview */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Camera className="w-5 h-5 text-purple-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Photos</h3>
+          </div>
+          <div className="space-y-3">
+            <div className="text-center py-8 text-gray-500">
+              <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+              <p className="text-sm">Photo analytics available</p>
+              <p className="text-sm">in Photos tab</p>
+            </div>
+          </div>
+          <button className="mt-4 w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
+            View Photo Analytics →
+          </button>
+        </div>
+      </div>
+
+      {/* Recent Activity (Last 7 Days) */}
+      {recentWeek && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity (Last 7 Days)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="text-sm text-blue-600 mb-1">Requests Created</div>
+              <div className="text-2xl font-bold text-blue-700">{recentWeek.requestsCreated}</div>
+              {previousWeek && (
+                <div className="text-xs text-blue-600 mt-1">
+                  {requestTrend > 0 ? '+' : ''}{requestTrend.toFixed(1)}% from previous week
+                </div>
+              )}
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="text-sm text-green-600 mb-1">Avg Close Time</div>
+              <div className="text-2xl font-bold text-green-700">{recentWeek.averageCloseTime.toFixed(1)}h</div>
+              <div className="text-xs text-green-600 mt-1">
+                {recentWeek.averageCloseTime < 24 ? 'Within SLA' : 'Above target'}
+              </div>
+            </div>
+
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="text-sm text-orange-600 mb-1">SLA Breaches</div>
+              <div className="text-2xl font-bold text-orange-700">{recentWeek.percentOver24h.toFixed(1)}%</div>
+              <div className="text-xs text-orange-600 mt-1">
+                Requests over 24h
+              </div>
+            </div>
+
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="text-sm text-purple-600 mb-1">Top Request Type</div>
+              <div className="text-xl font-bold text-purple-700">
+                {recentWeek.requestsByType.length > 0
+                  ? recentWeek.requestsByType.sort((a, b) => b.count - a.count)[0].type
+                  : 'N/A'}
+              </div>
+              <div className="text-xs text-purple-600 mt-1">
+                {recentWeek.requestsByType.length > 0
+                  ? `${recentWeek.requestsByType.sort((a, b) => b.count - a.count)[0].count} requests`
+                  : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alerts & Attention Items */}
+      {criticalRequests.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <h3 className="text-lg font-semibold text-red-900">Items Needing Attention</h3>
+          </div>
+          <div className="space-y-2">
+            {criticalRequests.map((req) => (
+              <div key={req.type} className="flex items-center justify-between bg-white rounded p-3">
+                <div>
+                  <span className="font-medium text-gray-900">{req.type}</span>
+                  <span className="text-sm text-gray-600 ml-2">
+                    {req.percentOver48h > 30
+                      ? `${req.percentOver48h.toFixed(1)}% of requests taking >48h`
+                      : `${req.percentOver24h.toFixed(1)}% of requests taking >24h`}
+                  </span>
+                </div>
+                <span className="text-red-600 font-semibold">
+                  {req.created - req.closed} open
+                </span>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Team Performance */}
-      {(userRole === 'admin' || userRole === 'sales-manager') && (
+      {/* Team Performance Summary (for managers/admin) */}
+      {(userRole === 'admin' || userRole === 'sales-manager') && data.teamPerformance.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Users className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-bold text-gray-900">Team Performance</h2>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performers</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {data.teamPerformance
+              .sort((a, b) => b.completedRequests - a.completedRequests)
+              .slice(0, 3)
+              .map((member, index) => (
+                <div key={member.userId} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
+                      index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-orange-600'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div className="font-medium text-gray-900">{member.userName}</div>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Completed:</span>
+                      <span className="font-semibold text-gray-900">{member.completedRequests}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Avg Time:</span>
+                      <span className="font-semibold text-gray-900">{member.averageCompletionTime.toFixed(1)}h</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">SLA:</span>
+                      <span className={`font-semibold ${
+                        member.slaCompliance >= 80 ? 'text-green-600' :
+                        member.slaCompliance >= 60 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                        {member.slaCompliance.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
           </div>
-
-          {data.teamPerformance.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No team performance data available</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Team Member</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Total Requests</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Completed</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Avg Time (hrs)</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">SLA Compliance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.teamPerformance.map((member) => (
-                    <tr key={member.userId} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-gray-900">{member.userName}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{member.totalRequests}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{member.completedRequests}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{member.averageCompletionTime.toFixed(1)}</td>
-                      <td className="py-3 px-4 text-right">
-                        <span className={`font-medium ${
-                          member.slaCompliance >= 80 ? 'text-green-600' :
-                          member.slaCompliance >= 60 ? 'text-yellow-600' :
-                          'text-red-600'
-                        }`}>
-                          {member.slaCompliance.toFixed(1)}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-// Stat Card Component
-interface StatCardProps {
+// Summary Card Component
+interface SummaryCardProps {
   icon: React.ElementType;
   label: string;
   value: string;
-  color: 'blue' | 'green' | 'yellow' | 'purple';
+  subtitle: string;
+  trend?: number;
+  color: 'blue' | 'green' | 'purple' | 'orange';
 }
 
-function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
+function SummaryCard({ icon: Icon, label, value, subtitle, trend, color }: SummaryCardProps) {
   const colorClasses = {
     blue: 'bg-blue-50 border-blue-200 text-blue-700',
     green: 'bg-green-50 border-green-200 text-green-700',
-    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-    purple: 'bg-purple-50 border-purple-200 text-purple-700'
+    purple: 'bg-purple-50 border-purple-200 text-purple-700',
+    orange: 'bg-orange-50 border-orange-200 text-orange-700'
   };
 
   return (
@@ -215,6 +286,34 @@ function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
         <span className="text-sm font-medium">{label}</span>
       </div>
       <div className="text-2xl font-bold">{value}</div>
+      <div className="flex items-center justify-between mt-1">
+        <div className="text-xs">{subtitle}</div>
+        {trend !== undefined && trend !== 0 && (
+          <div className={`text-xs font-semibold ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Metric Row Component
+interface MetricRowProps {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  iconColor: string;
+}
+
+function MetricRow({ icon: Icon, label, value, iconColor }: MetricRowProps) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <Icon className={`w-4 h-4 ${iconColor}`} />
+        <span className="text-sm text-gray-600">{label}</span>
+      </div>
+      <span className="font-semibold text-gray-900">{value}</span>
     </div>
   );
 }
