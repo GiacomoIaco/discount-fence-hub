@@ -19,7 +19,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [invitationRole, setInvitationRole] = useState<string>('sales');
   const [validatingInvitation, setValidatingInvitation] = useState(true);
-  const { signUp, user } = useAuth();
+  const { user } = useAuth();
 
   // Check for invitation token in URL
   useEffect(() => {

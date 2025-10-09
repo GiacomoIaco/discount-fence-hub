@@ -11,7 +11,6 @@ import SalesResources from './components/SalesResources';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import MessageComposer from './components/MessageComposer';
-import { MessagesView } from './components/messages/MessagesView';
 import TeamCommunication from './components/TeamCommunication';
 import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
