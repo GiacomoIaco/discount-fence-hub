@@ -56,6 +56,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [internalNote, setInternalNote] = useState('');
   const [addingInternalNote, setAddingInternalNote] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'chat' | 'details' | 'files'>('chat');
 
   // Check if user can edit (admin or operations)
   const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
@@ -401,6 +402,40 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
             )}
           </div>
         </div>
+
+        {/* Mobile Tab Navigation */}
+        <div className="lg:hidden border-b border-gray-200 flex">
+          <button
+            onClick={() => setMobileTab('chat')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              mobileTab === 'chat'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setMobileTab('details')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              mobileTab === 'details'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            Details
+          </button>
+          <button
+            onClick={() => setMobileTab('files')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              mobileTab === 'files'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            Files
+          </button>
+        </div>
       </div>
 
       {/* Desktop Layout: Two-column with sidebar */}
@@ -408,7 +443,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
         {/* Main Content */}
         <div className="flex-1 p-4 lg:p-0 space-y-4 lg:pb-24">
         {/* Status Card */}
-        <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+        <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 ${mobileTab !== 'details' ? 'lg:block hidden' : ''}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className={`p-2 bg-${typeInfo.color}-100 rounded-lg text-${typeInfo.color}-600`}>
