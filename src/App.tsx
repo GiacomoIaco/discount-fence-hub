@@ -10,8 +10,8 @@ import PhotoGallery from './components/PhotoGallery';
 import SalesResources from './components/SalesResources';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
-import TeamCommunicationMobileV2 from './components/TeamCommunicationMobileV2';
 import MessageComposer from './components/MessageComposer';
+import { MessagesView } from './components/messages/MessagesView';
 import UserProfileEditor from './components/UserProfileEditor';
 import UserProfileView from './components/UserProfileView';
 import RequestHub from './components/requests/RequestHub';
@@ -23,7 +23,6 @@ import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './contexts/AuthContext';
-import { supabase } from './lib/supabase';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
@@ -87,18 +86,13 @@ function App() {
 
     const loadUnreadCount = async () => {
       try {
-        const { data, error } = await supabase
-          .from('user_unread_messages')
-          .select('unread_count')
-          .eq('user_id', user.id)
-          .single();
-
-        if (!error && data) {
-          setUnreadCount(data.unread_count || 0);
-        }
-        // Silently ignore errors - team communication feature not fully implemented
+        // Use the new direct messages unread count
+        const { getUnreadMessagesCount } = await import('./lib/messages');
+        const count = await getUnreadMessagesCount();
+        setUnreadCount(count);
       } catch (error) {
-        // Silently ignore - team communication feature not critical
+        // Silently ignore errors - feature may not be fully set up yet
+        console.log('Direct messages not available:', error);
       }
     };
 
@@ -249,7 +243,7 @@ function App() {
     if (activeSection === 'team-communication') {
       return (
         <ErrorBoundary>
-          <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />
+          <MessagesView />
         </ErrorBoundary>
       );
     }
@@ -603,7 +597,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
   }
 
   if (activeSection === 'team-communication') {
-    return <TeamCommunicationMobileV2 onBack={() => setActiveSection('home')} />;
+    return <MessagesView />;
   }
 
   return (
