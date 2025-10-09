@@ -10,7 +10,7 @@ ALTER TABLE user_invitations
 -- Generate tokens for existing invitations without tokens
 UPDATE user_invitations
 SET token = encode(gen_random_bytes(32), 'hex'),
-    expires_at = created_at + INTERVAL '7 days'
+    expires_at = invited_at + INTERVAL '7 days'
 WHERE token IS NULL;
 
 -- Make token required for new invitations
