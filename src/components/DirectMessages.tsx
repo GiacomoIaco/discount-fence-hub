@@ -1,15 +1,27 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Plus, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { showError, showSuccess } from '../lib/toast';
 import type { ConversationWithDetails } from '../types/chat';
 import ChatView from './chat/ChatView';
+
+interface TeamMember {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
 
 export default function DirectMessages() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [creatingConversation, setCreatingConversation] = useState(false);
 
   // Load user's conversations
   useEffect(() => {
@@ -44,7 +56,7 @@ export default function DirectMessages() {
       setLoading(true);
 
       // Call the helper function to get conversations with details
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .rpc('get_user_conversations');
 
       if (error) throw error;
@@ -54,6 +66,50 @@ export default function DirectMessages() {
       console.error('Error loading conversations:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    try {
+      setLoadingMembers(true);
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, role')
+        .neq('id', user?.id) // Exclude current user
+        .order('full_name');
+
+      if (error) throw error;
+      setTeamMembers(data || []);
+    } catch (error) {
+      console.error('Error loading team members:', error);
+      showError('Failed to load team members');
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const startConversation = async (otherUserId: string) => {
+    try {
+      setCreatingConversation(true);
+
+      // Call the database function to get or create conversation
+      const { data, error } = await supabase
+        .rpc('get_or_create_direct_conversation', { other_user_id: otherUserId });
+
+      if (error) throw error;
+
+      // Reload conversations to get the new one
+      await loadConversations();
+
+      // Select the new conversation
+      setSelectedConversation(data);
+      setShowNewConversation(false);
+      showSuccess('Conversation started!');
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      showError('Failed to start conversation');
+    } finally {
+      setCreatingConversation(false);
     }
   };
 
@@ -82,9 +138,21 @@ export default function DirectMessages() {
       >
         {/* Header */}
         <div className="bg-white border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Direct Messages</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-6 h-6 text-blue-600" />
+              <h1 className="text-2xl font-bold text-gray-900">Direct Messages</h1>
+            </div>
+            <button
+              onClick={() => {
+                setShowNewConversation(true);
+                loadTeamMembers();
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New</span>
+            </button>
           </div>
         </div>
 
@@ -169,6 +237,50 @@ export default function DirectMessages() {
           </div>
         )}
       </div>
+
+      {/* New Conversation Modal */}
+      {showNewConversation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-bold text-gray-900">New Conversation</h2>
+              <button
+                onClick={() => setShowNewConversation(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingMembers ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No team members found</p>
+              ) : (
+                <div className="space-y-2">
+                  {teamMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => startConversation(member.id)}
+                      disabled={creatingConversation}
+                      className="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="font-semibold text-gray-900">{member.full_name}</div>
+                      <div className="text-sm text-gray-600">{member.email}</div>
+                      <div className="text-xs text-gray-500 mt-1 capitalize">{member.role}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
