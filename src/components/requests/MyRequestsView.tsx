@@ -18,7 +18,7 @@ export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Fetch all requests
-  const { requests, loading, refresh } = useMyRequests({});
+  const { loading, refresh } = useMyRequests({});
 
   const handleRequestClick = (request: Request) => {
     setSelectedRequest(request);
