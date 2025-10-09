@@ -30,3 +30,4 @@ dist-ssr
 
 # Claude Code MCP configuration (local machine-specific)
 .claude/mcp.json
+nul

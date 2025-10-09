@@ -782,3 +782,25 @@ export async function getUnreadCounts(requestIds: string[], userId: string): Pro
 
   return counts;
 }
+
+/**
+ * Get view status for multiple requests (which ones have been viewed by user)
+ */
+export async function getRequestViewStatus(requestIds: string[], userId: string): Promise<Set<string>> {
+  const viewedIds = new Set<string>();
+
+  const { data, error } = await supabase
+    .from('request_views')
+    .select('request_id')
+    .eq('user_id', userId)
+    .in('request_id', requestIds);
+
+  if (error) {
+    console.error('Failed to get request view status:', error);
+    return viewedIds;
+  }
+
+  data?.forEach(view => viewedIds.add(view.request_id));
+
+  return viewedIds;
+}

@@ -3,7 +3,7 @@ import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, 
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
 import { useMyRequests, useAllRequests, useUsers } from '../../hooks/useRequests';
 import { useRequestAge } from '../../hooks/useRequests';
-import { getUnreadCounts } from '../../lib/requests';
+import { getUnreadCounts, getRequestViewStatus } from '../../lib/requests';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface RequestListProps {
@@ -120,6 +120,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [filterSLA, setFilterSLA] = useState<SLAStatus | 'all'>('all');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
+  const [viewedRequestIds, setViewedRequestIds] = useState<Set<string>>(new Set());
 
   // Quick filter states
   const [quickFilters, setQuickFilters] = useState({
@@ -147,17 +148,21 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const { requests, loading, error, refresh } = isSalesOnly ? myRequestsHook : allRequestsHook;
   const { users } = useUsers();
 
-  // Fetch unread counts when requests change
+  // Fetch unread counts and view status when requests change
   useEffect(() => {
-    const fetchUnreadCounts = async () => {
+    const fetchRequestMetadata = async () => {
       if (!profile?.id || requests.length === 0) return;
 
       const requestIds = requests.map(r => r.id);
-      const counts = await getUnreadCounts(requestIds, profile.id);
+      const [counts, viewedIds] = await Promise.all([
+        getUnreadCounts(requestIds, profile.id),
+        getRequestViewStatus(requestIds, profile.id)
+      ]);
       setUnreadCounts(counts);
+      setViewedRequestIds(viewedIds);
     };
 
-    fetchUnreadCounts();
+    fetchRequestMetadata();
   }, [requests, profile?.id]);
 
   // Filter requests by tab and advanced filters
@@ -550,6 +555,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           {sortedRequests.map((request) => {
             const submitter = users.find(u => u.id === request.submitter_id);
             const assignee = users.find(u => u.id === request.assigned_to);
+            const isUnviewed = !viewedRequestIds.has(request.id);
 
             return (
               <button
@@ -558,8 +564,11 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                 className="w-full bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all text-left"
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-gray-50 rounded-lg">
+                  <div className="relative p-2 bg-gray-50 rounded-lg">
                     <RequestTypeIcon type={request.request_type} />
+                    {isUnviewed && (
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">
