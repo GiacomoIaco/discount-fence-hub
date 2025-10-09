@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UserPlus, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface SignupProps {
   onBackToLogin: () => void;
@@ -15,11 +16,71 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
+  const [invitationRole, setInvitationRole] = useState<string>('sales');
+  const [validatingInvitation, setValidatingInvitation] = useState(true);
   const { signUp } = useAuth();
+
+  // Check for invitation token in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const inviteEmail = params.get('email');
+
+    if (token && inviteEmail) {
+      setInvitationToken(token);
+      setEmail(inviteEmail);
+      validateInvitation(inviteEmail, token);
+    } else {
+      setValidatingInvitation(false);
+      setError('This app requires an invitation to sign up. Please contact an administrator for an invitation link.');
+    }
+  }, []);
+
+  const validateInvitation = async (inviteEmail: string, token: string) => {
+    try {
+      const { data, error } = await supabase.rpc('validate_invitation_token', {
+        p_email: inviteEmail,
+        p_token: token
+      });
+
+      if (error) throw error;
+
+      if (!data) {
+        setError('Invalid or expired invitation. Please request a new invitation.');
+        setValidatingInvitation(false);
+        return;
+      }
+
+      // Get the role from the invitation
+      const { data: invitation } = await supabase
+        .from('user_invitations')
+        .select('role')
+        .eq('email', inviteEmail)
+        .eq('token', token)
+        .single();
+
+      if (invitation) {
+        setInvitationRole(invitation.role);
+      }
+
+      setValidatingInvitation(false);
+    } catch (err) {
+      console.error('Error validating invitation:', err);
+      setError('Failed to validate invitation. Please try again or contact an administrator.');
+      setValidatingInvitation(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Check if invitation is valid
+    if (!invitationToken) {
+      setError('A valid invitation is required to sign up.');
+      return;
+    }
 
     // Validation
     if (password !== confirmPassword) {
@@ -35,13 +96,33 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
     setLoading(true);
 
     try {
-      const { error } = await signUp(email, password, fullName, 'sales', phone || undefined);
+      const { error: signUpError } = await signUp(
+        email,
+        password,
+        fullName,
+        invitationRole as any,
+        phone || undefined
+      );
 
-      if (error) {
-        setError(error.message);
-      } else {
-        setSuccess(true);
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
       }
+
+      // Mark invitation as accepted
+      const { error: acceptError } = await supabase.rpc('accept_invitation', {
+        p_email: email,
+        p_token: invitationToken,
+        p_user_id: (await supabase.auth.getUser()).data.user?.id
+      });
+
+      if (acceptError) {
+        console.error('Error accepting invitation:', acceptError);
+        // Don't fail the signup if this fails, just log it
+      }
+
+      setSuccess(true);
     } catch (err) {
       setError('An unexpected error occurred');
     } finally {
@@ -96,6 +177,21 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
     );
   }
 
+  // Show loading state while validating invitation
+  if (validatingInvitation) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Validating Invitation</h2>
+          <p className="text-gray-600">Please wait while we verify your invitation...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
@@ -122,6 +218,15 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
+
+        {/* Show invitation info if valid */}
+        {invitationToken && !error && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-800">
+              ✓ Valid invitation for <strong>{email}</strong> as <strong>{invitationRole}</strong>
+            </p>
           </div>
         )}
 
@@ -152,7 +257,8 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={!!invitationToken}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
               placeholder="you@example.com"
             />
           </div>
@@ -204,11 +310,13 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !invitationToken}
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 mt-6"
           >
             {loading ? (
               <span>Creating account...</span>
+            ) : !invitationToken ? (
+              <span>Valid Invitation Required</span>
             ) : (
               <>
                 <UserPlus className="w-5 h-5" />
