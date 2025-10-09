@@ -127,7 +127,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     older48h: false,
     mine: false,
     unassigned: false,
-    hasUnread: false
+    hasUnread: false,
+    awaiting: false
   });
 
   // Sales role sees only their requests, everyone else sees all requests
@@ -198,6 +199,12 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     if (quickFilters.hasUnread) {
       const unreadCount = unreadCounts.get(req.id);
       if (!unreadCount || unreadCount === 0) return false;
+    }
+
+    if (quickFilters.awaiting) {
+      if (req.stage !== 'completed' || req.quote_status !== 'awaiting') {
+        return false;
+      }
     }
 
     // Search filter
@@ -323,7 +330,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          Older than 24h
+          &gt;24h
           {quickFilters.older24h && <X className="w-3.5 h-3.5" />}
         </button>
 
@@ -336,7 +343,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          Older than 48h
+          &gt;48h
           {quickFilters.older48h && <X className="w-3.5 h-3.5" />}
         </button>
 
@@ -379,6 +386,19 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           {quickFilters.hasUnread && <X className="w-3.5 h-3.5" />}
         </button>
 
+        <button
+          onClick={() => setQuickFilters(prev => ({ ...prev, awaiting: !prev.awaiting }))}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            quickFilters.awaiting
+              ? 'bg-blue-100 text-blue-700 border-2 border-blue-400'
+              : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Awaiting
+          {quickFilters.awaiting && <X className="w-3.5 h-3.5" />}
+        </button>
+
         {/* Clear all quick filters button */}
         {Object.values(quickFilters).some(v => v) && (
           <button
@@ -387,7 +407,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
               older48h: false,
               mine: false,
               unassigned: false,
-              hasUnread: false
+              hasUnread: false,
+              awaiting: false
             })}
             className="ml-2 text-xs text-gray-600 hover:text-gray-900 underline"
           >
@@ -607,6 +628,25 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                           : '—'}
                       </div>
                     </div>
+                    {request.stage === 'completed' && request.quote_status && (
+                      <div className="text-sm text-center w-[80px]">
+                        {request.quote_status === 'won' && (
+                          <div className="inline-flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          </div>
+                        )}
+                        {request.quote_status === 'lost' && (
+                          <div className="inline-flex items-center justify-center w-8 h-8 bg-red-100 rounded-full">
+                            <X className="w-5 h-5 text-red-600" />
+                          </div>
+                        )}
+                        {request.quote_status === 'awaiting' && (
+                          <div className="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-full">
+                            <Clock className="w-5 h-5 text-yellow-600" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   </div>
                 </div>
