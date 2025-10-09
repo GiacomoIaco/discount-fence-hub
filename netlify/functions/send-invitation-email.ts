@@ -163,6 +163,7 @@ export const handler: Handler = async (event) => {
       if (!sendGridResponse.ok) {
         const errorText = await sendGridResponse.text();
         console.error('SendGrid error:', errorText);
+        throw new Error(`SendGrid API error: ${errorText}`);
       } else {
         console.log('Invitation email sent successfully to:', email);
       }
