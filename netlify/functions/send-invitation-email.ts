@@ -24,9 +24,13 @@ export const handler: Handler = async (event) => {
   }
 
   try {
+    console.log('Starting invitation email function...');
+
     const { email, role, invitedBy, invitedByName }: InvitationEmailRequest = JSON.parse(
       event.body || '{}'
     );
+
+    console.log('Parsed request:', { email, role, invitedBy, invitedByName });
 
     // Validate required fields
     if (!email || !role || !invitedBy || !invitedByName) {
