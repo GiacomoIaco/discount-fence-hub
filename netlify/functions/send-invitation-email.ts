@@ -1,6 +1,5 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import sgMail from '@sendgrid/mail';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -119,33 +118,50 @@ export const handler: Handler = async (event) => {
       email
     )}&token=${token}`;
 
-    // Send invitation email via SendGrid
+    // Send invitation email via SendGrid API
     try {
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
-
-      await sgMail.send({
-        to: email,
-        from: 'giacomo@discountfenceusa.com', // Must match your verified sender
-        subject: 'You\'ve been invited to Discount Fence Hub',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">You've been invited to join Discount Fence Hub</h2>
-            <p>${invitedByName} has invited you to join as a <strong>${role}</strong>.</p>
-            <p>Click the button below to accept your invitation and create your account:</p>
-            <div style="margin: 30px 0;">
-              <a href="${invitationLink}"
-                 style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
-                Accept Invitation
-              </a>
-            </div>
-            <p style="color: #6b7280; font-size: 14px;">This invitation will expire in 7 days.</p>
-            <p style="color: #6b7280; font-size: 14px;">If the button doesn't work, copy and paste this link:</p>
-            <p style="color: #2563eb; font-size: 12px; word-break: break-all;">${invitationLink}</p>
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">You've been invited to join Discount Fence Hub</h2>
+          <p>${invitedByName} has invited you to join as a <strong>${role}</strong>.</p>
+          <p>Click the button below to accept your invitation and create your account:</p>
+          <div style="margin: 30px 0;">
+            <a href="${invitationLink}"
+               style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+              Accept Invitation
+            </a>
           </div>
-        `,
+          <p style="color: #6b7280; font-size: 14px;">This invitation will expire in 7 days.</p>
+          <p style="color: #6b7280; font-size: 14px;">If the button doesn't work, copy and paste this link:</p>
+          <p style="color: #2563eb; font-size: 12px; word-break: break-all;">${invitationLink}</p>
+        </div>
+      `;
+
+      const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          personalizations: [{
+            to: [{ email }],
+          }],
+          from: { email: 'giacomo@discountfenceusa.com' },
+          subject: 'You\'ve been invited to Discount Fence Hub',
+          content: [{
+            type: 'text/html',
+            value: emailHtml,
+          }],
+        }),
       });
 
-      console.log('Invitation email sent successfully to:', email);
+      if (!sendGridResponse.ok) {
+        const errorText = await sendGridResponse.text();
+        console.error('SendGrid error:', errorText);
+      } else {
+        console.log('Invitation email sent successfully to:', email);
+      }
     } catch (emailError) {
       console.error('Error sending email:', emailError);
       // Don't fail the whole request if email fails, still return the link
