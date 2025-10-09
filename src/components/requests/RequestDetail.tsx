@@ -758,7 +758,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                   <audio
                     controls
                     className="w-full"
-                    preload="metadata"
+                    preload="auto"
                     src={request.voice_recording_url}
                   >
                     Your browser does not support the audio element.
@@ -1041,7 +1041,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                     <audio
                       controls
                       className="w-full"
-                      preload="metadata"
+                      preload="auto"
                       src={request.voice_recording_url}
                     >
                       Your browser does not support the audio element.
