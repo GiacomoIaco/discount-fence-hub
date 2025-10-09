@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Paperclip, Send } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { showError, showSuccess } from '../../lib/toast';
-import type { DirectMessage, ConversationWithDetails } from '../../types/chat';
+import type { DirectMessage, ConversationWithDetails, ParticipantWithDetails } from '../../types/chat';
 
 interface ChatViewProps {
   conversation: ConversationWithDetails;
@@ -22,15 +22,22 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [participants, setParticipants] = useState<ParticipantWithDetails[]>([]);
+  const [showParticipants, setShowParticipants] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load messages for this conversation
+  // Load messages and participants for this conversation
   useEffect(() => {
     if (!conversation) return;
 
     loadMessages();
     markAsRead();
+
+    // Load participants if it's a group conversation
+    if (conversation.is_group) {
+      loadParticipants();
+    }
 
     // Subscribe to new messages in this conversation
     const subscription = supabase
@@ -45,9 +52,10 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
         },
         (payload) => {
           const newMsg = payload.new as DirectMessage;
+          const senderName = getSenderName(newMsg.sender_id);
           const messageWithInfo: MessageWithSenderInfo = {
             ...newMsg,
-            sender_name: newMsg.sender_id === user?.id ? 'You' : conversation.other_user_name,
+            sender_name: senderName,
             is_own_message: newMsg.sender_id === user?.id
           };
           setMessages((prev) => [...prev, messageWithInfo]);
@@ -70,6 +78,29 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const loadParticipants = async () => {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_conversation_participants', { conv_id: conversation.conversation_id });
+
+      if (error) throw error;
+      setParticipants(data || []);
+    } catch (error) {
+      console.error('Error loading participants:', error);
+    }
+  };
+
+  const getSenderName = (senderId: string): string => {
+    if (senderId === user?.id) return 'You';
+
+    if (conversation.is_group) {
+      const participant = participants.find(p => p.user_id === senderId);
+      return participant?.full_name || 'Unknown';
+    }
+
+    return conversation.other_user_name || 'Unknown';
+  };
+
   const loadMessages = async () => {
     try {
       setLoading(true);
@@ -85,7 +116,7 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
 
       const messagesWithInfo: MessageWithSenderInfo[] = (data || []).map((msg) => ({
         ...msg,
-        sender_name: msg.sender_id === user?.id ? 'You' : conversation.other_user_name,
+        sender_name: getSenderName(msg.sender_id),
         is_own_message: msg.sender_id === user?.id
       }));
 
@@ -210,23 +241,69 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
         </button>
 
         <div className="flex items-center gap-2 flex-1">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              conversation.other_user_status === 'online'
-                ? 'bg-green-500'
-                : conversation.other_user_status === 'away'
-                ? 'bg-yellow-500'
-                : 'bg-gray-300'
-            }`}
-          />
-          <div>
-            <h2 className="font-semibold text-gray-900">{conversation.other_user_name}</h2>
+          {conversation.is_group ? (
+            <Users className="w-5 h-5 text-blue-600" />
+          ) : (
+            <div
+              className={`w-2 h-2 rounded-full ${
+                conversation.other_user_status === 'online'
+                  ? 'bg-green-500'
+                  : conversation.other_user_status === 'away'
+                  ? 'bg-yellow-500'
+                  : 'bg-gray-300'
+              }`}
+            />
+          )}
+          <div className="flex-1">
+            <h2 className="font-semibold text-gray-900">
+              {conversation.is_group ? conversation.conversation_name : conversation.other_user_name}
+            </h2>
             <p className="text-xs text-gray-500">
-              {conversation.other_user_status === 'online' ? 'Online' : 'Offline'}
+              {conversation.is_group
+                ? `${conversation.participant_count} participants`
+                : conversation.other_user_status === 'online'
+                ? 'Online'
+                : 'Offline'}
             </p>
           </div>
         </div>
+
+        {/* Show participants button for group chats */}
+        {conversation.is_group && (
+          <button
+            onClick={() => setShowParticipants(!showParticipants)}
+            className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            {showParticipants ? 'Hide' : 'Show'} Participants
+          </button>
+        )}
       </div>
+
+      {/* Participants list (for group chats) */}
+      {conversation.is_group && showParticipants && (
+        <div className="bg-gray-50 border-b px-4 py-3">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Participants:</h3>
+          <div className="flex flex-wrap gap-2">
+            {participants.map((participant) => (
+              <div
+                key={participant.user_id}
+                className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-gray-200"
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    participant.status === 'online'
+                      ? 'bg-green-500'
+                      : participant.status === 'away'
+                      ? 'bg-yellow-500'
+                      : 'bg-gray-300'
+                  }`}
+                />
+                <span className="text-sm text-gray-900">{participant.full_name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -248,6 +325,13 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
                     : 'bg-gray-100 text-gray-900'
                 }`}
               >
+                {/* Sender name for group chats (not for own messages) */}
+                {conversation.is_group && !message.is_own_message && (
+                  <p className="text-xs font-semibold mb-1 text-gray-700">
+                    {message.sender_name}
+                  </p>
+                )}
+
                 {/* File attachment */}
                 {message.file_url && (
                   <div className="mb-2">

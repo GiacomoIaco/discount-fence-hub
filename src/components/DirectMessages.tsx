@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Plus, X } from 'lucide-react';
+import { MessageSquare, Plus, X, Users, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { showError, showSuccess } from '../lib/toast';
@@ -19,9 +19,12 @@ export default function DirectMessages() {
   const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [conversationType, setConversationType] = useState<'direct' | 'group' | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState('');
 
   // Load user's conversations
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function DirectMessages() {
       // Select the new conversation
       setSelectedConversation(data);
       setShowNewConversation(false);
+      setConversationType(null);
       showSuccess('Conversation started!');
     } catch (error) {
       console.error('Error starting conversation:', error);
@@ -111,6 +115,56 @@ export default function DirectMessages() {
     } finally {
       setCreatingConversation(false);
     }
+  };
+
+  const createGroupConversation = async () => {
+    try {
+      // Validate
+      if (!groupName.trim()) {
+        showError('Please enter a group name');
+        return;
+      }
+
+      if (selectedParticipants.length === 0) {
+        showError('Please select at least one participant');
+        return;
+      }
+
+      setCreatingConversation(true);
+
+      // Call the database function to create group conversation
+      const { data, error } = await supabase
+        .rpc('create_group_conversation', {
+          conversation_name: groupName.trim(),
+          participant_ids: selectedParticipants
+        });
+
+      if (error) throw error;
+
+      // Reload conversations to get the new one
+      await loadConversations();
+
+      // Select the new conversation
+      setSelectedConversation(data);
+      setShowNewConversation(false);
+      setConversationType(null);
+      setGroupName('');
+      setSelectedParticipants([]);
+      showSuccess('Group conversation created!');
+    } catch (error) {
+      console.error('Error creating group conversation:', error);
+      showError('Failed to create group conversation');
+    } finally {
+      setCreatingConversation(false);
+    }
+  };
+
+  const toggleParticipant = (userId: string) => {
+    setSelectedParticipants(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
   };
 
   if (loading) {
@@ -179,19 +233,30 @@ export default function DirectMessages() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        {/* Online status indicator */}
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            conv.other_user_status === 'online'
-                              ? 'bg-green-500'
-                              : conv.other_user_status === 'away'
-                              ? 'bg-yellow-500'
-                              : 'bg-gray-300'
-                          }`}
-                        />
+                        {/* Group/Direct icon */}
+                        {conv.is_group ? (
+                          <Users className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              conv.other_user_status === 'online'
+                                ? 'bg-green-500'
+                                : conv.other_user_status === 'away'
+                                ? 'bg-yellow-500'
+                                : 'bg-gray-300'
+                            }`}
+                          />
+                        )}
                         <h3 className="font-semibold text-gray-900 truncate">
-                          {conv.other_user_name}
+                          {conv.is_group
+                            ? conv.conversation_name
+                            : conv.other_user_name}
                         </h3>
+                        {conv.is_group && (
+                          <span className="text-xs text-gray-500">
+                            ({conv.participant_count})
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-600 truncate mt-1">
                         {conv.last_message || 'No messages yet'}
@@ -244,9 +309,20 @@ export default function DirectMessages() {
           <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">New Conversation</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                {!conversationType
+                  ? 'New Conversation'
+                  : conversationType === 'direct'
+                  ? 'New Direct Message'
+                  : 'New Group Chat'}
+              </h2>
               <button
-                onClick={() => setShowNewConversation(false)}
+                onClick={() => {
+                  setShowNewConversation(false);
+                  setConversationType(null);
+                  setSelectedParticipants([]);
+                  setGroupName('');
+                }}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -255,27 +331,137 @@ export default function DirectMessages() {
 
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-6">
-              {loadingMembers ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              {!conversationType ? (
+                /* Choose conversation type */
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setConversationType('direct');
+                      loadTeamMembers();
+                    }}
+                    className="w-full p-6 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                        <User className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">Direct Message</h3>
+                        <p className="text-sm text-gray-600">Start a 1-on-1 conversation</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setConversationType('group');
+                      loadTeamMembers();
+                    }}
+                    className="w-full p-6 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                        <Users className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">Group Chat</h3>
+                        <p className="text-sm text-gray-600">Create a conversation with multiple people</p>
+                      </div>
+                    </div>
+                  </button>
                 </div>
-              ) : teamMembers.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No team members found</p>
-              ) : (
-                <div className="space-y-2">
-                  {teamMembers.map((member) => (
-                    <button
-                      key={member.id}
-                      onClick={() => startConversation(member.id)}
+              ) : conversationType === 'group' ? (
+                /* Group conversation creation */
+                <div className="space-y-4">
+                  {/* Group name input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Group Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={groupName}
+                      onChange={(e) => setGroupName(e.target.value)}
+                      placeholder="e.g., Sales Team, Project Alpha"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       disabled={creatingConversation}
-                      className="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="font-semibold text-gray-900">{member.full_name}</div>
-                      <div className="text-sm text-gray-600">{member.email}</div>
-                      <div className="text-xs text-gray-500 mt-1 capitalize">{member.role}</div>
-                    </button>
-                  ))}
+                    />
+                  </div>
+
+                  {/* Participant selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Participants * ({selectedParticipants.length} selected)
+                    </label>
+                    {loadingMembers ? (
+                      <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : teamMembers.length === 0 ? (
+                      <p className="text-gray-500 text-center py-8">No team members found</p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {teamMembers.map((member) => (
+                          <label
+                            key={member.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                              selectedParticipants.includes(member.id)
+                                ? 'bg-blue-50 border-blue-500'
+                                : 'bg-white border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedParticipants.includes(member.id)}
+                              onChange={() => toggleParticipant(member.id)}
+                              disabled={creatingConversation}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900">{member.full_name}</div>
+                              <div className="text-sm text-gray-600 truncate">{member.email}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Create button */}
+                  <button
+                    onClick={createGroupConversation}
+                    disabled={creatingConversation || !groupName.trim() || selectedParticipants.length === 0}
+                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    {creatingConversation ? 'Creating...' : 'Create Group Chat'}
+                  </button>
                 </div>
+              ) : (
+                /* Direct conversation - select single user */
+                <>
+                  {loadingMembers ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : teamMembers.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No team members found</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {teamMembers.map((member) => (
+                        <button
+                          key={member.id}
+                          onClick={() => startConversation(member.id)}
+                          disabled={creatingConversation}
+                          className="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="font-semibold text-gray-900">{member.full_name}</div>
+                          <div className="text-sm text-gray-600">{member.email}</div>
+                          <div className="text-xs text-gray-500 mt-1 capitalize">{member.role}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

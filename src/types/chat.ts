@@ -20,6 +20,9 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   last_message_at: string;
+  name: string | null;
+  is_group: boolean;
+  created_by: string | null;
 }
 
 export interface ConversationParticipant {
@@ -51,14 +54,25 @@ export interface Mention {
 // Enhanced conversation with user details (from get_user_conversations function)
 export interface ConversationWithDetails {
   conversation_id: string;
-  other_user_id: string;
-  other_user_name: string;
-  other_user_email: string;
+  conversation_name: string | null;
+  is_group: boolean;
+  other_user_id: string | null;
+  other_user_name: string | null;
+  other_user_email: string | null;
   other_user_status: 'online' | 'away' | 'offline';
+  participant_count: number;
   last_message: string | null;
   last_message_at: string;
   unread_count: number;
   last_read_at: string;
+}
+
+// Participant with user info
+export interface ParticipantWithDetails {
+  user_id: string;
+  full_name: string;
+  email: string;
+  status: 'online' | 'away' | 'offline';
 }
 
 // For message display with sender info
