@@ -125,7 +125,7 @@ export const handler: Handler = async (event) => {
 
       await sgMail.send({
         to: email,
-        from: 'noreply@discountfenceusa.com', // Must match your verified sender
+        from: 'giacomo@discountfenceusa.com', // Must match your verified sender
         subject: 'You\'ve been invited to Discount Fence Hub',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
