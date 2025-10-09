@@ -150,7 +150,8 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const { users } = useUsers();
 
   // Handler for toggling pin status
-  const handleTogglePin = async (e: React.MouseEvent, requestId: string) => {
+  const handleTogglePin = async (e: React.MouseEvent | React.TouchEvent, requestId: string) => {
+    e.preventDefault();
     e.stopPropagation(); // Prevent request card click
 
     try {
@@ -613,12 +614,14 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
                         </h3>
                         <button
                           onClick={(e) => handleTogglePin(e, request.id)}
-                          className={`flex-shrink-0 p-1 rounded hover:bg-gray-100 transition-colors ${
+                          onTouchStart={(e) => e.stopPropagation()}
+                          className={`flex-shrink-0 p-2 rounded hover:bg-gray-100 transition-colors ${
                             isPinned ? 'text-yellow-500' : 'text-gray-400'
                           }`}
                           title={isPinned ? 'Unpin request' : 'Pin request'}
+                          aria-label={isPinned ? 'Unpin request' : 'Pin request'}
                         >
-                          <Star className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
+                          <Star className={`w-5 h-5 ${isPinned ? 'fill-current' : ''}`} />
                         </button>
                       </div>
                       <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 lg:hidden" />

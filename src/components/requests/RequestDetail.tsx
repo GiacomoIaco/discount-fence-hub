@@ -1184,44 +1184,28 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       </div>
 
       {/* Sticky Message Bar at Bottom - Mobile */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 shadow-lg z-20 lg:hidden ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
-        <div className="flex gap-2">
-          <div className="relative">
-            <input
-              type="file"
-              id="mobile-file-input"
-              className="hidden"
-              onChange={handleFileUpload}
-              multiple
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
-            />
-            <label
-              htmlFor="mobile-file-input"
-              className="flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-            >
-              <Paperclip className="w-5 h-5" />
-            </label>
-          </div>
+      <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 shadow-lg z-20 lg:hidden ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
+        <div className="flex gap-1.5 items-center">
           <input
             type="file"
-            id="mobile-camera-input"
+            id="mobile-file-input"
             className="hidden"
             onChange={handleFileUpload}
-            accept="image/*"
-            capture="environment"
+            multiple
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
           />
           <label
-            htmlFor="mobile-camera-input"
-            className="flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+            htmlFor="mobile-file-input"
+            className="flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer flex-shrink-0"
           >
-            <Camera className="w-5 h-5" />
+            <Paperclip className="w-5 h-5" />
           </label>
           <input
             type="text"
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            placeholder="Type a message..."
+            className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             onKeyPress={(e) => {
               if (e.key === 'Enter' && newNote.trim()) {
                 handleAddNote();
@@ -1231,9 +1215,9 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
           <button
             onClick={handleAddNote}
             disabled={addingNote || !newNote.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm flex items-center gap-1"
+            className="flex-shrink-0 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-5 h-5" />
           </button>
         </div>
         {uploadingFile && (
