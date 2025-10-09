@@ -39,7 +39,7 @@ BEGIN
   FROM user_invitations
   WHERE email = p_email
     AND token = p_token
-    AND status = 'pending'
+    AND is_used = false
     AND expires_at > NOW();
 
   -- Return true if valid invitation found
@@ -62,17 +62,16 @@ BEGIN
   FROM user_invitations
   WHERE email = p_email
     AND token = p_token
-    AND status = 'pending'
+    AND is_used = false
     AND expires_at > NOW();
 
   IF NOT FOUND THEN
     RETURN FALSE;
   END IF;
 
-  -- Mark as accepted
+  -- Mark as used
   UPDATE user_invitations
-  SET status = 'accepted',
-      accepted_at = NOW()
+  SET is_used = true
   WHERE id = v_invitation.id;
 
   -- Update user profile with invited role
@@ -127,11 +126,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 6. Create index on invitation tokens for faster lookups
 CREATE INDEX IF NOT EXISTS idx_user_invitations_token
   ON user_invitations(token)
-  WHERE status = 'pending';
+  WHERE is_used = false;
 
 -- 7. Create index on invitation email for duplicate checking
-CREATE INDEX IF NOT EXISTS idx_user_invitations_email_status
-  ON user_invitations(email, status);
+CREATE INDEX IF NOT EXISTS idx_user_invitations_email_is_used
+  ON user_invitations(email, is_used);
 
 -- 8. Grant execute permissions on functions
 GRANT EXECUTE ON FUNCTION generate_invitation_token() TO authenticated;
@@ -190,4 +189,4 @@ CREATE POLICY "Admins can delete invitations" ON user_invitations
 CREATE POLICY "Anyone can validate invitation tokens" ON user_invitations
   FOR SELECT
   TO anon
-  USING (status = 'pending' AND expires_at > NOW());
+  USING (is_used = false AND expires_at > NOW());
