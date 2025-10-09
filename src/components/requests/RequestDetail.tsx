@@ -1,4 +1,4 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText, X } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText } from 'lucide-react';
 import type { Request } from '../../lib/requests';
 import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
