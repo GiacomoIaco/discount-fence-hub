@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import sgMail from '@sendgrid/mail';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -120,8 +121,7 @@ export const handler: Handler = async (event) => {
 
     // Send invitation email via SendGrid
     try {
-      const sgMail = require('@sendgrid/mail');
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
       await sgMail.send({
         to: email,
