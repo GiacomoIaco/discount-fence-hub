@@ -6,7 +6,7 @@ import StainCalculator from './components/sales/StainCalculator';
 import ClientPresentation from './components/sales/ClientPresentation';
 import SalesCoach from './components/sales/SalesCoach';
 import SalesCoachAdmin from './components/sales/SalesCoachAdmin';
-import PhotoGallery from './components/PhotoGallery';
+import PhotoGalleryWithBulkUpload from './components/PhotoGalleryWithBulkUpload';
 import SalesResources from './components/SalesResources';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
@@ -189,7 +189,7 @@ function App() {
     if (activeSection === 'photo-gallery') {
       return (
         <ErrorBoundary>
-          <PhotoGallery onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
+          <PhotoGalleryWithBulkUpload onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
         </ErrorBoundary>
       );
     }
@@ -598,7 +598,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
   }
 
   if (activeSection === 'photo-gallery') {
-    return <PhotoGallery onBack={() => setActiveSection('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />;
+    return <PhotoGalleryWithBulkUpload onBack={() => setActiveSection('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />;
   }
 
   if (activeSection === 'sales-resources') {

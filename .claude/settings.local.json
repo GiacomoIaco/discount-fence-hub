@@ -47,7 +47,9 @@
       "Bash(git status)",
       "Bash(git diff:*)",
       "Bash(cat:*)",
-      "mcp__chrome-devtools__navigate_page_history"
+      "mcp__chrome-devtools__navigate_page_history",
+      "WebFetch(domain:github.com)",
+      "Bash(npm run:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

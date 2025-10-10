@@ -260,10 +260,13 @@ async function main() {
   const folderPath = path.resolve(args[0]);
   const requestId = args[1];
 
+  const batchSizeIndex = args.indexOf('--batch-size');
+  const userIdIndex = args.indexOf('--user-id');
+
   const options = {
     tag: args.includes('--tag'),
-    batchSize: parseInt(args[args.indexOf('--batch-size') + 1] || '10'),
-    userId: args[args.indexOf('--user-id') + 1] || DEFAULT_USER_ID
+    batchSize: batchSizeIndex !== -1 ? parseInt(args[batchSizeIndex + 1]) : 10,
+    userId: userIdIndex !== -1 ? args[userIdIndex + 1] : DEFAULT_USER_ID
   };
 
   if (!options.userId) {
