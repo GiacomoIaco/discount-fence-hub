@@ -147,6 +147,50 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     setFilteredPhotos(filtered);
   }, [photos, filters]);
 
+  // Handle screen orientation for mobile full-screen photos
+  useEffect(() => {
+    // Only apply on mobile view
+    if (viewMode !== 'mobile') return;
+
+    // Check if Screen Orientation API is available
+    if (!screen.orientation) return;
+
+    const handleOrientation = async () => {
+      try {
+        if (currentIndex >= 0) {
+          // Photo is open in full-screen - unlock orientation to allow rotation
+          await screen.orientation.unlock();
+        } else {
+          // Photo viewer closed - lock to portrait
+          // Note: Some browsers don't support lock without fullscreen
+          try {
+            // Type assertion needed as TypeScript doesn't include lock in ScreenOrientation type
+            await (screen.orientation as any).lock('portrait');
+          } catch (lockError) {
+            // Silently ignore lock errors - not all browsers support this
+            console.log('Orientation lock not supported:', lockError);
+          }
+        }
+      } catch (error) {
+        // Silently ignore orientation API errors
+        console.log('Screen orientation API error:', error);
+      }
+    };
+
+    handleOrientation();
+
+    // Cleanup: unlock orientation when component unmounts
+    return () => {
+      if (screen.orientation && currentIndex >= 0) {
+        try {
+          screen.orientation.unlock();
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+      }
+    };
+  }, [currentIndex, viewMode]);
+
   const mapSupabaseToPhoto = (dbPhoto: any): Photo => {
     return {
       id: dbPhoto.id,
@@ -1898,20 +1942,24 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
             />
           </div>
 
-          {/* Navigation Arrows */}
-          <button
-            onClick={() => navigatePhoto('prev')}
-            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/20 backdrop-blur-sm"
-          >
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
+          {/* Navigation Arrows - Desktop only (mobile uses swipe gestures) */}
+          {viewMode === 'desktop' && (
+            <>
+              <button
+                onClick={() => navigatePhoto('prev')}
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/20 backdrop-blur-sm"
+              >
+                <ChevronLeft className="w-6 h-6 text-white" />
+              </button>
 
-          <button
-            onClick={() => navigatePhoto('next')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/20 backdrop-blur-sm"
-          >
-            <ChevronRight className="w-6 h-6 text-white" />
-          </button>
+              <button
+                onClick={() => navigatePhoto('next')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/20 backdrop-blur-sm"
+              >
+                <ChevronRight className="w-6 h-6 text-white" />
+              </button>
+            </>
+          )}
 
           {/* Bottom Info */}
           <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
