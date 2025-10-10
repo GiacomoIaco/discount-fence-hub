@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Users, Settings as SettingsIcon, Menu } from 'lucide-react';
 import TeamManagement from './TeamManagement';
 import AssignmentRules from './admin/AssignmentRules';
+import MenuVisibilitySettings from './MenuVisibilitySettings';
 import type { UserRole } from '../types';
 
 interface SettingsProps {
@@ -10,7 +11,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules' | 'menu-visibility'>('team');
 
   return (
     <div className="space-y-6">
@@ -40,17 +41,31 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
           </button>
 
           {userRole === 'admin' && (
-            <button
-              onClick={() => setActiveTab('assignment-rules')}
-              className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                activeTab === 'assignment-rules'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <SettingsIcon className="w-5 h-5" />
-              <span className="font-medium">Assignment Rules</span>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('assignment-rules')}
+                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
+                  activeTab === 'assignment-rules'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <SettingsIcon className="w-5 h-5" />
+                <span className="font-medium">Assignment Rules</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('menu-visibility')}
+                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
+                  activeTab === 'menu-visibility'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Menu className="w-5 h-5" />
+                <span className="font-medium">Menu Visibility</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -60,6 +75,9 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
         {activeTab === 'team' && <TeamManagement userRole={userRole} />}
         {activeTab === 'assignment-rules' && userRole === 'admin' && (
           <AssignmentRules onBack={onBack} />
+        )}
+        {activeTab === 'menu-visibility' && userRole === 'admin' && (
+          <MenuVisibilitySettings />
         )}
       </div>
     </div>

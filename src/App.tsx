@@ -27,6 +27,7 @@ import { useAuth } from './contexts/AuthContext';
 import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
+import { useMenuVisibility } from './hooks/useMenuVisibility';
 import type { Request } from './lib/requests';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
@@ -75,6 +76,9 @@ function App() {
   // Enable escalation engine for operations/admin roles
   const isOperationsRole = ['operations', 'sales-manager', 'admin'].includes(userRole);
   useEscalationEngine(isOperationsRole);
+
+  // Menu visibility control
+  const { canSeeMenuItem } = useMenuVisibility();
 
   // Save viewMode to localStorage when it changes
   useEffect(() => {
@@ -148,6 +152,9 @@ function App() {
   };
 
   const navigationItems = getNavigationItems();
+
+  // Filter navigation items based on menu visibility settings
+  const visibleNavigationItems = navigationItems.filter(item => canSeeMenuItem(item.id));
 
   const renderContent = () => {
     // Handle common sections for all roles
@@ -412,7 +419,7 @@ function App() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navigationItems.map((item) => {
+          {visibleNavigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
