@@ -105,6 +105,10 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Touch/swipe handling state
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
   // Load custom tags from Supabase
   const loadCustomTags = async () => {
     try {
@@ -1197,6 +1201,32 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
     }
   };
 
+  // Touch/Swipe handlers for mobile
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      navigatePhoto('next');
+    } else if (isRightSwipe) {
+      navigatePhoto('prev');
+    }
+  };
+
   const toggleFilter = (category: keyof FilterState, value: string | boolean) => {
     setFilters((prev) => {
       if (category === 'showFavorites' || category === 'showLiked') {
@@ -1806,7 +1836,12 @@ const PhotoGallery = ({ onBack, userRole = 'sales', viewMode = 'mobile', userId,
 
       {/* Full-Screen Photo Viewer */}
       {currentPhoto && (
-        <div className="fixed inset-0 bg-black z-40">
+        <div
+          className="fixed inset-0 bg-black z-40"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
           {/* Top Controls */}
           <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-10 flex justify-between items-start">
             <button
