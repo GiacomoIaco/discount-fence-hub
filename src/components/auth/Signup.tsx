@@ -261,6 +261,8 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
             <input
               id="fullName"
               type="text"
+              inputMode="text"
+              autoComplete="name"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -276,6 +278,11 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
             <input
               id="email"
               type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -292,6 +299,8 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
             <input
               id="phone"
               type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -306,6 +315,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
             <input
               id="password"
               type="password"
+              autoComplete="new-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -322,6 +332,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
             <input
               id="confirmPassword"
               type="password"
+              autoComplete="new-password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
