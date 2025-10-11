@@ -65,7 +65,7 @@ export const useRequestNotifications = () => {
       const { data: requests, error: requestsError } = await supabase
         .from('requests')
         .select('id, updated_at')
-        .or(`assigned_to.eq.${user.id},user_id.eq.${user.id}`);
+        .or(`assigned_to.eq.${user.id},submitter_id.eq.${user.id}`);
 
       if (requestsError) throw requestsError;
 
