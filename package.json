@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "check:tables": "npx tsx scripts/check-supabase-tables.ts",
     "check:buckets": "npx tsx scripts/check-supabase-buckets.ts",
-    "bulk-upload": "node scripts/bulk-upload-photos.js"
+    "bulk-upload": "node scripts/bulk-upload-photos.js",
+    "migrate:check": "npx tsx scripts/run-migrations.ts check",
+    "migrate:apply": "npx tsx scripts/run-migrations.ts apply",
+    "migrate:status": "npx tsx scripts/run-migrations.ts status"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
