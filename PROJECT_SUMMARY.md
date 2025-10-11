@@ -8,7 +8,72 @@ A **comprehensive enterprise web application** for sales, operations, and manage
 
 ---
 
-## 📦 Latest Updates (January 2025)
+## 📦 Latest Updates (October 2025)
+
+### Phase 4: Notification & Menu Control Systems - COMPLETE ✅ (October 10, 2025)
+
+#### 1. **Request Notification System** ✅ TESTED & WORKING
+- **Real-time Badge Counts**: Shows unread request count on "My Requests" menu item
+- **PWA Badge API**: Home screen app icon displays notification count
+- **View Tracking**: `request_views` table tracks when users last viewed each request
+- **Auto Mark-as-Read**: Requests marked as read when opened
+- **Smart Algorithm**: Compares `request.updated_at` with `request_views.last_viewed_at`
+  - Never viewed = Unread
+  - Updated since last view = Unread
+- **Live Updates**: Real-time subscriptions to requests and request_views tables
+- **Database Migration**: `010_request_notifications.sql`
+- **React Hook**: `useRequestNotifications.ts` - Provides unreadCount and markRequestAsRead
+- **Integrated**: MyRequestsView passes onMarkAsRead callback
+
+**Impact:**
+- ✅ Sales reps see badge count of requests needing attention
+- ✅ PWA users see count on home screen icon (Chrome/Edge)
+- ✅ Real-time updates as requests are created/updated
+- ✅ No polling required - Supabase subscriptions handle updates
+
+#### 2. **Menu Visibility Control System** ✅ PRODUCTION
+- **Admin Control Panel**: Manage which menu items are visible to which roles
+- **Role-Based Visibility**: Checkbox grid (11 menu items × 4 roles)
+- **User-Level Overrides**: Enable/disable menu items for specific users
+- **Override Management Modal**: Search users, set individual permissions
+- **Real-time Updates**: Changes reflect immediately across all sessions
+- **Database Migration**: `009_menu_visibility_control.sql`
+- **React Hook**: `useMenuVisibility.ts` - Provides canSeeMenuItem function
+- **Admin UI**: `MenuVisibilitySettings.tsx` - Full management interface
+- **Settings Integration**: New "Menu Visibility" tab in Settings page
+
+**Controlled Menu Items:**
+1. Dashboard
+2. Announcements (Team Communication)
+3. Chat (Direct Messages)
+4. Client Presentation
+5. AI Sales Coach
+6. Photo Gallery
+7. Pre-Stain Calculator
+8. My Requests
+9. Analytics
+10. Sales Resources
+11. Settings
+
+**Impact:**
+- ✅ Hide beta features from production users
+- ✅ Customize experience per role
+- ✅ Enable selective rollouts to specific users
+- ✅ Override count badges show active user exceptions
+
+#### 3. **Mobile Photo Viewer Improvements** ✅ PRODUCTION
+- **Removed Arrow Navigation**: Mobile uses swipe gestures only (cleaner UI)
+- **Screen Orientation Unlock**: Photos can be viewed in landscape/portrait
+- **Auto-Lock to Portrait**: Returns to portrait when closing photo viewer
+- **Version Code Display**: Replaced mobile greeting with build version
+- **Consistent Branding**: Same version display as desktop
+
+**Impact:**
+- ✅ Cleaner mobile photo viewing experience
+- ✅ Natural phone rotation like native photo apps
+- ✅ Users can verify they're on latest version
+
+---
 
 ### Phase 1: Production Polish - COMPLETE ✅ (January 2025)
 
