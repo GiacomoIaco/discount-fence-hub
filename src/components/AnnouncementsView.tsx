@@ -1,0 +1,651 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  Megaphone,
+  AlertTriangle,
+  Award,
+  ClipboardList,
+  FileText,
+  GraduationCap,
+  CheckSquare,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Eye,
+  Search,
+  ArrowLeft,
+  ExternalLink,
+  X
+} from 'lucide-react';
+
+interface CompanyMessage {
+  id: string;
+  message_type: 'announcement' | 'urgent_alert' | 'recognition' | 'survey' | 'policy' | 'training' | 'discussion' | 'task' | 'event';
+  title: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+  target_roles: string[];
+  target_user_ids?: string[];
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  requires_acknowledgment: boolean;
+  expires_at?: string;
+  is_archived: boolean;
+  linked_resource_id?: string;
+  survey_options?: {
+    options: string[];
+    allow_multiple: boolean;
+  };
+  event_details?: {
+    date: string;
+    time: string;
+    location: string;
+    rsvp_required: boolean;
+  };
+  task_details?: {
+    due_date: string;
+    assignees: string[];
+    status: string;
+  };
+  recognized_user_id?: string;
+  view_count: number;
+  response_count: number;
+  creator_name?: string;
+  recognized_user_name?: string;
+  is_read?: boolean;
+  user_response?: MessageResponse;
+}
+
+interface MessageResponse {
+  id: string;
+  response_type: 'acknowledgment' | 'survey_answer' | 'comment' | 'reaction' | 'rsvp';
+  text_response?: string;
+  selected_options?: string[];
+  reaction_emoji?: string;
+  rsvp_status?: 'yes' | 'no' | 'maybe';
+  created_at: string;
+}
+
+interface AnnouncementsViewProps {
+  onBack: () => void;
+  onUnreadCountChange?: (count: number) => void;
+}
+
+export default function AnnouncementsView({ onBack, onUnreadCountChange }: AnnouncementsViewProps) {
+  const { user, profile } = useAuth();
+  const [messages, setMessages] = useState<CompanyMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedType, setSelectedType] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedMessage, setExpandedMessage] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const messageTypes = [
+    { value: 'all', label: 'All', icon: Megaphone },
+    { value: 'announcement', label: 'Announcements', icon: Megaphone },
+    { value: 'urgent_alert', label: 'Alerts', icon: AlertTriangle },
+    { value: 'recognition', label: 'Recognition', icon: Award },
+    { value: 'survey', label: 'Surveys', icon: ClipboardList },
+    { value: 'policy', label: 'Policies', icon: FileText },
+    { value: 'training', label: 'Training', icon: GraduationCap },
+    { value: 'task', label: 'Tasks', icon: CheckSquare },
+    { value: 'event', label: 'Events', icon: Calendar },
+  ];
+
+  useEffect(() => {
+    loadMessages();
+  }, [user, profile]);
+
+  const loadMessages = async () => {
+    if (!user || !profile) return;
+
+    try {
+      setLoading(true);
+
+      // Get messages that target user's role or specific user
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('company_messages')
+        .select(`
+          *,
+          message_receipts!left(id, read_at, user_id)
+        `)
+        .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
+        .eq('is_archived', false)
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (messagesError) throw messagesError;
+
+      // Get creator names
+      const creatorIds = [...new Set(messagesData?.map(m => m.created_by) || [])];
+      const { data: creators } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', creatorIds);
+
+      // Get recognized user names
+      const recognizedIds = messagesData
+        ?.filter(m => m.recognized_user_id)
+        .map(m => m.recognized_user_id) || [];
+
+      const { data: recognizedUsers } = recognizedIds.length > 0
+        ? await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .in('id', recognizedIds)
+        : { data: [] };
+
+      // Get user responses
+      const messageIds = messagesData?.map(m => m.id) || [];
+      const { data: responses } = messageIds.length > 0
+        ? await supabase
+            .from('message_responses')
+            .select('*')
+            .in('message_id', messageIds)
+            .eq('user_id', user.id)
+        : { data: [] };
+
+      const creatorMap = new Map(creators?.map(c => [c.id, c.full_name]));
+      const recognizedMap = new Map(recognizedUsers?.map(u => [u.id, u.full_name]));
+      const responseMap = new Map(responses?.map(r => [r.message_id, r]));
+
+      const enrichedMessages = messagesData?.map(msg => ({
+        ...msg,
+        creator_name: creatorMap.get(msg.created_by) || 'Unknown',
+        recognized_user_name: msg.recognized_user_id
+          ? recognizedMap.get(msg.recognized_user_id) || 'Unknown'
+          : undefined,
+        is_read: msg.message_receipts?.some((r: any) => r.user_id === user.id),
+        user_response: responseMap.get(msg.id)
+      })) || [];
+
+      setMessages(enrichedMessages);
+
+      // Update unread count
+      const unreadCount = enrichedMessages.filter(m => !m.is_read).length;
+      onUnreadCountChange?.(unreadCount);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markAsRead = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('message_receipts')
+        .upsert({
+          message_id: messageId,
+          user_id: user.id,
+          read_at: new Date().toISOString()
+        }, { onConflict: 'message_id,user_id' });
+
+      if (!error) {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, is_read: true } : m
+        ));
+
+        // Update unread count
+        const unreadCount = messages.filter(m => m.id !== messageId && !m.is_read).length;
+        onUnreadCountChange?.(unreadCount);
+      }
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
+  };
+
+  const handleAcknowledge = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('message_responses')
+        .upsert({
+          message_id: messageId,
+          user_id: user.id,
+          response_type: 'acknowledgment'
+        }, { onConflict: 'message_id,user_id' });
+
+      if (!error) {
+        loadMessages();
+      }
+    } catch (error) {
+      console.error('Error acknowledging message:', error);
+    }
+  };
+
+  const handleSurveyResponse = async (messageId: string, selectedOptions: string[]) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('message_responses')
+        .upsert({
+          message_id: messageId,
+          user_id: user.id,
+          response_type: 'survey_answer',
+          selected_options: selectedOptions
+        }, { onConflict: 'message_id,user_id' });
+
+      if (!error) {
+        loadMessages();
+      }
+    } catch (error) {
+      console.error('Error submitting survey response:', error);
+    }
+  };
+
+  const handleToggleExpand = (messageId: string) => {
+    if (expandedMessage === messageId) {
+      setExpandedMessage(null);
+    } else {
+      setExpandedMessage(messageId);
+      const message = messages.find(m => m.id === messageId);
+      if (message && !message.is_read) {
+        markAsRead(messageId);
+      }
+    }
+  };
+
+  const getMessageIcon = (type: string) => {
+    const iconMap: Record<string, any> = {
+      announcement: Megaphone,
+      urgent_alert: AlertTriangle,
+      recognition: Award,
+      survey: ClipboardList,
+      policy: FileText,
+      training: GraduationCap,
+      discussion: Megaphone,
+      task: CheckSquare,
+      event: Calendar
+    };
+    return iconMap[type] || Megaphone;
+  };
+
+  const getPriorityColor = (priority: string) => {
+    const colorMap: Record<string, string> = {
+      low: 'text-gray-500 bg-gray-100',
+      normal: 'text-blue-500 bg-blue-100',
+      high: 'text-orange-500 bg-orange-100',
+      urgent: 'text-red-500 bg-red-100'
+    };
+    return colorMap[priority] || 'text-gray-500 bg-gray-100';
+  };
+
+  const filteredMessages = messages.filter(msg => {
+    const matchesType = selectedType === 'all' || msg.message_type === selectedType;
+    const matchesSearch = msg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         msg.content.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesType && matchesSearch;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading announcements...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-white">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 flex-shrink-0">
+        <div className="px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={onBack}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors md:hidden"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Megaphone className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Company Announcements</h1>
+                  <p className="text-sm text-gray-600">Official updates and communications</p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
+            >
+              Filters
+            </button>
+          </div>
+
+          {/* Search and Filters */}
+          <div className={`flex flex-col md:flex-row gap-3 ${showFilters || 'hidden md:flex'}`}>
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search announcements..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              {messageTypes.map(type => (
+                <option key={type.value} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+            {showFilters && (
+              <button
+                onClick={() => setShowFilters(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 md:hidden"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Messages List */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+        {filteredMessages.length === 0 ? (
+          <div className="bg-gray-50 rounded-xl p-12 text-center">
+            <Megaphone className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No announcements found</h3>
+            <p className="text-gray-600">
+              {searchQuery || selectedType !== 'all'
+                ? 'Try adjusting your search or filters'
+                : 'No announcements have been posted yet'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-w-4xl mx-auto">
+            {filteredMessages.map(message => {
+              const Icon = getMessageIcon(message.message_type);
+              const isExpanded = expandedMessage === message.id;
+
+              return (
+                <div
+                  key={message.id}
+                  className={`bg-white rounded-xl shadow-sm overflow-hidden transition-all border ${
+                    !message.is_read ? 'ring-2 ring-blue-500 border-blue-300' : 'border-gray-200'
+                  } ${message.priority === 'urgent' ? 'border-l-4 border-l-red-500' : ''}`}
+                >
+                  {/* Message Header */}
+                  <div
+                    onClick={() => handleToggleExpand(message.id)}
+                    className="p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3 sm:space-x-4 flex-1 min-w-0">
+                        <div className={`p-2 sm:p-3 rounded-lg ${getPriorityColor(message.priority)}`}>
+                          <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 mb-1 flex-wrap gap-y-1">
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                              {message.title}
+                            </h3>
+                            {!message.is_read && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded flex-shrink-0">
+                                NEW
+                              </span>
+                            )}
+                            {message.requires_acknowledgment && !message.user_response && (
+                              <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded flex-shrink-0">
+                                ACTION REQUIRED
+                              </span>
+                            )}
+                          </div>
+                          {!isExpanded && (
+                            <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                              {message.content}
+                            </p>
+                          )}
+                          <div className="flex items-center space-x-3 sm:space-x-4 text-xs text-gray-500 flex-wrap gap-y-1">
+                            <span>From: {message.creator_name}</span>
+                            <span>•</span>
+                            <span>{new Date(message.created_at).toLocaleDateString()}</span>
+                            {message.view_count > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center space-x-1">
+                                  <Eye className="w-3 h-3" />
+                                  <span>{message.view_count} views</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-gray-100">
+                      <div className="mt-4 prose max-w-none">
+                        <p className="text-gray-700 whitespace-pre-wrap">{message.content}</p>
+                      </div>
+
+                      {/* Recognition Details */}
+                      {message.message_type === 'recognition' && message.recognized_user_name && (
+                        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Award className="w-5 h-5 text-yellow-600" />
+                            <span className="font-semibold text-yellow-900">
+                              Recognizing: {message.recognized_user_name}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Event Details */}
+                      {message.message_type === 'event' && message.event_details && (
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                          <div className="flex items-center space-x-2 text-blue-900">
+                            <Calendar className="w-5 h-5 text-blue-600" />
+                            <span className="font-semibold">Event Details</span>
+                          </div>
+                          <div className="space-y-1 text-sm text-blue-800">
+                            <p><strong>Date:</strong> {message.event_details.date}</p>
+                            <p><strong>Time:</strong> {message.event_details.time}</p>
+                            <p><strong>Location:</strong> {message.event_details.location}</p>
+                            {message.event_details.rsvp_required && (
+                              <p className="text-yellow-700 font-semibold">RSVP Required</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Task Details */}
+                      {message.message_type === 'task' && message.task_details && (
+                        <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
+                          <div className="flex items-center space-x-2 text-purple-900">
+                            <CheckSquare className="w-5 h-5 text-purple-600" />
+                            <span className="font-semibold">Task Details</span>
+                          </div>
+                          <div className="space-y-1 text-sm text-purple-800">
+                            <p><strong>Due Date:</strong> {new Date(message.task_details.due_date).toLocaleDateString()}</p>
+                            <p><strong>Status:</strong> <span className="capitalize">{message.task_details.status}</span></p>
+                            {message.task_details.assignees && message.task_details.assignees.length > 0 && (
+                              <p><strong>Assignees:</strong> {message.task_details.assignees.length}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Survey */}
+                      {message.message_type === 'survey' && message.survey_options && (
+                        <div className="mt-4">
+                          <h4 className="font-semibold text-gray-900 mb-3">Survey Options:</h4>
+                          {message.user_response ? (
+                            <div className="space-y-2">
+                              {message.survey_options.options.map((option, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`p-3 rounded-lg border ${
+                                    message.user_response?.selected_options?.includes(option)
+                                      ? 'bg-blue-50 border-blue-300'
+                                      : 'bg-gray-50 border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    {message.user_response?.selected_options?.includes(option) && (
+                                      <Check className="w-5 h-5 text-blue-600" />
+                                    )}
+                                    <span>{option}</span>
+                                  </div>
+                                </div>
+                              ))}
+                              <p className="text-sm text-gray-600 mt-2">
+                                ✓ You submitted your response on{' '}
+                                {new Date(message.user_response.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          ) : (
+                            <SurveyResponse
+                              options={message.survey_options.options}
+                              allowMultiple={message.survey_options.allow_multiple}
+                              onSubmit={(selected) => handleSurveyResponse(message.id, selected)}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Acknowledgment */}
+                      {message.requires_acknowledgment && (
+                        <div className="mt-4">
+                          {message.user_response?.response_type === 'acknowledgment' ? (
+                            <div className="flex items-center space-x-2 text-green-600">
+                              <Check className="w-5 h-5" />
+                              <span className="font-medium">
+                                Acknowledged on{' '}
+                                {new Date(message.user_response.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAcknowledge(message.id);
+                              }}
+                              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                            >
+                              Acknowledge
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Linked Resource */}
+                      {message.linked_resource_id && (
+                        <div className="mt-4">
+                          <a
+                            href="#"
+                            className="flex items-center space-x-2 text-blue-600 hover:text-blue-700"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            <span>View linked document</span>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Survey Response Component
+function SurveyResponse({
+  options,
+  allowMultiple,
+  onSubmit
+}: {
+  options: string[];
+  allowMultiple: boolean;
+  onSubmit: (selected: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const handleToggle = (option: string) => {
+    if (allowMultiple) {
+      setSelected(prev =>
+        prev.includes(option)
+          ? prev.filter(o => o !== option)
+          : [...prev, option]
+      );
+    } else {
+      setSelected([option]);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {options.map((option, idx) => (
+        <button
+          key={idx}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggle(option);
+          }}
+          className={`w-full p-3 rounded-lg border text-left transition-colors ${
+            selected.includes(option)
+              ? 'bg-blue-50 border-blue-300 text-blue-900'
+              : 'bg-white border-gray-300 hover:border-blue-300'
+          }`}
+        >
+          <div className="flex items-center space-x-3">
+            <div
+              className={`w-5 h-5 rounded ${
+                allowMultiple ? 'rounded-md' : 'rounded-full'
+              } border-2 flex items-center justify-center ${
+                selected.includes(option)
+                  ? 'bg-blue-600 border-blue-600'
+                  : 'border-gray-300'
+              }`}
+            >
+              {selected.includes(option) && (
+                <Check className="w-3 h-3 text-white" />
+              )}
+            </div>
+            <span>{option}</span>
+          </div>
+        </button>
+      ))}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onSubmit(selected);
+        }}
+        disabled={selected.length === 0}
+        className="w-full px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Submit Response
+      </button>
+    </div>
+  );
+}

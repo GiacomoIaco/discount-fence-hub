@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Plus, X, Users, User } from 'lucide-react';
+import { MessageSquare, Plus, X, Users, User, Megaphone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { showError, showSuccess } from '../lib/toast';
 import type { ConversationWithDetails } from '../types/chat';
 import ChatView from './chat/ChatView';
+import AnnouncementsView from './AnnouncementsView';
 
 interface TeamMember {
   id: string;
@@ -25,12 +26,17 @@ export default function DirectMessages() {
   const [creatingConversation, setCreatingConversation] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
+  const [announcementsUnreadCount, setAnnouncementsUnreadCount] = useState(0);
+
+  // Special ID for announcements "conversation"
+  const ANNOUNCEMENTS_ID = '__announcements__';
 
   // Load user's conversations
   useEffect(() => {
     if (!user) return;
 
     loadConversations();
+    loadAnnouncementsUnreadCount();
 
     // Subscribe to realtime updates for new messages
     const subscription = supabase
@@ -45,6 +51,18 @@ export default function DirectMessages() {
         () => {
           // Reload conversations when new message arrives
           loadConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'company_messages'
+        },
+        () => {
+          // Reload announcements count when new announcement arrives
+          loadAnnouncementsUnreadCount();
         }
       )
       .subscribe();
@@ -69,6 +87,22 @@ export default function DirectMessages() {
       console.error('Error loading conversations:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAnnouncementsUnreadCount = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_unread_messages')
+        .select('unread_count')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        setAnnouncementsUnreadCount(data.unread_count || 0);
+      }
+    } catch (error) {
+      console.error('Error loading announcements unread count:', error);
     }
   };
 
@@ -212,15 +246,49 @@ export default function DirectMessages() {
 
         {/* Conversations */}
         <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
-              <MessageSquare className="w-16 h-16 mb-4 text-gray-300" />
-              <p className="text-lg font-medium">No conversations yet</p>
-              <p className="text-sm">Start a conversation with a team member</p>
-            </div>
-          ) : (
-            <div className="space-y-1 p-4">
-              {conversations.map((conv) => (
+          <div className="space-y-1 p-4">
+            {/* Company Announcements - Pinned at top */}
+            <button
+              onClick={() => setSelectedConversation(ANNOUNCEMENTS_ID)}
+              className={`w-full text-left p-4 rounded-lg transition-colors border-b-2 border-gray-100 ${
+                selectedConversation === ANNOUNCEMENTS_ID
+                  ? 'bg-blue-50 border-2 border-blue-200'
+                  : 'bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-bold text-gray-900">Company Announcements</h3>
+                    <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                      PINNED
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Official company updates, surveys, and announcements
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-end gap-1 ml-3">
+                  {announcementsUnreadCount > 0 && (
+                    <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center">
+                      {announcementsUnreadCount}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+
+            {/* Regular conversations */}
+            {conversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-gray-500 p-8 mt-4">
+                <MessageSquare className="w-16 h-16 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">No conversations yet</p>
+                <p className="text-sm">Start a conversation with a team member</p>
+              </div>
+            ) : (
+              conversations.map((conv) => (
                 <button
                   key={conv.conversation_id}
                   onClick={() => setSelectedConversation(conv.conversation_id)}
@@ -277,9 +345,9 @@ export default function DirectMessages() {
                     </div>
                   </div>
                 </button>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
       </div>
 
@@ -289,7 +357,12 @@ export default function DirectMessages() {
           selectedConversation ? 'flex' : 'hidden md:flex'
         } md:w-2/3 h-full flex-col`}
       >
-        {selectedConv ? (
+        {selectedConversation === ANNOUNCEMENTS_ID ? (
+          <AnnouncementsView
+            onBack={() => setSelectedConversation(null)}
+            onUnreadCountChange={setAnnouncementsUnreadCount}
+          />
+        ) : selectedConv ? (
           <ChatView
             conversation={selectedConv}
             onBack={() => setSelectedConversation(null)}
