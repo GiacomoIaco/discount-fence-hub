@@ -33,19 +33,19 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
     loadAllRecordings();
   }, []);
 
-  const loadAllRecordings = () => {
+  const loadAllRecordings = async () => {
     // Load recordings from all users (in production, this would be from a database)
-    const recordings = getRecordings('user123'); // For now, just user123
+    const recordings = await getRecordings('user123'); // For now, just user123
     setAllRecordings(recordings);
   };
 
-  const loadProcesses = () => {
-    const procs = getSalesProcesses();
+  const loadProcesses = async () => {
+    const procs = await getSalesProcesses();
     setProcesses(procs);
   };
 
-  const loadKnowledgeBase = () => {
-    const kb = getKnowledgeBase();
+  const loadKnowledgeBase = async () => {
+    const kb = await getKnowledgeBase();
     setKnowledgeBase(kb);
   };
 

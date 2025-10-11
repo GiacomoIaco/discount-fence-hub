@@ -35,7 +35,7 @@ export default function SalesCoach({ userId, onOpenAdmin }: SalesCoachProps) {
 
   // Load recordings and queue size
   const loadRecordings = useCallback(async () => {
-    const recs = getRecordings(userId);
+    const recs = await getRecordings(userId);
     setRecordings(recs);
     setStats(getUserStats(userId));
 

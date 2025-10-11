@@ -1,5 +1,20 @@
 // API integration for Sales Coach recordings
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue, updateQueuedRecording, type QueuedRecording } from './offlineQueue';
+import {
+  saveRecordingToSupabase,
+  getRecordingsFromSupabase,
+  getRecordingFromSupabase,
+  deleteRecordingFromSupabase,
+  getSalesProcessesFromSupabase,
+  getSalesProcessFromSupabase,
+  saveSalesProcessToSupabase,
+  deleteSalesProcessFromSupabase,
+  getKnowledgeBaseFromSupabase,
+  saveKnowledgeBaseToSupabase,
+  addManagerReviewToSupabase,
+  removeManagerReviewFromSupabase,
+} from './recordings-db';
+import { supabase } from './supabase';
 
 export interface ManagerReview {
   reviewerId: string;
@@ -180,7 +195,7 @@ export async function uploadRecording(
     };
 
     // Save to localStorage
-    const recordings = getRecordings(userId);
+    const recordings = getRecordingsSync(userId);
     recordings.unshift(placeholderRecording);
     localStorage.setItem(`recordings_${userId}`, JSON.stringify(recordings));
     notifyUpdate();
@@ -223,13 +238,22 @@ export async function uploadRecording(
       debugLog(`📄 Transcription object keys: ${Object.keys(transcription).join(', ')}`);
       debugLog(`📝 Has text field: ${!!transcription.text}, Length: ${transcription.text?.length || 0}`);
       // Update recording in localStorage with transcription
-      const recordings = getRecordings(userId);
+      const recordings = getRecordingsSync(userId);
       const updated = recordings.map(r =>
         r.id === recording.recordingId
           ? { ...r, status: 'analyzing' as const, transcription }
           : r
       );
       localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+
+      // Also save to Supabase (dual-write)
+      const updatedRecording = updated.find(r => r.id === recording.recordingId);
+      if (updatedRecording) {
+        saveRecordingToSupabase(updatedRecording, userId).catch(err =>
+          console.error('Failed to save transcription to Supabase:', err)
+        );
+      }
+
       notifyUpdate();
 
       // Step 3: Start analysis (async)
@@ -237,40 +261,67 @@ export async function uploadRecording(
       analyzeRecording(recording.recordingId, transcription.text, processType).then(analysis => {
         debugLog('🎯 Analysis completed!');
         // Update recording with analysis
-        const recordings = getRecordings(userId);
+        const recordings = getRecordingsSync(userId);
         const updated = recordings.map(r =>
           r.id === recording.recordingId
             ? { ...r, status: 'completed' as const, analysis, completedAt: new Date().toISOString() }
             : r
         );
         localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+
+        // Also save to Supabase (dual-write)
+        const updatedRecording = updated.find(r => r.id === recording.recordingId);
+        if (updatedRecording) {
+          saveRecordingToSupabase(updatedRecording, userId).catch(err =>
+            console.error('Failed to save analysis to Supabase:', err)
+          );
+        }
+
         notifyUpdate();
       }).catch(error => {
         debugLog(`❌ Analysis failed: ${error.message}`);
         console.error('Analysis failed:', error);
-        const recordings = getRecordings(userId);
+        const recordings = getRecordingsSync(userId);
         const updated = recordings.map(r =>
           r.id === recording.recordingId
             ? { ...r, status: 'failed' as const, error: error.message }
             : r
         );
         localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+
+        // Also save to Supabase (dual-write)
+        const updatedRecording = updated.find(r => r.id === recording.recordingId);
+        if (updatedRecording) {
+          saveRecordingToSupabase(updatedRecording, userId).catch(err =>
+            console.error('Failed to save error to Supabase:', err)
+          );
+        }
+
         notifyUpdate();
       });
     }).catch(error => {
       debugLog(`❌ Transcription failed: ${error.message}`);
-      const recordings = getRecordings(userId);
+      const recordings = getRecordingsSync(userId);
       const updated = recordings.map(r =>
         r.id === recording.recordingId
           ? { ...r, status: 'failed' as const, error: error.message }
           : r
       );
       localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+
+      // Also save to Supabase (dual-write)
+      const updatedRecording = updated.find(r => r.id === recording.recordingId);
+      if (updatedRecording) {
+        saveRecordingToSupabase(updatedRecording, userId).catch(err =>
+          console.error('Failed to save error to Supabase:', err)
+        );
+      }
+
       notifyUpdate();
     });
 
     // Save initial recording to localStorage
-    const recordings = getRecordings(userId);
+    const recordings = getRecordingsSync(userId);
     const newRecording: Recording = {
       ...recording,
       id: recording.recordingId,
@@ -278,6 +329,11 @@ export async function uploadRecording(
     };
     recordings.unshift(newRecording);
     localStorage.setItem(`recordings_${userId}`, JSON.stringify(recordings));
+
+    // Also save to Supabase (dual-write)
+    saveRecordingToSupabase(newRecording, userId).catch(err =>
+      console.error('Failed to save initial recording to Supabase:', err)
+    );
 
     return newRecording;
   } catch (error) {
@@ -334,8 +390,8 @@ async function transcribeRecording(_recordingId: string, base64Audio: string) {
 // Analyze transcript
 async function analyzeRecording(_recordingId: string, transcript: string, processType: string) {
   // Get custom process if not standard
-  const process = processType !== 'standard' ? getSalesProcess(processType) : null;
-  const knowledgeBase = getKnowledgeBase();
+  const process = processType !== 'standard' ? await getSalesProcess(processType) : null;
+  const knowledgeBase = await getKnowledgeBase();
 
   const response = await fetch('/.netlify/functions/analyze-recording', {
     method: 'POST',
@@ -356,27 +412,63 @@ async function analyzeRecording(_recordingId: string, transcript: string, proces
 }
 
 // Get all recordings for a user
-export function getRecordings(userId: string): Recording[] {
+export async function getRecordings(userId: string): Promise<Recording[]> {
+  // Try Supabase first
+  try {
+    const recordings = await getRecordingsFromSupabase(userId);
+    if (recordings.length > 0) {
+      return recordings;
+    }
+  } catch (error) {
+    console.error('Failed to fetch recordings from Supabase, falling back to localStorage:', error);
+  }
+
+  // Fallback to localStorage
+  const saved = localStorage.getItem(`recordings_${userId}`);
+  return saved ? JSON.parse(saved) : [];
+}
+
+// Synchronous version for backward compatibility (uses localStorage only)
+export function getRecordingsSync(userId: string): Recording[] {
   const saved = localStorage.getItem(`recordings_${userId}`);
   return saved ? JSON.parse(saved) : [];
 }
 
 // Get a single recording
-export function getRecording(userId: string, recordingId: string): Recording | undefined {
-  const recordings = getRecordings(userId);
+export async function getRecording(userId: string, recordingId: string): Promise<Recording | undefined> {
+  // Try Supabase first
+  try {
+    const recording = await getRecordingFromSupabase(userId, recordingId);
+    if (recording) {
+      return recording;
+    }
+  } catch (error) {
+    console.error('Failed to fetch recording from Supabase, falling back to localStorage:', error);
+  }
+
+  // Fallback to localStorage
+  const recordings = getRecordingsSync(userId);
   return recordings.find(r => r.id === recordingId);
 }
 
 // Delete a recording
-export function deleteRecording(userId: string, recordingId: string): void {
-  const recordings = getRecordings(userId);
+export async function deleteRecording(userId: string, recordingId: string): Promise<void> {
+  // Delete from localStorage
+  const recordings = getRecordingsSync(userId);
   const filtered = recordings.filter(r => r.id !== recordingId);
   localStorage.setItem(`recordings_${userId}`, JSON.stringify(filtered));
+
+  // Also delete from Supabase (dual-write)
+  try {
+    await deleteRecordingFromSupabase(userId, recordingId);
+  } catch (error) {
+    console.error('Failed to delete recording from Supabase:', error);
+  }
 }
 
 // Get user statistics
 export function getUserStats(userId: string) {
-  const recordings = getRecordings(userId).filter(r => r.status === 'completed');
+  const recordings = getRecordingsSync(userId).filter(r => r.status === 'completed');
 
   if (recordings.length === 0) {
     return {
@@ -476,7 +568,18 @@ const DEFAULT_SALES_PROCESS: SalesProcess = {
 };
 
 // Sales Process Management
-export function getSalesProcesses(): SalesProcess[] {
+export async function getSalesProcesses(): Promise<SalesProcess[]> {
+  // Try Supabase first
+  try {
+    const processes = await getSalesProcessesFromSupabase();
+    if (processes.length > 0) {
+      return processes;
+    }
+  } catch (error) {
+    console.error('Failed to fetch sales processes from Supabase, falling back to localStorage:', error);
+  }
+
+  // Fallback to localStorage
   const saved = localStorage.getItem('salesProcesses');
   const processes = saved ? JSON.parse(saved) : [];
 
@@ -489,13 +592,39 @@ export function getSalesProcesses(): SalesProcess[] {
   return processes;
 }
 
-export function getSalesProcess(id: string): SalesProcess | undefined {
-  const processes = getSalesProcesses();
+// Synchronous version for backward compatibility
+export function getSalesProcessesSync(): SalesProcess[] {
+  const saved = localStorage.getItem('salesProcesses');
+  const processes = saved ? JSON.parse(saved) : [];
+
+  // Always include default process if not already present
+  const hasDefault = processes.some((p: SalesProcess) => p.id === 'standard');
+  if (!hasDefault) {
+    processes.unshift(DEFAULT_SALES_PROCESS);
+  }
+
+  return processes;
+}
+
+export async function getSalesProcess(id: string): Promise<SalesProcess | undefined> {
+  // Try Supabase first
+  try {
+    const process = await getSalesProcessFromSupabase(id);
+    if (process) {
+      return process;
+    }
+  } catch (error) {
+    console.error('Failed to fetch sales process from Supabase, falling back to localStorage:', error);
+  }
+
+  // Fallback to localStorage
+  const processes = getSalesProcessesSync();
   return processes.find(p => p.id === id);
 }
 
-export function saveSalesProcess(process: SalesProcess): void {
-  const processes = getSalesProcesses();
+export async function saveSalesProcess(process: SalesProcess): Promise<void> {
+  // Save to localStorage
+  const processes = getSalesProcessesSync();
   const existing = processes.findIndex(p => p.id === process.id);
 
   if (existing >= 0) {
@@ -505,16 +634,45 @@ export function saveSalesProcess(process: SalesProcess): void {
   }
 
   localStorage.setItem('salesProcesses', JSON.stringify(processes));
+
+  // Also save to Supabase (dual-write)
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await saveSalesProcessToSupabase(process, user.id);
+    }
+  } catch (error) {
+    console.error('Failed to save sales process to Supabase:', error);
+  }
 }
 
-export function deleteSalesProcess(id: string): void {
-  const processes = getSalesProcesses();
+export async function deleteSalesProcess(id: string): Promise<void> {
+  // Delete from localStorage
+  const processes = getSalesProcessesSync();
   const filtered = processes.filter(p => p.id !== id);
   localStorage.setItem('salesProcesses', JSON.stringify(filtered));
+
+  // Also delete from Supabase (dual-write)
+  try {
+    await deleteSalesProcessFromSupabase(id);
+  } catch (error) {
+    console.error('Failed to delete sales process from Supabase:', error);
+  }
 }
 
 // Knowledge Base Management
-export function getKnowledgeBase(): KnowledgeBase {
+export async function getKnowledgeBase(): Promise<KnowledgeBase> {
+  // Try Supabase first
+  try {
+    const kb = await getKnowledgeBaseFromSupabase();
+    if (kb) {
+      return kb;
+    }
+  } catch (error) {
+    console.error('Failed to fetch knowledge base from Supabase, falling back to localStorage:', error);
+  }
+
+  // Fallback to localStorage
   const saved = localStorage.getItem('knowledgeBase');
   return saved ? JSON.parse(saved) : {
     companyInfo: '',
@@ -525,35 +683,76 @@ export function getKnowledgeBase(): KnowledgeBase {
   };
 }
 
-export function saveKnowledgeBase(kb: KnowledgeBase): void {
+// Synchronous version for backward compatibility
+export function getKnowledgeBaseSync(): KnowledgeBase {
+  const saved = localStorage.getItem('knowledgeBase');
+  return saved ? JSON.parse(saved) : {
+    companyInfo: '',
+    products: [],
+    commonObjections: [],
+    bestPractices: [],
+    industryContext: ''
+  };
+}
+
+export async function saveKnowledgeBase(kb: KnowledgeBase): Promise<void> {
+  // Save to localStorage
   kb.lastUpdated = new Date().toISOString();
   localStorage.setItem('knowledgeBase', JSON.stringify(kb));
+
+  // Also save to Supabase (dual-write)
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await saveKnowledgeBaseToSupabase(kb, user.id);
+    }
+  } catch (error) {
+    console.error('Failed to save knowledge base to Supabase:', error);
+  }
 }
 
 // Manager Review Management
-export function addManagerReview(
+export async function addManagerReview(
   userId: string,
   recordingId: string,
   review: Omit<ManagerReview, 'reviewedAt'>
-): void {
-  const recordings = getRecordings(userId);
+): Promise<void> {
+  // Update in localStorage
+  const recordings = getRecordingsSync(userId);
   const updated = recordings.map(r =>
     r.id === recordingId
       ? { ...r, managerReview: { ...review, reviewedAt: new Date().toISOString() } }
       : r
   );
   localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+
+  // Also save to Supabase (dual-write)
+  try {
+    await addManagerReviewToSupabase(recordingId, review);
+  } catch (error) {
+    console.error('Failed to save manager review to Supabase:', error);
+  }
+
   notifyUpdate();
 }
 
-export function removeManagerReview(userId: string, recordingId: string): void {
-  const recordings = getRecordings(userId);
+export async function removeManagerReview(userId: string, recordingId: string): Promise<void> {
+  // Remove from localStorage
+  const recordings = getRecordingsSync(userId);
   const updated = recordings.map(r =>
     r.id === recordingId
       ? { ...r, managerReview: undefined }
       : r
   );
   localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
+
+  // Also remove from Supabase (dual-write)
+  try {
+    await removeManagerReviewFromSupabase(recordingId);
+  } catch (error) {
+    console.error('Failed to remove manager review from Supabase:', error);
+  }
+
   notifyUpdate();
 }
 
@@ -576,7 +775,7 @@ export async function processOfflineQueue(): Promise<void> {
       debugLog(`⬆️ Uploading queued recording: ${queuedRecording.clientName}`);
 
       // Remove placeholder from localStorage
-      const recordings = getRecordings(queuedRecording.userId);
+      const recordings = getRecordingsSync(queuedRecording.userId);
       const filtered = recordings.filter(r => !r.id.startsWith('queued_'));
       localStorage.setItem(`recordings_${queuedRecording.userId}`, JSON.stringify(filtered));
 
@@ -608,7 +807,7 @@ export async function processOfflineQueue(): Promise<void> {
         await removeFromOfflineQueue(queuedRecording.id);
 
         // Update placeholder with error
-        const recordings = getRecordings(queuedRecording.userId);
+        const recordings = getRecordingsSync(queuedRecording.userId);
         const updated = recordings.map(r =>
           r.clientName === queuedRecording.clientName && r.id.startsWith('queued_')
             ? { ...r, status: 'failed' as const, error: `Upload failed after 3 attempts: ${error.message}` }
@@ -656,7 +855,7 @@ export function getTeamLeaderboard(timeframe: 'week' | 'month' | 'all' = 'all'):
   }
 
   const leaderboard: LeaderboardEntry[] = users.map(user => {
-    const allRecordings = getRecordings(user.id).filter(r => r.status === 'completed');
+    const allRecordings = getRecordingsSync(user.id).filter(r => r.status === 'completed');
 
     // Filter by timeframe
     const recordings = timeframe === 'all'
