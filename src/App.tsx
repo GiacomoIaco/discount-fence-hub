@@ -28,6 +28,7 @@ import { transcribeAudio } from './lib/openai';
 import { parseVoiceTranscript } from './lib/claude';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
+import { useRequestNotifications } from './hooks/useRequestNotifications';
 import type { Request } from './lib/requests';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
@@ -79,6 +80,9 @@ function App() {
 
   // Menu visibility control
   const { canSeeMenuItem } = useMenuVisibility();
+
+  // Request notifications
+  const { unreadCount: requestUnreadCount, markRequestAsRead } = useRequestNotifications();
 
   // Save viewMode to localStorage when it changes
   useEffect(() => {
@@ -141,7 +145,7 @@ function App() {
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
       { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
       { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
-      { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket },
+      { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, name: 'Sales Resources', icon: FolderOpen },
       { id: 'team' as Section, name: 'Settings', icon: SettingsIcon, separator: true },
@@ -210,7 +214,7 @@ function App() {
     if (activeSection === 'my-requests') {
       return (
         <ErrorBoundary>
-          <MyRequestsView onBack={() => setActiveSection('home')} />
+          <MyRequestsView onBack={() => setActiveSection('home')} onMarkAsRead={markRequestAsRead} />
         </ErrorBoundary>
       );
     }
@@ -345,7 +349,7 @@ function App() {
           </div>
           <div className="pb-20">
             <ErrorBoundary>
-              <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} userId={user?.id} userName={profile?.full_name} />
+              <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} userId={user?.id} userName={profile?.full_name} onMarkAsRead={markRequestAsRead} />
             </ErrorBoundary>
           </div>
 
@@ -585,9 +589,10 @@ interface SalesRepViewProps {
   unreadCount: number;
   userId?: string;
   userName?: string;
+  onMarkAsRead?: (requestId: string) => void;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, userId, userName }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, userId, userName, onMarkAsRead }: SalesRepViewProps) => {
   if (activeSection === 'requests') {
     return <RequestHub onBack={() => setActiveSection('home')} />;
   }
@@ -597,7 +602,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
   }
 
   if (activeSection === 'my-requests') {
-    return <MyRequestsView onBack={() => setActiveSection('home')} />;
+    return <MyRequestsView onBack={() => setActiveSection('home')} onMarkAsRead={onMarkAsRead} />;
   }
 
   if (activeSection === 'stain-calculator') {

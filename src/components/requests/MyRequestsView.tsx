@@ -9,11 +9,12 @@ import { RequestListSkeleton } from '../skeletons';
 
 interface MyRequestsViewProps {
   onBack: () => void;
+  onMarkAsRead?: (requestId: string) => void;
 }
 
 type View = 'list' | 'detail' | 'hub';
 
-export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps) {
+export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequestsViewProps) {
   const [view, setView] = useState<View>('list');
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
@@ -23,6 +24,11 @@ export default function MyRequestsView({ onBack: _onBack }: MyRequestsViewProps)
   const handleRequestClick = (request: Request) => {
     setSelectedRequest(request);
     setView('detail');
+
+    // Mark request as read when viewing
+    if (onMarkAsRead) {
+      onMarkAsRead(request.id);
+    }
   };
 
   const handleCloseDetail = () => {
