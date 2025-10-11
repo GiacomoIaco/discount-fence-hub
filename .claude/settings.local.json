@@ -49,7 +49,16 @@
       "Bash(cat:*)",
       "mcp__chrome-devtools__navigate_page_history",
       "WebFetch(domain:github.com)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(xargs cat:*)",
+      "Bash(git mv:*)",
+      "Bash(start /B npm run dev)",
+      "Bash(cmd.exe:*)",
+      "Bash(rm:*)",
+      "Bash(start cmd /k \"npm run dev\")",
+      "Bash(gh pr create:*)",
+      "Bash(git merge:*)",
+      "Bash(npx tsx:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

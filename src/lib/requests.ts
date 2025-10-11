@@ -784,20 +784,32 @@ export async function getUnreadCount(requestId: string, userId: string): Promise
 }
 
 /**
- * Get unread counts for multiple requests
+ * Get unread counts for multiple requests (OPTIMIZED - single query)
  */
 export async function getUnreadCounts(requestIds: string[], userId: string): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
 
-  // Batch fetch unread counts
-  await Promise.all(
-    requestIds.map(async (requestId) => {
-      const count = await getUnreadCount(requestId, userId);
-      if (count > 0) {
-        counts.set(requestId, count);
-      }
-    })
-  );
+  if (requestIds.length === 0) {
+    return counts;
+  }
+
+  // Use batch RPC function to get all counts in one query
+  const { data, error } = await supabase.rpc('get_unread_counts_batch', {
+    req_ids: requestIds,
+    usr_id: userId
+  });
+
+  if (error) {
+    console.error('Failed to get unread counts batch:', error);
+    return counts;
+  }
+
+  // Convert array of {request_id, unread_count} to Map
+  data?.forEach((row: { request_id: string; unread_count: number }) => {
+    if (row.unread_count > 0) {
+      counts.set(row.request_id, row.unread_count);
+    }
+  });
 
   return counts;
 }
