@@ -394,8 +394,25 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     } catch (error: any) {
       console.error('Error creating request:', error);
       console.error('Request data:', requestData);
-      const errorMessage = error?.message || error?.details || 'Unknown error';
-      showError(`Failed to create request: ${errorMessage}\n\nPlease check console for details.`);
+
+      // Extract user-friendly error message
+      let errorMessage = 'Failed to create request';
+
+      if (error instanceof Error) {
+        // Standard Error object (includes validation errors)
+        errorMessage = error.message;
+      } else if (error?.message) {
+        // Error object with message property
+        errorMessage = error.message;
+      } else if (error?.details) {
+        // Supabase error with details
+        errorMessage = error.details;
+      } else if (typeof error === 'string') {
+        // String error
+        errorMessage = error;
+      }
+
+      showError(errorMessage);
     }
   };
 
