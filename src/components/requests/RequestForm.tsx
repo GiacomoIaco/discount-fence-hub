@@ -393,6 +393,10 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       onSuccess();
     } catch (error: any) {
       console.error('Error creating request:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error instanceof Error:', error instanceof Error);
+      console.error('Error.message:', error?.message);
+      console.error('Error.toString():', error?.toString?.());
       console.error('Request data:', requestData);
 
       // Extract user-friendly error message
@@ -412,6 +416,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         errorMessage = error;
       }
 
+      console.error('Final error message:', errorMessage);
       showError(errorMessage);
     }
   };
