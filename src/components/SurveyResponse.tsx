@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Star, CheckSquare, Square } from 'lucide-react';
-import type { SurveyQuestion } from './SurveyBuilder';
+import type { SurveyQuestion } from './SimpleSurveyBuilder';
 
 interface SurveyResponseProps {
   questions: SurveyQuestion[];
@@ -77,7 +77,7 @@ export default function SurveyResponse({
       case 'multiple_choice':
         return (
           <div className="space-y-2">
-            {question.options?.map((option) => {
+            {question.options?.map((option: string) => {
               const isSelected = question.allow_multiple
                 ? (responses[question.id] || []).includes(option)
                 : responses[question.id] === option;

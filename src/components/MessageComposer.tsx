@@ -14,7 +14,7 @@ import {
   Calendar,
   Save
 } from 'lucide-react';
-import SurveyBuilder from './SurveyBuilder';
+import SimpleSurveyBuilder from './SimpleSurveyBuilder';
 import { showError } from '../lib/toast';
 
 interface MessageComposerProps {
@@ -634,7 +634,7 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       {showSurveyBuilder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
           <div className="bg-white rounded-xl shadow-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col">
-            <SurveyBuilder
+            <SimpleSurveyBuilder
               initialJson={surveyJson}
               onSave={(json) => {
                 setSurveyJson(json);

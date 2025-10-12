@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Star, Download, ChevronDown, ChevronUp } from 'lucide-react';
-import type { SurveyQuestion } from './SurveyBuilder';
+import type { SurveyQuestion } from './SimpleSurveyBuilder';
 
 interface SurveyResultsProps {
   questions: SurveyQuestion[];
@@ -27,7 +27,7 @@ export default function SurveyResults({
   const calculateMultipleChoiceStats = (question: SurveyQuestion) => {
     const stats: Record<string, number> = {};
 
-    question.options?.forEach(option => {
+    question.options?.forEach((option: string) => {
       stats[option] = 0;
     });
 
@@ -276,7 +276,7 @@ export default function SurveyResults({
                   {question.text}
                 </h4>
                 <p className="text-sm text-gray-500 mt-1">
-                  {question.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  {question.type.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                 </p>
               </div>
               {isExpanded ? (
