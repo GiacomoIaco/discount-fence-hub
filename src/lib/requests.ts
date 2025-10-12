@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { CreateRequestSchema, RequestNoteSchema, validateOrThrow } from './validation';
 
 // ============================================
 // TYPES
@@ -154,18 +155,22 @@ export interface SLADefault {
 
 /**
  * Create a new request
+ * @throws Error if validation fails or user not authenticated
  */
-export async function createRequest(data: CreateRequestInput) {
+export async function createRequest(data: unknown) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     throw new Error('User not authenticated');
   }
 
+  // ✅ VALIDATE INPUT DATA
+  const validatedData = validateOrThrow(CreateRequestSchema, data, 'Request data');
+
   const { data: request, error } = await supabase
     .from('requests')
     .insert({
-      ...data,
+      ...validatedData,
       submitter_id: user.id,
       stage: 'new'
     })
@@ -175,7 +180,7 @@ export async function createRequest(data: CreateRequestInput) {
   if (error) throw error;
 
   // Log creation activity
-  await logActivity(request.id, 'created', { request_type: data.request_type });
+  await logActivity(request.id, 'created', { request_type: validatedData.request_type });
 
   // Auto-assign based on rules
   await applyAssignmentRules(request);
@@ -428,6 +433,7 @@ export async function archiveRequest(requestId: string, reason?: string) {
 
 /**
  * Add note to request
+ * @throws Error if validation fails or user not authenticated
  */
 export async function addRequestNote(
   requestId: string,
@@ -440,13 +446,20 @@ export async function addRequestNote(
     throw new Error('User not authenticated');
   }
 
+  // ✅ VALIDATE NOTE DATA
+  const validatedNote = validateOrThrow(
+    RequestNoteSchema,
+    { request_id: requestId, note_type: noteType, content },
+    'Note'
+  );
+
   const { data, error } = await supabase
     .from('request_notes')
     .insert({
-      request_id: requestId,
+      request_id: validatedNote.request_id,
       user_id: user.id,
-      note_type: noteType,
-      content
+      note_type: validatedNote.note_type,
+      content: validatedNote.content
     })
     .select()
     .single();

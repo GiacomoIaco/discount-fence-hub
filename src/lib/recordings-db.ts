@@ -7,6 +7,11 @@
 
 import { supabase } from './supabase';
 import type { Recording, SalesProcess, KnowledgeBase, ManagerReview } from './recordings';
+import {
+  RecordingSchema,
+  ManagerReviewSchema,
+  validateData
+} from './validation';
 
 // =====================================================
 // RECORDINGS
@@ -14,24 +19,47 @@ import type { Recording, SalesProcess, KnowledgeBase, ManagerReview } from './re
 
 /**
  * Save a recording to Supabase
+ * Validates recording data before saving
  */
 export async function saveRecordingToSupabase(recording: Recording, userId: string): Promise<boolean> {
   try {
+    // ✅ VALIDATE RECORDING DATA
+    const validationResult = validateData(RecordingSchema, {
+      id: recording.id,
+      clientName: recording.clientName,
+      meetingDate: recording.meetingDate,
+      duration: recording.duration,
+      status: recording.status,
+      processType: recording.processType,
+      uploadedAt: recording.uploadedAt,
+      completedAt: recording.completedAt,
+      transcription: recording.transcription,
+      analysis: recording.analysis,
+      error: recording.error,
+    });
+
+    if (!validationResult.success) {
+      console.error('Recording validation failed:', validationResult.errors);
+      return false;
+    }
+
+    const validatedRecording = validationResult.data;
+
     const { error } = await supabase
       .from('recordings')
       .upsert({
-        id: recording.id,
+        id: validatedRecording.id,
         user_id: userId,
-        client_name: recording.clientName,
-        meeting_date: recording.meetingDate,
-        duration: recording.duration,
-        status: recording.status,
-        process_type: recording.processType,
-        uploaded_at: recording.uploadedAt,
-        completed_at: recording.completedAt,
-        transcription: recording.transcription || null,
-        analysis: recording.analysis || null,
-        error_message: recording.error || null,
+        client_name: validatedRecording.clientName,
+        meeting_date: validatedRecording.meetingDate,
+        duration: validatedRecording.duration,
+        status: validatedRecording.status,
+        process_type: validatedRecording.processType,
+        uploaded_at: validatedRecording.uploadedAt,
+        completed_at: validatedRecording.completedAt,
+        transcription: validatedRecording.transcription || null,
+        analysis: validatedRecording.analysis || null,
+        error_message: validatedRecording.error || null,
       }, {
         onConflict: 'id'
       });
@@ -340,22 +368,40 @@ export async function saveKnowledgeBaseToSupabase(kb: KnowledgeBase, userId: str
 
 /**
  * Add a manager review to Supabase
+ * Validates review data before saving
  */
 export async function addManagerReviewToSupabase(
   recordingId: string,
   review: Omit<ManagerReview, 'reviewedAt'>
 ): Promise<boolean> {
   try {
+    // ✅ VALIDATE MANAGER REVIEW DATA
+    const validationResult = validateData(ManagerReviewSchema, {
+      reviewerId: review.reviewerId,
+      reviewerName: review.reviewerName,
+      rating: review.rating,
+      comments: review.comments,
+      keyTakeaways: review.keyTakeaways,
+      actionItems: review.actionItems,
+    });
+
+    if (!validationResult.success) {
+      console.error('Manager review validation failed:', validationResult.errors);
+      return false;
+    }
+
+    const validatedReview = validationResult.data;
+
     const { error } = await supabase
       .from('manager_reviews')
       .upsert({
         recording_id: recordingId,
-        reviewer_id: review.reviewerId,
-        reviewer_name: review.reviewerName,
-        rating: review.rating,
-        comments: review.comments,
-        key_takeaways: review.keyTakeaways || [],
-        action_items: review.actionItems || [],
+        reviewer_id: validatedReview.reviewerId,
+        reviewer_name: validatedReview.reviewerName,
+        rating: validatedReview.rating,
+        comments: validatedReview.comments,
+        key_takeaways: validatedReview.keyTakeaways || [],
+        action_items: validatedReview.actionItems || [],
       }, {
         onConflict: 'recording_id'
       });
