@@ -22,6 +22,15 @@ import {
   Send
 } from 'lucide-react';
 
+interface SurveyQuestion {
+  id: string;
+  text: string;
+  type: 'multiple_choice' | 'yes_no' | 'rating' | 'short_text' | 'long_text';
+  options?: string[];
+  allow_multiple?: boolean;
+  required?: boolean;
+}
+
 interface CompanyMessage {
   id: string;
   message_type: 'announcement' | 'urgent_alert' | 'recognition' | 'survey' | 'policy' | 'training' | 'discussion' | 'task' | 'event';
@@ -39,6 +48,9 @@ interface CompanyMessage {
   survey_options?: {
     options: string[];
     allow_multiple: boolean;
+  };
+  survey_questions?: {
+    questions: SurveyQuestion[];
   };
   event_details?: {
     date: string;
@@ -717,8 +729,55 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                         </div>
                       )}
 
-                      {/* Survey */}
-                      {message.message_type === 'survey' && message.survey_options && (
+                      {/* Survey - New Format */}
+                      {message.message_type === 'survey' && message.survey_questions && (
+                        <div className="mt-4 space-y-6">
+                          {message.survey_questions.questions.map((question, qIdx) => (
+                            <div key={question.id || qIdx}>
+                              <h4 className="font-semibold text-gray-900 mb-3">
+                                {question.text}
+                                {question.required && <span className="text-red-500 ml-1">*</span>}
+                              </h4>
+                              {message.user_response ? (
+                                <div className="space-y-2">
+                                  {question.options?.map((option, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={`p-3 rounded-lg border ${
+                                        message.user_response?.selected_options?.includes(option)
+                                          ? 'bg-blue-50 border-blue-300'
+                                          : 'bg-gray-50 border-gray-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-center space-x-2">
+                                        {message.user_response?.selected_options?.includes(option) && (
+                                          <Check className="w-5 h-5 text-blue-600" />
+                                        )}
+                                        <span>{option}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {qIdx === message.survey_questions!.questions.length - 1 && (
+                                    <p className="text-sm text-gray-600 mt-2">
+                                      ✓ You submitted your response on{' '}
+                                      {new Date(message.user_response.created_at).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : question.options ? (
+                                <SurveyResponse
+                                  options={question.options}
+                                  allowMultiple={question.allow_multiple || false}
+                                  onSubmit={(selected) => handleSurveyResponse(message.id, selected)}
+                                />
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Survey - Old Format (Backward Compatibility) */}
+                      {message.message_type === 'survey' && message.survey_options && !message.survey_questions && (
                         <div className="mt-4">
                           <h4 className="font-semibold text-gray-900 mb-3">Survey Options:</h4>
                           {message.user_response ? (

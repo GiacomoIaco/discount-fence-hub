@@ -70,6 +70,15 @@ interface TeamCommunicationProps {
   onBack?: () => void;
 }
 
+interface CommentWithUser {
+  id: string;
+  message_id: string;
+  user_id: string;
+  user_name: string;
+  text_response: string;
+  created_at: string;
+}
+
 export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
   const { user, profile } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('inbox');
@@ -80,8 +89,12 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSurvey, setSelectedSurvey] = useState<CompanyMessage | null>(null);
   const [showSurveyResults, setShowSurveyResults] = useState(false);
+  const [comments, setComments] = useState<Map<string, CommentWithUser[]>>(new Map());
 
   useEffect(() => {
+    // Clear state when switching views to prevent stale data
+    setComments(new Map());
+    setExpandedCards(new Set());
     loadMessages();
   }, [user, profile, viewMode, filterMode]);
 
@@ -262,6 +275,57 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
     }) || [];
 
     setMessages(enrichedMessages);
+
+    // Load comments for sent messages
+    if (enrichedMessages.length > 0) {
+      await loadComments(messageIds);
+    }
+  };
+
+  const loadComments = async (messageIds: string[]) => {
+    if (!user || messageIds.length === 0) return;
+
+    try {
+      // Get all comments for the messages
+      const { data: responsesData, error } = await supabase
+        .from('message_responses')
+        .select('*')
+        .in('message_id', messageIds)
+        .eq('response_type', 'comment')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Get user names for comments
+      const userIds = [...new Set(responsesData?.map(r => r.user_id) || [])];
+      const { data: users } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      const userMap = new Map(users?.map(u => [u.id, u.full_name]));
+
+      // Group comments by message
+      const commentsByMessage = new Map<string, CommentWithUser[]>();
+
+      responsesData?.forEach(response => {
+        if (!commentsByMessage.has(response.message_id)) {
+          commentsByMessage.set(response.message_id, []);
+        }
+        commentsByMessage.get(response.message_id)!.push({
+          id: response.id,
+          message_id: response.message_id,
+          user_id: response.user_id,
+          user_name: userMap.get(response.user_id) || 'Unknown',
+          text_response: response.text_response || '',
+          created_at: response.created_at
+        });
+      });
+
+      setComments(commentsByMessage);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    }
   };
 
   const markAsOpened = async (messageId: string) => {
@@ -535,6 +599,7 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
                 expandedCards={expandedCards}
                 onToggleExpand={toggleExpand}
                 getMessageConfig={getMessageConfig}
+                comments={comments}
                 onViewDetails={(msg: CompanyMessage) => {
                   setSelectedSurvey(msg);
                   setShowSurveyResults(true);
@@ -641,7 +706,7 @@ function InboxMessagesList({ messages, expandedCards, onToggleExpand, onAcknowle
 }
 
 // Sent Messages List Component
-function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, onViewDetails }: any) {
+function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails }: any) {
   return messages.map((msg: CompanyMessage) => {
     const config = getMessageConfig(msg.message_type);
     const Icon = config.icon;
@@ -726,13 +791,45 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
                 </div>
               )}
             </div>
-            <button
-              onClick={() => onViewDetails(msg)}
-              className="w-full py-2 border border-indigo-600 text-indigo-600 rounded-lg font-medium hover:bg-indigo-50 active:bg-indigo-50 transition-colors flex items-center justify-center space-x-2"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>View Details</span>
-            </button>
+            {msg.survey_questions && (
+              <button
+                onClick={() => onViewDetails(msg)}
+                className="w-full py-2 border border-indigo-600 text-indigo-600 rounded-lg font-medium hover:bg-indigo-50 active:bg-indigo-50 transition-colors flex items-center justify-center space-x-2"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>View Details</span>
+              </button>
+            )}
+
+            {/* Comments Section */}
+            {comments && comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
+              <div className="mt-4 border-t border-gray-200 pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                  <span>Comments ({comments.get(msg.id)!.length})</span>
+                </h4>
+                <div className="space-y-3">
+                  {comments.get(msg.id)!.map((comment: CommentWithUser) => (
+                    <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                      <div className="flex items-start justify-between mb-1">
+                        <span className="font-medium text-gray-900 text-sm">
+                          {comment.user_name}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(comment.created_at).toLocaleDateString()} at{' '}
+                          {new Date(comment.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-gray-700 text-sm whitespace-pre-wrap">
+                        {comment.text_response}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

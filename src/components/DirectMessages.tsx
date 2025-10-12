@@ -14,7 +14,11 @@ interface TeamMember {
   role: string;
 }
 
-export default function DirectMessages() {
+interface DirectMessagesProps {
+  onUnreadCountChange?: (count: number) => void;
+}
+
+export default function DirectMessages({ onUnreadCountChange }: DirectMessagesProps = {}) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +34,11 @@ export default function DirectMessages() {
 
   // Special ID for announcements "conversation"
   const ANNOUNCEMENTS_ID = '__announcements__';
+
+  // Propagate unread announcements count to parent
+  useEffect(() => {
+    onUnreadCountChange?.(announcementsUnreadCount);
+  }, [announcementsUnreadCount, onUnreadCountChange]);
 
   // Load user's conversations
   useEffect(() => {

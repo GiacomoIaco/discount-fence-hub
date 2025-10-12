@@ -87,6 +87,9 @@ function App() {
   // Admin announcement engagement notifications
   const { unreadCount: announcementEngagementCount } = useAnnouncementEngagement();
 
+  // Track unread announcements for all users (Chat badge)
+  const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
+
   // Save viewMode to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('viewMode', viewMode);
@@ -143,7 +146,7 @@ function App() {
     const items = [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
       { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: announcementEngagementCount },
-      { id: 'direct-messages' as Section, name: 'Chat', icon: MessageCircle },
+      { id: 'direct-messages' as Section, name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
       { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
@@ -266,7 +269,7 @@ function App() {
     if (activeSection === 'direct-messages') {
       return (
         <ErrorBoundary>
-          <DirectMessages />
+          <DirectMessages onUnreadCountChange={setUnreadAnnouncementsCount} />
         </ErrorBoundary>
       );
     }
@@ -351,7 +354,17 @@ function App() {
           </div>
           <div className="pb-20">
             <ErrorBoundary>
-              <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} announcementEngagementCount={announcementEngagementCount} userId={user?.id} userName={profile?.full_name} onMarkAsRead={markRequestAsRead} />
+              <SalesRepView
+                activeSection={activeSection}
+                setActiveSection={setActiveSection}
+                viewMode={viewMode}
+                unreadAnnouncementsCount={unreadAnnouncementsCount}
+                announcementEngagementCount={announcementEngagementCount}
+                userId={user?.id}
+                userName={profile?.full_name}
+                onMarkAsRead={markRequestAsRead}
+                onUnreadCountChange={setUnreadAnnouncementsCount}
+              />
             </ErrorBoundary>
           </div>
 
@@ -587,13 +600,15 @@ interface SalesRepViewProps {
   activeSection: Section;
   setActiveSection: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
+  unreadAnnouncementsCount: number;
   announcementEngagementCount: number;
   userId?: string;
   userName?: string;
   onMarkAsRead?: (requestId: string) => void;
+  onUnreadCountChange?: (count: number) => void;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode, announcementEngagementCount, userId, userName, onMarkAsRead }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnouncementsCount, announcementEngagementCount, userId, userName, onMarkAsRead, onUnreadCountChange }: SalesRepViewProps) => {
   if (activeSection === 'requests') {
     return <RequestHub onBack={() => setActiveSection('home')} />;
   }
@@ -635,7 +650,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, announcementE
   }
 
   if (activeSection === 'direct-messages') {
-    return <DirectMessages />;
+    return <DirectMessages onUnreadCountChange={onUnreadCountChange} />;
   }
 
   return (
@@ -707,7 +722,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, announcementE
 
         <button
           onClick={() => setActiveSection('direct-messages')}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
+          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative"
         >
           <div className="flex items-center space-x-4">
             <div className="bg-white/20 p-3 rounded-lg">
@@ -717,6 +732,11 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, announcementE
               <div className="font-bold text-lg">Chat</div>
               <div className="text-sm text-blue-100">Direct messages with team</div>
             </div>
+            {unreadAnnouncementsCount > 0 && (
+              <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {unreadAnnouncementsCount > 99 ? '99+' : unreadAnnouncementsCount}
+              </div>
+            )}
           </div>
         </button>
 
