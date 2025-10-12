@@ -42,9 +42,7 @@ interface CompanyMessage {
   status: 'draft' | 'active' | 'expired' | 'archived';
   is_draft: boolean;
   target_roles?: string[];
-  survey_questions?: {
-    questions: SurveyQuestion[];
-  };
+  survey_questions?: SurveyQuestion[];
   recognized_user_id?: string;
   creator_name?: string;
   recognized_user_name?: string;
@@ -881,7 +879,7 @@ function SurveyResultsModal({ survey, onClose, onPostResults }: SurveyResultsMod
       // Aggregate responses by option
       const aggregated = new Map<string, { responses: string[]; users: string[] }>();
 
-      survey.survey_questions.questions.forEach(question => {
+      survey.survey_questions.forEach(question => {
         question.options?.forEach(option => {
           if (!aggregated.has(option)) {
             aggregated.set(option, { responses: [], users: [] });

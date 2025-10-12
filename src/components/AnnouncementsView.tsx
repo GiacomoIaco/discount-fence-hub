@@ -49,9 +49,7 @@ interface CompanyMessage {
     options: string[];
     allow_multiple: boolean;
   };
-  survey_questions?: {
-    questions: SurveyQuestion[];
-  };
+  survey_questions?: SurveyQuestion[];
   event_details?: {
     date: string;
     time: string;
@@ -730,9 +728,9 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                       )}
 
                       {/* Survey - New Format */}
-                      {message.message_type === 'survey' && message.survey_questions && (
+                      {message.message_type === 'survey' && message.survey_questions && Array.isArray(message.survey_questions) && (
                         <div className="mt-4 space-y-6">
-                          {message.survey_questions.questions.map((question, qIdx) => (
+                          {message.survey_questions.map((question, qIdx) => (
                             <div key={question.id || qIdx}>
                               <h4 className="font-semibold text-gray-900 mb-3">
                                 {question.text}
@@ -757,7 +755,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                                       </div>
                                     </div>
                                   ))}
-                                  {qIdx === message.survey_questions!.questions.length - 1 && (
+                                  {qIdx === message.survey_questions!.length - 1 && (
                                     <p className="text-sm text-gray-600 mt-2">
                                       ✓ You submitted your response on{' '}
                                       {new Date(message.user_response.created_at).toLocaleDateString()}
