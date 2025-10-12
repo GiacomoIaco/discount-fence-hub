@@ -299,7 +299,7 @@ function App() {
   if (viewMode === 'mobile') {
     return (
       <>
-        <Toaster position="top-center" />
+        <Toaster position="top-center" toastOptions={{ style: { zIndex: 9999 } }} />
         <div className="min-h-screen bg-gray-50">
           <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
             <div className="px-4 py-3 flex items-center justify-between">
@@ -386,7 +386,7 @@ function App() {
 
   return (
     <>
-      <Toaster position="top-center" />
+      <Toaster position="top-center" toastOptions={{ style: { zIndex: 9999 } }} />
       <div className="flex h-screen bg-gray-50 overflow-hidden">
         <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
         <div className="p-3 border-b border-gray-800">
