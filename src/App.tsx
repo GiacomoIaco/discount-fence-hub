@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, MessageCircle, Settings as SettingsIcon } from 'lucide-react';
-import { Toaster } from 'react-hot-toast';
+import { ToastProvider } from './contexts/ToastContext';
 import { showError, showWarning } from './lib/toast';
 import StainCalculator from './components/sales/StainCalculator';
 import ClientPresentation from './components/sales/ClientPresentation';
@@ -298,17 +298,7 @@ function App() {
   // Mobile view - same for all roles
   if (viewMode === 'mobile') {
     return (
-      <>
-        <Toaster
-          position="top-center"
-          containerStyle={{ zIndex: 9999 }}
-          toastOptions={{
-            duration: 4000,
-            style: {
-              zIndex: 9999,
-            },
-          }}
-        />
+      <ToastProvider>
         <div className="min-h-screen bg-gray-50">
           <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
             <div className="px-4 py-3 flex items-center justify-between">
@@ -389,22 +379,12 @@ function App() {
             />
           )}
         </div>
-      </>
+      </ToastProvider>
     );
   }
 
   return (
-    <>
-      <Toaster
-        position="top-center"
-        containerStyle={{ zIndex: 9999 }}
-        toastOptions={{
-          duration: 4000,
-          style: {
-            zIndex: 9999,
-          },
-        }}
-      />
+    <ToastProvider>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
         <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
         <div className="p-3 border-b border-gray-800">
@@ -596,7 +576,7 @@ function App() {
         />
       )}
       </div>
-    </>
+    </ToastProvider>
   );
 }
 

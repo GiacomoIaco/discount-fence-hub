@@ -58,7 +58,9 @@
       "Bash(start cmd /k \"npm run dev\")",
       "Bash(gh pr create:*)",
       "Bash(git merge:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npx netlify-cli:*)",
+      "mcp__chrome-devtools__fill_form"
     ]
   },
   "enableAllProjectMcpServers": true,
