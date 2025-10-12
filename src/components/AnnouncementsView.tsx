@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import SurveyRenderer from './SurveyRenderer';
 import {
   Megaphone,
   AlertTriangle,
@@ -727,7 +728,45 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                         </div>
                       )}
 
-                      {/* Survey - New Format */}
+                      {/* Survey - Survey.js Format (New) */}
+                      {message.message_type === 'survey' && message.survey_questions &&
+                       typeof message.survey_questions === 'object' && 'elements' in message.survey_questions && (
+                        <div className="mt-4">
+                          {message.user_response ? (
+                            <div className="space-y-4">
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div className="flex items-center space-x-2 text-green-700">
+                                  <Check className="w-5 h-5" />
+                                  <span className="font-medium">
+                                    Survey completed on{' '}
+                                    {new Date(message.user_response.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <SurveyRenderer
+                                surveyJson={message.survey_questions}
+                                onComplete={() => {}}
+                                disabled={true}
+                                initialData={message.user_response.selected_options ?
+                                  Object.fromEntries((message.survey_questions as any).elements.map((el: any, idx: number) =>
+                                    [el.name, message.user_response?.selected_options?.[idx]]
+                                  )) : {}}
+                              />
+                            </div>
+                          ) : (
+                            <SurveyRenderer
+                              surveyJson={message.survey_questions}
+                              onComplete={(results) => {
+                                // Convert Survey.js results to selected_options array
+                                const selectedOptions = Object.values(results);
+                                handleSurveyResponse(message.id, selectedOptions as string[]);
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Survey - Legacy Format (Old) */}
                       {message.message_type === 'survey' && message.survey_questions && Array.isArray(message.survey_questions) && (
                         <div className="mt-4 space-y-6">
                           {message.survey_questions.map((question, qIdx) => (

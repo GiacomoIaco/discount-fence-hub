@@ -14,7 +14,7 @@ import {
   Calendar,
   Save
 } from 'lucide-react';
-import SurveyBuilder, { type SurveyQuestion } from './SurveyBuilder';
+import SurveyBuilder from './SurveyBuilder';
 import { showError } from '../lib/toast';
 
 interface MessageComposerProps {
@@ -40,8 +40,9 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
   const [expiresAt, setExpiresAt] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Survey specific (V2 - multi-question)
-  const [surveyQuestions, setSurveyQuestions] = useState<SurveyQuestion[]>([]);
+  // Survey specific (Survey.js format)
+  const [surveyJson, setSurveyJson] = useState<any>(null);
+  const [showSurveyBuilder, setShowSurveyBuilder] = useState(false);
   const [showResultsAfterSubmit, setShowResultsAfterSubmit] = useState(false);
   const [allowEditResponses, setAllowEditResponses] = useState(false);
   const [anonymousResponses, setAnonymousResponses] = useState(false);
@@ -143,8 +144,8 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       };
 
       // Add survey data if applicable
-      if (messageType === 'survey' && surveyQuestions.length > 0) {
-        messageData.survey_questions = surveyQuestions;
+      if (messageType === 'survey' && surveyJson) {
+        messageData.survey_questions = surveyJson;
         messageData.show_results_after_submit = showResultsAfterSubmit;
         messageData.allow_edit_responses = allowEditResponses;
         messageData.anonymous_responses = anonymousResponses;
@@ -200,14 +201,8 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       return;
     }
 
-    if (messageType === 'survey' && surveyQuestions.length > 0) {
-      const invalidQuestions = surveyQuestions.filter(q => !q.text.trim());
-      if (invalidQuestions.length > 0) {
-        showError('Please fill in all question texts');
-        return;
-      }
-    } else if (messageType === 'survey' && surveyQuestions.length === 0) {
-      showError('Please add at least one survey question');
+    if (messageType === 'survey' && !surveyJson) {
+      showError('Please create a survey using the Survey Builder');
       return;
     }
 
@@ -234,8 +229,8 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
       };
 
       // Add type-specific data
-      if (messageType === 'survey' && surveyQuestions.length > 0) {
-        messageData.survey_questions = surveyQuestions;
+      if (messageType === 'survey' && surveyJson) {
+        messageData.survey_questions = surveyJson;
         messageData.show_results_after_submit = showResultsAfterSubmit;
         messageData.allow_edit_responses = allowEditResponses;
         messageData.anonymous_responses = anonymousResponses;
@@ -396,15 +391,42 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
                 <label className="block text-sm font-medium text-gray-700">
                   Survey Questions
                 </label>
-                <span className="text-xs text-gray-500">
-                  {surveyQuestions.length} question{surveyQuestions.length !== 1 ? 's' : ''}
-                </span>
+                {surveyJson && (
+                  <span className="text-xs text-green-600 flex items-center space-x-1">
+                    <CheckSquare className="w-3 h-3" />
+                    <span>Survey created</span>
+                  </span>
+                )}
               </div>
 
-              <SurveyBuilder
-                questions={surveyQuestions}
-                onChange={setSurveyQuestions}
-              />
+              {!surveyJson ? (
+                <button
+                  onClick={() => setShowSurveyBuilder(true)}
+                  className="w-full py-8 border-2 border-dashed border-purple-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-colors flex flex-col items-center justify-center space-y-2 text-purple-600"
+                >
+                  <ClipboardList className="w-8 h-8" />
+                  <span className="font-medium">Open Survey Builder</span>
+                  <span className="text-sm text-gray-500">Create a professional survey with ratings, multiple choice, and more</span>
+                </button>
+              ) : (
+                <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <ClipboardList className="w-5 h-5 text-purple-600" />
+                      <span className="font-medium text-gray-900">Survey configured</span>
+                    </div>
+                    <button
+                      onClick={() => setShowSurveyBuilder(true)}
+                      className="px-3 py-1 text-sm border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
+                    >
+                      Edit Survey
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {surveyJson.elements?.length || 0} question{surveyJson.elements?.length !== 1 ? 's' : ''} configured
+                  </p>
+                </div>
+              )}
 
               {/* Survey Settings */}
               <div className="space-y-2 pt-4 border-t border-gray-200">
@@ -607,6 +629,22 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
           </div>
         </div>
       </div>
+
+      {/* Survey Builder Modal */}
+      {showSurveyBuilder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col">
+            <SurveyBuilder
+              initialJson={surveyJson}
+              onSave={(json) => {
+                setSurveyJson(json);
+                setShowSurveyBuilder(false);
+              }}
+              onCancel={() => setShowSurveyBuilder(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

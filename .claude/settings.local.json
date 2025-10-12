@@ -60,7 +60,9 @@
       "Bash(git merge:*)",
       "Bash(npx tsx:*)",
       "Bash(npx netlify-cli:*)",
-      "mcp__chrome-devtools__fill_form"
+      "mcp__chrome-devtools__fill_form",
+      "WebSearch",
+      "WebFetch(domain:surveyjs.io)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -879,13 +879,42 @@ function SurveyResultsModal({ survey, onClose, onPostResults }: SurveyResultsMod
       // Aggregate responses by option
       const aggregated = new Map<string, { responses: string[]; users: string[] }>();
 
-      survey.survey_questions.forEach(question => {
-        question.options?.forEach(option => {
-          if (!aggregated.has(option)) {
-            aggregated.set(option, { responses: [], users: [] });
+      // Check if Survey.js format (has elements) or legacy format (array)
+      const isSurveyJsFormat = typeof survey.survey_questions === 'object' && 'elements' in survey.survey_questions;
+
+      if (isSurveyJsFormat) {
+        // Survey.js format: extract all possible answers from elements
+        const surveyElements = (survey.survey_questions as any).elements || [];
+        surveyElements.forEach((element: any) => {
+          if (element.choices) {
+            // Multiple choice, dropdown, etc
+            element.choices.forEach((choice: any) => {
+              const value = typeof choice === 'string' ? choice : choice.value || choice.text;
+              if (!aggregated.has(value)) {
+                aggregated.set(value, { responses: [], users: [] });
+              }
+            });
+          }
+          // For rating questions, we'll aggregate the numeric values
+          if (element.type === 'rating') {
+            for (let i = element.rateMin || 1; i <= (element.rateMax || 5); i++) {
+              const value = `${i} star${i !== 1 ? 's' : ''}`;
+              if (!aggregated.has(value)) {
+                aggregated.set(value, { responses: [], users: [] });
+              }
+            }
           }
         });
-      });
+      } else if (Array.isArray(survey.survey_questions)) {
+        // Legacy format: array of questions
+        survey.survey_questions.forEach(question => {
+          question.options?.forEach(option => {
+            if (!aggregated.has(option)) {
+              aggregated.set(option, { responses: [], users: [] });
+            }
+          });
+        });
+      }
 
       responses?.forEach(response => {
         response.selected_options?.forEach((option: string) => {
