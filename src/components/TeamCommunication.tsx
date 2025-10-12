@@ -21,7 +21,9 @@ import {
   BarChart3,
   CheckCircle2,
   Circle,
-  Search
+  Search,
+  X,
+  Share2
 } from 'lucide-react';
 
 type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_response' | 'answered' | 'acknowledged' | 'archived';
@@ -39,6 +41,7 @@ interface CompanyMessage {
   requires_acknowledgment: boolean;
   status: 'draft' | 'active' | 'expired' | 'archived';
   is_draft: boolean;
+  target_roles?: string[];
   survey_questions?: {
     questions: SurveyQuestion[];
   };
@@ -75,6 +78,8 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSurvey, setSelectedSurvey] = useState<CompanyMessage | null>(null);
+  const [showSurveyResults, setShowSurveyResults] = useState(false);
 
   useEffect(() => {
     loadMessages();
@@ -530,11 +535,31 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
                 expandedCards={expandedCards}
                 onToggleExpand={toggleExpand}
                 getMessageConfig={getMessageConfig}
+                onViewDetails={(msg: CompanyMessage) => {
+                  setSelectedSurvey(msg);
+                  setShowSurveyResults(true);
+                }}
               />
             )}
           </div>
         )}
       </div>
+
+      {/* Survey Results Modal */}
+      {showSurveyResults && selectedSurvey && (
+        <SurveyResultsModal
+          survey={selectedSurvey}
+          onClose={() => {
+            setShowSurveyResults(false);
+            setSelectedSurvey(null);
+          }}
+          onPostResults={() => {
+            setShowSurveyResults(false);
+            setSelectedSurvey(null);
+            loadMessages(); // Reload to show the newly posted results
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -616,7 +641,7 @@ function InboxMessagesList({ messages, expandedCards, onToggleExpand, onAcknowle
 }
 
 // Sent Messages List Component
-function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig }: any) {
+function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, onViewDetails }: any) {
   return messages.map((msg: CompanyMessage) => {
     const config = getMessageConfig(msg.message_type);
     const Icon = config.icon;
@@ -701,7 +726,10 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
                 </div>
               )}
             </div>
-            <button className="w-full py-2 border border-indigo-600 text-indigo-600 rounded-lg font-medium hover:bg-indigo-50 active:bg-indigo-50 transition-colors flex items-center justify-center space-x-2">
+            <button
+              onClick={() => onViewDetails(msg)}
+              className="w-full py-2 border border-indigo-600 text-indigo-600 rounded-lg font-medium hover:bg-indigo-50 active:bg-indigo-50 transition-colors flex items-center justify-center space-x-2"
+            >
               <BarChart3 className="w-4 h-4" />
               <span>View Details</span>
             </button>
@@ -710,4 +738,231 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
       </div>
     );
   });
+}
+
+// Survey Results Modal Component
+interface SurveyResultsModalProps {
+  survey: CompanyMessage;
+  onClose: () => void;
+  onPostResults: () => void;
+}
+
+function SurveyResultsModal({ survey, onClose, onPostResults }: SurveyResultsModalProps) {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [results, setResults] = useState<Map<string, { responses: string[]; users: string[] }>>(new Map());
+  const [posting, setPosting] = useState(false);
+
+  useEffect(() => {
+    loadSurveyResults();
+  }, [survey.id]);
+
+  const loadSurveyResults = async () => {
+    if (!survey.survey_questions) return;
+
+    try {
+      setLoading(true);
+
+      // Get all survey responses for this message
+      const { data: responses, error: responsesError } = await supabase
+        .from('message_responses')
+        .select('user_id, selected_options')
+        .eq('message_id', survey.id)
+        .eq('response_type', 'survey_answer');
+
+      if (responsesError) throw responsesError;
+
+      // Get user names
+      const userIds = [...new Set(responses?.map(r => r.user_id) || [])];
+      const { data: users } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      const userMap = new Map(users?.map(u => [u.id, u.full_name]));
+
+      // Aggregate responses by option
+      const aggregated = new Map<string, { responses: string[]; users: string[] }>();
+
+      survey.survey_questions.questions.forEach(question => {
+        question.options?.forEach(option => {
+          if (!aggregated.has(option)) {
+            aggregated.set(option, { responses: [], users: [] });
+          }
+        });
+      });
+
+      responses?.forEach(response => {
+        response.selected_options?.forEach((option: string) => {
+          if (aggregated.has(option)) {
+            aggregated.get(option)!.responses.push(option);
+            aggregated.get(option)!.users.push(userMap.get(response.user_id) || 'Unknown');
+          }
+        });
+      });
+
+      setResults(aggregated);
+    } catch (error) {
+      console.error('Error loading survey results:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePostResults = async () => {
+    if (!user || !survey.survey_questions) return;
+
+    try {
+      setPosting(true);
+
+      // Calculate total responses
+      const totalResponses = Array.from(results.values()).reduce((sum, data) => Math.max(sum, data.users.length), 0);
+
+      // Generate results summary
+      let resultsSummary = `📊 **Survey Results: ${survey.title}**\n\n`;
+      resultsSummary += `Total Responses: ${totalResponses} out of ${survey.engagement_stats?.total_recipients || 0}\n`;
+      resultsSummary += `Response Rate: ${survey.engagement_stats?.total_recipients ? Math.round((totalResponses / survey.engagement_stats.total_recipients) * 100) : 0}%\n\n`;
+
+      resultsSummary += `**Results:**\n`;
+      results.forEach((data, option) => {
+        const percentage = totalResponses > 0 ? Math.round((data.users.length / totalResponses) * 100) : 0;
+        resultsSummary += `• ${option}: ${data.users.length} (${percentage}%)\n`;
+      });
+
+      // Create new announcement with results
+      const { error } = await supabase
+        .from('company_messages')
+        .insert({
+          message_type: 'announcement',
+          title: `Results: ${survey.title}`,
+          content: resultsSummary,
+          created_by: user.id,
+          target_roles: survey.target_roles || ['sales', 'operations', 'sales-manager', 'admin'],
+          priority: 'normal',
+          is_draft: false,
+          status: 'active'
+        });
+
+      if (error) throw error;
+
+      onPostResults();
+    } catch (error) {
+      console.error('Error posting results:', error);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const totalResponses = Math.max(...Array.from(results.values()).map(d => d.users.length));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-start justify-between">
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-gray-900">Survey Results</h2>
+            <p className="text-gray-600 mt-1">{survey.title}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading results...</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <div className="text-3xl font-bold text-blue-600">{totalResponses}</div>
+                  <div className="text-sm text-gray-600 mt-1">Total Responses</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <div className="text-3xl font-bold text-green-600">
+                    {survey.engagement_stats?.total_recipients || 0}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">Total Recipients</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                  <div className="text-3xl font-bold text-purple-600">
+                    {survey.engagement_stats?.total_recipients
+                      ? Math.round((totalResponses / survey.engagement_stats.total_recipients) * 100)
+                      : 0}%
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">Response Rate</div>
+                </div>
+              </div>
+
+              {/* Results Visualization */}
+              <div>
+                <h3 className="font-bold text-gray-900 mb-4">Responses by Option</h3>
+                <div className="space-y-4">
+                  {Array.from(results.entries()).map(([option, data]) => {
+                    const percentage = totalResponses > 0 ? (data.users.length / totalResponses) * 100 : 0;
+
+                    return (
+                      <div key={option} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-900">{option}</span>
+                          <span className="text-sm text-gray-600">
+                            {data.users.length} ({Math.round(percentage)}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                          <div
+                            className="bg-indigo-600 h-full transition-all duration-500 flex items-center justify-end pr-2"
+                            style={{ width: `${percentage}%` }}
+                          >
+                            {percentage >= 10 && (
+                              <span className="text-xs font-bold text-white">
+                                {Math.round(percentage)}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {data.users.length > 0 && (
+                          <div className="text-xs text-gray-500 ml-2">
+                            {data.users.slice(0, 3).join(', ')}
+                            {data.users.length > 3 && ` +${data.users.length - 3} more`}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 flex items-center justify-between">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100 transition-colors"
+          >
+            Close
+          </button>
+          <button
+            onClick={handlePostResults}
+            disabled={posting || loading}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>{posting ? 'Posting...' : 'Post Results to Team'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

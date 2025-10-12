@@ -29,6 +29,7 @@ import { parseVoiceTranscript } from './lib/claude';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { useRequestNotifications } from './hooks/useRequestNotifications';
+import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
 import type { Request } from './lib/requests';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
@@ -68,7 +69,6 @@ function App() {
     const saved = localStorage.getItem('viewMode');
     return (saved as 'mobile' | 'desktop') || 'mobile';
   });
-  const unreadCount = 0; // Disabled: TeamCommunication has its own notification system
   const [showMessageComposer, setShowMessageComposer] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
@@ -83,6 +83,9 @@ function App() {
 
   // Request notifications
   const { unreadCount: requestUnreadCount, markRequestAsRead } = useRequestNotifications();
+
+  // Admin announcement engagement notifications
+  const { unreadCount: announcementEngagementCount } = useAnnouncementEngagement();
 
   // Save viewMode to localStorage when it changes
   useEffect(() => {
@@ -139,7 +142,7 @@ function App() {
   const getNavigationItems = () => {
     const items = [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-      { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: unreadCount },
+      { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: announcementEngagementCount },
       { id: 'direct-messages' as Section, name: 'Chat', icon: MessageCircle },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
@@ -348,7 +351,7 @@ function App() {
           </div>
           <div className="pb-20">
             <ErrorBoundary>
-              <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} unreadCount={unreadCount} userId={user?.id} userName={profile?.full_name} onMarkAsRead={markRequestAsRead} />
+              <SalesRepView activeSection={activeSection} setActiveSection={setActiveSection} viewMode={viewMode} announcementEngagementCount={announcementEngagementCount} userId={user?.id} userName={profile?.full_name} onMarkAsRead={markRequestAsRead} />
             </ErrorBoundary>
           </div>
 
@@ -584,13 +587,13 @@ interface SalesRepViewProps {
   activeSection: Section;
   setActiveSection: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
-  unreadCount: number;
+  announcementEngagementCount: number;
   userId?: string;
   userName?: string;
   onMarkAsRead?: (requestId: string) => void;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, userId, userName, onMarkAsRead }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, announcementEngagementCount, userId, userName, onMarkAsRead }: SalesRepViewProps) => {
   if (activeSection === 'requests') {
     return <RequestHub onBack={() => setActiveSection('home')} />;
   }
@@ -729,9 +732,9 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadCount, 
               <div className="font-bold text-lg">Announcements</div>
               <div className="text-sm text-indigo-100">Team updates & announcements</div>
             </div>
-            {unreadCount > 0 && (
+            {announcementEngagementCount > 0 && (
               <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                {unreadCount > 99 ? '99+' : unreadCount}
+                {announcementEngagementCount > 99 ? '99+' : announcementEngagementCount}
               </div>
             )}
           </div>

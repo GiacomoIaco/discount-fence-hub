@@ -17,7 +17,9 @@ import {
   Search,
   ArrowLeft,
   ExternalLink,
-  X
+  X,
+  MessageCircle,
+  Send
 } from 'lucide-react';
 
 interface CompanyMessage {
@@ -60,12 +62,27 @@ interface CompanyMessage {
 
 interface MessageResponse {
   id: string;
+  message_id?: string;
+  user_id?: string;
   response_type: 'acknowledgment' | 'survey_answer' | 'comment' | 'reaction' | 'rsvp';
   text_response?: string;
   selected_options?: string[];
   reaction_emoji?: string;
   rsvp_status?: 'yes' | 'no' | 'maybe';
   created_at: string;
+}
+
+interface CommentWithUser extends MessageResponse {
+  user_name: string;
+  user_id: string;
+  message_id: string;
+}
+
+interface ReactionSummary {
+  emoji: string;
+  count: number;
+  users: string[];
+  hasReacted: boolean;
 }
 
 interface AnnouncementsViewProps {
@@ -81,6 +98,9 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedMessage, setExpandedMessage] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [comments, setComments] = useState<Map<string, CommentWithUser[]>>(new Map());
+  const [reactions, setReactions] = useState<Map<string, ReactionSummary[]>>(new Map());
+  const [newComment, setNewComment] = useState<Map<string, string>>(new Map());
 
   const messageTypes = [
     { value: 'all', label: 'All', icon: Megaphone },
@@ -97,6 +117,44 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
   useEffect(() => {
     loadMessages();
   }, [user, profile]);
+
+  // Real-time subscription for comments and reactions
+  useEffect(() => {
+    if (!user || messages.length === 0) return;
+
+    const messageIds = messages.map(m => m.id);
+
+    const subscription = supabase
+      .channel('message_responses_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_responses',
+          filter: `response_type=in.(comment,reaction)`
+        },
+        (payload) => {
+          // Reload comments and reactions for affected message
+          if (payload.new && 'message_id' in payload.new) {
+            const msgId = payload.new.message_id as string;
+            if (messageIds.includes(msgId)) {
+              loadCommentsAndReactions([msgId]);
+            }
+          } else if (payload.old && 'message_id' in payload.old) {
+            const msgId = payload.old.message_id as string;
+            if (messageIds.includes(msgId)) {
+              loadCommentsAndReactions([msgId]);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user, messages]);
 
   const loadMessages = async () => {
     if (!user || !profile) return;
@@ -163,6 +221,9 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
 
       setMessages(enrichedMessages);
 
+      // Load comments and reactions
+      await loadCommentsAndReactions(messageIds);
+
       // Update unread count
       const unreadCount = enrichedMessages.filter(m => !m.is_read).length;
       onUnreadCountChange?.(unreadCount);
@@ -170,6 +231,80 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
       console.error('Error loading messages:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCommentsAndReactions = async (messageIds: string[]) => {
+    if (!user || messageIds.length === 0) return;
+
+    try {
+      // Get all comments and reactions for the messages
+      const { data: responsesData, error } = await supabase
+        .from('message_responses')
+        .select('*')
+        .in('message_id', messageIds)
+        .in('response_type', ['comment', 'reaction']);
+
+      if (error) throw error;
+
+      // Get user names for responses
+      const userIds = [...new Set(responsesData?.map(r => r.user_id) || [])];
+      const { data: users } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      const userMap = new Map(users?.map(u => [u.id, u.full_name]));
+
+      // Group comments by message
+      const commentsByMessage = new Map<string, CommentWithUser[]>();
+      const reactionsByMessage = new Map<string, Map<string, ReactionSummary>>();
+
+      responsesData?.forEach(response => {
+        if (response.response_type === 'comment') {
+          if (!commentsByMessage.has(response.message_id)) {
+            commentsByMessage.set(response.message_id, []);
+          }
+          commentsByMessage.get(response.message_id)!.push({
+            ...response,
+            user_name: userMap.get(response.user_id) || 'Unknown',
+            user_id: response.user_id
+          });
+        } else if (response.response_type === 'reaction' && response.reaction_emoji) {
+          if (!reactionsByMessage.has(response.message_id)) {
+            reactionsByMessage.set(response.message_id, new Map());
+          }
+          const msgReactions = reactionsByMessage.get(response.message_id)!;
+          const emoji = response.reaction_emoji;
+
+          if (!msgReactions.has(emoji)) {
+            msgReactions.set(emoji, {
+              emoji,
+              count: 0,
+              users: [],
+              hasReacted: false
+            });
+          }
+
+          const reactionSummary = msgReactions.get(emoji)!;
+          reactionSummary.count++;
+          reactionSummary.users.push(userMap.get(response.user_id) || 'Unknown');
+          if (response.user_id === user.id) {
+            reactionSummary.hasReacted = true;
+          }
+        }
+      });
+
+      // Convert reaction maps to arrays
+      const reactionsArrayMap = new Map<string, ReactionSummary[]>();
+      reactionsByMessage.forEach((reactions, messageId) => {
+        reactionsArrayMap.set(messageId, Array.from(reactions.values()));
+      });
+
+      setComments(commentsByMessage);
+      setReactions(reactionsArrayMap);
+    } catch (error) {
+      console.error('Error loading comments and reactions:', error);
     }
   };
 
@@ -237,6 +372,97 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
       }
     } catch (error) {
       console.error('Error submitting survey response:', error);
+    }
+  };
+
+  const handleAddComment = async (messageId: string) => {
+    if (!user || !profile) return;
+
+    const commentText = newComment.get(messageId)?.trim();
+    if (!commentText) return;
+
+    try {
+      const { error } = await supabase
+        .from('message_responses')
+        .insert({
+          message_id: messageId,
+          user_id: user.id,
+          response_type: 'comment',
+          text_response: commentText
+        });
+
+      if (!error) {
+        // Add comment to local state optimistically
+        const newCommentObj: CommentWithUser = {
+          id: `temp-${Date.now()}`,
+          message_id: messageId,
+          user_id: user.id,
+          response_type: 'comment',
+          text_response: commentText,
+          created_at: new Date().toISOString(),
+          user_name: profile.full_name
+        };
+
+        setComments(prev => {
+          const updated = new Map(prev);
+          const messageComments = updated.get(messageId) || [];
+          updated.set(messageId, [...messageComments, newCommentObj]);
+          return updated;
+        });
+
+        // Clear the comment input
+        setNewComment(prev => {
+          const updated = new Map(prev);
+          updated.set(messageId, '');
+          return updated;
+        });
+
+        // Reload to get correct IDs and update counts
+        await loadCommentsAndReactions([messageId]);
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+    }
+  };
+
+  const handleAddReaction = async (messageId: string, emoji: string) => {
+    if (!user || !profile) return;
+
+    try {
+      // Check if user already reacted with this emoji
+      const messageReactions = reactions.get(messageId) || [];
+      const existingReaction = messageReactions.find(r => r.emoji === emoji && r.hasReacted);
+
+      if (existingReaction) {
+        // Remove reaction
+        const { error } = await supabase
+          .from('message_responses')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', user.id)
+          .eq('response_type', 'reaction')
+          .eq('reaction_emoji', emoji);
+
+        if (!error) {
+          await loadCommentsAndReactions([messageId]);
+        }
+      } else {
+        // Add reaction
+        const { error } = await supabase
+          .from('message_responses')
+          .insert({
+            message_id: messageId,
+            user_id: user.id,
+            response_type: 'reaction',
+            reaction_emoji: emoji
+          });
+
+        if (!error) {
+          await loadCommentsAndReactions([messageId]);
+        }
+      }
+    } catch (error) {
+      console.error('Error adding reaction:', error);
     }
   };
 
@@ -567,6 +793,100 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                           </a>
                         </div>
                       )}
+
+                      {/* Reactions */}
+                      <div className="mt-6 pt-4 border-t border-gray-200">
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                          {['👍', '❤️', '😊', '🎉', '👏'].map((emoji) => {
+                            const messageReactions = reactions.get(message.id) || [];
+                            const reactionData = messageReactions.find(r => r.emoji === emoji);
+                            const isActive = reactionData?.hasReacted || false;
+
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddReaction(message.id, emoji);
+                                }}
+                                className={`px-3 py-1.5 rounded-full border-2 transition-all flex items-center space-x-1.5 ${
+                                  isActive
+                                    ? 'bg-blue-50 border-blue-400 text-blue-700'
+                                    : 'bg-white border-gray-300 hover:border-blue-300 hover:bg-blue-50'
+                                }`}
+                                title={reactionData ? reactionData.users.join(', ') : 'React'}
+                              >
+                                <span className="text-lg">{emoji}</span>
+                                {reactionData && reactionData.count > 0 && (
+                                  <span className="text-sm font-medium">{reactionData.count}</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Comments Section */}
+                        <div className="mt-4">
+                          <div className="flex items-center space-x-2 mb-3">
+                            <MessageCircle className="w-5 h-5 text-gray-600" />
+                            <h4 className="font-semibold text-gray-900">
+                              Comments ({comments.get(message.id)?.length || 0})
+                            </h4>
+                          </div>
+
+                          {/* Existing Comments */}
+                          <div className="space-y-3 mb-4">
+                            {comments.get(message.id)?.map((comment) => (
+                              <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-start justify-between mb-1">
+                                  <span className="font-medium text-gray-900 text-sm">
+                                    {comment.user_name}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(comment.created_at).toLocaleDateString()} at{' '}
+                                    {new Date(comment.created_at).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                </div>
+                                <p className="text-gray-700 text-sm whitespace-pre-wrap">
+                                  {comment.text_response}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Add Comment Input */}
+                          <div className="flex items-start space-x-2">
+                            <textarea
+                              value={newComment.get(message.id) || ''}
+                              onChange={(e) => {
+                                setNewComment(prev => {
+                                  const updated = new Map(prev);
+                                  updated.set(message.id, e.target.value);
+                                  return updated;
+                                });
+                              }}
+                              placeholder="Add a comment..."
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                              rows={2}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddComment(message.id);
+                              }}
+                              disabled={!newComment.get(message.id)?.trim()}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                            >
+                              <Send className="w-4 h-4" />
+                              <span>Send</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
