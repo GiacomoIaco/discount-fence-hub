@@ -47,7 +47,7 @@ const PhotoGalleryWithBulkUpload = ({ onBack, userRole, viewMode, userId, userNa
       )}
 
       <PhotoGallery
-        onBack={(userRole === 'admin' || userRole === 'sales-manager') ? () => {} : onBack}
+        onBack={(userRole === 'admin' || userRole === 'sales-manager') ? undefined : onBack}
         userRole={userRole}
         viewMode={viewMode}
         userId={userId}

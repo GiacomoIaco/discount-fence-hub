@@ -36,7 +36,7 @@ import {
 } from './components';
 
 interface PhotoGalleryProps {
-  onBack: () => void;
+  onBack?: () => void;
   userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
   viewMode?: 'mobile' | 'desktop';
   userId?: string;
@@ -192,10 +192,14 @@ export function PhotoGalleryRefactored({
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="p-4 flex items-center justify-between">
-          <button onClick={onBack} className="text-blue-600 font-medium flex items-center space-x-2">
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back</span>
-          </button>
+          {onBack ? (
+            <button onClick={onBack} className="text-blue-600 font-medium flex items-center space-x-2">
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
+          ) : (
+            <div className="w-20"></div>
+          )}
 
           <div className="text-center flex-1">
             <h1 className="text-xl font-bold text-gray-900">Photo Gallery</h1>
