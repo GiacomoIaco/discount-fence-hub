@@ -1,0 +1,107 @@
+{
+  "name": "photo-gallery",
+  "version": "1.0.0",
+  "description": "Photo management system with AI tagging, review workflow, and client selection",
+
+  "entryPoint": "./PhotoGalleryRefactored.tsx",
+  "publicApi": "./index.ts",
+
+  "externalDependencies": {
+    "photoLibrary": {
+      "path": "src/lib/photos.ts",
+      "imports": [
+        "Photo",
+        "FilterState",
+        "TAG_CATEGORIES",
+        "resizeImage",
+        "imageToBase64",
+        "filterPhotos",
+        "getActiveFilterCount",
+        "getTagCount",
+        "generateSessionId",
+        "isSelectedInSession"
+      ],
+      "reason": "Photo types, utilities, filtering logic, and image processing"
+    },
+    "database": {
+      "path": "src/lib/supabase.ts",
+      "imports": ["supabase"],
+      "reason": "Supabase client for database operations"
+    },
+    "notifications": {
+      "path": "src/lib/toast.ts",
+      "imports": ["showSuccess", "showError"],
+      "reason": "User feedback for actions"
+    },
+    "analytics": {
+      "path": "src/components/PhotoAnalytics.tsx",
+      "imports": ["PhotoAnalytics"],
+      "reason": "Photo analytics dashboard component"
+    },
+    "routing": {
+      "path": "react-router-dom",
+      "imports": [],
+      "reason": "Navigation if needed"
+    },
+    "icons": {
+      "path": "lucide-react",
+      "imports": ["*"],
+      "reason": "UI icons"
+    }
+  },
+
+  "provides": {
+    "routes": [
+      {
+        "path": "/photos",
+        "component": "PhotoGalleryRefactored",
+        "roles": ["sales", "operations", "sales-manager", "admin"]
+      }
+    ],
+    "exports": [
+      "PhotoGalleryRefactored"
+    ]
+  },
+
+  "database": {
+    "migrations": ["008_add_photo_tagging_fields.sql"],
+    "tables": ["request_attachments"],
+    "views": [],
+    "functions": []
+  },
+
+  "features": {
+    "complete": [
+      "Photo upload (camera/library)",
+      "AI-suggested tagging",
+      "Manager review workflow",
+      "Tag filtering (product type, material, style)",
+      "Bulk operations (status change, delete)",
+      "Photo enhancement preview",
+      "Client selection tracking",
+      "Role-based access control",
+      "Favorite and like functionality",
+      "Tag management (admin)"
+    ],
+    "pending": [
+      "AI auto-tagging on upload",
+      "Bulk AI enhancement",
+      "AI recommended selections",
+      "Photo flagging system",
+      "Advanced analytics",
+      "Photo comparison view",
+      "Export as PDF/portfolio"
+    ]
+  },
+
+  "isolationLevel": "medium",
+  "canBeExtracted": true,
+  "notes": [
+    "Depends on shared photo library (src/lib/photos.ts)",
+    "Uses request_attachments table (legacy naming)",
+    "Client selections are session-based (not persisted)",
+    "Image processing is client-side",
+    "Could extract photo library into feature for higher isolation",
+    "Analytics component is external - could be internalized"
+  ]
+}
