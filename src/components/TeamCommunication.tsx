@@ -422,7 +422,8 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
       acknowledged: { label: 'ACKNOWLEDGED', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
       archived: { label: 'ARCHIVED', color: 'bg-gray-100 text-gray-500', icon: ArchiveIcon }
     };
-    return labels[state];
+    // Return the label or fallback to 'unread' if state is undefined or invalid
+    return labels[state] || labels.unread;
   };
 
   const getUnreadCount = () => {
