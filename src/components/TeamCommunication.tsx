@@ -477,33 +477,69 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
 
             {/* Right side: Stats and Actions */}
             <div className="flex flex-col items-end space-y-2 flex-shrink-0">
-              {/* Stats */}
+              {/* Stats - Prominent Percentages */}
               {stats && (
-                <div className="flex flex-col items-end space-y-1">
-                  <div className="flex items-center space-x-3 text-xs text-gray-600">
-                    <div className="flex items-center space-x-1" title="Opened">
-                      <Eye className="w-4 h-4" />
-                      <span className="font-medium">{stats.opened_count}/{stats.total_recipients}</span>
+                <div className="flex flex-col items-end space-y-2">
+                  {/* Engagement Stats Grid */}
+                  <div className="grid grid-cols-1 gap-2 text-right">
+                    {/* Opened Rate */}
+                    <div className="bg-blue-50 rounded-lg px-3 py-2 min-w-[120px]">
+                      <div className="flex items-center justify-between space-x-2">
+                        <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                        <div>
+                          <div className="text-lg font-bold text-blue-600">
+                            {stats.total_recipients > 0 ? Math.round((stats.opened_count / stats.total_recipients) * 100) : 0}%
+                          </div>
+                          <div className="text-xs text-gray-600">Opened</div>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Acknowledgment Rate */}
                     {msg.requires_acknowledgment && (
-                      <div className="flex items-center space-x-1" title="Acknowledged">
-                        <Check className="w-4 h-4" />
-                        <span className="font-medium">{stats.acknowledged_count}/{stats.total_recipients}</span>
+                      <div className="bg-green-50 rounded-lg px-3 py-2 min-w-[120px]">
+                        <div className="flex items-center justify-between space-x-2">
+                          <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-lg font-bold text-green-600">
+                              {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
+                            </div>
+                            <div className="text-xs text-gray-600">Acknowledged</div>
+                          </div>
+                        </div>
                       </div>
                     )}
+
+                    {/* Survey Response Rate */}
                     {msg.survey_questions && (
-                      <div className="flex items-center space-x-1" title="Survey Responses">
-                        <Users className="w-4 h-4" />
-                        <span className="font-medium">{stats.responded_count}/{stats.total_recipients}</span>
+                      <div className="bg-purple-50 rounded-lg px-3 py-2 min-w-[120px]">
+                        <div className="flex items-center justify-between space-x-2">
+                          <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-lg font-bold text-purple-600">
+                              {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
+                            </div>
+                            <div className="text-xs text-gray-600">Responses</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Comment Count */}
+                    {comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
+                      <div className="bg-gray-50 rounded-lg px-3 py-2 min-w-[120px]">
+                        <div className="flex items-center justify-between space-x-2">
+                          <MessageCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-lg font-bold text-gray-900">
+                              {comments.get(msg.id)!.length}
+                            </div>
+                            <div className="text-xs text-gray-600">Comment{comments.get(msg.id)!.length !== 1 ? 's' : ''}</div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-                  {comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
-                    <div className="flex items-center space-x-1 text-xs text-gray-600" title="Comments">
-                      <MessageCircle className="w-4 h-4" />
-                      <span className="font-medium">{comments.get(msg.id)!.length} comment{comments.get(msg.id)!.length !== 1 ? 's' : ''}</span>
-                    </div>
-                  )}
                 </div>
               )}
 
