@@ -456,10 +456,10 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
               <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.iconColor}`} />
             </div>
 
-            {/* Title and Date */}
+            {/* Title and Date - Flexible width */}
             <div
               onClick={() => onToggleExpand(msg.id)}
-              className="flex-shrink-0 cursor-pointer min-w-[200px] max-w-[300px]"
+              className="flex-1 min-w-0 cursor-pointer"
             >
               <div className="flex items-center space-x-2 mb-0.5">
                 <h3 className="font-bold text-gray-900 text-sm md:text-base truncate">
@@ -476,9 +476,9 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
               </div>
             </div>
 
-            {/* Stats - Fixed Width Columns for Alignment */}
+            {/* Stats - Fixed width columns aligned from right */}
             {stats && (
-              <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="flex items-center gap-4 flex-shrink-0">
                 {/* Opened Rate - Fixed Width Column */}
                 <div className="flex items-center space-x-1 text-sm w-[90px] flex-shrink-0">
                   <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
