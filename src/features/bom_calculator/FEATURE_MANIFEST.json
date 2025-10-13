@@ -1,0 +1,93 @@
+{
+  "name": "bom-calculator",
+  "version": "1.0.0",
+  "description": "Bill of Materials calculator for fence installation projects",
+
+  "entryPoint": "./BOMCalculator.tsx",
+  "publicApi": "./index.ts",
+
+  "externalDependencies": {
+    "authentication": {
+      "path": "src/lib/auth.ts",
+      "imports": ["useAuth", "requireAuth"],
+      "reason": "User authentication and role-based access control"
+    },
+    "database": {
+      "path": "src/lib/supabase.ts",
+      "imports": ["supabase"],
+      "reason": "Supabase client for database operations"
+    },
+    "routing": {
+      "path": "react-router-dom",
+      "imports": ["useNavigate"],
+      "reason": "Navigation between features"
+    },
+    "icons": {
+      "path": "lucide-react",
+      "imports": ["*"],
+      "reason": "UI icons"
+    }
+  },
+
+  "provides": {
+    "routes": [
+      {
+        "path": "/bom-calculator",
+        "component": "BOMCalculator",
+        "roles": ["admin", "operations"]
+      }
+    ],
+    "exports": [
+      "BOMCalculator",
+      "ProjectDetails",
+      "CalculationResult"
+    ]
+  },
+
+  "database": {
+    "migrations": ["017_bom_calculator_system.sql"],
+    "tables": [
+      "business_units",
+      "materials",
+      "labor_codes",
+      "labor_rates",
+      "wood_vertical_products",
+      "wood_horizontal_products",
+      "iron_products",
+      "bom_projects",
+      "project_line_items",
+      "project_materials",
+      "project_labor"
+    ],
+    "views": [],
+    "functions": []
+  },
+
+  "features": {
+    "complete": [
+      "Product selection with SKU search",
+      "Material quantity calculations",
+      "Labor cost calculations",
+      "Real-time project totals",
+      "Business unit-specific labor rates"
+    ],
+    "pending": [
+      "Save projects to database",
+      "Load existing projects",
+      "PDF/CSV export",
+      "Manual material additions",
+      "Concrete calculations",
+      "SKU Builder",
+      "SKU Catalog"
+    ]
+  },
+
+  "isolationLevel": "high",
+  "canBeExtracted": true,
+  "notes": [
+    "Minimal overlap with other features",
+    "Self-contained business logic",
+    "Could be moved to separate package/repo",
+    "Only shares auth and database client"
+  ]
+}
