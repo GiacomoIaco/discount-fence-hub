@@ -476,50 +476,67 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
               </div>
             </div>
 
-            {/* Stats - Horizontal Spread */}
+            {/* Stats - Fixed Width Columns for Alignment */}
             {stats && (
-              <div className="flex items-center gap-3 md:gap-4 flex-1">
-                {/* Opened Rate */}
-                <div className="flex items-center space-x-1.5 text-sm">
+              <div className="flex items-center flex-1">
+                {/* Opened Rate - Fixed Width Column */}
+                <div className="flex items-center space-x-1.5 text-sm w-[110px]">
                   <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
                   <div className="font-semibold text-blue-600">
                     {stats.total_recipients > 0 ? Math.round((stats.opened_count / stats.total_recipients) * 100) : 0}%
                   </div>
-                  <span className="text-xs text-gray-500 hidden md:inline">Opened</span>
+                  <span className="text-xs text-gray-500 hidden lg:inline">Open</span>
                 </div>
 
-                {/* Acknowledgment Rate */}
-                {msg.requires_acknowledgment && (
-                  <div className="flex items-center space-x-1.5 text-sm">
-                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    <div className="font-semibold text-green-600">
-                      {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
-                    </div>
-                    <span className="text-xs text-gray-500 hidden md:inline">Ack'd</span>
-                  </div>
-                )}
+                {/* Acknowledgment Rate - Fixed Width Column */}
+                <div className="flex items-center space-x-1.5 text-sm w-[110px]">
+                  {msg.requires_acknowledgment ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <div className="font-semibold text-green-600">
+                        {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
+                      </div>
+                      <span className="text-xs text-gray-500 hidden lg:inline">Ack</span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </div>
 
-                {/* Survey Response Rate */}
-                {msg.survey_questions && (
-                  <div className="flex items-center space-x-1.5 text-sm">
-                    <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                    <div className="font-semibold text-purple-600">
-                      {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
-                    </div>
-                    <span className="text-xs text-gray-500 hidden md:inline">Responded</span>
-                  </div>
-                )}
+                {/* Survey Response Rate - Fixed Width Column */}
+                <div className="flex items-center space-x-1.5 text-sm w-[120px]">
+                  {msg.survey_questions ? (
+                    <>
+                      <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                      <div className="font-semibold text-purple-600">
+                        {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
+                      </div>
+                      <span className="text-xs text-gray-500 hidden lg:inline">Survey</span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </div>
 
-                {/* Comment Count */}
-                {comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
-                  <div className="flex items-center space-x-1.5 text-sm">
-                    <MessageCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                    <div className="font-semibold text-gray-900">
-                      {comments.get(msg.id)!.length}
-                    </div>
-                    <span className="text-xs text-gray-500 hidden md:inline">Comment{comments.get(msg.id)!.length !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
+                {/* Comment Count - Fixed Width Column */}
+                <div className="flex items-center space-x-1.5 text-sm w-[100px]">
+                  {comments.get(msg.id) && comments.get(msg.id)!.length > 0 ? (
+                    <>
+                      <MessageCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                      <div className="font-semibold text-gray-900">
+                        {comments.get(msg.id)!.length}
+                      </div>
+                      <span className="text-xs text-gray-500 hidden lg:inline">
+                        {comments.get(msg.id)!.length === 1 ? 'Comment' : 'Comments'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                      <div className="font-semibold text-gray-400">0</div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
