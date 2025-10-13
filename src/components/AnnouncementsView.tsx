@@ -355,7 +355,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
           message_id: messageId,
           user_id: user.id,
           response_type: 'acknowledgment'
-        }, { onConflict: 'message_id,user_id' });
+        }, { onConflict: 'message_id,user_id,response_type' });
 
       if (!error) {
         loadMessages();
@@ -390,7 +390,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
 
       const { data, error } = await supabase
         .from('message_responses')
-        .upsert(payload, { onConflict: 'message_id,user_id' });
+        .upsert(payload, { onConflict: 'message_id,user_id,response_type' });
 
       if (error) {
         console.error('Supabase error submitting survey response:', error);
