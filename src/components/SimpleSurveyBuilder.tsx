@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, GripVertical, Star, CheckSquare, Type, ToggleLeft } from 'lucide-react';
+import { Trash2, GripVertical, Star, CheckSquare, Type, ToggleLeft, MessageSquare, FileText } from 'lucide-react';
 
 interface SurveyBuilderProps {
   initialJson?: any;
@@ -18,11 +18,38 @@ interface QuestionConfig {
   rateMax?: number;
   // Multiple choice specific
   choices?: string[];
+  // Comment box
+  showCommentArea?: boolean;
+  commentPlaceholder?: string;
+  // Page break
+  startNewPage?: boolean;
 }
 
 export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: SurveyBuilderProps) {
   const [questions, setQuestions] = useState<QuestionConfig[]>(() => {
-    if (initialJson?.elements) {
+    if (initialJson?.pages) {
+      // Handle pages format
+      const allQuestions: QuestionConfig[] = [];
+      initialJson.pages.forEach((page: any, pageIdx: number) => {
+        page.elements?.forEach((el: any, elIdx: number) => {
+          allQuestions.push({
+            id: `q${pageIdx}_${elIdx}`,
+            name: el.name || `question${allQuestions.length + 1}`,
+            title: el.title || '',
+            type: el.type || 'text',
+            required: el.isRequired || false,
+            rateMin: el.rateMin,
+            rateMax: el.rateMax,
+            choices: el.choices || [],
+            showCommentArea: el.showCommentArea,
+            commentPlaceholder: el.commentPlaceholder,
+            startNewPage: pageIdx > 0 && elIdx === 0
+          });
+        });
+      });
+      return allQuestions;
+    } else if (initialJson?.elements) {
+      // Handle flat elements format
       return initialJson.elements.map((el: any, idx: number) => ({
         id: `q${idx + 1}`,
         name: el.name || `question${idx + 1}`,
@@ -31,7 +58,10 @@ export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: S
         required: el.isRequired || false,
         rateMin: el.rateMin,
         rateMax: el.rateMax,
-        choices: el.choices || []
+        choices: el.choices || [],
+        showCommentArea: el.showCommentArea,
+        commentPlaceholder: el.commentPlaceholder,
+        startNewPage: false
       }));
     }
     return [];
@@ -88,27 +118,51 @@ export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: S
   };
 
   const handleSave = () => {
-    const surveyJson = {
-      elements: questions.map(q => {
-        const element: any = {
-          name: q.name,
-          title: q.title,
-          type: q.type,
-          isRequired: q.required
-        };
+    // Group questions into pages based on startNewPage flag
+    const pages: any[] = [];
+    let currentPage: any[] = [];
 
-        if (q.type === 'rating') {
-          element.rateMin = q.rateMin;
-          element.rateMax = q.rateMax;
+    questions.forEach((q, idx) => {
+      if (q.startNewPage && idx > 0 && currentPage.length > 0) {
+        pages.push({ elements: currentPage });
+        currentPage = [];
+      }
+
+      const element: any = {
+        name: q.name,
+        title: q.title,
+        type: q.type,
+        isRequired: q.required
+      };
+
+      if (q.type === 'rating') {
+        element.rateMin = q.rateMin;
+        element.rateMax = q.rateMax;
+      }
+
+      if (q.choices && q.choices.length > 0) {
+        element.choices = q.choices;
+      }
+
+      if (q.showCommentArea) {
+        element.showCommentArea = true;
+        if (q.commentPlaceholder) {
+          element.commentPlaceholder = q.commentPlaceholder;
         }
+      }
 
-        if (q.choices && q.choices.length > 0) {
-          element.choices = q.choices;
-        }
+      currentPage.push(element);
+    });
 
-        return element;
-      })
-    };
+    if (currentPage.length > 0) {
+      pages.push({ elements: currentPage });
+    }
+
+    // If only one page, use flat elements format for compatibility
+    const surveyJson = pages.length === 1
+      ? { elements: pages[0].elements }
+      : { pages };
+
     onSave(surveyJson);
   };
 
@@ -128,7 +182,12 @@ export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: S
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Survey Builder</h2>
-          <p className="text-sm text-gray-600">Create your survey by adding questions below</p>
+          <p className="text-sm text-gray-600">
+            {questions.length === 0
+              ? 'Start by adding your first question below'
+              : `${questions.length} question${questions.length !== 1 ? 's' : ''} • ${questions.filter(q => q.startNewPage).length + 1} page${questions.filter(q => q.startNewPage).length > 0 ? 's' : ''}`
+            }
+          </p>
         </div>
         <div className="flex items-center space-x-3">
           <button
@@ -236,16 +295,52 @@ export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: S
                     </div>
                   )}
 
-                  {/* Required Toggle */}
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={question.required}
-                      onChange={(e) => updateQuestion(question.id, { required: e.target.checked })}
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-gray-700">Required question</span>
-                  </label>
+                  {/* Options */}
+                  <div className="space-y-2 pt-3 border-t border-gray-200">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={question.required}
+                        onChange={(e) => updateQuestion(question.id, { required: e.target.checked })}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-gray-700">Required question</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={question.showCommentArea || false}
+                        onChange={(e) => updateQuestion(question.id, { showCommentArea: e.target.checked })}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <MessageSquare className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-700">Add comment box</span>
+                    </label>
+
+                    {question.showCommentArea && (
+                      <input
+                        type="text"
+                        value={question.commentPlaceholder || ''}
+                        onChange={(e) => updateQuestion(question.id, { commentPlaceholder: e.target.value })}
+                        placeholder="Comment box placeholder (optional)"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg ml-6"
+                      />
+                    )}
+
+                    {index > 0 && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={question.startNewPage || false}
+                          onChange={(e) => updateQuestion(question.id, { startNewPage: e.target.checked })}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <FileText className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-700">Start new page here</span>
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 {/* Delete Button */}

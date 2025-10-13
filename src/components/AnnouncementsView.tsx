@@ -365,18 +365,27 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     }
   };
 
-  const handleSurveyResponse = async (messageId: string, selectedOptions: string[]) => {
+  const handleSurveyResponse = async (messageId: string, responseData: any, isSurveyJs = false) => {
     if (!user) return;
 
     try {
+      const payload: any = {
+        message_id: messageId,
+        user_id: user.id,
+        response_type: 'survey_answer'
+      };
+
+      // For Survey.js format, store full object as JSON in text_response
+      if (isSurveyJs) {
+        payload.text_response = JSON.stringify(responseData);
+      } else {
+        // For legacy format, use selected_options array
+        payload.selected_options = responseData;
+      }
+
       const { error } = await supabase
         .from('message_responses')
-        .upsert({
-          message_id: messageId,
-          user_id: user.id,
-          response_type: 'survey_answer',
-          selected_options: selectedOptions
-        }, { onConflict: 'message_id,user_id' });
+        .upsert(payload, { onConflict: 'message_id,user_id' });
 
       if (!error) {
         loadMessages();
@@ -747,19 +756,16 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                                 surveyJson={message.survey_questions}
                                 onComplete={() => {}}
                                 disabled={true}
-                                initialData={message.user_response.selected_options ?
-                                  Object.fromEntries((message.survey_questions as any).elements.map((el: any, idx: number) =>
-                                    [el.name, message.user_response?.selected_options?.[idx]]
-                                  )) : {}}
+                                initialData={message.user_response.text_response ?
+                                  JSON.parse(message.user_response.text_response) : {}}
                               />
                             </div>
                           ) : (
                             <SurveyRenderer
                               surveyJson={message.survey_questions}
                               onComplete={(results) => {
-                                // Convert Survey.js results to selected_options array
-                                const selectedOptions = Object.values(results);
-                                handleSurveyResponse(message.id, selectedOptions as string[]);
+                                // Store full Survey.js results object
+                                handleSurveyResponse(message.id, results, true);
                               }}
                             />
                           )}
