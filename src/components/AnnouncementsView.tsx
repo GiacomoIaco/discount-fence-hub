@@ -23,7 +23,8 @@ import {
   Send,
   Archive,
   BarChart3,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
 
 interface SurveyQuestion {
@@ -118,6 +119,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
   const [comments, setComments] = useState<Map<string, CommentWithUser[]>>(new Map());
   const [reactions, setReactions] = useState<Map<string, ReactionSummary[]>>(new Map());
   const [newComment, setNewComment] = useState<Map<string, string>>(new Map());
+  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active');
 
   // Helper function to safely parse JSON
   const safeJsonParse = (value: string | null | undefined): any => {
@@ -156,7 +158,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [user, profile]);
+  }, [user, profile, viewMode]);
 
   // Real-time subscription for comments and reactions
   useEffect(() => {
@@ -203,6 +205,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
       setLoading(true);
 
       // Get messages that target user's role or specific user
+      const isArchived = viewMode === 'archived';
       const { data: messagesData, error: messagesError } = await supabase
         .from('company_messages')
         .select(`
@@ -210,7 +213,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
           message_receipts!left(id, read_at, user_id)
         `)
         .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
-        .eq('is_archived', false)
+        .eq('is_archived', isArchived)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -602,6 +605,41 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     }
   };
 
+  const handleDelete = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      // First delete all related responses
+      const { error: responsesError } = await supabase
+        .from('message_responses')
+        .delete()
+        .eq('message_id', messageId);
+
+      if (responsesError) throw responsesError;
+
+      // Then delete all receipts
+      const { error: receiptsError } = await supabase
+        .from('message_receipts')
+        .delete()
+        .eq('message_id', messageId);
+
+      if (receiptsError) throw receiptsError;
+
+      // Finally delete the message
+      const { error: messageError } = await supabase
+        .from('company_messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (!messageError) {
+        // Remove message from local state
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
+
   const getMessageIcon = (type: string) => {
     const iconMap: Record<string, any> = {
       announcement: Megaphone,
@@ -697,6 +735,31 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                 </div>
               </div>
             </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setViewMode('active')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'active'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setViewMode('archived')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'archived'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Archived
+              </button>
+            </div>
+          </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
@@ -851,19 +914,35 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                               <span>Results</span>
                             </button>
                           )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm('Archive this announcement? It will be removed from your inbox.')) {
-                                handleArchive(message.id);
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium flex items-center space-x-1"
-                            title="Archive"
-                          >
-                            <Archive className="w-3.5 h-3.5" />
-                            <span>Archive</span>
-                          </button>
+                          {viewMode === 'active' ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm('Archive this announcement? It will be removed from your inbox.')) {
+                                  handleArchive(message.id);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium flex items-center space-x-1"
+                              title="Archive"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                              <span>Archive</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm('Permanently delete this announcement? This action cannot be undone.')) {
+                                  handleDelete(message.id);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium flex items-center space-x-1"
+                              title="Delete permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => handleToggleExpand(message.id)}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
