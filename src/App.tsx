@@ -93,6 +93,9 @@ function App() {
   // Track unread team communication messages (Announcements badge)
   const [teamCommunicationUnreadCount, setTeamCommunicationUnreadCount] = useState(0);
 
+  // Refresh trigger for team communication (incremented when a new message is sent)
+  const [teamCommunicationRefresh, setTeamCommunicationRefresh] = useState(0);
+
   // Save viewMode to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('viewMode', viewMode);
@@ -265,7 +268,10 @@ function App() {
     if (activeSection === 'team-communication') {
       return (
         <ErrorBoundary>
-          <TeamCommunication onUnreadCountChange={setTeamCommunicationUnreadCount} />
+          <TeamCommunication
+            onUnreadCountChange={setTeamCommunicationUnreadCount}
+            refreshTrigger={teamCommunicationRefresh}
+          />
         </ErrorBoundary>
       );
     }
@@ -368,6 +374,7 @@ function App() {
                 onMarkAsRead={markRequestAsRead}
                 onUnreadCountChange={setUnreadAnnouncementsCount}
                 onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
+                teamCommunicationRefresh={teamCommunicationRefresh}
               />
             </ErrorBoundary>
           </div>
@@ -568,9 +575,8 @@ function App() {
           onClose={() => setShowMessageComposer(false)}
           onMessageSent={() => {
             setShowMessageComposer(false);
-            // Reload messages by re-rendering TeamCommunication
-            setActiveSection('home');
-            setTimeout(() => setActiveSection('team-communication'), 0);
+            // Trigger refresh of TeamCommunication component
+            setTeamCommunicationRefresh(prev => prev + 1);
           }}
         />
       )}
@@ -611,9 +617,10 @@ interface SalesRepViewProps {
   onMarkAsRead?: (requestId: string) => void;
   onUnreadCountChange?: (count: number) => void;
   onTeamCommunicationUnreadCountChange?: (count: number) => void;
+  teamCommunicationRefresh?: number;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnouncementsCount, announcementEngagementCount, userId, userName, onMarkAsRead, onUnreadCountChange, onTeamCommunicationUnreadCountChange }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnouncementsCount, announcementEngagementCount, userId, userName, onMarkAsRead, onUnreadCountChange, onTeamCommunicationUnreadCountChange, teamCommunicationRefresh }: SalesRepViewProps) => {
   if (activeSection === 'requests') {
     return <RequestHub onBack={() => setActiveSection('home')} />;
   }
@@ -651,7 +658,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnounc
   }
 
   if (activeSection === 'team-communication') {
-    return <TeamCommunication onBack={() => setActiveSection('home')} onUnreadCountChange={onTeamCommunicationUnreadCountChange} />;
+    return <TeamCommunication onBack={() => setActiveSection('home')} onUnreadCountChange={onTeamCommunicationUnreadCountChange} refreshTrigger={teamCommunicationRefresh} />;
   }
 
   if (activeSection === 'direct-messages') {

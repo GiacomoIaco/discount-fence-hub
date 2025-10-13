@@ -21,7 +21,8 @@ import {
   X,
   Share2,
   Archive,
-  Users
+  Users,
+  MessageCircle
 } from 'lucide-react';
 
 type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_response' | 'answered' | 'acknowledged' | 'archived';
@@ -75,6 +76,7 @@ interface SurveyQuestion {
 interface TeamCommunicationProps {
   onBack?: () => void;
   onUnreadCountChange?: (count: number) => void;
+  refreshTrigger?: number;
 }
 
 interface CommentWithUser {
@@ -86,7 +88,7 @@ interface CommentWithUser {
   created_at: string;
 }
 
-export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamCommunicationProps) {
+export default function TeamCommunication({ onBack, onUnreadCountChange, refreshTrigger }: TeamCommunicationProps) {
   const { user, profile } = useAuth();
   // Simplified: Always show sent messages (admin management view)
   const [filterMode, setFilterMode] = useState<FilterMode>('active');
@@ -104,6 +106,13 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
     setExpandedCards(new Set());
     loadMessages();
   }, [user, profile, filterMode]);
+
+  // Reload when refreshTrigger changes (e.g., after creating a new message)
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      loadMessages();
+    }
+  }, [refreshTrigger]);
 
   // Note: Badge count is now managed by Chat > Company Announcements (AnnouncementsView)
   // This view (Announcements button) is for admin management of sent messages
@@ -470,21 +479,29 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
             <div className="flex flex-col items-end space-y-2 flex-shrink-0">
               {/* Stats */}
               {stats && (
-                <div className="flex items-center space-x-4 text-xs text-gray-600">
-                  <div className="flex items-center space-x-1" title="Opened">
-                    <Eye className="w-4 h-4" />
-                    <span>{stats.opened_count}/{stats.total_recipients}</span>
-                  </div>
-                  {msg.requires_acknowledgment && (
-                    <div className="flex items-center space-x-1" title="Acknowledged">
-                      <Check className="w-4 h-4" />
-                      <span>{stats.acknowledged_count}/{stats.total_recipients}</span>
+                <div className="flex flex-col items-end space-y-1">
+                  <div className="flex items-center space-x-3 text-xs text-gray-600">
+                    <div className="flex items-center space-x-1" title="Opened">
+                      <Eye className="w-4 h-4" />
+                      <span className="font-medium">{stats.opened_count}/{stats.total_recipients}</span>
                     </div>
-                  )}
-                  {msg.survey_questions && (
-                    <div className="flex items-center space-x-1" title="Survey Responses">
-                      <Users className="w-4 h-4" />
-                      <span>{stats.responded_count}/{stats.total_recipients}</span>
+                    {msg.requires_acknowledgment && (
+                      <div className="flex items-center space-x-1" title="Acknowledged">
+                        <Check className="w-4 h-4" />
+                        <span className="font-medium">{stats.acknowledged_count}/{stats.total_recipients}</span>
+                      </div>
+                    )}
+                    {msg.survey_questions && (
+                      <div className="flex items-center space-x-1" title="Survey Responses">
+                        <Users className="w-4 h-4" />
+                        <span className="font-medium">{stats.responded_count}/{stats.total_recipients}</span>
+                      </div>
+                    )}
+                  </div>
+                  {comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
+                    <div className="flex items-center space-x-1 text-xs text-gray-600" title="Comments">
+                      <MessageCircle className="w-4 h-4" />
+                      <span className="font-medium">{comments.get(msg.id)!.length} comment{comments.get(msg.id)!.length !== 1 ? 's' : ''}</span>
                     </div>
                   )}
                 </div>
