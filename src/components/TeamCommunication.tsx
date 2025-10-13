@@ -478,64 +478,49 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
 
             {/* Stats - Fixed Width Columns for Alignment */}
             {stats && (
-              <div className="flex items-center flex-1">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
                 {/* Opened Rate - Fixed Width Column */}
-                <div className="flex items-center space-x-1.5 text-sm w-[110px]">
+                <div className="flex items-center space-x-1 text-sm w-[90px] flex-shrink-0">
                   <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <div className="font-semibold text-blue-600">
+                  <span className="font-semibold text-blue-600 whitespace-nowrap">
                     {stats.total_recipients > 0 ? Math.round((stats.opened_count / stats.total_recipients) * 100) : 0}%
-                  </div>
-                  <span className="text-xs text-gray-500 hidden lg:inline">Open</span>
+                  </span>
                 </div>
 
                 {/* Acknowledgment Rate - Fixed Width Column */}
-                <div className="flex items-center space-x-1.5 text-sm w-[110px]">
+                <div className="flex items-center space-x-1 text-sm w-[90px] flex-shrink-0">
                   {msg.requires_acknowledgment ? (
                     <>
                       <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      <div className="font-semibold text-green-600">
+                      <span className="font-semibold text-green-600 whitespace-nowrap">
                         {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
-                      </div>
-                      <span className="text-xs text-gray-500 hidden lg:inline">Ack</span>
+                      </span>
                     </>
                   ) : (
-                    <span className="text-xs text-gray-400">—</span>
+                    <span className="text-sm text-gray-400 ml-1">—</span>
                   )}
                 </div>
 
                 {/* Survey Response Rate - Fixed Width Column */}
-                <div className="flex items-center space-x-1.5 text-sm w-[120px]">
+                <div className="flex items-center space-x-1 text-sm w-[90px] flex-shrink-0">
                   {msg.survey_questions ? (
                     <>
                       <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                      <div className="font-semibold text-purple-600">
+                      <span className="font-semibold text-purple-600 whitespace-nowrap">
                         {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
-                      </div>
-                      <span className="text-xs text-gray-500 hidden lg:inline">Survey</span>
+                      </span>
                     </>
                   ) : (
-                    <span className="text-xs text-gray-400">—</span>
+                    <span className="text-sm text-gray-400 ml-1">—</span>
                   )}
                 </div>
 
                 {/* Comment Count - Fixed Width Column */}
-                <div className="flex items-center space-x-1.5 text-sm w-[100px]">
-                  {comments.get(msg.id) && comments.get(msg.id)!.length > 0 ? (
-                    <>
-                      <MessageCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                      <div className="font-semibold text-gray-900">
-                        {comments.get(msg.id)!.length}
-                      </div>
-                      <span className="text-xs text-gray-500 hidden lg:inline">
-                        {comments.get(msg.id)!.length === 1 ? 'Comment' : 'Comments'}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <MessageCircle className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                      <div className="font-semibold text-gray-400">0</div>
-                    </>
-                  )}
+                <div className="flex items-center space-x-1 text-sm w-[80px] flex-shrink-0">
+                  <MessageCircle className={`w-4 h-4 flex-shrink-0 ${comments.get(msg.id) && comments.get(msg.id)!.length > 0 ? 'text-gray-600' : 'text-gray-300'}`} />
+                  <span className={`font-semibold whitespace-nowrap ${comments.get(msg.id) && comments.get(msg.id)!.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {comments.get(msg.id)?.length || 0}
+                  </span>
                 </div>
               </div>
             )}
