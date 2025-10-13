@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2 } from 'lucide-react';
 import type { RequestType, Urgency, CreateRequestInput } from '../../lib/requests';
-import { useCreateRequest } from '../../hooks/useRequests';
+import { useCreateRequestMutation } from '../../hooks/queries/useRequestsQuery';
 import { transcribeAudio } from '../../lib/openai';
 import { parseVoiceTranscript } from '../../lib/claude';
 import { supabase } from '../../lib/supabase';
@@ -31,7 +31,7 @@ interface ParsedData {
 }
 
 export default function RequestForm({ requestType, onClose, onSuccess }: RequestFormProps) {
-  const { create, creating } = useCreateRequest();
+  const { mutateAsync: create, isPending: creating } = useCreateRequestMutation();
 
   // Form data
   const [title, setTitle] = useState('');

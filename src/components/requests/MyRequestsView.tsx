@@ -4,7 +4,7 @@ import type { Request } from '../../lib/requests';
 import RequestList from './RequestList';
 import RequestDetail from './RequestDetail';
 import RequestHub from './RequestHub';
-import { useMyRequests } from '../../hooks/useRequests';
+import { useMyRequestsQuery } from '../../hooks/queries/useRequestsQuery';
 import { RequestListSkeleton } from '../skeletons';
 
 interface MyRequestsViewProps {
@@ -18,8 +18,8 @@ export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequ
   const [view, setView] = useState<View>('list');
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
-  // Fetch all requests
-  const { loading, refresh } = useMyRequests({});
+  // Fetch all requests using React Query
+  const { isLoading: loading, refetch: refresh } = useMyRequestsQuery({});
 
   const handleRequestClick = (request: Request) => {
     setSelectedRequest(request);

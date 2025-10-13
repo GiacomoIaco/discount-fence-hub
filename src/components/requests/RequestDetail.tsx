@@ -1,7 +1,7 @@
 import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText } from 'lucide-react';
 import type { Request } from '../../lib/requests';
 import { useRequestAge, useUsers } from '../../hooks/useRequests';
-import { useRequestNotes, useRequestActivity } from '../../hooks/useRequests';
+import { useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation } from '../../hooks/queries/useRequestsQuery';
 import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, type RequestAttachment } from '../../lib/requests';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -37,8 +37,9 @@ const RequestAgeIndicator = ({ request }: { request: Request }) => {
 
 export default function RequestDetail({ request, onClose, onUpdate }: RequestDetailProps) {
   const age = useRequestAge(request);
-  const { notes, addNote, loading: notesLoading } = useRequestNotes(request.id);
-  const { activity, loading: activityLoading } = useRequestActivity(request.id);
+  const { data: notes = [], isLoading: notesLoading } = useRequestNotesQuery(request.id);
+  const { data: activity = [], isLoading: activityLoading } = useRequestActivityQuery(request.id);
+  const { mutateAsync: addNote } = useAddRequestNoteMutation();
   const { users } = useUsers();
   const { profile } = useAuth();
   const [newNote, setNewNote] = useState('');
@@ -165,7 +166,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
     setAddingNote(true);
     try {
-      await addNote(newNote, 'comment');
+      await addNote({ requestId: request.id, content: newNote, noteType: 'comment' });
       setNewNote('');
     } catch (error) {
       console.error('Failed to add note:', error);
@@ -916,7 +917,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                     if (e.key === 'Enter' && internalNote.trim()) {
                       setAddingInternalNote(true);
                       try {
-                        await addNote(internalNote, 'internal');
+                        await addNote({ requestId: request.id, content: internalNote, noteType: 'internal' });
                         setInternalNote('');
                       } finally {
                         setAddingInternalNote(false);
@@ -929,7 +930,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                     if (internalNote.trim()) {
                       setAddingInternalNote(true);
                       try {
-                        await addNote(internalNote, 'internal');
+                        await addNote({ requestId: request.id, content: internalNote, noteType: 'internal' });
                         setInternalNote('');
                       } finally {
                         setAddingInternalNote(false);

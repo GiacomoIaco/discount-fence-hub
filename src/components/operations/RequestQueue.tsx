@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Clock, AlertCircle, Users, Filter, TrendingUp, ArrowLeft } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
-import { useAllRequests, useAssignRequest, useUpdateRequestStage, useRequestAge, useUsers } from '../../hooks/useRequests';
+import { useAllRequestsQuery, useAssignRequestMutation, useUpdateRequestStageMutation } from '../../hooks/queries/useRequestsQuery';
+import { useRequestAge, useUsers } from '../../hooks/useRequests';
 import { useAuth } from '../../contexts/AuthContext';
 import { showError } from '../../lib/toast';
 
@@ -21,7 +22,7 @@ export default function RequestQueue({ onBack, onRequestClick }: RequestQueuePro
 
   const { users } = useUsers();
 
-  const { requests, loading, error } = useAllRequests({
+  const { data: requests = [], isLoading: loading, error } = useAllRequestsQuery({
     stage: filterStage !== 'all' ? filterStage : undefined,
     request_type: filterType !== 'all' ? filterType : undefined,
     sla_status: filterSLA !== 'all' ? filterSLA : undefined,
@@ -221,15 +222,15 @@ function RequestCard({
   currentUserId?: string;
 }) {
   const age = useRequestAge(request);
-  const { assign, assigning } = useAssignRequest();
-  const { updateStage, updating } = useUpdateRequestStage();
+  const { mutateAsync: assign, isPending: assigning } = useAssignRequestMutation();
+  const { mutateAsync: updateStage, isPending: updating } = useUpdateRequestStageMutation();
 
   const handleAssignToMe = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUserId || assigning) return;
 
     try {
-      await assign(request.id, currentUserId);
+      await assign({ requestId: request.id, assigneeId: currentUserId });
     } catch (error) {
       console.error('Failed to assign request:', error);
       showError('Failed to assign request');
@@ -241,7 +242,7 @@ function RequestCard({
     if (updating) return;
 
     try {
-      await updateStage(request.id, 'pending');
+      await updateStage({ requestId: request.id, stage: 'pending' });
     } catch (error) {
       console.error('Failed to update stage:', error);
       showError('Failed to update stage');
@@ -253,7 +254,7 @@ function RequestCard({
     if (updating) return;
 
     try {
-      await updateStage(request.id, 'completed');
+      await updateStage({ requestId: request.id, stage: 'completed' });
     } catch (error) {
       console.error('Failed to update stage:', error);
       showError('Failed to update stage');

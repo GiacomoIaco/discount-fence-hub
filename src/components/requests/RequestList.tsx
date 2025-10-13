@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X, Star } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../../lib/requests';
-import { useMyRequests, useAllRequests, useUsers } from '../../hooks/useRequests';
-import { useRequestAge } from '../../hooks/useRequests';
+import { useMyRequestsQuery, useAllRequestsQuery } from '../../hooks/queries/useRequestsQuery';
+import { useUsers, useRequestAge } from '../../hooks/useRequests';
 import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin } from '../../lib/requests';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -138,15 +138,20 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   // Sales role sees only their requests, everyone else sees all requests
   const isSalesOnly = profile?.role === 'sales';
 
-  const myRequestsHook = useMyRequests({
+  const myRequestsQuery = useMyRequestsQuery({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
   });
 
-  const allRequestsHook = useAllRequests({
+  const allRequestsQuery = useAllRequestsQuery({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'
   });
 
-  const { requests, loading, error, refresh } = isSalesOnly ? myRequestsHook : allRequestsHook;
+  const query = isSalesOnly ? myRequestsQuery : allRequestsQuery;
+  const requests = query.data || [];
+  const loading = query.isLoading;
+  const error = query.error;
+  const refresh = query.refetch;
+
   const { users } = useUsers();
 
   // Handler for toggling pin status
