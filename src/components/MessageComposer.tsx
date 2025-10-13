@@ -641,6 +641,7 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
                 setShowSurveyBuilder(false);
               }}
               onCancel={() => setShowSurveyBuilder(false)}
+              disableMultiPage={true}
             />
           </div>
         </div>

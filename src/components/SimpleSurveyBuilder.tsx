@@ -5,6 +5,7 @@ interface SurveyBuilderProps {
   initialJson?: any;
   onSave: (surveyJson: any) => void;
   onCancel: () => void;
+  disableMultiPage?: boolean; // For announcements - keeps survey on single page
 }
 
 interface QuestionConfig {
@@ -25,7 +26,7 @@ interface QuestionConfig {
   startNewPage?: boolean;
 }
 
-export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: SurveyBuilderProps) {
+export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel, disableMultiPage = false }: SurveyBuilderProps) {
   const [questions, setQuestions] = useState<QuestionConfig[]>(() => {
     if (initialJson?.pages) {
       // Handle pages format
@@ -185,6 +186,8 @@ export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: S
           <p className="text-sm text-gray-600">
             {questions.length === 0
               ? 'Start by adding your first question below'
+              : disableMultiPage
+              ? `${questions.length} question${questions.length !== 1 ? 's' : ''}`
               : `${questions.length} question${questions.length !== 1 ? 's' : ''} • ${questions.filter(q => q.startNewPage).length + 1} page${questions.filter(q => q.startNewPage).length > 0 ? 's' : ''}`
             }
           </p>
@@ -328,7 +331,7 @@ export default function SimpleSurveyBuilder({ initialJson, onSave, onCancel }: S
                       />
                     )}
 
-                    {index > 0 && (
+                    {index > 0 && !disableMultiPage && (
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
