@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Upload, ArrowLeft } from 'lucide-react';
-import PhotoGallery from './PhotoGallery';
+// import PhotoGallery from './PhotoGallery';
+import { PhotoGalleryRefactored as PhotoGallery } from '../features/photos/PhotoGalleryRefactored';
 import BulkPhotoUpload from './BulkPhotoUpload';
 
 interface PhotoGalleryWithBulkUploadProps {

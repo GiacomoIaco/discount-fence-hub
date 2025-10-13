@@ -3,6 +3,7 @@ import { Upload, ArrowLeft, Sparkles, CheckCircle, XCircle, Loader } from 'lucid
 import { supabase } from '../lib/supabase';
 import { imageToBase64 } from '../lib/photos';
 import { showSuccess } from '../lib/toast';
+import { getOptimizedImageUrl } from '../lib/storage';
 
 interface BulkPhotoUploadProps {
   onBack: () => void;
@@ -67,15 +68,15 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
+      // Get public URL (full resolution)
       const { data: { publicUrl } } = supabase.storage
         .from('photos')
         .getPublicUrl(filePath);
 
-      // Create database record
+      // Create database record with optimized thumbnail
       const photoRecord = {
-        url: publicUrl,
-        thumbnail_url: publicUrl,
+        url: publicUrl,                                           // Full resolution for AI/enhance/full-screen
+        thumbnail_url: getOptimizedImageUrl('photos', filePath, 'thumb'),  // Optimized 200x200 thumbnail (~20KB)
         uploaded_by: user.id,
         uploaded_at: new Date().toISOString(),
         tags: [] as string[],
