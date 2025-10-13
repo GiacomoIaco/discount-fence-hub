@@ -562,31 +562,11 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
           </div>
         </div>
 
-        {isExpanded && stats && (
-          <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-gray-100 pt-3 md:pt-4 space-y-3">
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="bg-blue-50 rounded-lg p-3">
-                <div className="text-2xl font-bold text-blue-600">
-                  {stats.total_recipients > 0 ? Math.round((stats.opened_count / stats.total_recipients) * 100) : 0}%
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Opened</div>
-              </div>
-              {msg.requires_acknowledgment && (
-                <div className="bg-green-50 rounded-lg p-3">
-                  <div className="text-2xl font-bold text-green-600">
-                    {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">Acknowledged</div>
-                </div>
-              )}
-              {msg.survey_questions && (
-                <div className="bg-purple-50 rounded-lg p-3">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">Responded</div>
-                </div>
-              )}
+        {isExpanded && (
+          <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-gray-100 pt-3 md:pt-4">
+            {/* Message Content */}
+            <div className="prose max-w-none mb-4">
+              <p className="text-gray-700 whitespace-pre-wrap">{msg.content}</p>
             </div>
 
             {/* Comments Section */}
