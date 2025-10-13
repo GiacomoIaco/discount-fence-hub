@@ -113,6 +113,20 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
   const [reactions, setReactions] = useState<Map<string, ReactionSummary[]>>(new Map());
   const [newComment, setNewComment] = useState<Map<string, string>>(new Map());
 
+  // Helper function to safely parse JSON
+  const safeJsonParse = (value: string | null | undefined): any => {
+    if (!value) return {};
+
+    try {
+      // Try to parse as JSON
+      return JSON.parse(value);
+    } catch (error) {
+      // If it's not valid JSON, return as-is (for legacy simple string responses)
+      console.warn('Failed to parse JSON, returning empty object:', value);
+      return {};
+    }
+  };
+
   const messageTypes = [
     { value: 'all', label: 'All', icon: Megaphone },
     { value: 'announcement', label: 'Announcements', icon: Megaphone },
@@ -764,8 +778,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                                 surveyJson={message.survey_questions}
                                 onComplete={() => {}}
                                 disabled={true}
-                                initialData={message.user_response.text_response ?
-                                  JSON.parse(message.user_response.text_response) : {}}
+                                initialData={safeJsonParse(message.user_response.text_response)}
                               />
                             </div>
                           ) : (
