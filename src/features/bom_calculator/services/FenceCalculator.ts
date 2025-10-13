@@ -59,10 +59,8 @@ export type CalculatorMode = 'sku-builder' | 'project';
 // ============================================================================
 
 export class FenceCalculator {
-  private mode: CalculatorMode;
 
-  constructor(mode: CalculatorMode = 'project') {
-    this.mode = mode;
+  constructor(_mode: CalculatorMode = 'project') {
   }
 
   // ==========================================================================
@@ -428,7 +426,7 @@ export class FenceCalculator {
 
   private calculateWoodVerticalPosts(
     netLength: number,
-    style: string,
+    _style: string,
     postSpacing: number,
     numberOfLines: number
   ): number {
@@ -614,7 +612,7 @@ export class FenceCalculator {
   }
 
   private getWoodHorizontalLaborCodes(
-    product: WoodHorizontalProductWithMaterials,
+    _product: WoodHorizontalProductWithMaterials,
     input: CalculationInput
   ): Array<{ labor_sku: string; quantity: number }> {
     const codes: Array<{ labor_sku: string; quantity: number }> = [];

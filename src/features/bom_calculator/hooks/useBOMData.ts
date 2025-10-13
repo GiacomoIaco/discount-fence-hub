@@ -7,7 +7,6 @@ import { supabase } from '../../../lib/supabase';
 import type {
   BusinessUnit,
   Material,
-  LaborCode,
   LaborRateWithDetails,
   WoodVerticalProductWithMaterials,
   WoodHorizontalProductWithMaterials,

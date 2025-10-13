@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, FolderOpen, Wrench, BookOpen, PackagePlus, Calculator } from 'lucide-react';
 import type { ProjectDetails, LineItem, CalculationResult } from './types';
 import { ProjectDetailsForm } from './components/ProjectDetailsForm';
@@ -116,7 +116,7 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
   const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
 
   // Fetch data from database
-  const { businessUnits, materials, laborRates, products, loading, error } = useBOMCalculatorData(projectDetails.businessUnit);
+  const { businessUnits, laborRates, products, loading, error } = useBOMCalculatorData(projectDetails.businessUnit);
 
   // Calculate BOM
   const handleCalculate = () => {
