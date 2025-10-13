@@ -57,7 +57,7 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
       // Upload to storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `photos/${fileName}`;
+      const filePath = fileName;  // Don't include 'photos/' - bucket is already specified
 
       const { error: uploadError } = await supabase.storage
         .from('photos')
@@ -132,10 +132,11 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
 
       const result = await response.json();
 
-      // Update photo with AI tags
+      // Update photo with AI tags (apply them automatically)
       await supabase
         .from('photos')
         .update({
+          tags: result.suggestedTags || [],           // Apply AI tags automatically
           suggested_tags: result.suggestedTags || [],
           quality_score: result.qualityScore,
           confidence_score: result.confidenceScore
