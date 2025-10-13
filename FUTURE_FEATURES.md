@@ -4,7 +4,204 @@ This document tracks features and functionalities that have been discussed but a
 
 ---
 
-## 📋 Team Communication V2 - Remaining Features
+## 📋 Team Communication - Status Update
+
+**Current Status**: Internal team announcements system is COMPLETE ✅ (see TEAM_COMMUNICATION_UPDATES.md)
+
+### Recent Completions (October 12, 2025)
+- ✅ Unified communication interface (Announcements Management + View)
+- ✅ Survey.js integration for multi-question surveys
+- ✅ Stats column alignment fixed (right-aligned approach)
+- ✅ Survey response tracking (JSON + legacy format support)
+- ✅ Engagement tracking (opened, acknowledged, responded)
+- ✅ Draft system for announcements
+- ✅ Comment system
+- ✅ Archive functionality
+
+---
+
+## 🎯 CLIENT SURVEY SYSTEM - NEW PRIORITY 🔨
+
+### **External Client Surveys** (HIGH PRIORITY - NOT STARTED)
+**Purpose**: Survey external clients/customers (separate from internal team announcements)
+
+**Key Differences from Team Announcements**:
+- Public access (no login required)
+- Anonymous responses (optional)
+- Custom public URLs (e.g., `/survey/customer-satisfaction-2025`)
+- Multi-page surveys (unlike single-page team announcements)
+- Email distribution with tracking
+- IP-based duplicate prevention
+
+**Features Needed**:
+1. **Survey Builder for Clients**
+   - Re-use Survey.js but with multi-page enabled
+   - Question logic/branching (show Q3 if Q2 = "Yes")
+   - Required vs optional questions
+   - Custom themes/branding
+   - Survey templates library
+
+2. **Public Survey Interface**
+   - No authentication required
+   - Progress indicator for multi-page
+   - Save and continue later (cookie-based)
+   - Mobile-responsive
+   - Thank you page with custom message
+
+3. **Distribution & Tracking**
+   - Generate unique public URLs
+   - QR code generation for in-person distribution
+   - Email sending with tracking (opens, clicks)
+   - UTM parameter support for campaign tracking
+   - Response quotas (e.g., stop after 100 responses)
+
+4. **Admin Dashboard**
+   - List all client surveys
+   - Create/edit/duplicate surveys
+   - View response counts
+   - Pause/resume surveys
+   - Set expiration dates
+   - Export responses to CSV
+
+5. **Response Analytics**
+   - Real-time response tracking
+   - Response rate by distribution channel
+   - Completion rate (started vs finished)
+   - Time to complete average
+   - Question skip rates
+   - Text analysis for open-ended questions
+
+**Database Schema**:
+```sql
+-- Client surveys (public, no auth required)
+CREATE TABLE client_surveys (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  description TEXT,
+  survey_json JSONB NOT NULL,  -- Survey.js definition
+  created_by UUID REFERENCES user_profiles(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP,
+  max_responses INTEGER,  -- NULL = unlimited
+  allow_multiple_responses BOOLEAN DEFAULT false,
+  anonymous BOOLEAN DEFAULT true,
+  status TEXT DEFAULT 'active',  -- active, paused, closed
+  public_url_slug TEXT UNIQUE NOT NULL,
+  thank_you_message TEXT,
+  redirect_url TEXT,  -- Redirect after completion
+  theme_settings JSONB  -- Colors, logo, etc.
+);
+
+-- Client survey responses
+CREATE TABLE client_survey_responses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  survey_id UUID REFERENCES client_surveys(id) ON DELETE CASCADE,
+  response_data JSONB NOT NULL,  -- Survey.js complete response
+  submitted_at TIMESTAMP DEFAULT NOW(),
+  started_at TIMESTAMP,
+  time_to_complete INTEGER,  -- Seconds
+  ip_address TEXT,
+  user_agent TEXT,
+  referrer TEXT,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  session_id TEXT,  -- For tracking partial responses
+  completed BOOLEAN DEFAULT true,
+  metadata JSONB  -- Additional tracking data
+);
+
+-- Email distribution tracking
+CREATE TABLE client_survey_emails (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  survey_id UUID REFERENCES client_surveys(id) ON DELETE CASCADE,
+  recipient_email TEXT NOT NULL,
+  recipient_name TEXT,
+  sent_at TIMESTAMP DEFAULT NOW(),
+  opened_at TIMESTAMP,
+  clicked_at TIMESTAMP,
+  responded_at TIMESTAMP,
+  tracking_code TEXT UNIQUE NOT NULL
+);
+
+-- Create indexes
+CREATE INDEX idx_client_surveys_status ON client_surveys(status);
+CREATE INDEX idx_client_surveys_slug ON client_surveys(public_url_slug);
+CREATE INDEX idx_client_responses_survey ON client_survey_responses(survey_id);
+CREATE INDEX idx_client_responses_ip ON client_survey_responses(ip_address);
+CREATE INDEX idx_client_emails_survey ON client_survey_emails(survey_id);
+CREATE INDEX idx_client_emails_tracking ON client_survey_emails(tracking_code);
+```
+
+**Components Needed**:
+- `ClientSurveyBuilder.tsx` - Create/edit client surveys (re-use SimpleSurveyBuilder)
+- `ClientSurveyDashboard.tsx` - List all client surveys, stats overview
+- `PublicSurveyView.tsx` - Public-facing survey taking interface (no auth)
+- `ClientSurveyResults.tsx` - View responses and analytics
+- `SurveyEmailSender.tsx` - Send survey invitations via email
+- `SurveyQRCode.tsx` - Generate QR codes for surveys
+
+**Routing Changes**:
+```typescript
+// Add to App.tsx routing
+<Route path="/survey/:slug" element={<PublicSurveyView />} />
+<Route path="/survey/:slug/thank-you" element={<ThankYouPage />} />
+
+// Admin routes (authenticated)
+<Route path="/admin/client-surveys" element={<ClientSurveyDashboard />} />
+<Route path="/admin/client-surveys/new" element={<ClientSurveyBuilder />} />
+<Route path="/admin/client-surveys/:id/edit" element={<ClientSurveyBuilder />} />
+<Route path="/admin/client-surveys/:id/results" element={<ClientSurveyResults />} />
+```
+
+**Netlify Functions Needed**:
+- `submit-client-survey.ts` - Handle public survey submissions
+- `send-survey-emails.ts` - Batch email sending
+- `track-survey-email.ts` - Track email opens/clicks
+
+**Features vs Team Announcements**:
+
+| Feature | Team Announcements | Client Surveys |
+|---------|-------------------|----------------|
+| Authentication | Required (Supabase Auth) | None (public) |
+| Multi-page | No (single page) | Yes (full support) |
+| Target audience | Internal team | External clients |
+| Distribution | In-app only | Email + URL + QR code |
+| Response tracking | By user ID | By IP/cookie/email |
+| Results visibility | Admin only | Optional (show after submit) |
+| Branding | Fixed app theme | Custom themes |
+| Anonymity | Named responses | Anonymous option |
+
+**Use Cases**:
+1. Customer satisfaction surveys after fence installation
+2. Product feedback collection
+3. Market research for new products/services
+4. Event feedback forms
+5. Lead generation questionnaires
+6. Post-sales follow-up surveys
+7. Referral source tracking
+
+**Estimated Effort**: 16-20 hours
+- Database schema: 1-2 hours
+- Survey builder UI: 3-4 hours
+- Public survey view: 3-4 hours
+- Response submission & storage: 2-3 hours
+- Admin dashboard: 3-4 hours
+- Results analytics: 2-3 hours
+- Email distribution: 2-3 hours
+
+**Priority**: HIGH (provides customer feedback loop)
+
+**Dependencies**:
+- ✅ Survey.js already integrated
+- ✅ Supabase database ready
+- ❌ Email service setup (Netlify functions + SMTP or SendGrid)
+- ❌ Public route handling (currently all routes require auth)
+
+---
+
+## 📋 Team Communication - Remaining Enhancements
 
 ### Phase 3: Analytics & Engagement 🔨 NOT STARTED
 
