@@ -675,30 +675,6 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
               </div>
             </div>
 
-            {/* View Mode Toggle and Filters Button */}
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
-                <button
-                  onClick={() => setViewMode('active')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'active'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Active
-                </button>
-                <button
-                  onClick={() => setViewMode('archived')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'archived'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Archived
-                </button>
-              </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
@@ -852,35 +828,6 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                             >
                               <BarChart3 className="w-3.5 h-3.5" />
                               <span>Results</span>
-                            </button>
-                          )}
-                          {viewMode === 'active' ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm('Archive this announcement? It will be removed from your inbox.')) {
-                                  handleArchive(message.id);
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium flex items-center space-x-1"
-                              title="Archive"
-                            >
-                              <Archive className="w-3.5 h-3.5" />
-                              <span>Archive</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm('Permanently delete this announcement? This action cannot be undone.')) {
-                                  handleDelete(message.id);
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium flex items-center space-x-1"
-                              title="Delete permanently"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete</span>
                             </button>
                           )}
                           <button
