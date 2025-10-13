@@ -19,7 +19,9 @@ import {
   BarChart3,
   Search,
   X,
-  Share2
+  Share2,
+  Archive,
+  Users
 } from 'lucide-react';
 
 type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_response' | 'answered' | 'acknowledged' | 'archived';
@@ -257,6 +259,23 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
     });
   };
 
+  const handleArchive = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('company_messages')
+        .update({ status: 'archived' })
+        .eq('id', messageId);
+
+      if (!error) {
+        loadMessages(); // Reload to update the list
+      }
+    } catch (error) {
+      console.error('Error archiving message:', error);
+    }
+  };
+
   const getMessageConfig = (type: string) => {
     const configs: Record<string, any> = {
       announcement: { icon: Megaphone, color: 'from-blue-500 to-blue-600', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
@@ -384,6 +403,8 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
                 setSelectedSurvey(msg);
                 setShowSurveyResults(true);
               }}
+              onArchive={handleArchive}
+              filterMode={filterMode}
             />
           </div>
         )}
@@ -409,7 +430,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
 }
 
 // Sent Messages List Component
-function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails }: any) {
+function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails, onArchive, filterMode }: any) {
   return messages.map((msg: CompanyMessage) => {
     const config = getMessageConfig(msg.message_type);
     const Icon = config.icon;
@@ -418,53 +439,95 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
 
     return (
       <div key={msg.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm overflow-hidden">
-        <div onClick={() => onToggleExpand(msg.id)} className="p-4 md:p-6 cursor-pointer hover:bg-gray-50 active:bg-gray-50 transition-colors">
-          <div className="flex items-start space-x-3 md:space-x-4">
-            <div className={`${config.iconBg} p-2 md:p-3 rounded-lg flex-shrink-0`}>
-              <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.iconColor}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-bold text-gray-900 text-base md:text-lg line-clamp-1">{msg.title}</h3>
-                {msg.is_draft && (
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full flex-shrink-0">
-                    DRAFT
-                  </span>
-                )}
+        <div className="p-4 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            {/* Left side: Icon, Title, Date */}
+            <div
+              onClick={() => onToggleExpand(msg.id)}
+              className="flex items-start space-x-3 md:space-x-4 flex-1 min-w-0 cursor-pointer"
+            >
+              <div className={`${config.iconBg} p-2 md:p-3 rounded-lg flex-shrink-0`}>
+                <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.iconColor}`} />
               </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-1">
+                  <h3 className="font-bold text-gray-900 text-base md:text-lg">
+                    {msg.title}
+                  </h3>
+                  {msg.is_draft && (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full flex-shrink-0">
+                      DRAFT
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {new Date(msg.created_at).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+
+            {/* Right side: Stats and Actions */}
+            <div className="flex flex-col items-end space-y-2 flex-shrink-0">
+              {/* Stats */}
               {stats && (
-                <div className="flex items-center space-x-3 mt-2 text-xs text-gray-600">
-                  <span className="flex items-center space-x-1">
-                    <Eye className="w-3 h-3" />
+                <div className="flex items-center space-x-4 text-xs text-gray-600">
+                  <div className="flex items-center space-x-1" title="Opened">
+                    <Eye className="w-4 h-4" />
                     <span>{stats.opened_count}/{stats.total_recipients}</span>
-                  </span>
+                  </div>
                   {msg.requires_acknowledgment && (
-                    <>
-                      <span>•</span>
-                      <span className="flex items-center space-x-1">
-                        <Check className="w-3 h-3" />
-                        <span>{stats.acknowledged_count}/{stats.total_recipients}</span>
-                      </span>
-                    </>
+                    <div className="flex items-center space-x-1" title="Acknowledged">
+                      <Check className="w-4 h-4" />
+                      <span>{stats.acknowledged_count}/{stats.total_recipients}</span>
+                    </div>
                   )}
                   {msg.survey_questions && (
-                    <>
-                      <span>•</span>
-                      <span className="flex items-center space-x-1">
-                        <ClipboardList className="w-3 h-3" />
-                        <span>{stats.responded_count}/{stats.total_recipients}</span>
-                      </span>
-                    </>
+                    <div className="flex items-center space-x-1" title="Survey Responses">
+                      <Users className="w-4 h-4" />
+                      <span>{stats.responded_count}/{stats.total_recipients}</span>
+                    </div>
                   )}
                 </div>
               )}
-              <div className="text-xs text-gray-500 mt-1">
-                {new Date(msg.created_at).toLocaleDateString()}
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2">
+                {msg.survey_questions && stats && stats.responded_count > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewDetails(msg);
+                    }}
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium flex items-center space-x-1"
+                    title="View survey results"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Results</span>
+                  </button>
+                )}
+                {filterMode === 'active' && !msg.is_draft && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Archive this announcement? It will be moved to the archived section.')) {
+                        onArchive(msg.id);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium flex items-center space-x-1"
+                    title="Archive"
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                    <span>Archive</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => onToggleExpand(msg.id)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </button>
               </div>
             </div>
-            <button className="p-1 -mr-1 flex-shrink-0">
-              {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-            </button>
           </div>
         </div>
 
@@ -494,15 +557,6 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
                 </div>
               )}
             </div>
-            {msg.survey_questions && (
-              <button
-                onClick={() => onViewDetails(msg)}
-                className="w-full py-2 border border-indigo-600 text-indigo-600 rounded-lg font-medium hover:bg-indigo-50 active:bg-indigo-50 transition-colors flex items-center justify-center space-x-2"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>View Details</span>
-              </button>
-            )}
 
             {/* Comments Section */}
             {comments && comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
