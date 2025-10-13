@@ -56,7 +56,7 @@ export function PhotoGalleryRefactored({
 
   // Core gallery state
   const gallery = usePhotoGallery(userRole, viewMode);
-  const { activeTab, setActiveTab, photos, setPhotos, currentIndex, setCurrentIndex, sessionId, loading, loadPhotos } =
+  const { activeTab, setActiveTab, photos, setPhotos, currentIndex, setCurrentIndex, sessionId, loadPhotos } =
     gallery;
 
   // Filtering
@@ -83,7 +83,6 @@ export function PhotoGalleryRefactored({
   const {
     reviewingPhoto,
     editingTags,
-    setEditingTags,
     editingScore,
     setEditingScore,
     reviewNotes,
@@ -123,7 +122,7 @@ export function PhotoGalleryRefactored({
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Handle file upload
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, isCamera: boolean) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     await uploadPhotos(e.target.files);
     e.target.value = ''; // Reset input
   };
@@ -332,7 +331,6 @@ export function PhotoGalleryRefactored({
           selectedPhotoIds={selectedPhotoIds}
           photoFlags={new Map()} // TODO: Implement photo flags
           activeFilterCount={activeFilterCount}
-          sessionId={sessionId}
           onPhotoClick={(photo, index) => {
             if (activeTab === 'pending' && (userRole === 'sales-manager' || userRole === 'admin')) {
               openReviewModal(photo);
@@ -344,7 +342,6 @@ export function PhotoGalleryRefactored({
           onDeletePhoto={deletePhoto}
           onOpenFlagModal={() => {}} // TODO: Implement flag modal
           onViewFlags={() => {}} // TODO: Implement view flags
-          isSelectedInSession={isSelectedInSession}
         />
       </div>
 
@@ -470,7 +467,7 @@ export function PhotoGalleryRefactored({
         type="file"
         accept="image/*"
         multiple
-        onChange={(e) => handleFileSelect(e, false)}
+        onChange={handleFileSelect}
         className="hidden"
       />
 
@@ -480,7 +477,7 @@ export function PhotoGalleryRefactored({
         accept="image/*"
         capture="environment"
         multiple
-        onChange={(e) => handleFileSelect(e, true)}
+        onChange={handleFileSelect}
         className="hidden"
       />
     </div>

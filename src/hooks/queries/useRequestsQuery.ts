@@ -7,8 +7,7 @@ import type {
   CreateRequestInput,
   QuoteStatus,
   SLAStatus,
-  RequestNote,
-  RequestActivity
+  RequestNote
 } from '../../lib/requests';
 import {
   getMyRequests,

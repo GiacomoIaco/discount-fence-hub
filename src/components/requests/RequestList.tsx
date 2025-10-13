@@ -324,7 +324,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
           <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
           <p className="text-gray-600">Failed to load requests</p>
           <button
-            onClick={refresh}
+            onClick={() => refresh()}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Try Again

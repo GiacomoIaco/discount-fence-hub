@@ -9,13 +9,11 @@ interface PhotoGridProps {
   selectedPhotoIds: Set<string>;
   photoFlags: Map<string, any[]>;
   activeFilterCount: number;
-  sessionId: string;
   onPhotoClick: (photo: Photo, index: number) => void;
   onToggleSelection: (photoId: string) => void;
   onDeletePhoto: (photo: Photo, e: React.MouseEvent) => void;
   onOpenFlagModal: (photo: Photo) => void;
   onViewFlags: (photo: Photo, flags: any[]) => void;
-  isSelectedInSession: (photo: Photo, sessionId: string) => boolean;
 }
 
 export function PhotoGrid({
@@ -26,13 +24,11 @@ export function PhotoGrid({
   selectedPhotoIds,
   photoFlags,
   activeFilterCount,
-  sessionId,
   onPhotoClick,
   onToggleSelection,
   onDeletePhoto,
   onOpenFlagModal,
   onViewFlags,
-  isSelectedInSession,
 }: PhotoGridProps) {
   if (photos.length === 0) {
     return (
