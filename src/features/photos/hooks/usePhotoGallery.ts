@@ -86,7 +86,9 @@ export function usePhotoGallery(
         setPhotos(mappedPhotos);
       } else {
         console.log('No photos found in Supabase for this tab');
-        loadPhotosFromLocalStorage();
+        // Set empty array instead of falling back to localStorage
+        // to respect the status filter
+        setPhotos([]);
       }
     } catch (error) {
       console.error('Error loading photos:', error);
@@ -101,7 +103,29 @@ export function usePhotoGallery(
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setPhotos(parsed);
+
+        // Filter by status to match the active tab
+        let filteredPhotos = parsed;
+        switch (activeTab) {
+          case 'pending':
+            filteredPhotos = parsed.filter((p: Photo) => p.status === 'pending');
+            break;
+          case 'saved':
+            filteredPhotos = parsed.filter((p: Photo) => p.status === 'saved');
+            break;
+          case 'archived':
+            filteredPhotos = parsed.filter((p: Photo) => p.status === 'archived');
+            break;
+          case 'gallery':
+            filteredPhotos = parsed.filter((p: Photo) => p.status === 'published');
+            break;
+          case 'flagged':
+            // Flagged logic requires database lookup, so skip localStorage fallback
+            filteredPhotos = [];
+            break;
+        }
+
+        setPhotos(filteredPhotos);
       } catch (e) {
         console.error('Error parsing saved photos:', e);
       }
