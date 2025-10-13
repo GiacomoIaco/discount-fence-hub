@@ -21,10 +21,8 @@ import {
   X,
   MessageCircle,
   Send,
-  Archive,
   BarChart3,
-  Users,
-  Trash2
+  Users
 } from 'lucide-react';
 
 interface SurveyQuestion {
@@ -675,13 +673,12 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
               </div>
             </div>
 
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
-              >
-                Filters
-              </button>
-            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
+            >
+              Filters
+            </button>
           </div>
 
           {/* Search and Filters */}
