@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import SurveyRenderer from './SurveyRenderer';
 import {
   Megaphone,
   AlertTriangle,
@@ -16,19 +15,14 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  Inbox,
   Send as SendIcon,
-  Archive as ArchiveIcon,
   BarChart3,
-  CheckCircle2,
-  Circle,
   Search,
   X,
   Share2
 } from 'lucide-react';
 
 type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_response' | 'answered' | 'acknowledged' | 'archived';
-type ViewMode = 'inbox' | 'sent';
 type FilterMode = 'active' | 'archived' | 'drafts';
 
 interface MessageResponse {
@@ -93,7 +87,6 @@ interface CommentWithUser {
 export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamCommunicationProps) {
   const { user, profile } = useAuth();
   // Simplified: Always show sent messages (admin management view)
-  const viewMode: ViewMode = 'sent';
   const [filterMode, setFilterMode] = useState<FilterMode>('active');
   const [messages, setMessages] = useState<CompanyMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,18 +95,6 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
   const [selectedSurvey, setSelectedSurvey] = useState<CompanyMessage | null>(null);
   const [showSurveyResults, setShowSurveyResults] = useState(false);
   const [comments, setComments] = useState<Map<string, CommentWithUser[]>>(new Map());
-
-  // Helper function to safely parse JSON
-  const safeJsonParse = (value: string | null | undefined): any => {
-    if (!value) return {};
-
-    try {
-      return JSON.parse(value);
-    } catch (error) {
-      console.warn('Failed to parse JSON, returning empty object:', value);
-      return {};
-    }
-  };
 
   useEffect(() => {
     // Clear state when switching views to prevent stale data
@@ -134,125 +115,13 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
 
     try {
       setLoading(true);
-
-      if (viewMode === 'inbox') {
-        await loadInboxMessages();
-      } else {
-        await loadSentMessages();
-      }
+      await loadSentMessages();
     } catch (error) {
       console.error('Error loading messages:', error);
       setMessages([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadInboxMessages = async () => {
-    if (!user || !profile) return;
-
-    // Get messages targeted to user
-    const { data: messagesData, error } = await supabase
-      .from('company_messages')
-      .select('*')
-      .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
-      .eq('is_draft', false)
-      .order('priority', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error('Error loading inbox messages:', error);
-      throw error;
-    }
-
-    // Get engagement data for current user
-    const messageIds = messagesData?.map(m => m.id) || [];
-    const { data: engagementData } = messageIds.length > 0
-      ? await supabase
-          .from('message_engagement')
-          .select('*')
-          .in('message_id', messageIds)
-          .eq('user_id', user.id)
-      : { data: [] };
-
-    const engagementMap = new Map(engagementData?.map(e => [e.message_id, e]) || []);
-
-    // Get user survey responses
-    const { data: responses } = messageIds.length > 0
-      ? await supabase
-          .from('message_responses')
-          .select('*')
-          .in('message_id', messageIds)
-          .eq('user_id', user.id)
-      : { data: [] };
-
-    const responseMap = new Map(responses?.map(r => [r.message_id, r]) || []);
-
-    // Get creator names
-    const creatorIds = [...new Set(messagesData?.map(m => m.created_by) || [])];
-    const { data: creators } = await supabase
-      .from('user_profiles')
-      .select('id, full_name')
-      .in('id', creatorIds);
-
-    const creatorMap = new Map(creators?.map(c => [c.id, c.full_name]));
-
-    // Filter by engagement state
-    const enrichedMessages = messagesData?.map(msg => {
-      const engagement = engagementMap.get(msg.id);
-      const isArchived = engagement?.is_archived || false;
-
-      // Determine message state
-      let messageState: MessageState = 'unread';
-      if (isArchived) {
-        messageState = 'archived';
-      } else if (engagement?.responded_at) {
-        messageState = 'answered';
-      } else if (engagement?.acknowledged_at) {
-        messageState = 'acknowledged';
-      } else if (engagement?.opened_at) {
-        if (msg.requires_acknowledgment) {
-          messageState = 'read_needs_action';
-        } else if (msg.survey_questions) {
-          messageState = 'read_needs_response';
-        } else {
-          messageState = 'read';
-        }
-      }
-
-      return {
-        ...msg,
-        creator_name: creatorMap.get(msg.created_by) || 'Unknown',
-        message_state: messageState,
-        user_response: responseMap.get(msg.id)
-      };
-    }).filter(msg => {
-      // Filter by mode
-      const modeMatch = filterMode === 'active' ? msg.message_state !== 'archived' :
-                       filterMode === 'archived' ? msg.message_state === 'archived' : true;
-
-      // Filter by search query
-      const searchMatch = !searchQuery ||
-        msg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        msg.content.toLowerCase().includes(searchQuery.toLowerCase());
-
-      return modeMatch && searchMatch;
-    }) || [];
-
-    setMessages(enrichedMessages);
-
-    // Update unread count for badge
-    const unreadCount = enrichedMessages.filter(m =>
-      m.message_state === 'unread' || m.message_state === 'read_needs_action'
-    ).length;
-    onUnreadCountChange?.(unreadCount);
-
-    // Auto-expand urgent unread
-    const urgentUnread = enrichedMessages
-      .filter(m => m.priority === 'urgent' && m.message_state === 'unread')
-      .map(m => m.id);
-    setExpandedCards(new Set(urgentUnread));
   };
 
   const loadSentMessages = async () => {
@@ -376,115 +245,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
     }
   };
 
-  const markAsOpened = async (messageId: string) => {
-    if (!user) return;
-
-    try {
-      await supabase
-        .from('message_receipts')
-        .upsert({
-          message_id: messageId,
-          user_id: user.id,
-          read_at: new Date().toISOString()
-        }, { onConflict: 'message_id,user_id' });
-
-      loadMessages();
-    } catch (error) {
-      console.error('Error marking as opened:', error);
-    }
-  };
-
-  const handleAcknowledge = async (messageId: string) => {
-    if (!user) return;
-
-    try {
-      await supabase
-        .from('message_responses')
-        .upsert({
-          message_id: messageId,
-          user_id: user.id,
-          response_type: 'acknowledgment'
-        }, { onConflict: 'message_id,user_id' });
-
-      loadMessages();
-    } catch (error) {
-      console.error('Error acknowledging:', error);
-    }
-  };
-
-  const handleArchive = async (messageId: string) => {
-    if (!user) return;
-
-    try {
-      await supabase
-        .from('message_engagement')
-        .update({
-          is_archived: true,
-          archived_at: new Date().toISOString()
-        })
-        .eq('message_id', messageId)
-        .eq('user_id', user.id);
-
-      loadMessages();
-    } catch (error) {
-      console.error('Error archiving:', error);
-    }
-  };
-
-  const handleSurveyResponse = async (messageId: string, responseData: any, isSurveyJs = false) => {
-    if (!user) {
-      console.error('Cannot submit survey response: no user');
-      return;
-    }
-
-    try {
-      const payload: any = {
-        message_id: messageId,
-        user_id: user.id,
-        response_type: 'survey_answer'
-      };
-
-      // For Survey.js format, store full object as JSON in text_response
-      if (isSurveyJs) {
-        payload.text_response = JSON.stringify(responseData);
-      } else {
-        // For legacy format, use selected_options array
-        payload.selected_options = responseData;
-      }
-
-      console.log('Submitting survey response:', payload);
-
-      const { data, error } = await supabase
-        .from('message_responses')
-        .upsert(payload, { onConflict: 'message_id,user_id,response_type' });
-
-      if (error) {
-        console.error('Supabase error submitting survey response:', error);
-      } else {
-        console.log('Survey response submitted successfully:', data);
-
-        // Update message engagement to mark as responded
-        await supabase
-          .from('message_engagement')
-          .update({
-            responded_at: new Date().toISOString()
-          })
-          .eq('message_id', messageId)
-          .eq('user_id', user.id);
-
-        loadMessages();
-      }
-    } catch (error) {
-      console.error('Exception submitting survey response:', error);
-    }
-  };
-
   const toggleExpand = (messageId: string) => {
-    const message = messages.find(m => m.id === messageId);
-    if (message && message.message_state === 'unread') {
-      markAsOpened(messageId);
-    }
-
     setExpandedCards(prev => {
       const newSet = new Set(prev);
       if (newSet.has(messageId)) {
@@ -510,27 +271,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
     return configs[type] || configs.announcement;
   };
 
-  const getStateLabel = (state: MessageState) => {
-    const labels: Record<MessageState, {label: string, color: string, icon: any}> = {
-      unread: { label: 'NEW', color: 'bg-indigo-100 text-indigo-700', icon: Circle },
-      read: { label: 'READ', color: 'bg-gray-100 text-gray-600', icon: Eye },
-      read_needs_action: { label: 'ACTION REQUIRED', color: 'bg-yellow-100 text-yellow-700', icon: AlertTriangle },
-      read_needs_response: { label: 'ANSWER SURVEY', color: 'bg-purple-100 text-purple-700', icon: ClipboardList },
-      answered: { label: 'COMPLETED', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-      acknowledged: { label: 'ACKNOWLEDGED', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-      archived: { label: 'ARCHIVED', color: 'bg-gray-100 text-gray-500', icon: ArchiveIcon }
-    };
-    // Return the label or fallback to 'unread' if state is undefined or invalid
-    return labels[state] || labels.unread;
-  };
-
-  const getUnreadCount = () => {
-    if (viewMode !== 'inbox') return 0;
-    return messages.filter(m => m.message_state === 'unread' || m.message_state === 'read_needs_action').length;
-  };
-
   const getDraftsCount = () => {
-    if (viewMode !== 'sent') return 0;
     return messages.filter(m => m.is_draft).length;
   };
 
@@ -665,113 +406,6 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
       )}
     </div>
   );
-}
-
-// Inbox Messages List Component
-function InboxMessagesList({ messages, expandedCards, onToggleExpand, onAcknowledge, onArchive, onSurveyResponse, getMessageConfig, getStateLabel, safeJsonParse }: any) {
-  return messages.map((msg: CompanyMessage) => {
-    const config = getMessageConfig(msg.message_type);
-    const Icon = config.icon;
-    const isExpanded = expandedCards.has(msg.id);
-    const stateInfo = getStateLabel(msg.message_state!);
-    const StateIcon = stateInfo.icon;
-
-    return (
-      <div
-        key={msg.id}
-        className={`bg-white rounded-xl md:rounded-2xl shadow-sm overflow-hidden transition-all ${
-          msg.message_state === 'unread' || msg.message_state === 'read_needs_action' ? 'ring-2 ring-indigo-500' : ''
-        } ${msg.priority === 'urgent' ? 'border-l-4 border-red-500' : ''}`}
-      >
-        {/* Card Header */}
-        <div onClick={() => onToggleExpand(msg.id)} className="p-4 md:p-6 cursor-pointer hover:bg-gray-50 active:bg-gray-50 transition-colors">
-          <div className="flex items-start space-x-3 md:space-x-4">
-            <div className={`${config.iconBg} p-2 md:p-3 rounded-lg flex-shrink-0`}>
-              <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.iconColor}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-bold text-gray-900 text-base md:text-lg line-clamp-1">{msg.title}</h3>
-                <span className={`px-2 py-0.5 ${stateInfo.color} text-xs font-semibold rounded-full flex items-center space-x-1 flex-shrink-0`}>
-                  <StateIcon className="w-3 h-3" />
-                  <span>{stateInfo.label}</span>
-                </span>
-              </div>
-              {!isExpanded && (
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">{msg.content}</p>
-              )}
-              <div className="flex items-center space-x-3 mt-2 text-xs text-gray-500">
-                <span>{msg.creator_name}</span>
-                <span>•</span>
-                <span>{new Date(msg.created_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-            <button className="p-1 -mr-1 flex-shrink-0">
-              {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Expanded Content */}
-        {isExpanded && (
-          <div className="px-4 md:px-6 pb-4 md:pb-6 space-y-3 border-t border-gray-100 pt-3 md:pt-4">
-            <p className="text-gray-700 whitespace-pre-wrap">{msg.content}</p>
-
-            {/* Survey - Survey.js Format */}
-            {msg.survey_questions && typeof msg.survey_questions === 'object' && 'elements' in msg.survey_questions && (
-              <div className="mt-4">
-                {msg.user_response?.response_type === 'survey_answer' ? (
-                  <div className="space-y-4">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-center space-x-2 text-green-700">
-                        <Check className="w-5 h-5" />
-                        <span className="font-medium">
-                          Survey completed on {new Date(msg.user_response.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    <SurveyRenderer
-                      surveyJson={msg.survey_questions}
-                      onComplete={() => {}}
-                      disabled={true}
-                      initialData={safeJsonParse(msg.user_response.text_response)}
-                    />
-                  </div>
-                ) : (
-                  <SurveyRenderer
-                    surveyJson={msg.survey_questions}
-                    onComplete={(results) => {
-                      onSurveyResponse(msg.id, results, true);
-                    }}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-              {msg.message_state === 'read_needs_action' && (
-                <button
-                  onClick={() => onAcknowledge(msg.id)}
-                  className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 active:bg-indigo-700 transition-colors"
-                >
-                  Acknowledge
-                </button>
-              )}
-              {msg.message_state !== 'archived' && (
-                <button
-                  onClick={() => onArchive(msg.id)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 active:bg-gray-50 transition-colors"
-                >
-                  Archive
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  });
 }
 
 // Sent Messages List Component
