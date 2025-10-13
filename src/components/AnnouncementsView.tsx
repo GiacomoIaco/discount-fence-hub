@@ -366,7 +366,10 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
   };
 
   const handleSurveyResponse = async (messageId: string, responseData: any, isSurveyJs = false) => {
-    if (!user) return;
+    if (!user) {
+      console.error('Cannot submit survey response: no user');
+      return;
+    }
 
     try {
       const payload: any = {
@@ -383,15 +386,20 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
         payload.selected_options = responseData;
       }
 
-      const { error } = await supabase
+      console.log('Submitting survey response:', payload);
+
+      const { data, error } = await supabase
         .from('message_responses')
         .upsert(payload, { onConflict: 'message_id,user_id' });
 
-      if (!error) {
+      if (error) {
+        console.error('Supabase error submitting survey response:', error);
+      } else {
+        console.log('Survey response submitted successfully:', data);
         loadMessages();
       }
     } catch (error) {
-      console.error('Error submitting survey response:', error);
+      console.error('Exception submitting survey response:', error);
     }
   };
 

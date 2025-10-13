@@ -66,6 +66,7 @@ interface SurveyQuestion {
 
 interface TeamCommunicationProps {
   onBack?: () => void;
+  onUnreadCountChange?: (count: number) => void;
 }
 
 interface CommentWithUser {
@@ -77,7 +78,7 @@ interface CommentWithUser {
   created_at: string;
 }
 
-export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
+export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamCommunicationProps) {
   const { user, profile } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('inbox');
   const [filterMode, setFilterMode] = useState<FilterMode>('active');
@@ -201,6 +202,12 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
 
     setMessages(enrichedMessages);
 
+    // Update unread count for badge
+    const unreadCount = enrichedMessages.filter(m =>
+      m.message_state === 'unread' || m.message_state === 'read_needs_action'
+    ).length;
+    onUnreadCountChange?.(unreadCount);
+
     // Auto-expand urgent unread
     const urgentUnread = enrichedMessages
       .filter(m => m.priority === 'urgent' && m.message_state === 'unread')
@@ -273,6 +280,9 @@ export default function TeamCommunication({ onBack }: TeamCommunicationProps) {
     }) || [];
 
     setMessages(enrichedMessages);
+
+    // Update unread count for badge (0 for sent view)
+    onUnreadCountChange?.(0);
 
     // Load comments for sent messages
     if (enrichedMessages.length > 0) {

@@ -90,6 +90,9 @@ function App() {
   // Track unread announcements for all users (Chat badge)
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
 
+  // Track unread team communication messages (Announcements badge)
+  const [teamCommunicationUnreadCount, setTeamCommunicationUnreadCount] = useState(0);
+
   // Save viewMode to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('viewMode', viewMode);
@@ -145,7 +148,7 @@ function App() {
   const getNavigationItems = () => {
     const items = [
       { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-      { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: announcementEngagementCount },
+      { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
       { id: 'direct-messages' as Section, name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
       { id: 'presentation' as Section, name: 'Client Presentation', icon: FileText },
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
@@ -262,7 +265,7 @@ function App() {
     if (activeSection === 'team-communication') {
       return (
         <ErrorBoundary>
-          <TeamCommunication />
+          <TeamCommunication onUnreadCountChange={setTeamCommunicationUnreadCount} />
         </ErrorBoundary>
       );
     }
@@ -364,6 +367,7 @@ function App() {
                 userName={profile?.full_name}
                 onMarkAsRead={markRequestAsRead}
                 onUnreadCountChange={setUnreadAnnouncementsCount}
+                onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
               />
             </ErrorBoundary>
           </div>
@@ -606,9 +610,10 @@ interface SalesRepViewProps {
   userName?: string;
   onMarkAsRead?: (requestId: string) => void;
   onUnreadCountChange?: (count: number) => void;
+  onTeamCommunicationUnreadCountChange?: (count: number) => void;
 }
 
-const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnouncementsCount, announcementEngagementCount, userId, userName, onMarkAsRead, onUnreadCountChange }: SalesRepViewProps) => {
+const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnouncementsCount, announcementEngagementCount, userId, userName, onMarkAsRead, onUnreadCountChange, onTeamCommunicationUnreadCountChange }: SalesRepViewProps) => {
   if (activeSection === 'requests') {
     return <RequestHub onBack={() => setActiveSection('home')} />;
   }
@@ -646,7 +651,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnounc
   }
 
   if (activeSection === 'team-communication') {
-    return <TeamCommunication onBack={() => setActiveSection('home')} />;
+    return <TeamCommunication onBack={() => setActiveSection('home')} onUnreadCountChange={onTeamCommunicationUnreadCountChange} />;
   }
 
   if (activeSection === 'direct-messages') {
