@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import type { LineItem, FenceType, Product } from '../types';
+import type { LineItem, FenceType } from '../types';
 import { getProductsByType } from '../mockData';
 
 interface LineItemsTableProps {

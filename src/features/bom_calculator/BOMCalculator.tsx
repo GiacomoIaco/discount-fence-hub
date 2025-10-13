@@ -12,7 +12,7 @@ interface BOMCalculatorProps {
   userName?: string;
 }
 
-export function BOMCalculator({ onBack, userRole, userId, userName }: BOMCalculatorProps) {
+export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, userName: _userName }: BOMCalculatorProps) {
   // Project state
   const [projectDetails, setProjectDetails] = useState<ProjectDetails>({
     customerName: '',
