@@ -69,6 +69,7 @@ interface CompanyMessage {
   recognized_user_name?: string;
   is_read?: boolean;
   user_response?: MessageResponse;
+  has_acknowledgment?: boolean;
 }
 
 interface MessageResponse {
@@ -141,6 +142,15 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
 
   useEffect(() => {
     loadMessages();
+
+    // Poll every 30 seconds to keep messages and badge up to date
+    const pollingInterval = setInterval(() => {
+      loadMessages();
+    }, 30000);
+
+    return () => {
+      clearInterval(pollingInterval);
+    };
   }, [user, profile]);
 
   // Real-time subscription for comments and reactions
@@ -232,17 +242,33 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
 
       const creatorMap = new Map(creators?.map(c => [c.id, c.full_name]));
       const recognizedMap = new Map(recognizedUsers?.map(u => [u.id, u.full_name]));
-      const responseMap = new Map(responses?.map(r => [r.message_id, r]));
 
-      const enrichedMessages = messagesData?.map(msg => ({
-        ...msg,
-        creator_name: creatorMap.get(msg.created_by) || 'Unknown',
-        recognized_user_name: msg.recognized_user_id
-          ? recognizedMap.get(msg.recognized_user_id) || 'Unknown'
-          : undefined,
-        is_read: msg.message_receipts?.some((r: any) => r.user_id === user.id),
-        user_response: responseMap.get(msg.id)
-      })) || [];
+      // Create maps for different response types
+      // For survey answers and acknowledgments, check specifically for each type
+      const surveyResponseMap = new Map(
+        responses?.filter(r => r.response_type === 'survey_answer').map(r => [r.message_id, r])
+      );
+      const acknowledgmentMap = new Map(
+        responses?.filter(r => r.response_type === 'acknowledgment').map(r => [r.message_id, r])
+      );
+
+      const enrichedMessages = messagesData?.map(msg => {
+        // Prioritize survey_answer if it exists, otherwise use acknowledgment
+        const userResponse = surveyResponseMap.get(msg.id) || acknowledgmentMap.get(msg.id);
+        // Store acknowledgment separately so we can check for it
+        const hasAcknowledgment = acknowledgmentMap.has(msg.id);
+
+        return {
+          ...msg,
+          creator_name: creatorMap.get(msg.created_by) || 'Unknown',
+          recognized_user_name: msg.recognized_user_id
+            ? recognizedMap.get(msg.recognized_user_id) || 'Unknown'
+            : undefined,
+          is_read: msg.message_receipts?.some((r: any) => r.user_id === user.id),
+          user_response: userResponse,
+          has_acknowledgment: hasAcknowledgment
+        };
+      }) || [];
 
       setMessages(enrichedMessages);
 
@@ -672,7 +698,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                                 NEW
                               </span>
                             )}
-                            {message.requires_acknowledgment && !message.user_response && (
+                            {message.requires_acknowledgment && !message.has_acknowledgment && (
                               <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded flex-shrink-0">
                                 ACTION REQUIRED
                               </span>
@@ -881,12 +907,11 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                       {/* Acknowledgment */}
                       {message.requires_acknowledgment && (
                         <div className="mt-4">
-                          {message.user_response?.response_type === 'acknowledgment' ? (
+                          {message.has_acknowledgment ? (
                             <div className="flex items-center space-x-2 text-green-600">
                               <Check className="w-5 h-5" />
                               <span className="font-medium">
-                                Acknowledged on{' '}
-                                {new Date(message.user_response.created_at).toLocaleDateString()}
+                                ✓ Acknowledged
                               </span>
                             </div>
                           ) : (
