@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { ArrowLeft, Plus, Trash2, FolderOpen, Wrench, BookOpen, PackagePlus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Plus, Trash2, FolderOpen, Wrench, BookOpen, PackagePlus, Calculator } from 'lucide-react';
 import type { ProjectDetails, LineItem, CalculationResult } from './types';
 import { ProjectDetailsForm } from './components/ProjectDetailsForm';
-import { getProductsByType } from './mockData';
+import { useBOMCalculatorData } from './hooks';
+import { FenceCalculator } from './services/FenceCalculator';
+import type { WoodVerticalProductWithMaterials, WoodHorizontalProductWithMaterials, IronProductWithMaterials } from './database.types';
 
 interface BOMCalculatorProps {
   onBack: () => void;
@@ -14,25 +16,34 @@ interface BOMCalculatorProps {
 // SKU Autocomplete Search Component
 interface SKUSearchProps {
   value: string;
-  onChange: (productId: string, productName: string) => void;
+  onChange: (productId: string, productName: string, postType: 'WOOD' | 'STEEL') => void;
   fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron';
+  products: {
+    woodVertical: WoodVerticalProductWithMaterials[];
+    woodHorizontal: WoodHorizontalProductWithMaterials[];
+    iron: IronProductWithMaterials[];
+  };
 }
 
-function SKUSearch({ value, onChange, fenceType }: SKUSearchProps) {
+function SKUSearch({ value, onChange, fenceType, products }: SKUSearchProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFocused, setIsFocused] = useState(false);
 
-  const products = getProductsByType(fenceType);
+  // Get products for the selected fence type
+  const productList =
+    fenceType === 'wood_vertical' ? products.woodVertical :
+    fenceType === 'wood_horizontal' ? products.woodHorizontal :
+    products.iron;
 
   // Filter products based on search
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = productList.filter(p =>
+    p.sku_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.sku_code.toLowerCase().includes(searchTerm.toLowerCase())
   ).slice(0, 20);
 
   // Find selected product name
-  const selectedProduct = products.find(p => p.id === value);
-  const displayValue = selectedProduct ? selectedProduct.name : searchTerm;
+  const selectedProduct = productList.find(p => p.id === value);
+  const displayValue = selectedProduct ? selectedProduct.sku_name : searchTerm;
 
   return (
     <div className="relative">
@@ -56,13 +67,13 @@ function SKUSearch({ value, onChange, fenceType }: SKUSearchProps) {
             <div
               key={product.id}
               onMouseDown={() => {
-                onChange(product.id, product.name);
-                setSearchTerm(product.name);
+                onChange(product.id, product.sku_name, product.post_type);
+                setSearchTerm(product.sku_name);
                 setIsFocused(false);
               }}
               className="px-3 py-2 cursor-pointer hover:bg-gray-100"
             >
-              <div className="font-medium text-gray-900 text-sm">{product.name}</div>
+              <div className="font-medium text-gray-900 text-sm">{product.sku_code} - {product.sku_name}</div>
               <div className="text-xs text-gray-500">{fenceType.replace('_', ' ')}</div>
             </div>
           ))}
@@ -82,7 +93,7 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
   const [projectDetails, setProjectDetails] = useState<ProjectDetails>({
     customerName: '',
     projectName: '',
-    businessUnit: 'austin',
+    businessUnit: '', // Business Unit ID (UUID)
   });
 
   // Line items state - Initialize with one empty SKU row
@@ -92,7 +103,7 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
     fenceType: 'wood_vertical',
     productId: '',
     productName: '',
-    postType: 'wood',
+    postType: 'WOOD',
     totalFootage: 0,
     buffer: 5, // default 5ft buffer
     numberOfLines: 1,
@@ -102,7 +113,83 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
   }]);
 
   // Calculation results
-  const [calculationResult, _setCalculationResult] = useState<CalculationResult | null>(null);
+  const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
+
+  // Fetch data from database
+  const { businessUnits, materials, laborRates, products, loading, error } = useBOMCalculatorData(projectDetails.businessUnit);
+
+  // Calculate BOM
+  const handleCalculate = () => {
+    if (!projectDetails.businessUnit) {
+      alert('Please select a business unit first');
+      return;
+    }
+
+    const calculator = new FenceCalculator('project');
+    const allMaterials: any[] = [];
+    const allLabor: any[] = [];
+
+    // Calculate each line item
+    for (const item of lineItems) {
+      if (!item.productId || item.netLength <= 0) continue;
+
+      const input = {
+        netLength: item.netLength,
+        numberOfLines: item.numberOfLines,
+        numberOfGates: item.numberOfGates,
+      };
+
+      let result;
+      if (item.fenceType === 'wood_vertical') {
+        const product = products.woodVertical.find(p => p.id === item.productId);
+        if (product) {
+          result = calculator.calculateWoodVertical(product, input, laborRates);
+        }
+      } else if (item.fenceType === 'wood_horizontal') {
+        const product = products.woodHorizontal.find(p => p.id === item.productId);
+        if (product) {
+          result = calculator.calculateWoodHorizontal(product, input, laborRates);
+        }
+      } else if (item.fenceType === 'iron') {
+        const product = products.iron.find(p => p.id === item.productId);
+        if (product) {
+          result = calculator.calculateIron(product, input, laborRates);
+        }
+      }
+
+      if (result) {
+        allMaterials.push(...result.materials);
+        allLabor.push(...result.labor);
+      }
+    }
+
+    // Aggregate materials by material_id
+    const materialMap = new Map();
+    for (const mat of allMaterials) {
+      if (materialMap.has(mat.material_id)) {
+        const existing = materialMap.get(mat.material_id);
+        existing.quantity += mat.quantity;
+      } else {
+        materialMap.set(mat.material_id, { ...mat });
+      }
+    }
+
+    // Aggregate labor by labor_code_id
+    const laborMap = new Map();
+    for (const lab of allLabor) {
+      if (laborMap.has(lab.labor_code_id)) {
+        const existing = laborMap.get(lab.labor_code_id);
+        existing.quantity += lab.quantity;
+      } else {
+        laborMap.set(lab.labor_code_id, { ...lab });
+      }
+    }
+
+    setCalculationResult({
+      materials: Array.from(materialMap.values()),
+      labor: Array.from(laborMap.values()),
+    });
+  };
 
   // Add new SKU line
   const handleAddSKU = () => {
@@ -112,7 +199,7 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
       fenceType: 'wood_vertical',
       productId: '',
       productName: '',
-      postType: 'wood',
+      postType: 'WOOD',
       totalFootage: 0,
       buffer: 5,
       numberOfLines: 1,
@@ -142,9 +229,15 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
     }));
   };
 
-  // Calculate totals (mock for now)
-  const totalMaterialCost = 0;
-  const totalLaborCost = 0;
+  // Calculate totals from results
+  const totalMaterialCost = calculationResult?.materials.reduce((sum, m) => {
+    return sum + (Math.ceil(m.quantity) * m.unit_cost);
+  }, 0) || 0;
+
+  const totalLaborCost = calculationResult?.labor.reduce((sum, l) => {
+    return sum + (l.quantity * l.rate);
+  }, 0) || 0;
+
   const totalProjectCost = totalMaterialCost + totalLaborCost;
   const totalFootage = lineItems.reduce((sum, item) => sum + item.netLength, 0);
   const costPerFoot = totalFootage > 0 ? totalProjectCost / totalFootage : 0;
@@ -214,6 +307,7 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
         <ProjectDetailsForm
           projectDetails={projectDetails}
           onChange={setProjectDetails}
+          businessUnits={businessUnits}
           disabled={calculationResult !== null}
         />
 
@@ -238,10 +332,11 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
                   {/* SKU Search */}
                   <SKUSearch
                     value={item.productId}
-                    onChange={(productId, productName) => {
-                      handleUpdateLineItem(item.id, { productId, productName });
+                    onChange={(productId, productName, postType) => {
+                      handleUpdateLineItem(item.id, { productId, productName, postType });
                     }}
                     fenceType={item.fenceType}
+                    products={products}
                   />
 
                   {/* Footage, Buffer, Lines, Gates */}
@@ -327,42 +422,135 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
 
           {/* Right Column - Bill of Materials & Labor */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Bill of Materials & Labor</h2>
-
-            {/* Materials (BOM) */}
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-semibold text-gray-800 text-sm">Materials (BOM)</h3>
-                <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">
-                  + Add Material
-                </button>
-              </div>
-              <div className="text-gray-500 text-center py-8 text-sm">
-                Add SKUs to see materials
-              </div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Bill of Materials & Labor</h2>
+              <button
+                onClick={handleCalculate}
+                disabled={lineItems.length === 0 || !projectDetails.businessUnit || loading}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2 text-sm font-medium"
+              >
+                <Calculator className="w-4 h-4" />
+                <span>Calculate</span>
+              </button>
             </div>
 
-            {/* Labor (BOL) */}
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-semibold text-gray-800 text-sm">Labor (BOL)</h3>
-                <button
-                  disabled={!projectDetails.businessUnit}
-                  className={`px-3 py-1 rounded text-xs ${
-                    projectDetails.businessUnit
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  + Add Labor
-                </button>
+            {/* Loading / Error States */}
+            {loading && (
+              <div className="text-center py-8 text-gray-500">
+                Loading data from database...
               </div>
-              <div className="text-gray-500 text-center py-8 text-sm">
-                {projectDetails.businessUnit
-                  ? 'Add SKUs to see labor'
-                  : 'Select Business Unit for labor rates'}
+            )}
+            {error && (
+              <div className="text-center py-8 text-red-600">
+                Error: {error}
               </div>
-            </div>
+            )}
+
+            {!loading && !error && (
+              <>
+                {/* Materials (BOM) */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold text-gray-800 text-sm">Materials (BOM)</h3>
+                    <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">
+                      + Add Material
+                    </button>
+                  </div>
+                  {calculationResult && calculationResult.materials.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-600 pb-2 border-b">
+                        <div className="col-span-5">Material</div>
+                        <div className="col-span-2 text-right">Qty</div>
+                        <div className="col-span-2 text-right">Rounded</div>
+                        <div className="col-span-2 text-right">Cost</div>
+                        <div className="col-span-1 text-right">Total</div>
+                      </div>
+                      {calculationResult.materials.map((mat, idx) => {
+                        const roundedQty = Math.ceil(mat.quantity);
+                        const extCost = roundedQty * mat.unit_cost;
+                        return (
+                          <div key={idx} className="grid grid-cols-12 gap-2 text-xs py-1 hover:bg-gray-50">
+                            <div className="col-span-5 truncate" title={mat.material_name}>
+                              <span className="font-mono text-gray-600">{mat.material_sku}</span>
+                              <span className="ml-1 text-gray-700">{mat.material_name}</span>
+                            </div>
+                            <div className="col-span-2 text-right text-gray-600">
+                              {mat.quantity.toFixed(2)}
+                            </div>
+                            <div className="col-span-2 text-right font-semibold">
+                              {roundedQty}
+                            </div>
+                            <div className="col-span-2 text-right text-gray-600">
+                              ${mat.unit_cost.toFixed(2)}
+                            </div>
+                            <div className="col-span-1 text-right font-medium">
+                              ${extCost.toFixed(2)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-center py-8 text-sm">
+                      Click Calculate to see materials
+                    </div>
+                  )}
+                </div>
+
+                {/* Labor (BOL) */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold text-gray-800 text-sm">Labor (BOL)</h3>
+                    <button
+                      disabled={!projectDetails.businessUnit}
+                      className={`px-3 py-1 rounded text-xs ${
+                        projectDetails.businessUnit
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      + Add Labor
+                    </button>
+                  </div>
+                  {calculationResult && calculationResult.labor.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-600 pb-2 border-b">
+                        <div className="col-span-6">Labor Code</div>
+                        <div className="col-span-2 text-right">Quantity</div>
+                        <div className="col-span-2 text-right">Rate</div>
+                        <div className="col-span-2 text-right">Total</div>
+                      </div>
+                      {calculationResult.labor.map((lab, idx) => {
+                        const extCost = lab.quantity * lab.rate;
+                        return (
+                          <div key={idx} className="grid grid-cols-12 gap-2 text-xs py-1 hover:bg-gray-50">
+                            <div className="col-span-6 truncate" title={lab.description}>
+                              <span className="font-mono text-gray-600">{lab.labor_sku}</span>
+                              <span className="ml-1 text-gray-700">{lab.description}</span>
+                            </div>
+                            <div className="col-span-2 text-right text-gray-600">
+                              {lab.quantity.toFixed(2)} {lab.unit_type}
+                            </div>
+                            <div className="col-span-2 text-right text-gray-600">
+                              ${lab.rate.toFixed(2)}
+                            </div>
+                            <div className="col-span-2 text-right font-medium">
+                              ${extCost.toFixed(2)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-center py-8 text-sm">
+                      {projectDetails.businessUnit
+                        ? 'Click Calculate to see labor'
+                        : 'Select Business Unit for labor rates'}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Project Totals - Green Gradient Bar */}
             <div className="border-t pt-4">

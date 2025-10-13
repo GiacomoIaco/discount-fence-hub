@@ -1,12 +1,14 @@
-import type { ProjectDetails, BusinessUnit } from '../types';
+import type { ProjectDetails } from '../types';
+import type { BusinessUnit } from '../database.types';
 
 interface ProjectDetailsFormProps {
   projectDetails: ProjectDetails;
   onChange: (details: ProjectDetails) => void;
+  businessUnits: BusinessUnit[];
   disabled?: boolean;
 }
 
-export function ProjectDetailsForm({ projectDetails, onChange, disabled = false }: ProjectDetailsFormProps) {
+export function ProjectDetailsForm({ projectDetails, onChange, businessUnits, disabled = false }: ProjectDetailsFormProps) {
   const handleChange = (field: keyof ProjectDetails, value: string) => {
     onChange({ ...projectDetails, [field]: value });
   };
@@ -56,13 +58,16 @@ export function ProjectDetailsForm({ projectDetails, onChange, disabled = false 
           <select
             id="businessUnit"
             value={projectDetails.businessUnit}
-            onChange={(e) => handleChange('businessUnit', e.target.value as BusinessUnit)}
+            onChange={(e) => handleChange('businessUnit', e.target.value)}
             disabled={disabled}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           >
-            <option value="austin">Austin</option>
-            <option value="san_antonio">San Antonio</option>
-            <option value="houston">Houston</option>
+            <option value="">Select Business Unit...</option>
+            {businessUnits.map((bu) => (
+              <option key={bu.id} value={bu.id}>
+                {bu.code} - {bu.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>

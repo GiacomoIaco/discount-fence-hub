@@ -8,8 +8,7 @@
 // ============================================================================
 
 export type FenceType = 'wood_vertical' | 'wood_horizontal' | 'iron';
-export type PostType = 'wood' | 'steel';
-export type BusinessUnit = 'austin' | 'san_antonio' | 'houston';
+export type PostType = 'WOOD' | 'STEEL';
 
 // ============================================================================
 // PROJECT DETAILS
@@ -19,7 +18,7 @@ export interface ProjectDetails {
   id?: string;
   customerName: string;
   projectName?: string;
-  businessUnit: BusinessUnit;
+  businessUnit: string; // Business Unit ID (UUID)
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -120,7 +119,7 @@ export interface LaborCode {
   heightCategory: string; // "4ft", "6ft", "8ft"
   unit: string; // "LF", "EA"
   baseRate: number; // per unit
-  businessUnit: BusinessUnit;
+  businessUnitId: string; // Business Unit ID (UUID)
 }
 
 // ============================================================================
@@ -149,16 +148,23 @@ export interface BOLLineItem {
 }
 
 export interface CalculationResult {
-  projectDetails: ProjectDetails;
-  lineItems: LineItem[];
-  bom: BOMLineItem[];
-  bol: BOLLineItem[];
-  totalMaterialCost: number;
-  totalLaborCost: number;
-  totalProjectCost: number;
-  costPerLinearFoot: number;
-  totalLinearFeet: number;
-  calculatedAt: string;
+  materials: Array<{
+    material_id: string;
+    material_sku: string;
+    material_name: string;
+    quantity: number;
+    unit_type: string;
+    unit_cost: number;
+    category: string;
+  }>;
+  labor: Array<{
+    labor_code_id: string;
+    labor_sku: string;
+    description: string;
+    quantity: number;
+    rate: number;
+    unit_type: string;
+  }>;
 }
 
 // ============================================================================
