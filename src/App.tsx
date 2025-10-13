@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, MessageCircle, Settings as SettingsIcon } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Menu, X, User, Mic, StopCircle, Play, CheckCircle, AlertCircle, Send, FileText, Camera, FolderOpen, LogOut, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import { showError, showWarning } from './lib/toast';
 import InstallAppBanner from './components/InstallAppBanner';
@@ -37,6 +37,7 @@ const MyRequestsView = lazy(() => import('./components/requests/MyRequestsView')
 const OperationsQueue = lazy(() => import('./components/operations/RequestQueue'));
 const RequestDetail = lazy(() => import('./components/requests/RequestDetail'));
 const Login = lazy(() => import('./components/auth/Login'));
+const BOMCalculator = lazy(() => import('./features/bom_calculator/BOMCalculator').then(m => ({ default: m.BOMCalculator })));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -49,7 +50,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator';
 type RequestStep = 'choice' | 'recording' | 'processing' | 'review' | 'success';
 
 interface ParsedData {
@@ -173,6 +174,7 @@ function App() {
       { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: Mic },
       { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
       { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
+      { id: 'bom-calculator' as Section, name: 'BOM Calculator', icon: Calculator },
       { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, name: 'Sales Resources', icon: FolderOpen },
@@ -326,6 +328,26 @@ function App() {
           </Suspense>
         </ErrorBoundary>
       );
+    }
+    if (activeSection === 'bom-calculator') {
+      // Only show to operations and admin roles
+      if (userRole === 'operations' || userRole === 'admin') {
+        return (
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <BOMCalculator
+                onBack={() => setActiveSection('home')}
+                userRole={userRole}
+                userId={user?.id}
+                userName={profile?.full_name}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        );
+      }
+      // Redirect non-authorized users
+      setActiveSection('home');
+      return null;
     }
 
     // Default home view
