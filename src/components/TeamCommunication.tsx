@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import SurveyRenderer from './SurveyRenderer';
 import {
   Megaphone,
   AlertTriangle,
@@ -30,6 +31,16 @@ type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_respon
 type ViewMode = 'inbox' | 'sent';
 type FilterMode = 'active' | 'archived' | 'drafts';
 
+interface MessageResponse {
+  id: string;
+  message_id: string;
+  user_id: string;
+  response_type: 'acknowledgment' | 'survey_answer' | 'comment' | 'reaction' | 'rsvp';
+  text_response?: string;
+  selected_options?: string[];
+  created_at: string;
+}
+
 interface CompanyMessage {
   id: string;
   message_type: string;
@@ -47,6 +58,7 @@ interface CompanyMessage {
   creator_name?: string;
   recognized_user_name?: string;
   message_state?: MessageState;
+  user_response?: MessageResponse;
   engagement_stats?: {
     total_recipients: number;
     opened_count: number;
@@ -89,6 +101,18 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
   const [selectedSurvey, setSelectedSurvey] = useState<CompanyMessage | null>(null);
   const [showSurveyResults, setShowSurveyResults] = useState(false);
   const [comments, setComments] = useState<Map<string, CommentWithUser[]>>(new Map());
+
+  // Helper function to safely parse JSON
+  const safeJsonParse = (value: string | null | undefined): any => {
+    if (!value) return {};
+
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      console.warn('Failed to parse JSON, returning empty object:', value);
+      return {};
+    }
+  };
 
   useEffect(() => {
     // Clear state when switching views to prevent stale data
@@ -150,6 +174,17 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
 
     const engagementMap = new Map(engagementData?.map(e => [e.message_id, e]) || []);
 
+    // Get user survey responses
+    const { data: responses } = messageIds.length > 0
+      ? await supabase
+          .from('message_responses')
+          .select('*')
+          .in('message_id', messageIds)
+          .eq('user_id', user.id)
+      : { data: [] };
+
+    const responseMap = new Map(responses?.map(r => [r.message_id, r]) || []);
+
     // Get creator names
     const creatorIds = [...new Set(messagesData?.map(m => m.created_by) || [])];
     const { data: creators } = await supabase
@@ -185,7 +220,8 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
       return {
         ...msg,
         creator_name: creatorMap.get(msg.created_by) || 'Unknown',
-        message_state: messageState
+        message_state: messageState,
+        user_response: responseMap.get(msg.id)
       };
     }).filter(msg => {
       // Filter by mode
@@ -388,6 +424,54 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
       loadMessages();
     } catch (error) {
       console.error('Error archiving:', error);
+    }
+  };
+
+  const handleSurveyResponse = async (messageId: string, responseData: any, isSurveyJs = false) => {
+    if (!user) {
+      console.error('Cannot submit survey response: no user');
+      return;
+    }
+
+    try {
+      const payload: any = {
+        message_id: messageId,
+        user_id: user.id,
+        response_type: 'survey_answer'
+      };
+
+      // For Survey.js format, store full object as JSON in text_response
+      if (isSurveyJs) {
+        payload.text_response = JSON.stringify(responseData);
+      } else {
+        // For legacy format, use selected_options array
+        payload.selected_options = responseData;
+      }
+
+      console.log('Submitting survey response:', payload);
+
+      const { data, error } = await supabase
+        .from('message_responses')
+        .upsert(payload, { onConflict: 'message_id,user_id,response_type' });
+
+      if (error) {
+        console.error('Supabase error submitting survey response:', error);
+      } else {
+        console.log('Survey response submitted successfully:', data);
+
+        // Update message engagement to mark as responded
+        await supabase
+          .from('message_engagement')
+          .update({
+            responded_at: new Date().toISOString()
+          })
+          .eq('message_id', messageId)
+          .eq('user_id', user.id);
+
+        loadMessages();
+      }
+    } catch (error) {
+      console.error('Exception submitting survey response:', error);
     }
   };
 
@@ -599,8 +683,10 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
                 onToggleExpand={toggleExpand}
                 onAcknowledge={handleAcknowledge}
                 onArchive={handleArchive}
+                onSurveyResponse={handleSurveyResponse}
                 getMessageConfig={getMessageConfig}
                 getStateLabel={getStateLabel}
+                safeJsonParse={safeJsonParse}
               />
             ) : (
               <SentMessagesList
@@ -639,7 +725,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
 }
 
 // Inbox Messages List Component
-function InboxMessagesList({ messages, expandedCards, onToggleExpand, onAcknowledge, onArchive, getMessageConfig, getStateLabel }: any) {
+function InboxMessagesList({ messages, expandedCards, onToggleExpand, onAcknowledge, onArchive, onSurveyResponse, getMessageConfig, getStateLabel, safeJsonParse }: any) {
   return messages.map((msg: CompanyMessage) => {
     const config = getMessageConfig(msg.message_type);
     const Icon = config.icon;
@@ -687,6 +773,37 @@ function InboxMessagesList({ messages, expandedCards, onToggleExpand, onAcknowle
         {isExpanded && (
           <div className="px-4 md:px-6 pb-4 md:pb-6 space-y-3 border-t border-gray-100 pt-3 md:pt-4">
             <p className="text-gray-700 whitespace-pre-wrap">{msg.content}</p>
+
+            {/* Survey - Survey.js Format */}
+            {msg.survey_questions && typeof msg.survey_questions === 'object' && 'elements' in msg.survey_questions && (
+              <div className="mt-4">
+                {msg.user_response?.response_type === 'survey_answer' ? (
+                  <div className="space-y-4">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 text-green-700">
+                        <Check className="w-5 h-5" />
+                        <span className="font-medium">
+                          Survey completed on {new Date(msg.user_response.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <SurveyRenderer
+                      surveyJson={msg.survey_questions}
+                      onComplete={() => {}}
+                      disabled={true}
+                      initialData={safeJsonParse(msg.user_response.text_response)}
+                    />
+                  </div>
+                ) : (
+                  <SurveyRenderer
+                    surveyJson={msg.survey_questions}
+                    onComplete={(results) => {
+                      onSurveyResponse(msg.id, results, true);
+                    }}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
