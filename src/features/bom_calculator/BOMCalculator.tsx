@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FolderOpen, Wrench, BookOpen, PackagePlus } from 'lucide-react';
 import type { ProjectDetails, LineItem, CalculationResult } from './types';
 import { ProjectDetailsForm } from './components/ProjectDetailsForm';
 import { getProductsByType } from './mockData';
@@ -72,7 +72,12 @@ function SKUSearch({ value, onChange, fenceType }: SKUSearchProps) {
   );
 }
 
+type ModalView = 'none' | 'projects' | 'sku-builder' | 'catalog' | 'new-material';
+
 export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, userName: _userName }: BOMCalculatorProps) {
+  // Modal state
+  const [activeModal, setActiveModal] = useState<ModalView>('none');
+
   // Project state
   const [projectDetails, setProjectDetails] = useState<ProjectDetails>({
     customerName: '',
@@ -163,6 +168,43 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
           </div>
 
           <div className="w-20"></div>
+        </div>
+
+        {/* Sub-header with navigation buttons */}
+        <div className="border-t border-gray-200 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-center space-x-3">
+            <button
+              onClick={() => setActiveModal('projects')}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+            >
+              <FolderOpen className="w-4 h-4" />
+              <span>Projects</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModal('sku-builder')}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+            >
+              <Wrench className="w-4 h-4" />
+              <span>SKU Builder</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModal('catalog')}
+              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>SKU Catalog</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModal('new-material')}
+              className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+            >
+              <PackagePlus className="w-4 h-4" />
+              <span>New Material</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -365,6 +407,68 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
           </div>
         </div>
       </div>
+
+      {/* Modal Overlays */}
+      {activeModal !== 'none' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gray-100 border-b border-gray-200 p-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                {activeModal === 'projects' && 'Projects'}
+                {activeModal === 'sku-builder' && 'SKU Builder'}
+                {activeModal === 'catalog' && 'SKU Catalog'}
+                {activeModal === 'new-material' && 'New Material'}
+              </h2>
+              <button
+                onClick={() => setActiveModal('none')}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {activeModal === 'projects' && (
+                <div className="text-center py-12 text-gray-500">
+                  <FolderOpen className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium">Projects List</p>
+                  <p className="text-sm mt-2">View and manage saved BOM projects</p>
+                  <p className="text-xs mt-4 text-gray-400">(Coming soon)</p>
+                </div>
+              )}
+
+              {activeModal === 'sku-builder' && (
+                <div className="text-center py-12 text-gray-500">
+                  <Wrench className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium">SKU Builder</p>
+                  <p className="text-sm mt-2">Create new fence SKU configurations</p>
+                  <p className="text-xs mt-4 text-gray-400">(Coming soon)</p>
+                </div>
+              )}
+
+              {activeModal === 'catalog' && (
+                <div className="text-center py-12 text-gray-500">
+                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium">SKU Catalog</p>
+                  <p className="text-sm mt-2">Browse all available fence SKUs</p>
+                  <p className="text-xs mt-4 text-gray-400">(Coming soon)</p>
+                </div>
+              )}
+
+              {activeModal === 'new-material' && (
+                <div className="text-center py-12 text-gray-500">
+                  <PackagePlus className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium">New Material</p>
+                  <p className="text-sm mt-2">Add new material to the database</p>
+                  <p className="text-xs mt-4 text-gray-400">(Coming soon)</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
