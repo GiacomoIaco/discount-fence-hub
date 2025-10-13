@@ -20,7 +20,10 @@ import {
   ExternalLink,
   X,
   MessageCircle,
-  Send
+  Send,
+  Archive,
+  BarChart3,
+  Users
 } from 'lucide-react';
 
 interface SurveyQuestion {
@@ -65,6 +68,8 @@ interface CompanyMessage {
   recognized_user_id?: string;
   view_count: number;
   response_count: number;
+  acknowledgment_count?: number;
+  survey_response_count?: number;
   creator_name?: string;
   recognized_user_name?: string;
   is_read?: boolean;
@@ -252,11 +257,36 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
         responses?.filter(r => r.response_type === 'acknowledgment').map(r => [r.message_id, r])
       );
 
+      // Get engagement stats for all messages (acknowledgments and survey responses)
+      const { data: engagementStats } = messageIds.length > 0
+        ? await supabase
+            .from('message_responses')
+            .select('message_id, response_type')
+            .in('message_id', messageIds)
+            .in('response_type', ['acknowledgment', 'survey_answer'])
+        : { data: [] };
+
+      // Count acknowledgments and survey responses per message
+      const statsMap = new Map<string, { acknowledgments: number; surveyResponses: number }>();
+      engagementStats?.forEach(stat => {
+        if (!statsMap.has(stat.message_id)) {
+          statsMap.set(stat.message_id, { acknowledgments: 0, surveyResponses: 0 });
+        }
+        const counts = statsMap.get(stat.message_id)!;
+        if (stat.response_type === 'acknowledgment') {
+          counts.acknowledgments++;
+        } else if (stat.response_type === 'survey_answer') {
+          counts.surveyResponses++;
+        }
+      });
+
       const enrichedMessages = messagesData?.map(msg => {
         // Prioritize survey_answer if it exists, otherwise use acknowledgment
         const userResponse = surveyResponseMap.get(msg.id) || acknowledgmentMap.get(msg.id);
         // Store acknowledgment separately so we can check for it
         const hasAcknowledgment = acknowledgmentMap.has(msg.id);
+        // Get engagement stats
+        const stats = statsMap.get(msg.id) || { acknowledgments: 0, surveyResponses: 0 };
 
         return {
           ...msg,
@@ -266,7 +296,9 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
             : undefined,
           is_read: msg.message_receipts?.some((r: any) => r.user_id === user.id),
           user_response: userResponse,
-          has_acknowledgment: hasAcknowledgment
+          has_acknowledgment: hasAcknowledgment,
+          acknowledgment_count: stats.acknowledgments,
+          survey_response_count: stats.surveyResponses
         };
       }) || [];
 
@@ -546,6 +578,30 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     }
   };
 
+  const handleArchive = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('company_messages')
+        .update({ is_archived: true })
+        .eq('id', messageId);
+
+      if (!error) {
+        // Remove message from local state
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+        // Update unread count
+        const message = messages.find(m => m.id === messageId);
+        if (message && !message.is_read) {
+          const unreadCount = messages.filter(m => m.id !== messageId && !m.is_read).length;
+          onUnreadCountChange?.(unreadCount);
+        }
+      }
+    } catch (error) {
+      console.error('Error archiving message:', error);
+    }
+  };
+
   const getMessageIcon = (type: string) => {
     const iconMap: Record<string, any> = {
       announcement: Megaphone,
@@ -679,18 +735,19 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                   } ${message.priority === 'urgent' ? 'border-l-4 border-l-red-500' : ''}`}
                 >
                   {/* Message Header */}
-                  <div
-                    onClick={() => handleToggleExpand(message.id)}
-                    className="p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3 sm:space-x-4 flex-1 min-w-0">
-                        <div className={`p-2 sm:p-3 rounded-lg ${getPriorityColor(message.priority)}`}>
+                  <div className="p-4 sm:p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      {/* Left side: Icon, Title, Content Preview */}
+                      <div
+                        onClick={() => handleToggleExpand(message.id)}
+                        className="flex items-start space-x-3 sm:space-x-4 flex-1 min-w-0 cursor-pointer"
+                      >
+                        <div className={`p-2 sm:p-3 rounded-lg ${getPriorityColor(message.priority)} flex-shrink-0`}>
                           <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-1 flex-wrap gap-y-1">
-                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                               {message.title}
                             </h3>
                             {!message.is_read && (
@@ -709,25 +766,72 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                               {message.content}
                             </p>
                           )}
-                          <div className="flex items-center space-x-3 sm:space-x-4 text-xs text-gray-500 flex-wrap gap-y-1">
+                          <div className="flex items-center space-x-3 text-xs text-gray-500 flex-wrap gap-y-1">
                             <span>From: {message.creator_name}</span>
                             <span>•</span>
                             <span>{new Date(message.created_at).toLocaleDateString()}</span>
-                            {message.view_count > 0 && (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center space-x-1">
-                                  <Eye className="w-3 h-3" />
-                                  <span>{message.view_count} views</span>
-                                </span>
-                              </>
-                            )}
                           </div>
                         </div>
                       </div>
-                      <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
-                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      </button>
+
+                      {/* Right side: Stats and Actions */}
+                      <div className="flex flex-col items-end space-y-2 flex-shrink-0">
+                        {/* Stats */}
+                        <div className="flex items-center space-x-4 text-xs text-gray-600">
+                          <div className="flex items-center space-x-1" title="Views">
+                            <Eye className="w-4 h-4" />
+                            <span>{message.view_count || 0}</span>
+                          </div>
+                          {message.requires_acknowledgment && (
+                            <div className="flex items-center space-x-1" title="Acknowledgments">
+                              <Check className="w-4 h-4" />
+                              <span>{message.acknowledgment_count || 0}</span>
+                            </div>
+                          )}
+                          {message.message_type === 'survey' && (
+                            <div className="flex items-center space-x-1" title="Survey Responses">
+                              <Users className="w-4 h-4" />
+                              <span>{message.survey_response_count || 0}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center space-x-2">
+                          {message.message_type === 'survey' && message.survey_response_count && message.survey_response_count > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleExpand(message.id);
+                              }}
+                              className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium flex items-center space-x-1"
+                              title="View survey results"
+                            >
+                              <BarChart3 className="w-3.5 h-3.5" />
+                              <span>Results</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Archive this announcement? It will be removed from your inbox.')) {
+                                handleArchive(message.id);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium flex items-center space-x-1"
+                            title="Archive"
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                            <span>Archive</span>
+                          </button>
+                          <button
+                            onClick={() => handleToggleExpand(message.id)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
