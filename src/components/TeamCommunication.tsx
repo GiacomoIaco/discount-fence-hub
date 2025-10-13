@@ -449,137 +449,115 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
     return (
       <div key={msg.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 md:p-6">
-          <div className="flex items-start justify-between gap-4">
-            {/* Left side: Icon, Title, Date */}
+          {/* Single Row Layout - Icon, Title, Stats, Actions */}
+          <div className="flex items-center gap-3 md:gap-4">
+            {/* Icon */}
+            <div className={`${config.iconBg} p-2 md:p-3 rounded-lg flex-shrink-0`}>
+              <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.iconColor}`} />
+            </div>
+
+            {/* Title and Date */}
             <div
               onClick={() => onToggleExpand(msg.id)}
-              className="flex items-start space-x-3 md:space-x-4 flex-1 min-w-0 cursor-pointer"
+              className="flex-shrink-0 cursor-pointer min-w-[200px] max-w-[300px]"
             >
-              <div className={`${config.iconBg} p-2 md:p-3 rounded-lg flex-shrink-0`}>
-                <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.iconColor}`} />
+              <div className="flex items-center space-x-2 mb-0.5">
+                <h3 className="font-bold text-gray-900 text-sm md:text-base truncate">
+                  {msg.title}
+                </h3>
+                {msg.is_draft && (
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full flex-shrink-0">
+                    DRAFT
+                  </span>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-1">
-                  <h3 className="font-bold text-gray-900 text-base md:text-lg">
-                    {msg.title}
-                  </h3>
-                  {msg.is_draft && (
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full flex-shrink-0">
-                      DRAFT
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {new Date(msg.created_at).toLocaleDateString()}
-                </div>
+              <div className="text-xs text-gray-500">
+                {new Date(msg.created_at).toLocaleDateString()}
               </div>
             </div>
 
-            {/* Right side: Stats and Actions */}
-            <div className="flex flex-col items-end space-y-2 flex-shrink-0">
-              {/* Stats - Prominent Percentages */}
-              {stats && (
-                <div className="flex flex-col items-end space-y-2">
-                  {/* Engagement Stats Grid */}
-                  <div className="grid grid-cols-1 gap-2 text-right">
-                    {/* Opened Rate */}
-                    <div className="bg-blue-50 rounded-lg px-3 py-2 min-w-[120px]">
-                      <div className="flex items-center justify-between space-x-2">
-                        <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                        <div>
-                          <div className="text-lg font-bold text-blue-600">
-                            {stats.total_recipients > 0 ? Math.round((stats.opened_count / stats.total_recipients) * 100) : 0}%
-                          </div>
-                          <div className="text-xs text-gray-600">Opened</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Acknowledgment Rate */}
-                    {msg.requires_acknowledgment && (
-                      <div className="bg-green-50 rounded-lg px-3 py-2 min-w-[120px]">
-                        <div className="flex items-center justify-between space-x-2">
-                          <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                          <div>
-                            <div className="text-lg font-bold text-green-600">
-                              {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
-                            </div>
-                            <div className="text-xs text-gray-600">Acknowledged</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Survey Response Rate */}
-                    {msg.survey_questions && (
-                      <div className="bg-purple-50 rounded-lg px-3 py-2 min-w-[120px]">
-                        <div className="flex items-center justify-between space-x-2">
-                          <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                          <div>
-                            <div className="text-lg font-bold text-purple-600">
-                              {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
-                            </div>
-                            <div className="text-xs text-gray-600">Responses</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Comment Count */}
-                    {comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg px-3 py-2 min-w-[120px]">
-                        <div className="flex items-center justify-between space-x-2">
-                          <MessageCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                          <div>
-                            <div className="text-lg font-bold text-gray-900">
-                              {comments.get(msg.id)!.length}
-                            </div>
-                            <div className="text-xs text-gray-600">Comment{comments.get(msg.id)!.length !== 1 ? 's' : ''}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+            {/* Stats - Horizontal Spread */}
+            {stats && (
+              <div className="flex items-center gap-3 md:gap-4 flex-1">
+                {/* Opened Rate */}
+                <div className="flex items-center space-x-1.5 text-sm">
+                  <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  <div className="font-semibold text-blue-600">
+                    {stats.total_recipients > 0 ? Math.round((stats.opened_count / stats.total_recipients) * 100) : 0}%
                   </div>
+                  <span className="text-xs text-gray-500 hidden md:inline">Opened</span>
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="flex items-center space-x-2">
-                {msg.survey_questions && stats && stats.responded_count > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewDetails(msg);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium flex items-center space-x-1"
-                    title="View survey results"
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" />
-                    <span>Results</span>
-                  </button>
+                {/* Acknowledgment Rate */}
+                {msg.requires_acknowledgment && (
+                  <div className="flex items-center space-x-1.5 text-sm">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <div className="font-semibold text-green-600">
+                      {stats.total_recipients > 0 ? Math.round((stats.acknowledged_count / stats.total_recipients) * 100) : 0}%
+                    </div>
+                    <span className="text-xs text-gray-500 hidden md:inline">Ack'd</span>
+                  </div>
                 )}
-                {filterMode === 'active' && !msg.is_draft && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (window.confirm('Archive this announcement? It will be moved to the archived section.')) {
-                        onArchive(msg.id);
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium flex items-center space-x-1"
-                    title="Archive"
-                  >
-                    <Archive className="w-3.5 h-3.5" />
-                    <span>Archive</span>
-                  </button>
+
+                {/* Survey Response Rate */}
+                {msg.survey_questions && (
+                  <div className="flex items-center space-x-1.5 text-sm">
+                    <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                    <div className="font-semibold text-purple-600">
+                      {stats.total_recipients > 0 ? Math.round((stats.responded_count / stats.total_recipients) * 100) : 0}%
+                    </div>
+                    <span className="text-xs text-gray-500 hidden md:inline">Responded</span>
+                  </div>
                 )}
-                <button
-                  onClick={() => onToggleExpand(msg.id)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                </button>
+
+                {/* Comment Count */}
+                {comments.get(msg.id) && comments.get(msg.id)!.length > 0 && (
+                  <div className="flex items-center space-x-1.5 text-sm">
+                    <MessageCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                    <div className="font-semibold text-gray-900">
+                      {comments.get(msg.id)!.length}
+                    </div>
+                    <span className="text-xs text-gray-500 hidden md:inline">Comment{comments.get(msg.id)!.length !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              {msg.survey_questions && stats && stats.responded_count > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewDetails(msg);
+                  }}
+                  className="px-2 md:px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium hidden md:flex items-center space-x-1"
+                  title="View survey results"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Results</span>
+                </button>
+              )}
+              {filterMode === 'active' && !msg.is_draft && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm('Archive this announcement? It will be moved to the archived section.')) {
+                      onArchive(msg.id);
+                    }
+                  }}
+                  className="p-1.5 md:p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors hidden md:block"
+                  title="Archive"
+                >
+                  <Archive className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => onToggleExpand(msg.id)}
+                className="p-1.5 md:p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+              </button>
             </div>
           </div>
         </div>
