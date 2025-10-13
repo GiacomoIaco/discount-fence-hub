@@ -736,36 +736,37 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
               </div>
             </div>
 
-            {/* View Mode Toggle */}
-            <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
+            {/* View Mode Toggle and Filters Button */}
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setViewMode('active')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'active'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  onClick={() => setViewMode('archived')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'archived'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Archived
+                </button>
+              </div>
               <button
-                onClick={() => setViewMode('active')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'active'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
               >
-                Active
-              </button>
-              <button
-                onClick={() => setViewMode('archived')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'archived'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Archived
+                Filters
               </button>
             </div>
-          </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium md:hidden"
-            >
-              Filters
-            </button>
           </div>
 
           {/* Search and Filters */}
