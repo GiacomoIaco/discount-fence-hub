@@ -76,8 +76,14 @@ export default function DirectMessages({ onUnreadCountChange }: DirectMessagesPr
       )
       .subscribe();
 
+    // Also poll every 30 seconds as backup (in case realtime fails)
+    const pollingInterval = setInterval(() => {
+      loadAnnouncementsUnreadCount();
+    }, 30000);
+
     return () => {
       subscription.unsubscribe();
+      clearInterval(pollingInterval);
     };
   }, [user]);
 

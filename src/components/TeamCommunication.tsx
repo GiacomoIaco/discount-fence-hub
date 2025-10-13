@@ -92,7 +92,8 @@ interface CommentWithUser {
 
 export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamCommunicationProps) {
   const { user, profile } = useAuth();
-  const [viewMode, setViewMode] = useState<ViewMode>('inbox');
+  // Simplified: Always show sent messages (admin management view)
+  const viewMode: ViewMode = 'sent';
   const [filterMode, setFilterMode] = useState<FilterMode>('active');
   const [messages, setMessages] = useState<CompanyMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +120,10 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
     setComments(new Map());
     setExpandedCards(new Set());
     loadMessages();
-  }, [user, profile, viewMode, filterMode]);
+  }, [user, profile, filterMode]);
+
+  // Note: Badge count is now managed by Chat > Company Announcements (AnnouncementsView)
+  // This view (Announcements button) is for admin management of sent messages
 
   const loadMessages = async () => {
     if (!user || !profile) {
@@ -546,61 +550,16 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center space-x-4 py-4">
+          <div className="flex items-center space-x-4 py-4 border-b border-gray-200">
             {onBack && (
               <button onClick={onBack} className="p-2 -ml-2 hover:bg-gray-100 active:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-6 h-6" />
               </button>
             )}
             <div className="flex-1">
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Team Communication</h1>
-              <p className="text-sm text-gray-600 hidden md:block">Company updates and announcements</p>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Announcements Management</h1>
+              <p className="text-sm text-gray-600 hidden md:block">Create, send, and track team announcements</p>
             </div>
-            {viewMode === 'inbox' && getUnreadCount() > 0 && (
-              <div className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-blue-100 rounded-lg">
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                <span className="text-sm font-semibold text-blue-600">
-                  {getUnreadCount()} unread
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* View Mode Tabs */}
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => {
-                setViewMode('inbox');
-                setFilterMode('active');
-              }}
-              className={`flex-1 md:flex-initial md:px-8 flex items-center justify-center space-x-2 py-3 border-b-2 transition-colors ${
-                viewMode === 'inbox'
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Inbox className="w-5 h-5" />
-              <span className="font-medium">Inbox</span>
-              {viewMode === 'inbox' && getUnreadCount() > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {getUnreadCount()}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('sent');
-                setFilterMode('active');
-              }}
-              className={`flex-1 md:flex-initial md:px-8 flex items-center justify-center space-x-2 py-3 border-b-2 transition-colors ${
-                viewMode === 'sent'
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <SendIcon className="w-5 h-5" />
-              <span className="font-medium">Sent</span>
-            </button>
           </div>
 
           {/* Filters and Search Row */}
@@ -629,18 +588,16 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
               >
                 Active
               </button>
-              {viewMode === 'sent' && (
-                <button
-                  onClick={() => setFilterMode('drafts')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                    filterMode === 'drafts'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-200'
-                  }`}
-                >
-                  Drafts {getDraftsCount() > 0 && `(${getDraftsCount()})`}
-                </button>
-              )}
+              <button
+                onClick={() => setFilterMode('drafts')}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  filterMode === 'drafts'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-200'
+                }`}
+              >
+                Drafts {getDraftsCount() > 0 && `(${getDraftsCount()})`}
+              </button>
               <button
                 onClick={() => setFilterMode('archived')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
@@ -661,46 +618,32 @@ export default function TeamCommunication({ onBack, onUnreadCountChange }: TeamC
         {messages.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center">
             <div className="text-gray-300 mb-4">
-              {viewMode === 'inbox' ? <Inbox className="w-16 h-16 mx-auto" /> : <SendIcon className="w-16 h-16 mx-auto" />}
+              <SendIcon className="w-16 h-16 mx-auto" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No messages found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No announcements found</h3>
             <p className="text-gray-600">
               {searchQuery
                 ? 'Try adjusting your search'
                 : filterMode === 'archived'
-                ? 'No archived messages'
-                : viewMode === 'inbox'
-                ? 'No messages to show'
-                : 'You haven\'t sent any messages yet'}
+                ? 'No archived announcements'
+                : filterMode === 'drafts'
+                ? 'No drafts yet'
+                : 'You haven\'t sent any announcements yet'}
             </p>
           </div>
         ) : (
           <div className="space-y-3 md:space-y-4">
-            {viewMode === 'inbox' ? (
-              <InboxMessagesList
-                messages={messages}
-                expandedCards={expandedCards}
-                onToggleExpand={toggleExpand}
-                onAcknowledge={handleAcknowledge}
-                onArchive={handleArchive}
-                onSurveyResponse={handleSurveyResponse}
-                getMessageConfig={getMessageConfig}
-                getStateLabel={getStateLabel}
-                safeJsonParse={safeJsonParse}
-              />
-            ) : (
-              <SentMessagesList
-                messages={messages}
-                expandedCards={expandedCards}
-                onToggleExpand={toggleExpand}
-                getMessageConfig={getMessageConfig}
-                comments={comments}
-                onViewDetails={(msg: CompanyMessage) => {
-                  setSelectedSurvey(msg);
-                  setShowSurveyResults(true);
-                }}
-              />
-            )}
+            <SentMessagesList
+              messages={messages}
+              expandedCards={expandedCards}
+              onToggleExpand={toggleExpand}
+              getMessageConfig={getMessageConfig}
+              comments={comments}
+              onViewDetails={(msg: CompanyMessage) => {
+                setSelectedSurvey(msg);
+                setShowSurveyResults(true);
+              }}
+            />
           </div>
         )}
       </div>
