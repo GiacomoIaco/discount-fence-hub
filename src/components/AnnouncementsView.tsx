@@ -119,7 +119,6 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
   const [comments, setComments] = useState<Map<string, CommentWithUser[]>>(new Map());
   const [reactions, setReactions] = useState<Map<string, ReactionSummary[]>>(new Map());
   const [newComment, setNewComment] = useState<Map<string, string>>(new Map());
-  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active');
 
   // Helper function to safely parse JSON
   const safeJsonParse = (value: string | null | undefined): any => {
@@ -158,7 +157,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [user, profile, viewMode]);
+  }, [user, profile]);
 
   // Real-time subscription for comments and reactions
   useEffect(() => {
@@ -205,7 +204,6 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
       setLoading(true);
 
       // Get messages that target user's role or specific user
-      const isArchived = viewMode === 'archived';
       const { data: messagesData, error: messagesError } = await supabase
         .from('company_messages')
         .select(`
@@ -213,7 +211,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
           message_receipts!left(id, read_at, user_id)
         `)
         .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
-        .eq('is_archived', isArchived)
+        .eq('is_archived', false)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -578,65 +576,6 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
       if (message && !message.is_read) {
         markAsRead(messageId);
       }
-    }
-  };
-
-  const handleArchive = async (messageId: string) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('company_messages')
-        .update({ is_archived: true })
-        .eq('id', messageId);
-
-      if (!error) {
-        // Remove message from local state
-        setMessages(prev => prev.filter(m => m.id !== messageId));
-        // Update unread count
-        const message = messages.find(m => m.id === messageId);
-        if (message && !message.is_read) {
-          const unreadCount = messages.filter(m => m.id !== messageId && !m.is_read).length;
-          onUnreadCountChange?.(unreadCount);
-        }
-      }
-    } catch (error) {
-      console.error('Error archiving message:', error);
-    }
-  };
-
-  const handleDelete = async (messageId: string) => {
-    if (!user) return;
-
-    try {
-      // First delete all related responses
-      const { error: responsesError } = await supabase
-        .from('message_responses')
-        .delete()
-        .eq('message_id', messageId);
-
-      if (responsesError) throw responsesError;
-
-      // Then delete all receipts
-      const { error: receiptsError } = await supabase
-        .from('message_receipts')
-        .delete()
-        .eq('message_id', messageId);
-
-      if (receiptsError) throw receiptsError;
-
-      // Finally delete the message
-      const { error: messageError } = await supabase
-        .from('company_messages')
-        .delete()
-        .eq('id', messageId);
-
-      if (!messageError) {
-        // Remove message from local state
-        setMessages(prev => prev.filter(m => m.id !== messageId));
-      }
-    } catch (error) {
-      console.error('Error deleting message:', error);
     }
   };
 
