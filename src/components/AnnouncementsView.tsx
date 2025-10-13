@@ -627,12 +627,41 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     return colorMap[priority] || 'text-gray-500 bg-gray-100';
   };
 
-  const filteredMessages = messages.filter(msg => {
-    const matchesType = selectedType === 'all' || msg.message_type === selectedType;
-    const matchesSearch = msg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         msg.content.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesType && matchesSearch;
-  });
+  const filteredMessages = messages
+    .filter(msg => {
+      const matchesType = selectedType === 'all' || msg.message_type === selectedType;
+      const matchesSearch = msg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           msg.content.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesType && matchesSearch;
+    })
+    .sort((a, b) => {
+      // Check if messages are within 24 hours and urgent
+      const now = new Date().getTime();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+
+      const aCreatedTime = new Date(a.created_at).getTime();
+      const bCreatedTime = new Date(b.created_at).getTime();
+
+      const aIsUrgentAndRecent = a.priority === 'urgent' && (now - aCreatedTime) < twentyFourHours;
+      const bIsUrgentAndRecent = b.priority === 'urgent' && (now - bCreatedTime) < twentyFourHours;
+
+      // Sticky urgent messages at top (within 24 hours)
+      if (aIsUrgentAndRecent && !bIsUrgentAndRecent) return -1;
+      if (!aIsUrgentAndRecent && bIsUrgentAndRecent) return 1;
+
+      // If both are sticky urgent or neither is, sort by priority then date
+      if (aIsUrgentAndRecent === bIsUrgentAndRecent) {
+        // Define priority order
+        const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
+        const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+
+        // If same priority, sort by date (newest first)
+        return bCreatedTime - aCreatedTime;
+      }
+
+      return 0;
+    });
 
   if (loading) {
     return (
@@ -727,12 +756,18 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
               const Icon = getMessageIcon(message.message_type);
               const isExpanded = expandedMessage === message.id;
 
+              // Check if urgent message is sticky (within 24 hours)
+              const now = new Date().getTime();
+              const twentyFourHours = 24 * 60 * 60 * 1000;
+              const createdTime = new Date(message.created_at).getTime();
+              const isUrgentAndSticky = message.priority === 'urgent' && (now - createdTime) < twentyFourHours;
+
               return (
                 <div
                   key={message.id}
                   className={`bg-white rounded-xl shadow-sm overflow-hidden transition-all border ${
                     !message.is_read ? 'ring-2 ring-blue-500 border-blue-300' : 'border-gray-200'
-                  } ${message.priority === 'urgent' ? 'border-l-4 border-l-red-500' : ''}`}
+                  } ${isUrgentAndSticky ? 'border-l-4 border-l-red-500 shadow-lg' : message.priority === 'urgent' ? 'border-l-4 border-l-red-500' : ''}`}
                 >
                   {/* Message Header */}
                   <div className="p-4 sm:p-6">
@@ -750,6 +785,11 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                             <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                               {message.title}
                             </h3>
+                            {isUrgentAndSticky && (
+                              <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded flex-shrink-0">
+                                PINNED URGENT
+                              </span>
+                            )}
                             {!message.is_read && (
                               <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded flex-shrink-0">
                                 NEW
