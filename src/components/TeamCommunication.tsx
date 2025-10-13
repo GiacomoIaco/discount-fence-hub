@@ -645,14 +645,16 @@ function SurveyResultsModal({ survey, onClose, onPostResults }: SurveyResultsMod
     try {
       setLoading(true);
 
-      // Get all survey responses for this message
+      // Get all survey responses for this message (including both text_response for Survey.js and selected_options for legacy)
       const { data: responses, error: responsesError } = await supabase
         .from('message_responses')
-        .select('user_id, selected_options')
+        .select('user_id, selected_options, text_response')
         .eq('message_id', survey.id)
         .eq('response_type', 'survey_answer');
 
       if (responsesError) throw responsesError;
+
+      console.log('Raw survey responses from DB:', responses);
 
       // Get user names
       const userIds = [...new Set(responses?.map(r => r.user_id) || [])];
@@ -704,14 +706,53 @@ function SurveyResultsModal({ survey, onClose, onPostResults }: SurveyResultsMod
       }
 
       responses?.forEach(response => {
-        response.selected_options?.forEach((option: string) => {
-          if (aggregated.has(option)) {
-            aggregated.get(option)!.responses.push(option);
-            aggregated.get(option)!.users.push(userMap.get(response.user_id) || 'Unknown');
+        const userName = userMap.get(response.user_id) || 'Unknown';
+
+        // Handle Survey.js format (responses stored in text_response as JSON)
+        if (response.text_response) {
+          try {
+            const surveyJsData = JSON.parse(response.text_response);
+            console.log('Parsed Survey.js response:', surveyJsData);
+
+            // Survey.js stores responses as { questionName: answer }
+            Object.values(surveyJsData).forEach((answer: any) => {
+              if (Array.isArray(answer)) {
+                // Multiple selection
+                answer.forEach(option => {
+                  if (!aggregated.has(option)) {
+                    aggregated.set(option, { responses: [], users: [] });
+                  }
+                  aggregated.get(option)!.responses.push(option);
+                  aggregated.get(option)!.users.push(userName);
+                });
+              } else if (answer !== null && answer !== undefined) {
+                // Single selection or text answer
+                const answerStr = String(answer);
+                if (!aggregated.has(answerStr)) {
+                  aggregated.set(answerStr, { responses: [], users: [] });
+                }
+                aggregated.get(answerStr)!.responses.push(answerStr);
+                aggregated.get(answerStr)!.users.push(userName);
+              }
+            });
+          } catch (e) {
+            console.error('Error parsing Survey.js response:', e, response.text_response);
           }
-        });
+        }
+
+        // Handle legacy format (responses stored in selected_options array)
+        if (response.selected_options && Array.isArray(response.selected_options)) {
+          response.selected_options.forEach((option: string) => {
+            if (!aggregated.has(option)) {
+              aggregated.set(option, { responses: [], users: [] });
+            }
+            aggregated.get(option)!.responses.push(option);
+            aggregated.get(option)!.users.push(userName);
+          });
+        }
       });
 
+      console.log('Aggregated survey results:', aggregated);
       setResults(aggregated);
     } catch (error) {
       console.error('Error loading survey results:', error);

@@ -394,23 +394,38 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      const timestamp = new Date().toISOString();
+
+      // Mark as read in message_receipts
+      const { error: receiptError } = await supabase
         .from('message_receipts')
         .upsert({
           message_id: messageId,
           user_id: user.id,
-          read_at: new Date().toISOString()
+          read_at: timestamp
         }, { onConflict: 'message_id,user_id' });
 
-      if (!error) {
-        setMessages(prev => prev.map(m =>
-          m.id === messageId ? { ...m, is_read: true } : m
-        ));
-
-        // Update unread count
-        const unreadCount = messages.filter(m => m.id !== messageId && !m.is_read).length;
-        onUnreadCountChange?.(unreadCount);
+      if (receiptError) {
+        console.error('Error updating message receipt:', receiptError);
+        return;
       }
+
+      // Update engagement tracking (mark as opened)
+      await supabase
+        .from('message_engagement')
+        .upsert({
+          message_id: messageId,
+          user_id: user.id,
+          opened_at: timestamp
+        }, { onConflict: 'message_id,user_id' });
+
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, is_read: true } : m
+      ));
+
+      // Update unread count
+      const unreadCount = messages.filter(m => m.id !== messageId && !m.is_read).length;
+      onUnreadCountChange?.(unreadCount);
     } catch (error) {
       console.error('Error marking as read:', error);
     }
@@ -429,6 +444,15 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
         }, { onConflict: 'message_id,user_id,response_type' });
 
       if (!error) {
+        // Update engagement tracking (mark as acknowledged)
+        await supabase
+          .from('message_engagement')
+          .upsert({
+            message_id: messageId,
+            user_id: user.id,
+            acknowledged_at: new Date().toISOString()
+          }, { onConflict: 'message_id,user_id' });
+
         loadMessages();
       }
     } catch (error) {
@@ -467,6 +491,16 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
         console.error('Supabase error submitting survey response:', error);
       } else {
         console.log('Survey response submitted successfully:', data);
+
+        // Update engagement tracking (mark as responded)
+        await supabase
+          .from('message_engagement')
+          .upsert({
+            message_id: messageId,
+            user_id: user.id,
+            responded_at: new Date().toISOString()
+          }, { onConflict: 'message_id,user_id' });
+
         loadMessages();
       }
     } catch (error) {
