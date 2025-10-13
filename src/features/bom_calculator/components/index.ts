@@ -4,5 +4,5 @@
  */
 
 export { ProjectDetailsForm } from './ProjectDetailsForm';
-export { LineItemsTable } from './LineItemsTable';
+// export { LineItemsTable } from './LineItemsTable'; // Deprecated - using inline SKU cards now
 export { ResultsSection } from './ResultsSection';

@@ -80,7 +80,11 @@ export interface LineItem {
   productId: string;
   productName: string; // denormalized for display
   postType: PostType; // CRITICAL: stored at line item level
-  length: number; // feet
+  totalFootage: number; // total footage entered
+  buffer: number; // material buffer/waste factor (in feet, e.g., 5)
+  numberOfLines: number; // number of fence runs (1-5)
+  numberOfGates: number; // number of gates to subtract (0-3)
+  netLength: number; // calculated: totalFootage - buffer
   calculatedPosts?: number;
   calculatedPrimaryMaterial?: number; // pickets/boards/panels
   calculatedSecondaryMaterial?: number; // rails/spacers
