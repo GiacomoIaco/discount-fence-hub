@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { X, Sparkles, Check, Save, Trash2 } from 'lucide-react';
 import type { Photo } from '../../../lib/photos';
 
@@ -30,6 +31,7 @@ interface PhotoReviewModalProps {
   onPermanentDelete: () => void;
   onAutoEnhance: () => void;
   onToggleEnhancedView: (show: boolean) => void;
+  onResetEnhancement?: () => void;
 }
 
 export function PhotoReviewModal({
@@ -57,7 +59,15 @@ export function PhotoReviewModal({
   onPermanentDelete,
   onAutoEnhance,
   onToggleEnhancedView,
+  onResetEnhancement,
 }: PhotoReviewModalProps) {
+  // Reset enhancement state when photo changes
+  useEffect(() => {
+    if (photo && onResetEnhancement) {
+      onResetEnhancement();
+    }
+  }, [photo?.id, onResetEnhancement]);
+
   if (!photo) return null;
 
   return (

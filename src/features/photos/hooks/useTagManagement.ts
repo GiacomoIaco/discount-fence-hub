@@ -50,9 +50,20 @@ export function useTagManagement() {
 
   const addCustomTag = async (category: 'productType' | 'material' | 'style', tag: string) => {
     try {
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        showError('You must be logged in to add custom tags');
+        return;
+      }
+
       const { error } = await supabase
         .from('custom_photo_tags')
-        .insert({ category, tag_name: tag });
+        .insert({
+          category,
+          tag_name: tag,
+          created_by: user.id
+        });
 
       if (error) throw error;
 

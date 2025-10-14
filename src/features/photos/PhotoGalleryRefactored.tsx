@@ -406,10 +406,13 @@ export function PhotoGalleryRefactored({
           onPhotoClick={(photo, index) => {
             if (activeTab === 'flagged' && photoFlags.has(photo.id)) {
               openViewFlags(photo);
-            } else if (activeTab === 'pending' && (userRole === 'sales-manager' || userRole === 'admin')) {
-              openReviewModal(photo);
+            } else if (
+              (activeTab === 'pending' || activeTab === 'saved' || activeTab === 'archived') &&
+              (userRole === 'sales-manager' || userRole === 'admin')
+            ) {
+              openReviewModal(photo);  // Open review modal for pending/saved/archived tabs
             } else {
-              openFullScreen(index);
+              openFullScreen(index);  // Full-screen for gallery tab
             }
           }}
           onToggleSelection={togglePhotoSelection}
@@ -525,6 +528,7 @@ export function PhotoGalleryRefactored({
         onPermanentDelete={handlePermanentDelete}
         onAutoEnhance={handleAutoEnhance}
         onToggleEnhancedView={toggleEnhancedView}
+        onResetEnhancement={resetEnhancement}
       />
 
       <TagManagementModal
