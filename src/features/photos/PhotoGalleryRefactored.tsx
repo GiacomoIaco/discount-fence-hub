@@ -8,9 +8,11 @@ import {
   Settings,
   BarChart3,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import { isSelectedInSession } from '../../lib/photos';
 import PhotoAnalytics from '../../components/PhotoAnalytics';
+import BulkPhotoUpload from '../../components/BulkPhotoUpload';
 
 // Import custom hooks
 import {
@@ -148,6 +150,9 @@ export function PhotoGalleryRefactored({
   // Analytics
   const [showAnalytics, setShowAnalytics] = useState(false);
 
+  // Bulk upload
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+
   // Handle file upload
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     await uploadPhotos(e.target.files);
@@ -232,6 +237,11 @@ export function PhotoGalleryRefactored({
   // Show analytics
   if (showAnalytics) {
     return <PhotoAnalytics onBack={() => setShowAnalytics(false)} userRole={userRole} />;
+  }
+
+  // Show bulk upload
+  if (showBulkUpload) {
+    return <BulkPhotoUpload onBack={() => { setShowBulkUpload(false); loadPhotos(); }} />;
   }
 
   return (
@@ -343,6 +353,17 @@ export function PhotoGalleryRefactored({
                       <span>Select</span>
                     </>
                   )}
+                </button>
+              )}
+
+              {/* Bulk Upload Button */}
+              {(userRole === 'admin' || userRole === 'sales-manager') && (
+                <button
+                  onClick={() => setShowBulkUpload(true)}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 bg-green-100 text-green-700 hover:bg-green-200"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Bulk Upload</span>
                 </button>
               )}
 
