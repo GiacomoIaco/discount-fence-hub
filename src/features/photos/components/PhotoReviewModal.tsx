@@ -66,7 +66,8 @@ export function PhotoReviewModal({
     if (photo && onResetEnhancement) {
       onResetEnhancement();
     }
-  }, [photo?.id, onResetEnhancement]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo?.id]); // Only depend on photo ID, not the function
 
   if (!photo) return null;
 
