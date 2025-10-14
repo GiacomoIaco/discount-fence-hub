@@ -22,6 +22,7 @@ import {
   usePhotoActions,
   usePhotoBulkEdit,
   useTagManagement,
+  usePhotoFlags,
 } from './hooks';
 
 // Import UI components
@@ -33,6 +34,8 @@ import {
   PhotoReviewModal,
   BulkEditToolbar,
   TagManagementModal,
+  PhotoFlagModal,
+  ViewFlagsModal,
 } from './components';
 
 interface PhotoGalleryProps {
@@ -119,6 +122,29 @@ export function PhotoGalleryRefactored({
   const { showTagManagement, setShowTagManagement, customTags, addCustomTag, deleteCustomTag, getAllTags } =
     tagManagement;
 
+  // Photo flagging
+  const photoFlagsHook = usePhotoFlags(userId, userName, loadPhotos);
+  const {
+    showFlagModal,
+    flaggingPhoto,
+    flagReason,
+    setFlagReason,
+    flagNotes,
+    setFlagNotes,
+    flagSuggestedTags,
+    setFlagSuggestedTags,
+    openFlagModal,
+    closeFlagModal,
+    submitFlag,
+    viewingFlags,
+    photoFlags,
+    loadPhotoFlags,
+    openViewFlags,
+    closeViewFlags,
+    resolveFlag,
+    dismissFlag,
+  } = photoFlagsHook;
+
   // Analytics
   const [showAnalytics, setShowAnalytics] = useState(false);
 
@@ -182,6 +208,26 @@ export function PhotoGalleryRefactored({
       enhancePhoto(reviewingPhoto.url);
     }
   };
+
+  // Bulk enhance selected photos
+  const handleBulkEnhance = async () => {
+    if (selectedPhotoIds.size === 0 || isEnhancing) return;
+
+    const selectedPhotos = filteredPhotos.filter((p) => selectedPhotoIds.has(p.id));
+
+    for (const photo of selectedPhotos) {
+      enhancePhoto(photo.url);
+      // TODO: Save enhanced URL to database after enhancement completes
+      // This would require updating the usePhotoEnhance hook to return the enhanced URL
+      // and save it to the database
+    }
+  };
+
+  // Load photo flags when viewing flagged tab
+  if (activeTab === 'flagged') {
+    const photoIds = filteredPhotos.map((p) => p.id);
+    loadPhotoFlags(photoIds);
+  }
 
   // Show analytics
   if (showAnalytics) {
@@ -334,10 +380,12 @@ export function PhotoGalleryRefactored({
           activeTab={activeTab}
           editMode={editMode}
           selectedPhotoIds={selectedPhotoIds}
-          photoFlags={new Map()} // TODO: Implement photo flags
+          photoFlags={photoFlags}
           activeFilterCount={activeFilterCount}
           onPhotoClick={(photo, index) => {
-            if (activeTab === 'pending' && (userRole === 'sales-manager' || userRole === 'admin')) {
+            if (activeTab === 'flagged' && photoFlags.has(photo.id)) {
+              openViewFlags(photo);
+            } else if (activeTab === 'pending' && (userRole === 'sales-manager' || userRole === 'admin')) {
               openReviewModal(photo);
             } else {
               openFullScreen(index);
@@ -345,8 +393,8 @@ export function PhotoGalleryRefactored({
           }}
           onToggleSelection={togglePhotoSelection}
           onDeletePhoto={deletePhoto}
-          onOpenFlagModal={() => {}} // TODO: Implement flag modal
-          onViewFlags={() => {}} // TODO: Implement view flags
+          onOpenFlagModal={openFlagModal}
+          onViewFlags={openViewFlags}
         />
       </div>
 
@@ -362,7 +410,7 @@ export function PhotoGalleryRefactored({
         onSelectAIRecommended={selectAIRecommended}
         onDeselectAll={deselectAll}
         onBulkStatusChange={handleBulkStatusChange}
-        onBulkEnhance={() => {}} // TODO: Implement bulk enhance
+        onBulkEnhance={handleBulkEnhance}
         onBulkDelete={handleBulkDelete}
       />
 
@@ -464,6 +512,34 @@ export function PhotoGalleryRefactored({
         onClose={() => setShowTagManagement(false)}
         onAddTag={addCustomTag}
         onDeleteTag={deleteCustomTag}
+      />
+
+      <PhotoFlagModal
+        show={showFlagModal}
+        photo={flaggingPhoto}
+        flagReason={flagReason}
+        flagNotes={flagNotes}
+        flagSuggestedTags={flagSuggestedTags}
+        allTags={getAllTags()}
+        onClose={closeFlagModal}
+        onSetReason={setFlagReason}
+        onSetNotes={setFlagNotes}
+        onSetSuggestedTags={setFlagSuggestedTags}
+        onSubmit={submitFlag}
+      />
+
+      <ViewFlagsModal
+        show={!!viewingFlags}
+        photo={viewingFlags?.photo || null}
+        flags={viewingFlags?.flags || []}
+        userRole={userRole}
+        onClose={closeViewFlags}
+        onResolveFlag={resolveFlag}
+        onDismissFlag={dismissFlag}
+        onEditPhoto={(photo) => {
+          closeViewFlags();
+          openReviewModal(photo);
+        }}
       />
 
       {/* Hidden File Inputs */}

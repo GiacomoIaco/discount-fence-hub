@@ -11,3 +11,5 @@ export { PhotoDetailModal } from './PhotoDetailModal';
 export { PhotoReviewModal } from './PhotoReviewModal';
 export { BulkEditToolbar } from './BulkEditToolbar';
 export { TagManagementModal } from './TagManagementModal';
+export { PhotoFlagModal } from './PhotoFlagModal';
+export { ViewFlagsModal } from './ViewFlagsModal';

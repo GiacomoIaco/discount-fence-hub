@@ -12,3 +12,4 @@ export { usePhotoEnhance } from './usePhotoEnhance';
 export { usePhotoActions } from './usePhotoActions';
 export { usePhotoBulkEdit } from './usePhotoBulkEdit';
 export { useTagManagement } from './useTagManagement';
+export { usePhotoFlags } from './usePhotoFlags';
