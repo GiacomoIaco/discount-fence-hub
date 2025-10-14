@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -229,10 +229,12 @@ export function PhotoGalleryRefactored({
   };
 
   // Load photo flags when viewing flagged tab
-  if (activeTab === 'flagged') {
-    const photoIds = filteredPhotos.map((p) => p.id);
-    loadPhotoFlags(photoIds);
-  }
+  useEffect(() => {
+    if (activeTab === 'flagged' && filteredPhotos.length > 0) {
+      const photoIds = filteredPhotos.map((p) => p.id);
+      loadPhotoFlags(photoIds);
+    }
+  }, [activeTab, filteredPhotos]);
 
   // Show analytics
   if (showAnalytics) {
@@ -404,8 +406,8 @@ export function PhotoGalleryRefactored({
           photoFlags={photoFlags}
           activeFilterCount={activeFilterCount}
           onPhotoClick={(photo, index) => {
-            if (activeTab === 'flagged' && photoFlags.has(photo.id)) {
-              openViewFlags(photo);
+            if (activeTab === 'flagged') {
+              openViewFlags(photo);  // Always open flags modal on flagged tab
             } else if (
               (activeTab === 'pending' || activeTab === 'saved' || activeTab === 'archived') &&
               (userRole === 'sales-manager' || userRole === 'admin')

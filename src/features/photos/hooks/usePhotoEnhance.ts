@@ -63,8 +63,8 @@ export function usePhotoEnhance() {
     setShowingEnhanced(false);
   };
 
-  const toggleEnhancedView = () => {
-    setShowingEnhanced(!showingEnhanced);
+  const toggleEnhancedView = (show: boolean) => {
+    setShowingEnhanced(show);
   };
 
   return {

@@ -20,6 +20,7 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [enableTagging, setEnableTagging] = useState(true);
+  const [enableFolderUpload, setEnableFolderUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [batchSize, setBatchSize] = useState(5);
 
@@ -177,10 +178,15 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
 
     setIsUploading(false);
 
-    const successCount = uploadProgress.filter(p => p.status === 'complete').length;
-    const errorCount = uploadProgress.filter(p => p.status === 'error').length;
-
-    showSuccess(`Upload complete! ${successCount} photos uploaded, ${errorCount} failed.`);
+    // Use setTimeout to allow React to flush state updates before showing message
+    setTimeout(() => {
+      setUploadProgress(currentProgress => {
+        const successCount = currentProgress.filter(p => p.status === 'complete').length;
+        const errorCount = currentProgress.filter(p => p.status === 'error').length;
+        showSuccess(`Upload complete! ${successCount} photos uploaded, ${errorCount} failed.`);
+        return currentProgress;
+      });
+    }, 100);
   };
 
   const handleClear = () => {
@@ -270,6 +276,26 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
               </label>
             </div>
 
+            {/* Folder Upload Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="font-medium text-gray-900">Folder Upload</label>
+                <p className="text-sm text-gray-600 mt-1">
+                  Upload all images from a folder and its subfolders
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enableFolderUpload}
+                  onChange={(e) => setEnableFolderUpload(e.target.checked)}
+                  disabled={isUploading}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
             {/* Batch Size */}
             <div>
               <label className="font-medium text-gray-900 block mb-2">
@@ -310,11 +336,12 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
               <input
                 id="file-upload"
                 type="file"
-                multiple
+                multiple={!enableFolderUpload}
                 accept="image/*"
                 onChange={handleFileSelect}
                 disabled={isUploading}
                 className="hidden"
+                {...(enableFolderUpload ? { webkitdirectory: '', directory: '' } : {})}
               />
             </label>
           </div>
