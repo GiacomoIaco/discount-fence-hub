@@ -23,7 +23,7 @@ const StainCalculator = lazy(() => import('./components/sales/StainCalculator'))
 const ClientPresentation = lazy(() => import('./components/sales/ClientPresentation'));
 const SalesCoach = lazy(() => import('./components/sales/SalesCoach'));
 const SalesCoachAdmin = lazy(() => import('./components/sales/SalesCoachAdmin'));
-const PhotoGalleryWithBulkUpload = lazy(() => import('./components/PhotoGalleryWithBulkUpload'));
+const PhotoGalleryRefactored = lazy(() => import('./features/photos').then(module => ({ default: module.PhotoGalleryRefactored })));
 const SalesResources = lazy(() => import('./components/SalesResources'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const Settings = lazy(() => import('./components/Settings'));
@@ -242,7 +242,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <PhotoGalleryWithBulkUpload onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
+            <PhotoGalleryRefactored onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -757,7 +757,7 @@ const SalesRepView = ({ activeSection, setActiveSection, viewMode, unreadAnnounc
   if (activeSection === 'photo-gallery') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <PhotoGalleryWithBulkUpload onBack={() => setActiveSection('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />
+        <PhotoGalleryRefactored onBack={() => setActiveSection('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />
       </Suspense>
     );
   }
