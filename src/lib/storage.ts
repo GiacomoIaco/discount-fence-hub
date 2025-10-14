@@ -53,8 +53,8 @@ export function getOptimizedImageUrl(
   return supabase.storage.from(bucket).getPublicUrl(path, {
     transform: {
       ...transform,
-      format: 'webp' as any,      // Modern format, 30% smaller than JPEG
-      resize: 'contain'    // Maintain aspect ratio
+      format: 'origin' as any,    // Keep original format (webp not supported by transformation API)
+      resize: 'contain'            // Maintain aspect ratio
     }
   }).data.publicUrl;
 }
