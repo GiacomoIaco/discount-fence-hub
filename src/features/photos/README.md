@@ -152,14 +152,64 @@ Currently no automated tests. Manual testing checklist:
 - [ ] Bulk status change
 - [ ] Bulk delete with confirmation
 
+## Known Issues (Post-Refactoring)
+
+### Critical Bugs
+1. **Manage Tags - Add Tag Fails**
+   - Status: Bug
+   - Description: When clicking "Manage Tags" button and trying to add a new custom tag, the operation fails
+   - Location: `TagManagementModal.tsx` / `useTagManagement.ts`
+   - Impact: Admins cannot add new custom tags to the system
+
+2. **Photo Enhancement Preview Bug**
+   - Status: Bug
+   - Description: When enhancing a photo and then navigating to a different photo, the new photo shows the previous photo's enhanced preview
+   - Location: `usePhotoEnhance.ts` / `PhotoReviewModal.tsx`
+   - Impact: Incorrect enhancement preview shown, confusing for users
+   - Expected: Enhancement preview should reset when navigating to new photo
+
+3. **Photo Enhancement Quality**
+   - Status: Investigation Needed
+   - Description: Actual photo enhancement appears very marginal/minimal
+   - Location: `usePhotoEnhance.ts` - AI enhancement endpoint
+   - Impact: Enhancement feature not providing expected visual improvements
+
+4. **Review Menu Missing for Saved/Archived/Flagged Photos**
+   - Status: Regression
+   - Description: Clicking photos in Saved, Archived, and Flagged tabs opens full-page view instead of review/edit menu
+   - Location: `PhotoGalleryRefactored.tsx` - photo click handlers (lines 385-393)
+   - Expected Behavior: Should open PhotoReviewModal with ability to:
+     - Edit tags
+     - Change status (move between saved/archived/published)
+     - Update quality scores
+     - Add review notes
+     - Delete photo
+   - Current Behavior: Opens PhotoDetailModal (full-screen viewer)
+   - Impact: Cannot edit or manage photos in these tabs
+
+### Regression Analysis
+These features worked in the previous version (before refactoring to `src/features/photos/`). Need to:
+1. Compare with pre-refactoring git commits (before commit that moved to features/)
+2. Identify what changed during the refactoring
+3. Restore missing functionality without breaking current features
+
+### Action Items
+- [ ] Fix TagManagementModal add tag functionality
+- [ ] Fix enhancement preview state management (reset on photo change)
+- [ ] Investigate enhancement API quality/parameters
+- [ ] Update photo click handlers for Saved/Archived/Flagged tabs
+- [ ] Restore full review menu capabilities for all tabs
+- [ ] Add regression tests to prevent future issues
+
 ## Future Enhancements
-- [ ] AI-powered auto-tagging on upload
-- [ ] Bulk enhance (apply AI enhancement to multiple photos)
-- [ ] AI recommended selection for client presentations
-- [ ] Photo flagging system (quality issues)
+- [x] AI-powered auto-tagging on upload (Completed - BulkPhotoUpload)
+- [x] Bulk enhance (apply AI enhancement to multiple photos) (Completed)
+- [x] AI recommended selection for client presentations (Completed)
+- [x] Photo flagging system (quality issues) (Completed)
 - [ ] Advanced analytics (upload trends, quality metrics)
 - [ ] Photo comparison view
 - [ ] Export selections as PDF/portfolio
+- [x] Bulk upload with AI tagging (Completed - BulkPhotoUpload)
 
 ## Notes
 - Photo gallery is shared across request/project contexts
