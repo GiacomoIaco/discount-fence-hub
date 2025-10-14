@@ -220,11 +220,18 @@ export function PhotoGalleryRefactored({
 
     const selectedPhotos = filteredPhotos.filter((p) => selectedPhotoIds.has(p.id));
 
-    for (const photo of selectedPhotos) {
-      enhancePhoto(photo.url);
-      // TODO: Save enhanced URL to database after enhancement completes
-      // This would require updating the usePhotoEnhance hook to return the enhanced URL
-      // and save it to the database
+    // Process photos sequentially with delay to avoid rate limiting
+    for (let i = 0; i < selectedPhotos.length; i++) {
+      const photo = selectedPhotos[i];
+      console.log(`Enhancing photo ${i + 1} of ${selectedPhotos.length}...`);
+
+      await enhancePhoto(photo.url);
+
+      // Wait 3 seconds between requests to avoid Gemini rate limiting
+      // (except after the last photo)
+      if (i < selectedPhotos.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
     }
   };
 

@@ -97,6 +97,19 @@ Make improvements obvious and impressive to potential customers.`,
     // Log the full response for debugging
     console.log('Gemini API response:', JSON.stringify(data, null, 2));
 
+    // Check for error responses from Gemini
+    if (data.candidates && data.candidates[0]?.finishReason) {
+      const finishReason = data.candidates[0].finishReason;
+
+      if (finishReason === 'NO_IMAGE') {
+        throw new Error('Gemini declined to generate enhanced image. This may be due to: rate limiting (too many requests), content policy issues, or image quality problems. Please try again in a few moments.');
+      }
+
+      if (finishReason !== 'STOP') {
+        throw new Error(`Gemini finished with reason: ${finishReason}. Please try again or contact support.`);
+      }
+    }
+
     // Extract the enhanced image from response
     // Check multiple possible response formats
     let enhancedImageBase64;
@@ -114,8 +127,7 @@ Make improvements obvious and impressive to potential customers.`,
 
     if (!enhancedImageBase64) {
       console.error('Full API response:', JSON.stringify(data, null, 2));
-      // Return the actual response structure to help debug
-      throw new Error(`No enhanced image in response. Response structure: ${JSON.stringify(data, null, 2).substring(0, 500)}`);
+      throw new Error(`No enhanced image in response. This may indicate rate limiting or an API issue. Please wait a moment and try again.`);
     }
 
     return {
