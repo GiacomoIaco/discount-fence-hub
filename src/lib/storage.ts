@@ -36,7 +36,7 @@ export function getOptimizedImageUrl(
 ): string {
   // Size presets optimized for different use cases
   const sizes: Record<ImageSize, TransformOptions | null> = {
-    thumb: { width: 200, height: 200, quality: 70 },      // Gallery thumbnails, ~20KB
+    thumb: { width: 300, height: 300, quality: 80 },      // Gallery thumbnails, ~50-70KB
     medium: { width: 800, height: 600, quality: 80 },     // Preview/lightbox, ~150KB
     large: { width: 1920, height: 1080, quality: 85 },    // Full-screen viewing, ~500KB
     original: null                                          // No transformation, full resolution
