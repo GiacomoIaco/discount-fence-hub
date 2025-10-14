@@ -28,6 +28,14 @@ export function usePhotoBulkEdit(photos: any[], onPhotosUpdate: () => void) {
     setSelectedPhotoIds(new Set());
   };
 
+  const selectAIRecommended = () => {
+    // Select photos with 80%+ confidence score
+    const aiRecommended = photos
+      .filter((p) => p.confidenceScore && p.confidenceScore >= 80)
+      .map((p) => p.id);
+    setSelectedPhotoIds(new Set(aiRecommended));
+  };
+
   const handleBulkStatusChange = async (newStatus: 'published' | 'archived' | 'saved') => {
     if (selectedPhotoIds.size === 0) return;
 
@@ -88,6 +96,7 @@ export function usePhotoBulkEdit(photos: any[], onPhotosUpdate: () => void) {
     selectedPhotoIds,
     togglePhotoSelection,
     selectAll,
+    selectAIRecommended,
     deselectAll,
     handleBulkStatusChange,
     handleBulkDelete,

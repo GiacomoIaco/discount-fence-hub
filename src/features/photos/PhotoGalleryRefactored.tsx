@@ -101,13 +101,14 @@ export function PhotoGalleryRefactored({
   } = review;
 
   // Bulk edit
-  const bulkEdit = usePhotoBulkEdit(photos, loadPhotos);
+  const bulkEdit = usePhotoBulkEdit(filteredPhotos, loadPhotos);
   const {
     editMode,
     setEditMode,
     selectedPhotoIds,
     togglePhotoSelection,
     selectAll,
+    selectAIRecommended,
     deselectAll,
     handleBulkStatusChange,
     handleBulkDelete,
@@ -358,7 +359,7 @@ export function PhotoGalleryRefactored({
         selectedCount={selectedPhotoIds.size}
         isEnhancing={isEnhancing}
         onSelectAll={selectAll}
-        onSelectAIRecommended={() => {}} // TODO: Implement AI recommended selection
+        onSelectAIRecommended={selectAIRecommended}
         onDeselectAll={deselectAll}
         onBulkStatusChange={handleBulkStatusChange}
         onBulkEnhance={() => {}} // TODO: Implement bulk enhance
