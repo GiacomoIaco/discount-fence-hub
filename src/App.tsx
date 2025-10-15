@@ -188,7 +188,7 @@ function App() {
   const navigationItems = getNavigationItems();
 
   // Filter navigation items based on menu visibility settings
-  const visibleNavigationItems = navigationItems.filter(item => canSeeMenuItem(item.id));
+  const visibleNavigationItems = navigationItems.filter(item => canSeeMenuItem(item.id, userRole));
 
   const renderContent = () => {
     // Wrap all lazy-loaded components with Suspense

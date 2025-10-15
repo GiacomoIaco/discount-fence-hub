@@ -42,17 +42,17 @@ export const useMenuVisibility = () => {
     }
   };
 
-  const canSeeMenuItem = (menuId: string): boolean => {
+  const canSeeMenuItem = (menuId: string, overrideRole?: string): boolean => {
     const item = menuVisibility.get(menuId);
 
     // If no visibility rules defined, default to visible
     if (!item) return true;
 
-    const userRole = profile?.role || 'sales';
+    const userRole = overrideRole || profile?.role || 'sales';
     const userId = user?.id;
 
-    // Check user-level overrides first
-    if (userId) {
+    // Check user-level overrides first (only if not using override role)
+    if (userId && !overrideRole) {
       // If user is explicitly disabled, hide the menu
       if (item.disabled_users?.includes(userId)) return false;
 
