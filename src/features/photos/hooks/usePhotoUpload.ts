@@ -3,6 +3,7 @@ import type { Photo } from '../../../lib/photos';
 import { resizeImage, imageToBase64 } from '../../../lib/photos';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
+import { hashFile, checkDuplicateByHash } from '../../../lib/fileHash';
 
 /**
  * Hook for photo upload with AI analysis
@@ -28,6 +29,31 @@ export function usePhotoUpload(
       console.log('📸 Photo upload - User info:', { uploadUserId, uploadUserName });
 
       for (const file of Array.from(files)) {
+        // Check for duplicate before processing
+        let fileHash: string | null = null;
+        try {
+          fileHash = await hashFile(file);
+          const duplicate = await checkDuplicateByHash(fileHash, supabase);
+
+          if (duplicate) {
+            const uploadDate = new Date(duplicate.uploaded_at).toLocaleDateString();
+            const shouldUpload = confirm(
+              `⚠️ Duplicate Photo Detected\n\n` +
+                `File: ${file.name}\n` +
+                `Already uploaded: ${uploadDate}\n\n` +
+                `Upload anyway?`
+            );
+
+            if (!shouldUpload) {
+              console.log(`Skipping duplicate file: ${file.name}`);
+              continue; // Skip this file
+            }
+          }
+        } catch (error) {
+          console.warn('Duplicate check failed, proceeding with upload:', error);
+          // Continue with upload if duplicate check fails
+        }
+
         // Resize for full image (max 1920px)
         const full = await resizeImage(file, 1920, 0.85);
 
@@ -164,6 +190,7 @@ export function usePhotoUpload(
             suggested_tags: newPhoto.suggestedTags,
             quality_score: newPhoto.qualityScore,
             confidence_score: newPhoto.confidenceScore,
+            file_hash: fileHash, // Add file hash for duplicate detection
           };
           console.log('📝 Database insert data:', dbPhoto);
           const { data, error } = await supabase.from('photos').insert([dbPhoto]).select().single();

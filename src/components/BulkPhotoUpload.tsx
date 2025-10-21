@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, ArrowLeft, Sparkles, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { imageToBase64 } from '../lib/photos';
 import { showSuccess } from '../lib/toast';
 import { getOptimizedImageUrl } from '../lib/storage';
+import { hashFile, checkDuplicateByHash } from '../lib/fileHash';
 
 interface BulkPhotoUploadProps {
   onBack: () => void;
@@ -16,6 +17,8 @@ interface UploadProgress {
   photoId?: string;
 }
 
+const UPLOAD_PROGRESS_KEY = 'bulkPhotoUploadProgress';
+
 const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
@@ -23,6 +26,70 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
   const [enableFolderUpload, setEnableFolderUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [batchSize, setBatchSize] = useState(5);
+
+  // Warn user before closing tab during upload
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isUploading) {
+        e.preventDefault();
+        e.returnValue = 'Upload in progress. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isUploading]);
+
+  // Save progress to localStorage after each update
+  useEffect(() => {
+    if (uploadProgress.length > 0) {
+      localStorage.setItem(UPLOAD_PROGRESS_KEY, JSON.stringify({
+        progress: uploadProgress,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+  }, [uploadProgress]);
+
+  // Load saved progress on mount and show resume dialog
+  useEffect(() => {
+    const savedData = localStorage.getItem(UPLOAD_PROGRESS_KEY);
+    if (savedData) {
+      try {
+        const { progress, timestamp } = JSON.parse(savedData);
+        const savedTime = new Date(timestamp);
+        const now = new Date();
+        const hoursSince = (now.getTime() - savedTime.getTime()) / (1000 * 60 * 60);
+
+        // Only show resume dialog if saved within last 24 hours and has incomplete uploads
+        const hasIncomplete = progress.some((p: UploadProgress) =>
+          p.status === 'pending' || p.status === 'uploading' || p.status === 'tagging'
+        );
+
+        if (hoursSince < 24 && hasIncomplete) {
+          const completedCount = progress.filter((p: UploadProgress) => p.status === 'complete').length;
+          const totalCount = progress.length;
+
+          if (confirm(
+            `Resume Previous Upload?\n\n` +
+            `Found incomplete upload from ${savedTime.toLocaleString()}\n` +
+            `Completed: ${completedCount} / ${totalCount}\n\n` +
+            `Click OK to view progress, or Cancel to start fresh.`
+          )) {
+            setUploadProgress(progress);
+          } else {
+            localStorage.removeItem(UPLOAD_PROGRESS_KEY);
+          }
+        } else {
+          // Clean up old saved data
+          localStorage.removeItem(UPLOAD_PROGRESS_KEY);
+        }
+      } catch (error) {
+        console.error('Failed to load saved upload progress:', error);
+        localStorage.removeItem(UPLOAD_PROGRESS_KEY);
+      }
+    }
+  }, []); // Only run on mount
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -50,6 +117,24 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
 
     try {
       updateProgress({ status: 'uploading' });
+
+      // Check for duplicate
+      let fileHash: string | null = null;
+      try {
+        fileHash = await hashFile(file);
+        const duplicate = await checkDuplicateByHash(fileHash, supabase);
+
+        if (duplicate) {
+          // Skip duplicate silently in bulk upload
+          updateProgress({
+            status: 'error',
+            error: 'Duplicate (skipped)'
+          });
+          return;
+        }
+      } catch (error) {
+        console.warn(`Duplicate check failed for ${file.name}, proceeding with upload`);
+      }
 
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -86,7 +171,8 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
         status: 'pending',
         suggested_tags: [] as string[],
         quality_score: null,
-        confidence_score: null
+        confidence_score: null,
+        file_hash: fileHash  // Add file hash for duplicate detection
       };
 
       const { data: photoData, error: dbError } = await supabase
@@ -177,6 +263,9 @@ const BulkPhotoUpload = ({ onBack }: BulkPhotoUploadProps) => {
     }
 
     setIsUploading(false);
+
+    // Clear saved progress from localStorage after upload completes
+    localStorage.removeItem(UPLOAD_PROGRESS_KEY);
 
     // Use setTimeout to allow React to flush state updates before showing message
     setTimeout(() => {

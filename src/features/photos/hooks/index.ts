@@ -9,6 +9,7 @@ export { usePhotoFilters } from './usePhotoFilters';
 export { usePhotoUpload } from './usePhotoUpload';
 export { usePhotoReview } from './usePhotoReview';
 export { usePhotoEnhance } from './usePhotoEnhance';
+export { usePhotoEnhanceQueue } from './usePhotoEnhanceQueue';
 export { usePhotoActions } from './usePhotoActions';
 export { usePhotoBulkEdit } from './usePhotoBulkEdit';
 export { useTagManagement } from './useTagManagement';

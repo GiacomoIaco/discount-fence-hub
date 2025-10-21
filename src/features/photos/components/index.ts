@@ -13,3 +13,4 @@ export { BulkEditToolbar } from './BulkEditToolbar';
 export { TagManagementModal } from './TagManagementModal';
 export { PhotoFlagModal } from './PhotoFlagModal';
 export { ViewFlagsModal } from './ViewFlagsModal';
+export { EnhancementProgressModal } from './EnhancementProgressModal';

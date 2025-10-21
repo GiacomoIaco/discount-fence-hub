@@ -21,6 +21,7 @@ import {
   usePhotoUpload,
   usePhotoReview,
   usePhotoEnhance,
+  usePhotoEnhanceQueue,
   usePhotoActions,
   usePhotoBulkEdit,
   useTagManagement,
@@ -38,6 +39,7 @@ import {
   TagManagementModal,
   PhotoFlagModal,
   ViewFlagsModal,
+  EnhancementProgressModal,
 } from './components';
 
 interface PhotoGalleryProps {
@@ -78,6 +80,16 @@ export function PhotoGalleryRefactored({
   // Photo enhancement
   const enhance = usePhotoEnhance();
   const { enhancedUrl, showingEnhanced, isEnhancing, enhancePhoto, resetEnhancement, toggleEnhancedView } = enhance;
+
+  // Bulk photo enhancement queue
+  const enhanceQueue = usePhotoEnhanceQueue();
+  const {
+    queueState: enhancementQueueState,
+    showProgressModal: showEnhancementProgress,
+    startEnhancementQueue,
+    cancelQueue: cancelEnhancementQueue,
+    closeProgressModal: closeEnhancementProgress,
+  } = enhanceQueue;
 
   // Photo actions
   const actions = usePhotoActions(sessionId, userId, setPhotos);
@@ -214,25 +226,60 @@ export function PhotoGalleryRefactored({
     }
   };
 
-  // Bulk enhance selected photos
+  // Bulk enhance selected photos with queue tracking
   const handleBulkEnhance = async () => {
-    if (selectedPhotoIds.size === 0 || isEnhancing) return;
+    if (selectedPhotoIds.size === 0 || enhancementQueueState.isProcessing) return;
 
-    const selectedPhotos = filteredPhotos.filter((p) => selectedPhotoIds.has(p.id));
+    const selectedPhotos = filteredPhotos
+      .filter((p) => selectedPhotoIds.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        url: p.url,
+        fileName: p.tags?.[0] || `Photo ${p.id.slice(0, 8)}`,
+      }));
 
-    // Process photos sequentially with delay to avoid rate limiting
-    for (let i = 0; i < selectedPhotos.length; i++) {
-      const photo = selectedPhotos[i];
-      console.log(`Enhancing photo ${i + 1} of ${selectedPhotos.length}...`);
+    // Start enhancement queue - modal will show automatically
+    await startEnhancementQueue(selectedPhotos, (photoId, enhancedUrl) => {
+      if (enhancedUrl) {
+        console.log(`✅ Photo ${photoId} enhanced successfully`);
+        // Note: Enhanced photos are stored in queue state
+        // They will be uploaded when user clicks "Publish All" in the modal
+      }
+    });
+  };
 
-      await enhancePhoto(photo.url);
+  // Publish all enhanced photos from queue
+  const handlePublishAllEnhanced = async () => {
+    const enhancedItems = enhancementQueueState.items.filter((item) => item.status === 'complete' && item.enhancedUrl);
 
-      // Wait 3 seconds between requests to avoid Gemini rate limiting
-      // (except after the last photo)
-      if (i < selectedPhotos.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
+    for (const item of enhancedItems) {
+      // Upload enhanced version to storage (replace original)
+      try {
+        const response = await fetch(item.enhancedUrl!);
+        const blob = await response.blob();
+
+        const { supabase } = await import('../../lib/supabase');
+        const photo = filteredPhotos.find((p) => p.id === item.photoId);
+        if (!photo) continue;
+
+        const fileName = `${photo.uploadedBy}/full/${photo.id}.jpg`;
+        const { error } = await supabase.storage.from('photos').update(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+        if (error) {
+          console.error(`Failed to upload enhanced photo ${item.photoId}:`, error);
+        }
+      } catch (error) {
+        console.error(`Error publishing enhanced photo ${item.photoId}:`, error);
       }
     }
+
+    closeEnhancementProgress();
+    loadPhotos(); // Reload to show updated photos
+    const { showSuccess } = await import('../../lib/toast');
+    showSuccess(`${enhancedItems.length} enhanced photos published!`);
   };
 
   // Load photo flags when viewing flagged tab
@@ -438,7 +485,7 @@ export function PhotoGalleryRefactored({
         activeTab={activeTab}
         userRole={userRole}
         selectedCount={selectedPhotoIds.size}
-        isEnhancing={isEnhancing}
+        isEnhancing={enhancementQueueState.isProcessing}
         onSelectAll={selectAll}
         onSelectAIRecommended={selectAIRecommended}
         onDeselectAll={deselectAll}
@@ -574,6 +621,14 @@ export function PhotoGalleryRefactored({
           closeViewFlags();
           openReviewModal(photo);
         }}
+      />
+
+      <EnhancementProgressModal
+        show={showEnhancementProgress}
+        queueState={enhancementQueueState}
+        onClose={closeEnhancementProgress}
+        onCancel={cancelEnhancementQueue}
+        onPublishAll={handlePublishAllEnhanced}
       />
 
       {/* Hidden File Inputs */}
