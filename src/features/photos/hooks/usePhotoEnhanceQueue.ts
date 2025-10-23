@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { showError } from '../../../lib/toast';
 import type { EnhancementProgress, EnhancementQueueState, EnhancementCallback } from '../types/enhancement';
 
 /**
@@ -118,7 +117,7 @@ export function usePhotoEnhanceQueue() {
           ...prev,
           items: prev.items.map((it, idx) =>
             idx === i
-              ? { ...it, status: 'complete', enhancedUrl, completedAt: new Date().toISOString() }
+              ? { ...it, status: 'complete', enhancedUrl: enhancedUrl ?? undefined, completedAt: new Date().toISOString() }
               : it
           ),
           completedCount: prev.completedCount + 1,
