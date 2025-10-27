@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Star, Heart, Flag as FlagIcon, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Download, Star, Heart, Flag as FlagIcon, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { showError } from '../../../lib/toast';
+import { showError, showSuccess } from '../../../lib/toast';
+import { fixAllPhotoAttribution, fixMyPhotoAttribution } from '../lib/fixPhotoAttribution';
 
 interface PhotoAnalyticsProps {
   onBack: () => void;
@@ -23,10 +24,11 @@ interface UploaderStats {
 
 type TimeFrame = '7days' | '30days' | '90days' | 'all';
 
-const PhotoAnalytics = ({ onBack }: PhotoAnalyticsProps) => {
+const PhotoAnalytics = ({ onBack, userRole }: PhotoAnalyticsProps) => {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('30days');
   const [uploaderStats, setUploaderStats] = useState<UploaderStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fixing, setFixing] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
@@ -148,6 +150,32 @@ const PhotoAnalytics = ({ onBack }: PhotoAnalyticsProps) => {
     URL.revokeObjectURL(url);
   };
 
+  const handleFixAttribution = async () => {
+    if (!confirm('This will update all photos with "Unknown" attribution to use the correct uploader names from user profiles. Continue?')) {
+      return;
+    }
+
+    setFixing(true);
+    try {
+      const result = userRole === 'admin' || userRole === 'operations'
+        ? await fixAllPhotoAttribution()
+        : await fixMyPhotoAttribution();
+
+      if (result.success) {
+        showSuccess(`Fixed ${result.fixed} photos! ${result.details.join('\n')}`);
+        // Reload analytics to show updated data
+        await loadAnalytics();
+      } else {
+        showError(`Fix completed with errors. ${result.details.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('Error fixing attribution:', error);
+      showError('Failed to fix photo attribution');
+    } finally {
+      setFixing(false);
+    }
+  };
+
   const totalPhotos = uploaderStats.reduce((sum, s) => sum + s.photos_published, 0);
   const totalLikes = uploaderStats.reduce((sum, s) => sum + s.total_likes, 0);
   const totalFavorites = uploaderStats.reduce((sum, s) => sum + s.total_favorites, 0);
@@ -172,13 +200,25 @@ const PhotoAnalytics = ({ onBack }: PhotoAnalyticsProps) => {
               </div>
             </div>
 
-            <button
-              onClick={exportToCSV}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export CSV</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleFixAttribution}
+                disabled={fixing}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title="Fix photos with 'Unknown' attribution"
+              >
+                <RefreshCw className={`w-4 h-4 ${fixing ? 'animate-spin' : ''}`} />
+                <span>{fixing ? 'Fixing...' : 'Fix Attribution'}</span>
+              </button>
+
+              <button
+                onClick={exportToCSV}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export CSV</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
