@@ -22,7 +22,8 @@ import {
   Share2,
   Archive,
   Users,
-  MessageCircle
+  MessageCircle,
+  Trash2
 } from 'lucide-react';
 
 type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_response' | 'answered' | 'acknowledged' | 'archived';
@@ -285,6 +286,66 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
     }
   };
 
+  const handleSendDraft = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('company_messages')
+        .update({
+          is_draft: false,
+          status: 'active'
+        })
+        .eq('id', messageId);
+
+      if (!error) {
+        loadMessages(); // Reload to update the list
+      }
+    } catch (error) {
+      console.error('Error sending draft:', error);
+    }
+  };
+
+  const handleDeleteDraft = async (messageId: string) => {
+    if (!user) return;
+
+    if (!window.confirm('Permanently delete this draft? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // Delete message_engagement records first (foreign key constraint)
+      await supabase
+        .from('message_engagement')
+        .delete()
+        .eq('message_id', messageId);
+
+      // Delete message_responses (comments, reactions, etc.)
+      await supabase
+        .from('message_responses')
+        .delete()
+        .eq('message_id', messageId);
+
+      // Delete message_receipts
+      await supabase
+        .from('message_receipts')
+        .delete()
+        .eq('message_id', messageId);
+
+      // Finally delete the message itself
+      const { error } = await supabase
+        .from('company_messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (!error) {
+        loadMessages(); // Reload to update the list
+      }
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+    }
+  };
+
   const getMessageConfig = (type: string) => {
     const configs: Record<string, any> = {
       announcement: { icon: Megaphone, color: 'from-blue-500 to-blue-600', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
@@ -413,6 +474,8 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
                 setShowSurveyResults(true);
               }}
               onArchive={handleArchive}
+              onSendDraft={handleSendDraft}
+              onDeleteDraft={handleDeleteDraft}
               filterMode={filterMode}
             />
           </div>
@@ -439,7 +502,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
 }
 
 // Sent Messages List Component
-function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails, onArchive, filterMode }: any) {
+function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails, onArchive, onSendDraft, onDeleteDraft, filterMode }: any) {
   return messages.map((msg: CompanyMessage) => {
     const config = getMessageConfig(msg.message_type);
     const Icon = config.icon;
@@ -553,6 +616,33 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
                 >
                   <Archive className="w-4 h-4" />
                 </button>
+              )}
+              {filterMode === 'drafts' && msg.is_draft && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Send this draft? It will be published and sent to all recipients.')) {
+                        onSendDraft(msg.id);
+                      }
+                    }}
+                    className="px-2 md:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium flex items-center space-x-1"
+                    title="Send Draft"
+                  >
+                    <SendIcon className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Send</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteDraft(msg.id);
+                    }}
+                    className="p-1.5 md:p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                    title="Delete Draft"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
               )}
               <button
                 onClick={() => onToggleExpand(msg.id)}

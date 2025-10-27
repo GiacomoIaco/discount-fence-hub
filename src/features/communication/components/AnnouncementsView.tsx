@@ -201,7 +201,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     try {
       setLoading(true);
 
-      // Get messages that target user's role or specific user
+      // Get messages that target user's role or specific user (exclude drafts)
       const { data: messagesData, error: messagesError } = await supabase
         .from('company_messages')
         .select(`
@@ -210,6 +210,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
         `)
         .or(`target_roles.cs.{${profile.role}},target_user_ids.cs.{${user.id}}`)
         .eq('is_archived', false)
+        .eq('is_draft', false)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
 
