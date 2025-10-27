@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, DollarSign, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Trash2 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { showError } from '../../lib/toast';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabase';
+import { showError } from '../../../lib/toast';
 
 interface StainCalculatorProps {
   onBack: () => void;

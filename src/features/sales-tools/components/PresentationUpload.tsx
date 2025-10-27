@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { ArrowLeft, Upload, FileText, Wand2, Check, Edit2 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabase';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
-import { showError } from '../../lib/toast';
+import { showError } from '../../../lib/toast';
 
 // Set up PDF.js worker - using local worker from node_modules
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(

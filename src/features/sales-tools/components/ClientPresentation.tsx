@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, FileText, Video, Archive, Trash2, Eye, Plus } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabase';
 import PresentationUpload from './PresentationUpload';
 import PresentationViewer from './PresentationViewer';
-import { showError } from '../../lib/toast';
+import { showError } from '../../../lib/toast';
 
 interface ClientPresentationProps {
   onBack: () => void;

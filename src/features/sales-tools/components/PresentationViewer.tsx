@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save, Edit2, X, Check, Download, ExternalLink } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { showError } from '../../lib/toast';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabase';
+import { showError } from '../../../lib/toast';
 
 interface PresentationViewerProps {
   presentation: {

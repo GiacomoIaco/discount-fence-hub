@@ -19,10 +19,10 @@ import type { Request } from './lib/requests';
 // ============================================
 // This reduces initial bundle size by ~70% and improves load time
 
-const StainCalculator = lazy(() => import('./components/sales/StainCalculator'));
-const ClientPresentation = lazy(() => import('./components/sales/ClientPresentation'));
-const SalesCoach = lazy(() => import('./components/sales/SalesCoach'));
-const SalesCoachAdmin = lazy(() => import('./components/sales/SalesCoachAdmin'));
+const StainCalculator = lazy(() => import('./features/sales-tools').then(module => ({ default: module.StainCalculator })));
+const ClientPresentation = lazy(() => import('./features/sales-tools').then(module => ({ default: module.ClientPresentation })));
+const SalesCoach = lazy(() => import('./features/ai-coach').then(module => ({ default: module.SalesCoach })));
+const SalesCoachAdmin = lazy(() => import('./features/ai-coach').then(module => ({ default: module.SalesCoachAdmin })));
 const PhotoGalleryRefactored = lazy(() => import('./features/photos').then(module => ({ default: module.PhotoGalleryRefactored })));
 const SalesResources = lazy(() => import('./features/sales-resources').then(module => ({ default: module.SalesResources })));
 const Analytics = lazy(() => import('./features/analytics').then(module => ({ default: module.Analytics })));
