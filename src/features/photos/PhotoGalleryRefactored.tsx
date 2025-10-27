@@ -13,6 +13,7 @@ import {
 import { isSelectedInSession } from './lib/photos';
 import PhotoAnalytics from './components/PhotoAnalytics';
 import BulkPhotoUpload from './components/BulkPhotoUpload';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Import custom hooks
 import {
@@ -57,6 +58,20 @@ export function PhotoGalleryRefactored({
   userId,
   userName,
 }: PhotoGalleryProps) {
+  // Get authenticated user info from context (this ensures we always have current user data)
+  const { user, profile } = useAuth();
+
+  // Use auth context user info if available, otherwise fall back to props
+  const effectiveUserId = user?.id || userId;
+  const effectiveUserName = profile?.full_name || userName;
+
+  console.log('📸 PhotoGallery - User info:', {
+    effectiveUserId,
+    effectiveUserName,
+    fromAuth: !!user,
+    fromProps: !user && !!userId
+  });
+
   // Refs for file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -70,8 +85,8 @@ export function PhotoGalleryRefactored({
   const filters = usePhotoFilters(photos);
   const { showFilters, setShowFilters, filters: filterState, filteredPhotos, toggleFilter, clearFilters, activeFilterCount } = filters;
 
-  // Photo upload
-  const upload = usePhotoUpload(userId, userName, (photo) => {
+  // Photo upload - use effective user info from auth context
+  const upload = usePhotoUpload(effectiveUserId, effectiveUserName, (photo) => {
     setPhotos((prev) => [...prev, photo]);
     loadPhotos(); // Reload to get fresh data from server
   });
@@ -91,12 +106,12 @@ export function PhotoGalleryRefactored({
     closeProgressModal: closeEnhancementProgress,
   } = enhanceQueue;
 
-  // Photo actions
-  const actions = usePhotoActions(sessionId, userId, setPhotos);
+  // Photo actions - use effective user info from auth context
+  const actions = usePhotoActions(sessionId, effectiveUserId, setPhotos);
   const { toggleFavorite, toggleLike, toggleClientSelection, deletePhoto } = actions;
 
-  // Photo review workflow
-  const review = usePhotoReview(userId, loadPhotos, enhancedUrl, showingEnhanced);
+  // Photo review workflow - use effective user info from auth context
+  const review = usePhotoReview(effectiveUserId, loadPhotos, enhancedUrl, showingEnhanced);
   const {
     reviewingPhoto,
     editingTags,
