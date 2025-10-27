@@ -493,3 +493,36 @@ For issues: Create an issue in the GitHub repository
 
 **Built with ❤️ for Discount Fence USA**
 *Powered by React, TypeScript, Claude AI, and modern web technologies*
+
+---
+
+## 📚 Documentation
+
+### Architecture & Planning
+- **[Current Architecture](docs/architecture/current-architecture.md)** - Complete system overview with 11 features
+- **[Completed Restructuring](docs/architecture/completed-restructuring.md)** - Feature-based migration details
+- **[Historical Architecture Docs](docs/architecture/historical/)** - Previous architectural analyses
+
+### Development
+- **[Development Roadmap](docs/development/DEVELOPMENT_ROADMAP.md)** - Future features and planning
+- **[Risk Mitigation](docs/development/risk-mitigation.md)** - Known risks and resolutions
+- **[Validation Examples](docs/development/VALIDATION_USAGE_EXAMPLES.md)** - Form validation patterns
+
+### Deployment
+- **[Deployment Guide](docs/deployment/DEPLOY.md)** - How to deploy the application
+- **[Supabase Setup](docs/deployment/SUPABASE_SETUP.md)** - Database configuration
+
+### Feature-Specific Docs
+- **[Communication Feature](src/features/communication/docs/)** - Chat, messaging, announcements
+- **[Photo Gallery](src/features/photos/docs/)** - Photo management and AI tagging
+- **[Analytics](src/features/analytics/docs/)** - Analytics strategy and reporting
+- **[BOM Calculator](src/features/bom_calculator/docs/)** - Bill of materials system
+
+### Database
+- **[Migrations](database/migrations/)** - All database migrations
+- **[Schemas](database/schemas/)** - Table definitions and structures
+- **[Fixes](database/fixes/)** - RLS and constraint fixes
+- **[Sample Data](database/sample-data/)** - Airtable legacy data backups
+
+---
+

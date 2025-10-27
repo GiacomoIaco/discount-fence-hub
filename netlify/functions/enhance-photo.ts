@@ -42,9 +42,9 @@ export const handler: Handler = async (event) => {
       throw new Error('GOOGLE_API_KEY not configured in Netlify environment variables');
     }
 
-    // Call Gemini 2.5 Flash Image API for enhancement
+    // Call Gemini 2.5 Flash Image API (Nano Banana) for enhancement
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -61,25 +61,17 @@ export const handler: Handler = async (event) => {
                   },
                 },
                 {
-                  text: `Expert photo enhancement for Discount Fence USA premium marketing portfolio:
-Analyze this fence/construction photo and apply enhancements AS NEEDED to achieve
-DRAMATIC visible improvement suitable for premium marketing materials.
+                  text: `Transform this fence/construction photo into a premium marketing image that will impress potential customers.
 
-Intelligently adjust:
-- Brightness/contrast (only if needed)
-- Structural clarity and sharpness of fence elements
-- Noise reduction (if present)
-- Color saturation and vibrancy (while maintaining realistic appearance)
-- Overall professional presentation quality
+Use your expert judgment to enhance whatever needs improvement - lighting, colors, sharpness, composition, or overall visual appeal. Make it look professional and eye-catching while keeping it realistic.
 
-Goal: Transform this into a stunning, eye-catching image that showcases our work at its absolute best.
-Make improvements obvious and impressive to potential customers.`,
+The goal: create a stunning "after" version that showcases this work at its absolute best.`,
                 },
               ],
             },
           ],
           generationConfig: {
-            temperature: 0.9,
+            temperature: 0.7, // Balanced: creative enough for improvements, consistent enough for editing
             responseModalities: ['image'],
           },
         }),
