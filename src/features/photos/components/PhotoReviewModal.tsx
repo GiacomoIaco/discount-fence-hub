@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { X, Sparkles, Check, Save, Trash2 } from 'lucide-react';
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 
 interface PhotoReviewModalProps {
   photo: Photo | null;

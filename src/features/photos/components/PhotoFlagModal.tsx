@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 
 interface PhotoFlagModalProps {
   show: boolean;

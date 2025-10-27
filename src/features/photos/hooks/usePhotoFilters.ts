@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Photo, FilterState } from '../../../lib/photos';
-import { filterPhotos, getActiveFilterCount } from '../../../lib/photos';
+import type { Photo, FilterState } from '../lib/photos';
+import { filterPhotos, getActiveFilterCount } from '../lib/photos';
 
 /**
  * Hook for managing photo gallery filters

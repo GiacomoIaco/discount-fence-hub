@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError, showWarning } from '../../../lib/toast';
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 
 type FlagReason = 'wrong_tags' | 'poor_quality' | 'needs_enhancement' | 'other';
 

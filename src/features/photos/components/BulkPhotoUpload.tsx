@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Upload, ArrowLeft, Sparkles, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { imageToBase64 } from '../../../lib/photos';
+import { imageToBase64 } from '../lib/photos';
 import { showSuccess } from '../../../lib/toast';
 import { getOptimizedImageUrl } from '../../../lib/storage';
-import { hashFile, checkDuplicateByHash } from '../../../lib/fileHash';
+import { hashFile, checkDuplicateByHash } from '../lib/fileHash';
 
 interface BulkPhotoUploadProps {
   onBack: () => void;

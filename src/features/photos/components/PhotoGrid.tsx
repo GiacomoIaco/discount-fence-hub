@@ -1,5 +1,5 @@
 import { Star, Heart, Check, Trash2, Sparkles, Flag, ImageIcon } from 'lucide-react';
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 
 interface PhotoGridProps {
   photos: Photo[];

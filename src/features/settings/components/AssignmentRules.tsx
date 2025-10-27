@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Edit2, Save, X, ArrowLeft } from 'lucide-react';
-import type { RequestType } from '../../../lib/requests';
-import { useAssignmentRules, useUsers } from '../../../hooks/useRequests';
+import type { RequestType } from '../../requests/lib/requests';
+import { useAssignmentRules, useUsers } from '../../requests/hooks/useRequests';
 import { showError, showWarning } from '../../../lib/toast';
 
 interface AssignmentRulesProps {

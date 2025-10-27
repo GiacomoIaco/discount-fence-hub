@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2 } from 'lucide-react';
-import type { RequestType, Urgency, CreateRequestInput } from '../../../lib/requests';
-import { useCreateRequestMutation } from '../../../hooks/queries/useRequestsQuery';
+import type { RequestType, Urgency, CreateRequestInput } from '../lib/requests';
+import { useCreateRequestMutation } from '../hooks/useRequestsQuery';
 import { transcribeAudio } from '../../../lib/openai';
 import { parseVoiceTranscript } from '../../../lib/claude';
 import { supabase } from '../../../lib/supabase';

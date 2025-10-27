@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, Clock, Award, ChevronRight, CheckCircle, XCircle, AlertCircle, TrendingUp, Settings, MessageSquare, Star, Trash2, WifiOff, Wifi, Trophy, Medal, Crown } from 'lucide-react';
-import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getTeamLeaderboard, type Recording, type LeaderboardEntry } from '../../lib/recordings';
+import { uploadRecording, getRecordings, getUserStats, setDebugCallback, setUpdateCallback, addManagerReview, removeManagerReview, processOfflineQueue, getTeamLeaderboard, type Recording, type LeaderboardEntry } from './lib/recordings';
 import { initOfflineDB, getOfflineQueueSize } from '../../lib/offlineQueue';
 import { showError } from '../../lib/toast';
 

@@ -168,6 +168,6 @@ export function invalidateMessageQueries(client: QueryClient, conversationId: st
 export async function prefetchRequest(client: QueryClient, requestId: string) {
   await client.prefetchQuery({
     queryKey: queryKeys.requests.detail(requestId),
-    queryFn: () => import('../lib/requests').then(m => m.getRequestById(requestId)),
+    queryFn: () => import('../features/requests/lib/requests').then(m => m.getRequestById(requestId)),
   });
 }

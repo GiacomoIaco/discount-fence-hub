@@ -22,7 +22,7 @@ import {
   getRequestActivity,
   subscribeToRequests
 } from '../lib/requests';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 
 // ============================================
 // HOOKS

@@ -10,7 +10,7 @@ import {
   Sparkles,
   Upload,
 } from 'lucide-react';
-import { isSelectedInSession } from '../../lib/photos';
+import { isSelectedInSession } from './lib/photos';
 import PhotoAnalytics from './components/PhotoAnalytics';
 import BulkPhotoUpload from './components/BulkPhotoUpload';
 

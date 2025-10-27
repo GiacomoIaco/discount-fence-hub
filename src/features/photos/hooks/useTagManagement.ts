@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { TAG_CATEGORIES } from '../../../lib/photos';
+import { TAG_CATEGORIES } from '../lib/photos';
 import { showSuccess, showError } from '../../../lib/toast';
 
 interface CustomTags {

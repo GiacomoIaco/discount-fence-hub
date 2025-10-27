@@ -4,7 +4,7 @@ import { OverviewTab } from './OverviewTab';
 import { RequestsTab } from './RequestsTab';
 import PhotoAnalytics from '../../photos/components/PhotoAnalytics';
 import { DateRangePicker, type DateRange } from './DateRangePicker';
-import type { AnalyticsData } from '../../../hooks/useAnalytics';
+import type { AnalyticsData } from '../hooks/useAnalytics';
 import type { UserRole } from '../../../types';
 
 interface AnalyticsTabsProps {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic } from 'lucide-react';
-import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getRecordings, deleteRecording, type SalesProcess, type KnowledgeBase, type Recording } from '../../../lib/recordings';
+import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getRecordings, deleteRecording, type SalesProcess, type KnowledgeBase, type Recording } from '../lib/recordings';
 import { showSuccess } from '../../../lib/toast';
 
 interface SalesCoachAdminProps {

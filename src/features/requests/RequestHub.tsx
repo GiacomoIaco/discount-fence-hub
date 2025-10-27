@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Plus, Ticket } from 'lucide-react';
-import type { RequestType, Request } from '../../lib/requests';
+import type { RequestType, Request } from './lib/requests';
 import RequestForm from './components/RequestForm';
 import RequestList from './components/RequestList';
 import RequestDetail from './components/RequestDetail';

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Photo } from '../../../lib/photos';
-import { generateSessionId } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
+import { generateSessionId } from '../lib/photos';
 import { supabase } from '../../../lib/supabase';
 
 type GalleryTab = 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';

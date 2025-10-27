@@ -1,4 +1,4 @@
-import { useAnalytics } from '../../hooks/useAnalytics';
+import { useAnalytics } from './hooks/useAnalytics';
 import { AnalyticsTabs } from './components/AnalyticsTabs';
 import type { UserRole } from '../../types';
 

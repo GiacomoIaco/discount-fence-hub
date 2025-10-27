@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 import { supabase } from '../../../lib/supabase';
 import { showError, showSuccess } from '../../../lib/toast';
 

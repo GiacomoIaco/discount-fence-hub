@@ -1,5 +1,5 @@
 import { Star, Heart, Flag, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 
 interface PhotoDetailModalProps {
   photo: Photo | null;

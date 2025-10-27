@@ -1,5 +1,5 @@
 // API integration for Sales Coach recordings
-import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue, updateQueuedRecording, type QueuedRecording } from './offlineQueue';
+import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue, updateQueuedRecording, type QueuedRecording } from '../../../lib/offlineQueue';
 import {
   saveRecordingToSupabase,
   getRecordingsFromSupabase,
@@ -14,7 +14,7 @@ import {
   addManagerReviewToSupabase,
   removeManagerReviewFromSupabase,
 } from './recordings-db';
-import { supabase } from './supabase';
+import { supabase } from '../../../lib/supabase';
 
 export interface ManagerReview {
   reviewerId: string;
@@ -823,7 +823,7 @@ export async function processOfflineQueue(): Promise<void> {
 }
 
 // Get offline queue size
-export { getOfflineQueue } from './offlineQueue';
+export { getOfflineQueue } from '../../../lib/offlineQueue';
 
 // Team Leaderboard
 export interface LeaderboardEntry {

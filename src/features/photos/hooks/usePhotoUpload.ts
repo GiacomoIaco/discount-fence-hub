@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import type { Photo } from '../../../lib/photos';
-import { resizeImage, imageToBase64 } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
+import { resizeImage, imageToBase64 } from '../lib/photos';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
-import { hashFile, checkDuplicateByHash } from '../../../lib/fileHash';
+import { hashFile, checkDuplicateByHash } from '../lib/fileHash';
 
 /**
  * Hook for photo upload with AI analysis

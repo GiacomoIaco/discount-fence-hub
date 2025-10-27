@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X, Star } from 'lucide-react';
-import type { Request, RequestStage, RequestType, SLAStatus } from '../../../lib/requests';
-import { useMyRequestsQuery, useAllRequestsQuery } from '../../../hooks/queries/useRequestsQuery';
-import { useUsers, useRequestAge } from '../../../hooks/useRequests';
-import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin } from '../../../lib/requests';
+import type { Request, RequestStage, RequestType, SLAStatus } from '../lib/requests';
+import { useMyRequestsQuery, useAllRequestsQuery } from '../hooks/useRequestsQuery';
+import { useUsers, useRequestAge } from '../hooks/useRequests';
+import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin } from '../lib/requests';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface RequestListProps {

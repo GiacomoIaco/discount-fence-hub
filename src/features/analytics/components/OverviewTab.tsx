@@ -1,5 +1,5 @@
 import { Activity, Camera, MessageSquare, TrendingUp, AlertCircle, CheckCircle, Clock, Target } from 'lucide-react';
-import type { AnalyticsData } from '../../../hooks/useAnalytics';
+import type { AnalyticsData } from '../hooks/useAnalytics';
 import type { UserRole } from '../../../types';
 
 interface OverviewTabProps {

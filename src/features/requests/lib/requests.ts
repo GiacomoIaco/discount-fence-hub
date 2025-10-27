@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { CreateRequestSchema, RequestNoteSchema, validateOrThrow } from './validation';
+import { supabase } from '../../../lib/supabase';
+import { CreateRequestSchema, RequestNoteSchema, validateOrThrow } from '../../../lib/validation';
 
 // ============================================
 // TYPES

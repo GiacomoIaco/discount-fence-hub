@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { Request } from '../../../lib/requests';
+import type { Request } from '../lib/requests';
 import RequestList from './RequestList';
 import RequestDetail from './RequestDetail';
 import RequestHub from '../RequestHub';
-import { useMyRequestsQuery } from '../../../hooks/queries/useRequestsQuery';
+import { useMyRequestsQuery } from '../hooks/useRequestsQuery';
 import { RequestListSkeleton } from '../../../components/skeletons';
 
 interface MyRequestsViewProps {

@@ -12,7 +12,7 @@ import { useEscalationEngine } from './hooks/useEscalationEngine';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { useRequestNotifications } from './hooks/useRequestNotifications';
 import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
-import type { Request } from './lib/requests';
+import type { Request } from './features/requests/lib/requests';
 
 // ============================================
 // CODE SPLITTING: Lazy-load large components

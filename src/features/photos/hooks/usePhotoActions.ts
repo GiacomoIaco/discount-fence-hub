@@ -1,9 +1,9 @@
-import type { Photo } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
 import {
   addToClientSelection,
   removeFromClientSelection,
   isSelectedInSession,
-} from '../../../lib/photos';
+} from '../lib/photos';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 

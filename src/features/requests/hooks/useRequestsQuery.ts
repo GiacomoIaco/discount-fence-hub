@@ -8,7 +8,7 @@ import type {
   QuoteStatus,
   SLAStatus,
   RequestNote
-} from '../../lib/requests';
+} from '../lib/requests';
 import {
   getMyRequests,
   getAllRequests,
@@ -23,8 +23,8 @@ import {
   addRequestNote,
   getRequestActivity,
   subscribeToRequests
-} from '../../lib/requests';
-import { queryKeys } from '../../lib/queryClient';
+} from '../lib/requests';
+import { queryKeys } from '../../../lib/queryClient';
 
 // ============================================
 // QUERY HOOKS

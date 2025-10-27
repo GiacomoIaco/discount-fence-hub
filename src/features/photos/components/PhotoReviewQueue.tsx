@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Sparkles, Check, Save, Trash2 } from 'lucide-react';
-import type { Photo } from '../../../lib/photos';
-import { TAG_CATEGORIES } from '../../../lib/photos';
+import type { Photo } from '../lib/photos';
+import { TAG_CATEGORIES } from '../lib/photos';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess } from '../../../lib/toast';
 

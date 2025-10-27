@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Clock, AlertCircle, Users, Filter, TrendingUp, ArrowLeft } from 'lucide-react';
-import type { Request, RequestStage, RequestType, SLAStatus } from '../../../lib/requests';
-import { useAllRequestsQuery, useAssignRequestMutation, useUpdateRequestStageMutation } from '../../../hooks/queries/useRequestsQuery';
-import { useRequestAge, useUsers } from '../../../hooks/useRequests';
+import type { Request, RequestStage, RequestType, SLAStatus } from '../lib/requests';
+import { useAllRequestsQuery, useAssignRequestMutation, useUpdateRequestStageMutation } from '../hooks/useRequestsQuery';
+import { useRequestAge, useUsers } from '../hooks/useRequests';
 import { useAuth } from '../../../contexts/AuthContext';
 import { showError } from '../../../lib/toast';
 

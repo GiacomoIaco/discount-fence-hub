@@ -5,13 +5,13 @@
  * and knowledge bases. Used in dual-write mode alongside localStorage.
  */
 
-import { supabase } from './supabase';
+import { supabase } from '../../../lib/supabase';
 import type { Recording, SalesProcess, KnowledgeBase, ManagerReview } from './recordings';
 import {
   RecordingSchema,
   ManagerReviewSchema,
   validateData
-} from './validation';
+} from '../../../lib/validation';
 
 // =====================================================
 // RECORDINGS

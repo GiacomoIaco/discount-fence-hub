@@ -1,6 +1,6 @@
 import { Star, Heart, X } from 'lucide-react';
-import type { Photo, FilterState } from '../../../lib/photos';
-import { getTagCount } from '../../../lib/photos';
+import type { Photo, FilterState } from '../lib/photos';
+import { getTagCount } from '../lib/photos';
 
 interface PhotoFiltersProps {
   show: boolean;

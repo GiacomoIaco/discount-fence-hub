@@ -1,5 +1,5 @@
 import { BarChart, TrendingUp, Download, Clock, DollarSign, Users } from 'lucide-react';
-import type { AnalyticsData } from '../../../hooks/useAnalytics';
+import type { AnalyticsData } from '../hooks/useAnalytics';
 
 interface RequestsTabProps {
   data: AnalyticsData;

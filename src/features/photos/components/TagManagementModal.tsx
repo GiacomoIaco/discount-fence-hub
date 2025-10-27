@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Plus } from 'lucide-react';
-import { TAG_CATEGORIES } from '../../../lib/photos';
+import { TAG_CATEGORIES } from '../lib/photos';
 
 interface AddTagInputProps {
   onAdd: (tag: string) => void;
