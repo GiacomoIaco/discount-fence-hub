@@ -86,6 +86,9 @@ export function usePhotoReview(
         throw error;
       }
 
+      // Remove any flags when photo is published (fixes bug where photos stay in flagged tab)
+      await supabase.from('photo_flags').delete().eq('photo_id', reviewingPhoto.id);
+
       showSuccess('Photo published successfully!');
       onPhotosUpdate();
       closeReviewModal();
@@ -144,6 +147,9 @@ export function usePhotoReview(
 
       if (error) throw error;
 
+      // Remove any flags when photo is saved (fixes bug where photos stay in flagged tab)
+      await supabase.from('photo_flags').delete().eq('photo_id', reviewingPhoto.id);
+
       showSuccess('Photo saved for later!');
       onPhotosUpdate();
       closeReviewModal();
@@ -200,6 +206,9 @@ export function usePhotoReview(
 
       if (error) throw error;
 
+      // Remove any flags when photo is archived (fixes bug where photos stay in flagged tab)
+      await supabase.from('photo_flags').delete().eq('photo_id', reviewingPhoto.id);
+
       showSuccess('Photo archived.');
       onPhotosUpdate();
       closeReviewModal();
@@ -228,6 +237,9 @@ export function usePhotoReview(
       const thumbFileName = `${reviewingPhoto.uploadedBy}/thumb/${reviewingPhoto.id}.jpg`;
 
       await supabase.storage.from('photos').remove([fileName, thumbFileName]);
+
+      // Delete flags first (foreign key constraint)
+      await supabase.from('photo_flags').delete().eq('photo_id', reviewingPhoto.id);
 
       // Delete from database
       const { error } = await supabase.from('photos').delete().eq('id', reviewingPhoto.id);
