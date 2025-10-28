@@ -20,6 +20,7 @@ import { showError } from '../../../lib/toast';
 interface MessageComposerProps {
   onClose: () => void;
   onMessageSent: () => void;
+  editingDraft?: any;
 }
 
 interface UserProfile {
@@ -29,7 +30,7 @@ interface UserProfile {
   role: string;
 }
 
-export default function MessageComposer({ onClose, onMessageSent }: MessageComposerProps) {
+export default function MessageComposer({ onClose, onMessageSent, editingDraft }: MessageComposerProps) {
   const { user } = useAuth();
   const [messageType, setMessageType] = useState<string>('announcement');
   const [title, setTitle] = useState('');
@@ -81,6 +82,51 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Pre-fill form when editing a draft
+  useEffect(() => {
+    if (editingDraft) {
+      setMessageType(editingDraft.message_type || 'announcement');
+      setTitle(editingDraft.title || '');
+      setContent(editingDraft.content || '');
+      setPriority(editingDraft.priority || 'normal');
+      setRequiresAcknowledgment(editingDraft.requires_acknowledgment || false);
+      setTargetRoles(editingDraft.target_roles || ['sales', 'operations', 'sales-manager', 'admin']);
+      setExpiresAt(editingDraft.expires_at || '');
+
+      // Survey specific
+      if (editingDraft.survey_questions) {
+        setSurveyJson(editingDraft.survey_questions);
+      }
+      if (editingDraft.show_results_after_submit !== undefined) {
+        setShowResultsAfterSubmit(editingDraft.show_results_after_submit);
+      }
+      if (editingDraft.allow_edit_responses !== undefined) {
+        setAllowEditResponses(editingDraft.allow_edit_responses);
+      }
+      if (editingDraft.anonymous_responses !== undefined) {
+        setAnonymousResponses(editingDraft.anonymous_responses);
+      }
+
+      // Recognition specific
+      if (editingDraft.recognized_user_id) {
+        setRecognizedUserId(editingDraft.recognized_user_id);
+      }
+
+      // Event specific
+      if (editingDraft.event_details) {
+        setEventDate(editingDraft.event_details.date || '');
+        setEventTime(editingDraft.event_details.time || '');
+        setEventLocation(editingDraft.event_details.location || '');
+        setRsvpRequired(editingDraft.event_details.rsvp_required || false);
+      }
+
+      // Task specific
+      if (editingDraft.task_details) {
+        setTaskDueDate(editingDraft.task_details.due_date || '');
+      }
+    }
+  }, [editingDraft]);
 
   useEffect(() => {
     // Auto-set priority for urgent alerts
@@ -173,11 +219,21 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
         };
       }
 
-      const { error } = await supabase
-        .from('company_messages')
-        .insert([messageData]);
+      // If editing an existing draft, update it; otherwise insert new
+      if (editingDraft?.id) {
+        const { error } = await supabase
+          .from('company_messages')
+          .update(messageData)
+          .eq('id', editingDraft.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('company_messages')
+          .insert([messageData]);
+
+        if (error) throw error;
+      }
 
       showError('Draft saved successfully!');
       onMessageSent();
@@ -257,11 +313,21 @@ export default function MessageComposer({ onClose, onMessageSent }: MessageCompo
         };
       }
 
-      const { error } = await supabase
-        .from('company_messages')
-        .insert([messageData]);
+      // If editing an existing draft, update it; otherwise insert new
+      if (editingDraft?.id) {
+        const { error } = await supabase
+          .from('company_messages')
+          .update(messageData)
+          .eq('id', editingDraft.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('company_messages')
+          .insert([messageData]);
+
+        if (error) throw error;
+      }
 
       showError('Message sent successfully!');
       onMessageSent();

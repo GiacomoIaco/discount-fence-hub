@@ -78,6 +78,7 @@ function App() {
     return (saved as 'mobile' | 'desktop') || 'mobile';
   });
   const [showMessageComposer, setShowMessageComposer] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<any>(null);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
@@ -282,6 +283,10 @@ function App() {
             <TeamCommunication
               onUnreadCountChange={setTeamCommunicationUnreadCount}
               refreshTrigger={teamCommunicationRefresh}
+              onEditDraft={(draft) => {
+                setEditingDraft(draft);
+                setShowMessageComposer(true);
+              }}
             />
           </Suspense>
         </ErrorBoundary>
@@ -457,9 +462,14 @@ function App() {
         {showMessageComposer && (
           <Suspense fallback={<LoadingFallback />}>
             <MessageComposer
-              onClose={() => setShowMessageComposer(false)}
+              editingDraft={editingDraft}
+              onClose={() => {
+                setShowMessageComposer(false);
+                setEditingDraft(null);
+              }}
               onMessageSent={() => {
                 setShowMessageComposer(false);
+                setEditingDraft(null);
                 // Trigger refresh of TeamCommunication component
                 setTeamCommunicationRefresh(prev => prev + 1);
               }}

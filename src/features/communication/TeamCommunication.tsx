@@ -23,7 +23,8 @@ import {
   Archive,
   Users,
   MessageCircle,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 
 type MessageState = 'unread' | 'read' | 'read_needs_action' | 'read_needs_response' | 'answered' | 'acknowledged' | 'archived';
@@ -78,6 +79,7 @@ interface TeamCommunicationProps {
   onBack?: () => void;
   onUnreadCountChange?: (count: number) => void;
   refreshTrigger?: number;
+  onEditDraft?: (draft: CompanyMessage) => void;
 }
 
 interface CommentWithUser {
@@ -89,7 +91,7 @@ interface CommentWithUser {
   created_at: string;
 }
 
-export default function TeamCommunication({ onBack, onUnreadCountChange, refreshTrigger }: TeamCommunicationProps) {
+export default function TeamCommunication({ onBack, onUnreadCountChange, refreshTrigger, onEditDraft }: TeamCommunicationProps) {
   const { user, profile } = useAuth();
   // Simplified: Always show sent messages (admin management view)
   const [filterMode, setFilterMode] = useState<FilterMode>('active');
@@ -286,23 +288,9 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
     }
   };
 
-  const handleSendDraft = async (messageId: string) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('company_messages')
-        .update({
-          is_draft: false,
-          status: 'active'
-        })
-        .eq('id', messageId);
-
-      if (!error) {
-        loadMessages(); // Reload to update the list
-      }
-    } catch (error) {
-      console.error('Error sending draft:', error);
+  const handleEditDraft = (message: CompanyMessage) => {
+    if (onEditDraft) {
+      onEditDraft(message);
     }
   };
 
@@ -474,7 +462,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
                 setShowSurveyResults(true);
               }}
               onArchive={handleArchive}
-              onSendDraft={handleSendDraft}
+              onEditDraft={handleEditDraft}
               onDeleteDraft={handleDeleteDraft}
               filterMode={filterMode}
             />
@@ -502,7 +490,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
 }
 
 // Sent Messages List Component
-function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails, onArchive, onSendDraft, onDeleteDraft, filterMode }: any) {
+function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageConfig, comments, onViewDetails, onArchive, onEditDraft, onDeleteDraft, filterMode }: any) {
   return messages.map((msg: CompanyMessage) => {
     const config = getMessageConfig(msg.message_type);
     const Icon = config.icon;
@@ -622,15 +610,13 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Send this draft? It will be published and sent to all recipients.')) {
-                        onSendDraft(msg.id);
-                      }
+                      onEditDraft(msg);
                     }}
                     className="px-2 md:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium flex items-center space-x-1"
-                    title="Send Draft"
+                    title="Edit Draft"
                   >
-                    <SendIcon className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Send</span>
+                    <Edit className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Edit</span>
                   </button>
                   <button
                     onClick={(e) => {
