@@ -1,9 +1,10 @@
 import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import { useRequestAge, useUsers } from '../hooks/useRequests';
-import { useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation } from '../hooks/useRequestsQuery';
+import { useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation, useAssignRequestMutation } from '../hooks/useRequestsQuery';
 import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, type RequestAttachment } from '../lib/requests';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -36,10 +37,12 @@ const RequestAgeIndicator = ({ request }: { request: Request }) => {
 };
 
 export default function RequestDetail({ request, onClose, onUpdate }: RequestDetailProps) {
+  const queryClient = useQueryClient();
   const age = useRequestAge(request);
   const { data: notes = [], isLoading: notesLoading } = useRequestNotesQuery(request.id);
   const { data: activity = [], isLoading: activityLoading } = useRequestActivityQuery(request.id);
   const { mutateAsync: addNote } = useAddRequestNoteMutation();
+  const { mutateAsync: assignRequest } = useAssignRequestMutation();
   const { users } = useUsers();
   const { profile } = useAuth();
   const [newNote, setNewNote] = useState('');
@@ -178,29 +181,28 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
   const handleChangeAssignee = async (newAssigneeId: string) => {
     try {
-      const updates = newAssigneeId === 'unassigned'
-        ? { assigned_to: null, assigned_at: null }
-        : {
-            assigned_to: newAssigneeId,
-            assigned_at: new Date().toISOString(),
-            stage: 'pending' as const
-          };
+      if (newAssigneeId === 'unassigned') {
+        // Handle unassigning - use direct Supabase call as there's no mutation for this
+        const { error } = await supabase
+          .from('requests')
+          .update({ assigned_to: null, assigned_at: null })
+          .eq('id', request.id);
 
-      const { error } = await supabase
-        .from('requests')
-        .update(updates)
-        .eq('id', request.id);
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+        // Manually invalidate queries since we're not using a mutation hook
+        await queryClient.invalidateQueries({ queryKey: ['requests'] });
+      } else {
+        // Use the mutation hook for assigning (automatically invalidates queries)
+        await assignRequest({ requestId: request.id, assigneeId: newAssigneeId });
       }
 
       setIsChangingAssignee(false);
       if (onUpdate) {
         onUpdate();
-      } else {
-        window.location.reload();
       }
     } catch (error: any) {
       console.error('Failed to change assignee:', error);
