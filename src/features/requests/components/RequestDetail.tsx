@@ -388,6 +388,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                 <span className="font-medium">{assigneeName || 'Unassigned'}</span>
               ) : (
                 <select
+                  key={request.assigned_to || 'unassigned'}
                   defaultValue={request.assigned_to || 'unassigned'}
                   onChange={(e) => handleChangeAssignee(e.target.value)}
                   className="px-2 py-1 border border-gray-300 rounded text-xs"
