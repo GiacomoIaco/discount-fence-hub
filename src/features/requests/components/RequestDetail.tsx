@@ -111,10 +111,14 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
     fetchAssignee();
   }, [request.assigned_to]);
 
-  // Fetch user profiles for notes
+  // Fetch user profiles for notes and activity
   useEffect(() => {
     const fetchProfiles = async () => {
-      const userIds = [...new Set(notes.map(n => n.user_id))];
+      // Combine user IDs from notes and activity
+      const noteUserIds = notes.map(n => n.user_id);
+      const activityUserIds = activity.map(a => a.user_id).filter((id): id is string => !!id);
+      const userIds = [...new Set([...noteUserIds, ...activityUserIds])];
+
       if (userIds.length > 0) {
         const { data } = await supabase
           .from('user_profiles')
@@ -128,7 +132,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     };
     fetchProfiles();
-  }, [notes]);
+  }, [notes, activity]);
 
   // Fetch attachments
   useEffect(() => {
@@ -988,9 +992,16 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
                         <div className="flex-1 pb-2">
                           <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                            <p className="text-gray-900 font-medium capitalize mb-1">
-                              {item.action.replace('_', ' ')}
-                            </p>
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <p className="text-gray-900 font-medium capitalize">
+                                {item.action.replace('_', ' ')}
+                              </p>
+                              {item.user_id && (
+                                <p className="text-xs text-gray-500">
+                                  by {userProfiles.get(item.user_id) || 'Unknown'}
+                                </p>
+                              )}
+                            </div>
                             {item.details && typeof item.details === 'object' && (item.details as any).message && (
                               <p className="text-xs text-gray-600 mb-1">{(item.details as any).message}</p>
                             )}

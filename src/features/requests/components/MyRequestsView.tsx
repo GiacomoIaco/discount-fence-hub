@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import RequestList from './RequestList';
@@ -19,7 +19,17 @@ export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequ
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Fetch all requests using React Query
-  const { isLoading: loading, refetch: refresh } = useMyRequestsQuery({});
+  const { data: requests, isLoading: loading, refetch: refresh } = useMyRequestsQuery({});
+
+  // Update selectedRequest when query data changes (to reflect updates like assignee changes)
+  useEffect(() => {
+    if (selectedRequest && requests) {
+      const updatedRequest = requests.find(r => r.id === selectedRequest.id);
+      if (updatedRequest) {
+        setSelectedRequest(updatedRequest);
+      }
+    }
+  }, [requests, selectedRequest?.id]);
 
   const handleRequestClick = (request: Request) => {
     setSelectedRequest(request);
