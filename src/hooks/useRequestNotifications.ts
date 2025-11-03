@@ -61,11 +61,12 @@ export const useRequestNotifications = () => {
     try {
       setLoading(true);
 
-      // Get all requests assigned to or created by the current user
+      // Get only ACTIVE requests (new or pending) assigned to or created by the current user
       const { data: requests, error: requestsError } = await supabase
         .from('requests')
-        .select('id, updated_at')
-        .or(`assigned_to.eq.${user.id},submitter_id.eq.${user.id}`);
+        .select('id, updated_at, stage')
+        .or(`assigned_to.eq.${user.id},submitter_id.eq.${user.id}`)
+        .in('stage', ['new', 'pending']);
 
       if (requestsError) throw requestsError;
 
@@ -88,15 +89,16 @@ export const useRequestNotifications = () => {
         views?.map(v => [v.request_id, new Date(v.last_viewed_at)]) || []
       );
 
-      // Count requests that have been updated since last viewed (or never viewed)
+      // Count ACTIVE requests that need attention (unread or updated)
       let count = 0;
       for (const request of requests) {
         const lastViewed = viewsMap.get(request.id);
         const updatedAt = new Date(request.updated_at);
 
-        // Request is unread if:
-        // 1. Never viewed before, OR
-        // 2. Updated after last viewed
+        // Request needs attention if:
+        // 1. Never viewed before (new assignment or new request), OR
+        // 2. Updated after last viewed (new messages, status changes, etc.)
+        // Note: Only counts active requests (new/pending stage) for relevance
         if (!lastViewed || updatedAt > lastViewed) {
           count++;
         }

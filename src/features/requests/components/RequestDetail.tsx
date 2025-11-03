@@ -48,7 +48,6 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [submitterName, setSubmitterName] = useState<string>('');
-  const [assigneeName, setAssigneeName] = useState<string>('');
   const [userProfiles, setUserProfiles] = useState<Map<string, string>>(new Map());
   const [isChangingAssignee, setIsChangingAssignee] = useState(false);
   const [isEditingRequest, setIsEditingRequest] = useState(false);
@@ -91,25 +90,10 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
     fetchSubmitter();
   }, [request.submitter_id]);
 
-  // Fetch assignee profile
-  useEffect(() => {
-    const fetchAssignee = async () => {
-      if (request.assigned_to) {
-        const { data } = await supabase
-          .from('user_profiles')
-          .select('full_name, email')
-          .eq('id', request.assigned_to)
-          .single();
-
-        if (data) {
-          setAssigneeName(data.full_name || data.email || 'Unknown User');
-        }
-      } else {
-        setAssigneeName('');
-      }
-    };
-    fetchAssignee();
-  }, [request.assigned_to]);
+  // Derive assignee name from users array (updates automatically when assignee changes)
+  const assigneeName = request.assigned_to
+    ? users.find(u => u.id === request.assigned_to)?.name || 'Unknown User'
+    : '';
 
   // Fetch user profiles for notes and activity
   useEffect(() => {

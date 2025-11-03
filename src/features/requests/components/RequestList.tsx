@@ -226,7 +226,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
       if (hours < 48) return false;
     }
 
-    if (quickFilters.mine && req.submitter_id !== profile?.id) {
+    if (quickFilters.mine && req.submitter_id !== profile?.id && req.assigned_to !== profile?.id) {
       return false;
     }
 
