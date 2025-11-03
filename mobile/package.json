@@ -1,0 +1,74 @@
+{
+  "name": "fence-measure-mobile",
+  "version": "1.0.0",
+  "description": "AR-powered fence measurement app for iOS and Android",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build:ios": "eas build --platform ios",
+    "build:android": "eas build --platform android",
+    "submit:ios": "eas submit --platform ios",
+    "submit:android": "eas submit --platform android",
+    "lint": "eslint .",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "19.0.0",
+    "react-native": "0.76.0",
+
+    "expo": "~52.0.0",
+    "expo-status-bar": "~2.0.0",
+    "expo-camera": "~16.0.0",
+    "expo-location": "~18.0.0",
+    "expo-file-system": "~18.0.0",
+    "expo-image-picker": "~16.0.0",
+    "expo-sensors": "~14.0.0",
+    "expo-device": "~7.0.0",
+
+    "@viro-community/react-viro": "^2.41.1",
+
+    "@shopify/react-native-skia": "^1.5.0",
+    "react-native-gesture-handler": "~2.20.0",
+    "react-native-reanimated": "~3.16.0",
+
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/stack": "^7.1.0",
+    "@react-navigation/bottom-tabs": "^7.0.0",
+    "react-native-screens": "~4.3.0",
+    "react-native-safe-area-context": "~4.12.0",
+
+    "@supabase/supabase-js": "^2.58.0",
+
+    "@tanstack/react-query": "^5.90.0",
+    "zustand": "^5.0.0",
+
+    "react-native-mmkv": "^3.1.0",
+
+    "react-native-html-to-pdf": "^0.12.0",
+    "react-native-svg": "^15.0.0",
+    "react-native-share": "^11.0.0",
+
+    "react-hook-form": "^7.51.0",
+    "zod": "^3.23.0",
+
+    "date-fns": "^4.1.0",
+    "uuid": "^11.0.0",
+
+    "lucide-react-native": "^0.454.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@types/react": "~19.0.0",
+    "@types/react-native": "~0.76.0",
+    "@types/uuid": "^11.0.0",
+    "typescript": "~5.6.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "@testing-library/react-native": "^12.4.0"
+  },
+  "private": true
+}

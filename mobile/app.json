@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Fence Measure Pro",
+    "slug": "fence-measure-pro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.highfortitude.fencemeasurepro",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to measure fence lines using AR technology.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs to save photos to your library.",
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to tag project sites.",
+        "NSMotionUsageDescription": "This app uses device motion sensors for AR tracking.",
+        "UIRequiredDeviceCapabilities": [
+          "arkit"
+        ]
+      },
+      "buildNumber": "1",
+      "deploymentTarget": "16.4"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.highfortitude.fencemeasurepro",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Fence Measure Pro to access your camera for AR measurement."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Fence Measure Pro to use your location to tag project sites."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}
