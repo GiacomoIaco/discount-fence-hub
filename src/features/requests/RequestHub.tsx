@@ -249,7 +249,7 @@ export default function RequestHub({ onBack }: RequestHubProps) {
   if (view === 'detail' && selectedRequest) {
     return (
       <RequestDetail
-        request={selectedRequest}
+        requestId={selectedRequest.id}
         onClose={handleCloseDetail}
       />
     );

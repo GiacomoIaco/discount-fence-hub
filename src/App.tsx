@@ -175,7 +175,7 @@ function App() {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
-              <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} />
+              <RequestDetail requestId={selectedRequest.id} onClose={() => setSelectedRequest(null)} />
             </Suspense>
           </ErrorBoundary>
         );

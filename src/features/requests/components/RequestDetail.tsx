@@ -1,7 +1,7 @@
 import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import { useRequestAge, useUsers } from '../hooks/useRequests';
-import { useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation, useAssignRequestMutation } from '../hooks/useRequestsQuery';
+import { useRequestQuery, useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation, useAssignRequestMutation } from '../hooks/useRequestsQuery';
 import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, type RequestAttachment } from '../lib/requests';
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { showError } from '../../../lib/toast';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface RequestDetailProps {
-  request: Request;
+  requestId: string;
   onClose: () => void;
   onUpdate?: () => void;
 }
@@ -36,11 +36,15 @@ const RequestAgeIndicator = ({ request }: { request: Request }) => {
   );
 };
 
-export default function RequestDetail({ request, onClose, onUpdate }: RequestDetailProps) {
+export default function RequestDetail({ requestId, onClose, onUpdate }: RequestDetailProps) {
   const queryClient = useQueryClient();
-  const age = useRequestAge(request);
-  const { data: notes = [], isLoading: notesLoading } = useRequestNotesQuery(request.id);
-  const { data: activity = [], isLoading: activityLoading } = useRequestActivityQuery(request.id);
+
+  // Fetch request data directly using React Query
+  const { data: request, isLoading: requestLoading } = useRequestQuery(requestId);
+
+  const age = useRequestAge(request || null);
+  const { data: notes = [], isLoading: notesLoading } = useRequestNotesQuery(requestId);
+  const { data: activity = [], isLoading: activityLoading } = useRequestActivityQuery(requestId);
   const { mutateAsync: addNote } = useAddRequestNoteMutation();
   const { mutateAsync: assignRequest } = useAssignRequestMutation();
   const { users } = useUsers();
@@ -53,7 +57,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
   const [isEditingRequest, setIsEditingRequest] = useState(false);
   const [isChangingStage, setIsChangingStage] = useState(false);
   const [isChangingQuoteStatus, setIsChangingQuoteStatus] = useState(false);
-  const [editedRequest, setEditedRequest] = useState<Partial<Request>>(request);
+  const [editedRequest, setEditedRequest] = useState<Partial<Request>>({});
   const [projectDetailsExpanded, setProjectDetailsExpanded] = useState(false);
   const [transcriptExpanded, setTranscriptExpanded] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
@@ -69,13 +73,22 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
   // Mark request as viewed when component mounts
   useEffect(() => {
-    markRequestAsViewed(request.id);
-  }, [request.id]);
+    if (requestId) {
+      markRequestAsViewed(requestId);
+    }
+  }, [requestId]);
+
+  // Update editedRequest when request data loads
+  useEffect(() => {
+    if (request) {
+      setEditedRequest(request);
+    }
+  }, [request]);
 
   // Fetch submitter profile
   useEffect(() => {
     const fetchSubmitter = async () => {
-      if (request.submitter_id) {
+      if (request?.submitter_id) {
         const { data } = await supabase
           .from('user_profiles')
           .select('full_name, email')
@@ -88,10 +101,10 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     };
     fetchSubmitter();
-  }, [request.submitter_id]);
+  }, [request?.submitter_id]);
 
   // Derive assignee name from users array (updates automatically when assignee changes)
-  const assigneeName = request.assigned_to
+  const assigneeName = request?.assigned_to
     ? users.find(u => u.id === request.assigned_to)?.name || 'Unknown User'
     : '';
 
@@ -120,9 +133,10 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
   // Fetch attachments
   useEffect(() => {
+    if (!requestId) return;
     const fetchAttachments = async () => {
       try {
-        const data = await getRequestAttachments(request.id);
+        const data = await getRequestAttachments(requestId);
         setAttachments(data);
       } catch (error) {
         console.error('Failed to fetch attachments:', error);
@@ -131,7 +145,19 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       }
     };
     fetchAttachments();
-  }, [request.id]);
+  }, [requestId]);
+
+  // Show loading state while request is being fetched
+  if (requestLoading || !request) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading request...</p>
+        </div>
+      </div>
+    );
+  }
 
   const getRequestTypeInfo = () => {
     switch (request.request_type) {
@@ -157,7 +183,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
 
     setAddingNote(true);
     try {
-      await addNote({ requestId: request.id, content: newNote, noteType: 'comment' });
+      await addNote({ requestId, content: newNote, noteType: 'comment' });
       setNewNote('');
     } catch (error) {
       console.error('Failed to add note:', error);
@@ -174,7 +200,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
         const { error } = await supabase
           .from('requests')
           .update({ assigned_to: null, assigned_at: null })
-          .eq('id', request.id);
+          .eq('id', requestId);
 
         if (error) {
           console.error('Supabase error:', error);
@@ -185,7 +211,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
         await queryClient.invalidateQueries({ queryKey: ['requests'] });
       } else {
         // Use the mutation hook for assigning (automatically invalidates queries)
-        await assignRequest({ requestId: request.id, assigneeId: newAssigneeId });
+        await assignRequest({ requestId, assigneeId: newAssigneeId });
       }
 
       setIsChangingAssignee(false);
@@ -204,7 +230,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       const { error } = await supabase
         .from('requests')
         .update({ stage: newStage })
-        .eq('id', request.id);
+        .eq('id', requestId);
 
       if (error) throw error;
 
@@ -226,7 +252,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       const { error } = await supabase
         .from('requests')
         .update({ quote_status: newStatus === 'none' ? null : newStatus })
-        .eq('id', request.id);
+        .eq('id', requestId);
 
       if (error) throw error;
 
@@ -248,7 +274,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
       const { error } = await supabase
         .from('requests')
         .update(editedRequest)
-        .eq('id', request.id);
+        .eq('id', requestId);
 
       if (error) throw error;
 
@@ -271,7 +297,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
     setUploadingFile(true);
     try {
       for (const file of Array.from(files)) {
-        const attachment = await addRequestAttachment(request.id, file);
+        const attachment = await addRequestAttachment(requestId, file);
         setAttachments(prev => [attachment, ...prev]);
       }
     } catch (error) {
@@ -908,7 +934,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                     if (e.key === 'Enter' && internalNote.trim()) {
                       setAddingInternalNote(true);
                       try {
-                        await addNote({ requestId: request.id, content: internalNote, noteType: 'internal' });
+                        await addNote({ requestId, content: internalNote, noteType: 'internal' });
                         setInternalNote('');
                       } finally {
                         setAddingInternalNote(false);
@@ -921,7 +947,7 @@ export default function RequestDetail({ request, onClose, onUpdate }: RequestDet
                     if (internalNote.trim()) {
                       setAddingInternalNote(true);
                       try {
-                        await addNote({ requestId: request.id, content: internalNote, noteType: 'internal' });
+                        await addNote({ requestId, content: internalNote, noteType: 'internal' });
                         setInternalNote('');
                       } finally {
                         setAddingInternalNote(false);

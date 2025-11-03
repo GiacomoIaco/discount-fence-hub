@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import RequestList from './RequestList';
@@ -16,23 +16,13 @@ type View = 'list' | 'detail' | 'hub';
 
 export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequestsViewProps) {
   const [view, setView] = useState<View>('list');
-  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   // Fetch all requests using React Query
-  const { data: requests, isLoading: loading, refetch: refresh } = useMyRequestsQuery({});
-
-  // Update selectedRequest when query data changes (to reflect updates like assignee changes)
-  useEffect(() => {
-    if (selectedRequest && requests) {
-      const updatedRequest = requests.find(r => r.id === selectedRequest.id);
-      if (updatedRequest) {
-        setSelectedRequest(updatedRequest);
-      }
-    }
-  }, [requests, selectedRequest?.id]);
+  const { isLoading: loading, refetch: refresh } = useMyRequestsQuery({});
 
   const handleRequestClick = (request: Request) => {
-    setSelectedRequest(request);
+    setSelectedRequestId(request.id);
     setView('detail');
 
     // Mark request as read when viewing
@@ -42,7 +32,7 @@ export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequ
   };
 
   const handleCloseDetail = () => {
-    setSelectedRequest(null);
+    setSelectedRequestId(null);
     setView('list');
   };
 
@@ -56,10 +46,10 @@ export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequ
   }
 
   // Show detail view
-  if (view === 'detail' && selectedRequest) {
+  if (view === 'detail' && selectedRequestId) {
     return (
       <RequestDetail
-        request={selectedRequest}
+        requestId={selectedRequestId}
         onClose={handleCloseDetail}
         onUpdate={refresh}
       />
