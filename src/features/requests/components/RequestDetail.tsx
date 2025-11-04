@@ -234,11 +234,12 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
 
       if (error) throw error;
 
+      // Invalidate queries to trigger refetch
+      await queryClient.invalidateQueries({ queryKey: ['requests'] });
+
       setIsChangingStage(false);
       if (onUpdate) {
         onUpdate();
-      } else {
-        window.location.reload();
       }
     } catch (error: any) {
       console.error('Failed to change stage:', error);
@@ -256,11 +257,12 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
 
       if (error) throw error;
 
+      // Invalidate queries to trigger refetch
+      await queryClient.invalidateQueries({ queryKey: ['requests'] });
+
       setIsChangingQuoteStatus(false);
       if (onUpdate) {
         onUpdate();
-      } else {
-        window.location.reload();
       }
     } catch (error: any) {
       console.error('Failed to change quote status:', error);
@@ -278,11 +280,12 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
 
       if (error) throw error;
 
+      // Invalidate queries to trigger refetch
+      await queryClient.invalidateQueries({ queryKey: ['requests'] });
+
       setIsEditingRequest(false);
       if (onUpdate) {
         onUpdate();
-      } else {
-        window.location.reload();
       }
     } catch (error: any) {
       console.error('Failed to save request:', error);
