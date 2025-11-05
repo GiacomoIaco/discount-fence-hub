@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -43,6 +43,7 @@ const OperationsQueue = lazy(() => import('./features/requests').then(module => 
 const RequestDetail = lazy(() => import('./features/requests').then(module => ({ default: module.RequestDetail })));
 const Login = lazy(() => import('./components/auth/Login'));
 const BOMCalculator = lazy(() => import('./features/bom_calculator/BOMCalculator').then(m => ({ default: m.BOMCalculator })));
+const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -55,7 +56,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -147,6 +148,7 @@ function App() {
       { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, name: 'Sales Resources', icon: BookOpen },
+      { id: 'leadership' as Section, name: 'Leadership', icon: Target },
       { id: 'team' as Section, name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
@@ -320,6 +322,15 @@ function App() {
       // Redirect non-authorized users
       setActiveSection('home');
       return null;
+    }
+    if (activeSection === 'leadership') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <LeadershipHub onBack={() => setActiveSection('home')} />
+          </Suspense>
+        </ErrorBoundary>
+      );
     }
 
     // Default home view
