@@ -47,23 +47,31 @@ export const leadershipKeys = {
  * Fetch all functions the current user has access to
  */
 export const useFunctionsQuery = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   return useQuery({
     queryKey: leadershipKeys.functions(),
     queryFn: async (): Promise<FunctionWithAccess[]> => {
       if (!user) throw new Error('User not authenticated');
 
-      // Fetch functions with user's access level
-      const { data: functions, error: functionsError } = await supabase
+      const isAdmin = profile?.role === 'admin';
+
+      // Admins see all functions, others see only functions they have access to
+      let query = supabase
         .from('project_functions')
         .select(`
           *,
-          user_access:project_function_access!inner(*)
+          user_access:project_function_access(*)
         `)
-        .eq('project_function_access.user_id', user.id)
         .eq('is_active', true)
         .order('sort_order');
+
+      // Non-admins: filter by user access
+      if (!isAdmin) {
+        query = query.eq('project_function_access.user_id', user.id);
+      }
+
+      const { data: functions, error: functionsError } = await query;
 
       if (functionsError) throw functionsError;
 
@@ -90,7 +98,7 @@ export const useFunctionsQuery = () => {
 
           return {
             ...func,
-            user_access: func.user_access[0],
+            user_access: func.user_access?.[0] || (isAdmin ? { role: 'admin' } : undefined),
             bucket_count: bucketCount || 0,
             initiative_count: initiativeCount || 0,
             high_priority_count: highPriorityCount || 0,
@@ -108,28 +116,35 @@ export const useFunctionsQuery = () => {
  * Fetch single function by ID
  */
 export const useFunctionQuery = (functionId?: string) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   return useQuery({
     queryKey: leadershipKeys.function(functionId!),
     queryFn: async (): Promise<FunctionWithAccess> => {
       if (!user || !functionId) throw new Error('Missing required parameters');
 
+      const isAdmin = profile?.role === 'admin';
+
       const { data, error } = await supabase
         .from('project_functions')
         .select(`
           *,
-          user_access:project_function_access!inner(*)
+          user_access:project_function_access(*)
         `)
         .eq('id', functionId)
-        .eq('project_function_access.user_id', user.id)
         .single();
 
       if (error) throw error;
 
+      // Check if user has access (either admin or has explicit access)
+      const hasAccess = isAdmin || data.user_access?.some((access: any) => access.user_id === user.id);
+      if (!hasAccess) {
+        throw new Error('Access denied');
+      }
+
       return {
         ...data,
-        user_access: data.user_access[0],
+        user_access: data.user_access?.find((access: any) => access.user_id === user.id) || (isAdmin ? { role: 'admin' } : undefined),
       };
     },
     enabled: !!user && !!functionId,
