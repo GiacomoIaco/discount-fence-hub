@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ArrowLeft, Plus, Edit2, Trash2, Folder } from 'lucide-react';
-import { useFunctionsQuery, useCreateFunction, useUpdateFunction, useBucketsQuery, useCreateBucket, useUpdateBucket } from '../../hooks/useLeadershipQuery';
+import { ArrowLeft, Plus, Folder } from 'lucide-react';
+import { useFunctionsQuery, useCreateFunction, useBucketsQuery, useCreateBucket } from '../../hooks/useLeadershipQuery';
 import type { CreateFunctionInput, CreateBucketInput } from '../../lib/leadership';
 
 interface FunctionSettingsProps {
@@ -11,14 +11,11 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
   const [isCreatingFunction, setIsCreatingFunction] = useState(false);
   const [isCreatingBucket, setIsCreatingBucket] = useState(false);
-  const [editingFunctionId, setEditingFunctionId] = useState<string | null>(null);
 
   const { data: functions, isLoading: functionsLoading } = useFunctionsQuery();
   const { data: buckets, isLoading: bucketsLoading } = useBucketsQuery(selectedFunctionId || undefined);
   const createFunction = useCreateFunction();
-  const updateFunction = useUpdateFunction();
   const createBucket = useCreateBucket();
-  const updateBucket = useUpdateBucket();
 
   const [functionForm, setFunctionForm] = useState<CreateFunctionInput>({
     name: '',

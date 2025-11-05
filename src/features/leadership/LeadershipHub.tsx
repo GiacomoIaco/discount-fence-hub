@@ -13,7 +13,6 @@ interface LeadershipHubProps {
 export default function LeadershipHub({ onBack }: LeadershipHubProps) {
   const [view, setView] = useState<View>('dashboard');
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
-  const [selectedInitiativeId, setSelectedInitiativeId] = useState<string | null>(null);
 
   const isDesktop = useIsDesktop();
 

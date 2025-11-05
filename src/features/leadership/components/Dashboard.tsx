@@ -149,7 +149,7 @@ export default function Dashboard({
                     </div>
                   </div>
 
-                  {func.high_priority_count > 0 && (
+                  {(func.high_priority_count || 0) > 0 && (
                     <div className="mt-3 inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
                       <AlertCircle className="w-3 h-3" />
                       {func.high_priority_count} High Priority
