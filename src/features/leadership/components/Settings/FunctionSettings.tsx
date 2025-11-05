@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Plus, Folder } from 'lucide-react';
-import { useFunctionsQuery, useCreateFunction, useBucketsQuery, useCreateBucket } from '../../hooks/useLeadershipQuery';
-import type { CreateFunctionInput, CreateBucketInput } from '../../lib/leadership';
+import { ArrowLeft, Plus, Folder, Edit2, Trash2 } from 'lucide-react';
+import { useFunctionsQuery, useCreateFunction, useUpdateFunction, useBucketsQuery, useCreateBucket, useUpdateBucket } from '../../hooks/useLeadershipQuery';
+import type { CreateFunctionInput, CreateBucketInput, ProjectFunction, ProjectBucket } from '../../lib/leadership';
 
 interface FunctionSettingsProps {
   onBack: () => void;
@@ -11,11 +11,17 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
   const [isCreatingFunction, setIsCreatingFunction] = useState(false);
   const [isCreatingBucket, setIsCreatingBucket] = useState(false);
+  const [editingFunction, setEditingFunction] = useState<ProjectFunction | null>(null);
+  const [editingBucket, setEditingBucket] = useState<ProjectBucket | null>(null);
+  const [deletingFunction, setDeletingFunction] = useState<ProjectFunction | null>(null);
+  const [deletingBucket, setDeletingBucket] = useState<ProjectBucket | null>(null);
 
   const { data: functions, isLoading: functionsLoading } = useFunctionsQuery();
   const { data: buckets, isLoading: bucketsLoading } = useBucketsQuery(selectedFunctionId || undefined);
   const createFunction = useCreateFunction();
+  const updateFunction = useUpdateFunction();
   const createBucket = useCreateBucket();
+  const updateBucket = useUpdateBucket();
 
   const [functionForm, setFunctionForm] = useState<CreateFunctionInput>({
     name: '',
@@ -55,6 +61,69 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
       setBucketForm({ function_id: '', name: '', description: '', sort_order: 0 });
     } catch (error) {
       console.error('Failed to create bucket:', error);
+    }
+  };
+
+  const handleUpdateFunction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFunction) return;
+
+    try {
+      await updateFunction.mutateAsync({
+        id: editingFunction.id,
+        name: editingFunction.name,
+        description: editingFunction.description,
+      });
+      setEditingFunction(null);
+    } catch (error) {
+      console.error('Failed to update function:', error);
+    }
+  };
+
+  const handleDeleteFunction = async () => {
+    if (!deletingFunction) return;
+
+    try {
+      await updateFunction.mutateAsync({
+        id: deletingFunction.id,
+        is_active: false,
+      });
+      setDeletingFunction(null);
+      if (selectedFunctionId === deletingFunction.id) {
+        setSelectedFunctionId(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete function:', error);
+    }
+  };
+
+  const handleUpdateBucket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBucket) return;
+
+    try {
+      await updateBucket.mutateAsync({
+        id: editingBucket.id,
+        name: editingBucket.name,
+        description: editingBucket.description,
+      });
+      setEditingBucket(null);
+    } catch (error) {
+      console.error('Failed to update bucket:', error);
+    }
+  };
+
+  const handleDeleteBucket = async () => {
+    if (!deletingBucket) return;
+
+    try {
+      await updateBucket.mutateAsync({
+        id: deletingBucket.id,
+        is_active: false,
+      });
+      setDeletingBucket(null);
+    } catch (error) {
+      console.error('Failed to delete bucket:', error);
     }
   };
 
@@ -151,21 +220,96 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
               </div>
             )}
 
+            {/* Edit Function Modal */}
+            {editingFunction && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                  <h3 className="text-lg font-semibold mb-4">Edit Function</h3>
+                  <form onSubmit={handleUpdateFunction} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                      <input
+                        type="text"
+                        value={editingFunction.name}
+                        onChange={(e) => setEditingFunction({ ...editingFunction, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={editingFunction.description || ''}
+                        onChange={(e) => setEditingFunction({ ...editingFunction, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={updateFunction.isPending}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {updateFunction.isPending ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingFunction(null)}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Function Confirmation */}
+            {deletingFunction && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                  <h3 className="text-lg font-semibold mb-2">Delete Function?</h3>
+                  <p className="text-gray-600 mb-4">
+                    Are you sure you want to delete "{deletingFunction.name}"? This will also archive all buckets and initiatives within this function.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDeleteFunction}
+                      disabled={updateFunction.isPending}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {updateFunction.isPending ? 'Deleting...' : 'Delete'}
+                    </button>
+                    <button
+                      onClick={() => setDeletingFunction(null)}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Functions List */}
             <div className="space-y-2">
               {functions && functions.length > 0 ? (
                 functions.map((func) => (
-                  <button
+                  <div
                     key={func.id}
-                    onClick={() => setSelectedFunctionId(func.id)}
-                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                    className={`p-4 rounded-lg border-2 transition-all ${
                       selectedFunctionId === func.id
                         ? 'bg-blue-50 border-blue-400'
-                        : 'bg-white border-gray-200 hover:border-gray-300'
+                        : 'bg-white border-gray-200'
                     }`}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                      <button
+                        onClick={() => setSelectedFunctionId(func.id)}
+                        className="flex-1 text-left"
+                      >
                         <h3 className="font-semibold text-gray-900">{func.name}</h3>
                         {func.description && (
                           <p className="text-sm text-gray-600 mt-1">{func.description}</p>
@@ -175,9 +319,31 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                           <span>•</span>
                           <span>{func.initiative_count || 0} initiatives</span>
                         </div>
+                      </button>
+                      <div className="flex gap-1 ml-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingFunction(func);
+                          }}
+                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Edit function"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingFunction(func);
+                          }}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete function"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))
               ) : (
                 <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
@@ -261,6 +427,79 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                   </div>
                 )}
 
+                {/* Edit Bucket Modal */}
+                {editingBucket && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                      <h3 className="text-lg font-semibold mb-4">Edit Bucket</h3>
+                      <form onSubmit={handleUpdateBucket} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                          <input
+                            type="text"
+                            value={editingBucket.name}
+                            onChange={(e) => setEditingBucket({ ...editingBucket, name: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                          <textarea
+                            value={editingBucket.description || ''}
+                            onChange={(e) => setEditingBucket({ ...editingBucket, description: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                            rows={3}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="submit"
+                            disabled={updateBucket.isPending}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {updateBucket.isPending ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingBucket(null)}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* Delete Bucket Confirmation */}
+                {deletingBucket && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                      <h3 className="text-lg font-semibold mb-2">Delete Bucket?</h3>
+                      <p className="text-gray-600 mb-4">
+                        Are you sure you want to delete "{deletingBucket.name}"? This will also archive all initiatives within this bucket.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDeleteBucket}
+                          disabled={updateBucket.isPending}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {updateBucket.isPending ? 'Deleting...' : 'Delete'}
+                        </button>
+                        <button
+                          onClick={() => setDeletingBucket(null)}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Buckets List */}
                 {bucketsLoading ? (
                   <div className="text-center py-8">
@@ -281,6 +520,22 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                               {bucket.description && (
                                 <p className="text-sm text-gray-600 mt-1">{bucket.description}</p>
                               )}
+                            </div>
+                            <div className="flex gap-1 ml-2">
+                              <button
+                                onClick={() => setEditingBucket(bucket)}
+                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Edit bucket"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeletingBucket(bucket)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete bucket"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                         </div>
