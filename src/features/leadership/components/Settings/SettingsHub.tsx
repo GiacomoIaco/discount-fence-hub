@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Folder, Settings as SettingsIcon, Mail, Users } from 'lucide-react';
 import FunctionSettings from './FunctionSettings';
+import EmailSettings from './EmailSettings';
 
 type SettingsView = 'menu' | 'functions' | 'email' | 'access';
 
@@ -66,9 +67,6 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
                   <p className="text-sm text-gray-600">
                     Configure weekly summary email schedule and recipients
                   </p>
-                  <div className="mt-2 inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded">
-                    Coming in Sprint 4
-                  </div>
                 </div>
               </div>
             </button>
@@ -127,17 +125,7 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
 
   // Email Settings View
   if (view === 'email') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <button onClick={() => setView('menu')} className="mb-4 text-blue-600 hover:text-blue-700">
-            ← Back to Settings
-          </button>
-          <h1 className="text-2xl font-bold">Email Settings</h1>
-          <p className="text-gray-600 mt-2">Coming in Sprint 4</p>
-        </div>
-      </div>
-    );
+    return <EmailSettings onBack={() => setView('menu')} />;
   }
 
   // Access Management View
