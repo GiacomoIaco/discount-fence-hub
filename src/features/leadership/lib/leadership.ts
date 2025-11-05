@@ -211,6 +211,7 @@ export interface CreateFunctionInput {
 
 export interface UpdateFunctionInput extends Partial<CreateFunctionInput> {
   id: string;
+  is_active?: boolean;
 }
 
 export interface CreateBucketInput {
@@ -222,6 +223,7 @@ export interface CreateBucketInput {
 
 export interface UpdateBucketInput extends Partial<CreateBucketInput> {
   id: string;
+  is_active?: boolean;
 }
 
 export interface CreateInitiativeInput {
