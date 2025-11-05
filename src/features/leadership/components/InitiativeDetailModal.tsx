@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Trash2, Calendar, User, Flag, TrendingUp } from 'lucide-react';
+import { X, Save, Trash2, Calendar, Flag, TrendingUp } from 'lucide-react';
 import { useInitiativeQuery, useCreateInitiative, useUpdateInitiative } from '../hooks/useLeadershipQuery';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { CreateInitiativeInput, UpdateInitiativeInput } from '../lib/leadership';

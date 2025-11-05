@@ -4,10 +4,9 @@ import type { ProjectInitiative } from '../lib/leadership';
 interface InitiativeCardProps {
   initiative: ProjectInitiative;
   onClick: () => void;
-  showBucket?: boolean;
 }
 
-export default function InitiativeCard({ initiative, onClick, showBucket = false }: InitiativeCardProps) {
+export default function InitiativeCard({ initiative, onClick }: InitiativeCardProps) {
   // Status configuration
   const statusConfig = {
     not_started: { label: 'Not Started', icon: Clock, color: 'text-gray-500 bg-gray-100' },

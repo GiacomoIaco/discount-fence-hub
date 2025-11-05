@@ -105,7 +105,6 @@ export default function MyInitiativesView({ onBack }: MyInitiativesViewProps) {
                 key={initiative.id}
                 initiative={initiative}
                 onClick={() => setSelectedInitiativeId(initiative.id)}
-                showBucket
               />
             ))}
           </div>

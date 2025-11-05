@@ -153,7 +153,6 @@ export default function HighPriorityView({ onBack }: HighPriorityViewProps) {
                       key={initiative.id}
                       initiative={initiative}
                       onClick={() => setSelectedInitiativeId(initiative.id)}
-                      showBucket
                     />
                   ))}
                 </div>
@@ -173,7 +172,6 @@ export default function HighPriorityView({ onBack }: HighPriorityViewProps) {
                       key={initiative.id}
                       initiative={initiative}
                       onClick={() => setSelectedInitiativeId(initiative.id)}
-                      showBucket
                     />
                   ))}
                 </div>
@@ -193,7 +191,6 @@ export default function HighPriorityView({ onBack }: HighPriorityViewProps) {
                       key={initiative.id}
                       initiative={initiative}
                       onClick={() => setSelectedInitiativeId(initiative.id)}
-                      showBucket
                     />
                   ))}
                 </div>

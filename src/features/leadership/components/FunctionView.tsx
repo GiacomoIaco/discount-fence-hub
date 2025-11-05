@@ -3,7 +3,6 @@ import { ArrowLeft, Plus, FolderOpen } from 'lucide-react';
 import { useBucketsWithInitiativesQuery, useFunctionQuery } from '../hooks/useLeadershipQuery';
 import InitiativeCard from './InitiativeCard';
 import InitiativeDetailModal from './InitiativeDetailModal';
-import type { ProjectInitiative } from '../lib/leadership';
 
 interface FunctionViewProps {
   functionId: string;
