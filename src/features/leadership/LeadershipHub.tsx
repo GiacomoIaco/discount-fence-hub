@@ -3,6 +3,10 @@ import { Monitor } from 'lucide-react';
 import { useIsDesktop } from './hooks/useLeadershipPermissions';
 import Dashboard from './components/Dashboard';
 import SettingsHub from './components/Settings/SettingsHub';
+import FunctionView from './components/FunctionView';
+import MyInitiativesView from './components/MyInitiativesView';
+import HighPriorityView from './components/HighPriorityView';
+import WeeklyCheckinView from './components/WeeklyCheckinView';
 
 type View = 'dashboard' | 'function' | 'initiative' | 'my-initiatives' | 'high-priority' | 'weekly-checkin' | 'settings';
 
@@ -63,77 +67,29 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
   // Function View
   if (view === 'function' && selectedFunctionId) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="p-6">
-          <button
-            onClick={() => {
-              setSelectedFunctionId(null);
-              setView('dashboard');
-            }}
-            className="mb-4 text-blue-600 hover:text-blue-700"
-          >
-            ← Back to Dashboard
-          </button>
-          <h1 className="text-3xl font-bold">Function View</h1>
-          <p className="text-gray-600">Function ID: {selectedFunctionId}</p>
-          <p className="text-sm text-gray-500 mt-4">Component coming in Sprint 2</p>
-        </div>
-      </div>
+      <FunctionView
+        functionId={selectedFunctionId}
+        onBack={() => {
+          setSelectedFunctionId(null);
+          setView('dashboard');
+        }}
+      />
     );
   }
 
   // My Initiatives View
   if (view === 'my-initiatives') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="p-6">
-          <button
-            onClick={() => setView('dashboard')}
-            className="mb-4 text-blue-600 hover:text-blue-700"
-          >
-            ← Back to Dashboard
-          </button>
-          <h1 className="text-3xl font-bold">My Initiatives</h1>
-          <p className="text-sm text-gray-500 mt-4">Component coming in Sprint 2</p>
-        </div>
-      </div>
-    );
+    return <MyInitiativesView onBack={() => setView('dashboard')} />;
   }
 
   // High Priority View (Admin only)
   if (view === 'high-priority') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="p-6">
-          <button
-            onClick={() => setView('dashboard')}
-            className="mb-4 text-blue-600 hover:text-blue-700"
-          >
-            ← Back to Dashboard
-          </button>
-          <h1 className="text-3xl font-bold">High Priority Initiatives</h1>
-          <p className="text-sm text-gray-500 mt-4">Component coming in Sprint 3</p>
-        </div>
-      </div>
-    );
+    return <HighPriorityView onBack={() => setView('dashboard')} />;
   }
 
   // Weekly Check-in View
   if (view === 'weekly-checkin') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="p-6">
-          <button
-            onClick={() => setView('dashboard')}
-            className="mb-4 text-blue-600 hover:text-blue-700"
-          >
-            ← Back to Dashboard
-          </button>
-          <h1 className="text-3xl font-bold">Weekly Check-in</h1>
-          <p className="text-sm text-gray-500 mt-4">Component coming in Sprint 2</p>
-        </div>
-      </div>
-    );
+    return <WeeklyCheckinView onBack={() => setView('dashboard')} />;
   }
 
   // Settings View (Admin only)
