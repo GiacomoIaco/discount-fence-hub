@@ -58,13 +58,24 @@ export default function InitiativeDetailModal({ initiativeId, bucketId, onClose 
     e.preventDefault();
 
     try {
+      // Clean up form data - convert empty strings to undefined
+      const cleanedData = {
+        ...formData,
+        target_date: formData.target_date || undefined,
+        target_week: formData.target_week || undefined,
+        target_quarter: formData.target_quarter || undefined,
+        description: formData.description || undefined,
+        success_criteria: formData.success_criteria || undefined,
+        assigned_to: formData.assigned_to || undefined,
+      };
+
       if (isCreating) {
-        await createInitiative.mutateAsync(formData as CreateInitiativeInput);
+        await createInitiative.mutateAsync(cleanedData as CreateInitiativeInput);
         onClose();
       } else if (initiativeId) {
         await updateInitiative.mutateAsync({
           id: initiativeId,
-          ...formData,
+          ...cleanedData,
         } as UpdateInitiativeInput);
         setIsEditing(false);
       }
