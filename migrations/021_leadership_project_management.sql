@@ -15,7 +15,7 @@ CREATE TABLE project_settings (
   setting_key TEXT UNIQUE NOT NULL,
   setting_value JSONB NOT NULL,
   description TEXT,
-  updated_by UUID REFERENCES profiles(id),
+  updated_by UUID REFERENCES user_profiles(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -29,7 +29,7 @@ CREATE TABLE project_functions (
   color TEXT DEFAULT 'blue', -- UI color theme
   sort_order INTEGER DEFAULT 0,
   is_active BOOLEAN DEFAULT true,
-  created_by UUID REFERENCES profiles(id),
+  created_by UUID REFERENCES user_profiles(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -38,9 +38,9 @@ CREATE TABLE project_functions (
 CREATE TABLE project_function_access (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   function_id UUID NOT NULL REFERENCES project_functions(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('admin', 'lead', 'member', 'viewer')),
-  granted_by UUID REFERENCES profiles(id),
+  granted_by UUID REFERENCES user_profiles(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(function_id, user_id)
@@ -69,7 +69,7 @@ CREATE TABLE project_initiatives (
   success_criteria TEXT,
 
   -- Ownership and status
-  assigned_to UUID REFERENCES profiles(id),
+  assigned_to UUID REFERENCES user_profiles(id),
   status TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started', 'active', 'on_hold', 'at_risk', 'cancelled', 'completed')),
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
 
@@ -86,7 +86,7 @@ CREATE TABLE project_initiatives (
   color_status TEXT DEFAULT 'green' CHECK (color_status IN ('green', 'yellow', 'red')),
 
   -- Audit
-  created_by UUID REFERENCES profiles(id),
+  created_by UUID REFERENCES user_profiles(id),
   archived_at TIMESTAMPTZ,
   sort_order INTEGER DEFAULT 0,
 
@@ -98,7 +98,7 @@ CREATE TABLE project_initiatives (
 CREATE TABLE project_weekly_updates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   initiative_id UUID NOT NULL REFERENCES project_initiatives(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES profiles(id),
+  user_id UUID NOT NULL REFERENCES user_profiles(id),
 
   week_start_date DATE NOT NULL, -- Monday of the week
 
@@ -121,7 +121,7 @@ CREATE TABLE project_weekly_updates (
 CREATE TABLE project_activity (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   initiative_id UUID NOT NULL REFERENCES project_initiatives(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES profiles(id),
+  user_id UUID REFERENCES user_profiles(id),
 
   action TEXT NOT NULL, -- 'created', 'updated', 'status_changed', 'assigned', etc.
   changes JSONB, -- Detailed change log
@@ -133,7 +133,7 @@ CREATE TABLE project_activity (
 CREATE TABLE project_comments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   initiative_id UUID NOT NULL REFERENCES project_initiatives(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES profiles(id),
+  user_id UUID NOT NULL REFERENCES user_profiles(id),
 
   content TEXT NOT NULL,
 
@@ -397,9 +397,9 @@ ALTER TABLE project_comments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins can manage settings" ON project_settings
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
@@ -413,18 +413,18 @@ CREATE POLICY "Users can view functions they have access to" ON project_function
     )
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
 CREATE POLICY "Admins and leads can manage functions" ON project_functions
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
     OR
     EXISTS (
@@ -448,18 +448,18 @@ CREATE POLICY "Users can view access for their functions" ON project_function_ac
     )
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
 CREATE POLICY "Admins and leads can manage access" ON project_function_access
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
     OR
     EXISTS (
@@ -480,18 +480,18 @@ CREATE POLICY "Users can view buckets in their functions" ON project_buckets
     )
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
 CREATE POLICY "Admins and leads can manage buckets" ON project_buckets
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
     OR
     EXISTS (
@@ -515,9 +515,9 @@ CREATE POLICY "Users can view initiatives in their functions" ON project_initiat
     assigned_to = auth.uid()
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
@@ -534,18 +534,18 @@ CREATE POLICY "Users can update their assigned initiatives" ON project_initiativ
     )
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
 CREATE POLICY "Admins and leads can create initiatives" ON project_initiatives
   FOR INSERT WITH CHECK (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
     OR
     EXISTS (
@@ -571,9 +571,9 @@ CREATE POLICY "Users can view updates for initiatives they can see" ON project_w
     user_id = auth.uid()
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
@@ -592,9 +592,9 @@ CREATE POLICY "Users can view activity for initiatives they can see" ON project_
     )
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 
@@ -610,9 +610,9 @@ CREATE POLICY "Users can view comments for initiatives they can see" ON project_
     )
     OR
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.id = auth.uid()
+      AND user_profiles.role = 'admin'
     )
   );
 

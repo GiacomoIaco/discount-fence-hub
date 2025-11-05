@@ -178,7 +178,7 @@ export interface InitiativeWithDetails extends ProjectInitiative {
   function?: ProjectFunction;
   assigned_user?: {
     id: string;
-    name: string;
+    full_name: string;
     avatar_url?: string;
   };
   recent_updates?: ProjectWeeklyUpdate[];

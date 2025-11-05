@@ -223,7 +223,7 @@ export const useInitiativesQuery = (filters: InitiativeFilters = {}) => {
         .select(`
           *,
           bucket:project_buckets(*),
-          assigned_user:profiles(id, name, avatar_url)
+          assigned_user:user_profiles(id, full_name, avatar_url)
         `);
 
       // Apply filters
@@ -287,7 +287,7 @@ export const useInitiativeQuery = (initiativeId?: string) => {
         .select(`
           *,
           bucket:project_buckets(*),
-          assigned_user:profiles(id, name, avatar_url)
+          assigned_user:user_profiles(id, full_name, avatar_url)
         `)
         .eq('id', initiativeId)
         .single();
@@ -315,7 +315,7 @@ export const useMyInitiativesQuery = () => {
         .select(`
           *,
           bucket:project_buckets(*),
-          assigned_user:profiles(id, name, avatar_url)
+          assigned_user:user_profiles(id, full_name, avatar_url)
         `)
         .eq('assigned_to', user.id)
         .is('archived_at', null)
@@ -343,7 +343,7 @@ export const useHighPriorityInitiativesQuery = () => {
             *,
             function:project_functions(*)
           ),
-          assigned_user:profiles(id, name, avatar_url)
+          assigned_user:user_profiles(id, full_name, avatar_url)
         `)
         .eq('priority', 'high')
         .is('archived_at', null)
