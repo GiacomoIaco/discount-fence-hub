@@ -8,7 +8,7 @@ import {
   useDeleteAnnualGoal
 } from '../../hooks/useGoalsQuery';
 import type { CreateAnnualGoalInput, AnnualGoal } from '../../lib/goals.types';
-import { validateWeights, isHighWeightGoal } from '../../lib/goals.types';
+import { isHighWeightGoal } from '../../lib/goals.types';
 
 export default function AnnualGoalPlanning() {
   const currentYear = new Date().getFullYear();

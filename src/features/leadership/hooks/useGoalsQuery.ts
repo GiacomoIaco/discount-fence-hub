@@ -505,10 +505,12 @@ export const useUpdateTask = () => {
     mutationFn: async ({ id, ...input }: UpdateTaskInput): Promise<Task> => {
       // If status is changing to 'done', set completed_at
       const updateData: any = { ...input };
-      if (input.status === 'done') {
-        updateData.completed_at = new Date().toISOString();
-      } else if (input.status && input.status !== 'done') {
-        updateData.completed_at = null;
+      if (input.status) {
+        if (input.status === 'done') {
+          updateData.completed_at = new Date().toISOString();
+        } else {
+          updateData.completed_at = null;
+        }
       }
 
       const { data, error } = await supabase
