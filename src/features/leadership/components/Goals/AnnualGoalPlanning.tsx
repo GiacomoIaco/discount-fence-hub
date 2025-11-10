@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Target, TrendingUp, Edit2, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Target, TrendingUp, Edit2, Trash2, AlertCircle, CheckCircle, Calendar } from 'lucide-react';
 import { useFunctionsQuery } from '../../hooks/useLeadershipQuery';
 import {
   useAnnualGoalsWithQuarterlyQuery,
@@ -9,6 +9,7 @@ import {
 } from '../../hooks/useGoalsQuery';
 import type { CreateAnnualGoalInput, AnnualGoal } from '../../lib/goals.types';
 import { isHighWeightGoal } from '../../lib/goals.types';
+import QuarterlyBreakdown from './QuarterlyBreakdown';
 
 export default function AnnualGoalPlanning() {
   const currentYear = new Date().getFullYear();
@@ -16,6 +17,7 @@ export default function AnnualGoalPlanning() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [isCreating, setIsCreating] = useState(false);
   const [editingGoal, setEditingGoal] = useState<AnnualGoal | null>(null);
+  const [viewingQuarterlyGoal, setViewingQuarterlyGoal] = useState<AnnualGoal | null>(null);
 
   const { data: functions } = useFunctionsQuery();
   const { data: goals, isLoading } = useAnnualGoalsWithQuarterlyQuery(selectedFunctionId || undefined, selectedYear);
@@ -274,15 +276,29 @@ export default function AnnualGoalPlanning() {
                           </div>
                         </div>
 
-                        {/* Quarterly Goals Preview */}
-                        {goal.quarterly_goals && goal.quarterly_goals.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-gray-200">
-                            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                        {/* Quarterly Goals Preview & Action */}
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Calendar className="w-4 h-4 text-gray-400" />
                               <span className="font-medium">Quarterly Breakdown:</span>
-                              <span>{goal.quarterly_goals.length} quarters planned</span>
+                              {goal.quarterly_goals && goal.quarterly_goals.length > 0 ? (
+                                <span>{goal.quarterly_goals.length} quarters planned</span>
+                              ) : (
+                                <span className="text-gray-400">Not set up</span>
+                              )}
                             </div>
+                            <button
+                              onClick={() => setViewingQuarterlyGoal(goal)}
+                              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
+                            >
+                              <Calendar className="w-4 h-4" />
+                              {goal.quarterly_goals && goal.quarterly_goals.length > 0
+                                ? 'View & Edit'
+                                : 'Set Up Quarters'}
+                            </button>
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -402,6 +418,16 @@ export default function AnnualGoalPlanning() {
             Choose a function above to view and manage its annual goals
           </p>
         </div>
+      )}
+
+      {/* Quarterly Breakdown Modal */}
+      {viewingQuarterlyGoal && (
+        <QuarterlyBreakdown
+          annualGoalId={viewingQuarterlyGoal.id}
+          annualGoalTitle={viewingQuarterlyGoal.title}
+          year={viewingQuarterlyGoal.year}
+          onClose={() => setViewingQuarterlyGoal(null)}
+        />
       )}
     </div>
   );
