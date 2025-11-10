@@ -27,7 +27,7 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Leadership Settings</h1>
-                <p className="text-sm text-gray-600">Manage functions, buckets, and system configuration</p>
+                <p className="text-sm text-gray-600">Manage functions, areas, and system configuration</p>
               </div>
             </div>
           </div>
@@ -45,9 +45,9 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
                   <Folder className="w-6 h-6 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">Functions & Buckets</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Functions & Areas</h3>
                   <p className="text-sm text-gray-600">
-                    Create and manage organizational functions and responsibility buckets
+                    Create and manage organizational functions and responsibility areas
                   </p>
                 </div>
               </div>

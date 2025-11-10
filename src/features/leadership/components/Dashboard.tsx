@@ -140,8 +140,8 @@ export default function Dashboard({
 
                   <div className="flex items-center gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500">Buckets:</span>{' '}
-                      <span className="font-semibold text-gray-900">{func.bucket_count || 0}</span>
+                      <span className="text-gray-500">Areas:</span>{' '}
+                      <span className="font-semibold text-gray-900">{func.area_count || 0}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Initiatives:</span>{' '}
