@@ -35,7 +35,7 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
 
         <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="grid grid-cols-2 gap-4">
-            {/* Functions & Buckets */}
+            {/* Functions & Areas */}
             <button
               onClick={() => setView('functions')}
               className="bg-white p-6 rounded-xl shadow-sm border-2 border-gray-200 hover:shadow-md hover:border-blue-400 transition-all text-left group"
@@ -118,7 +118,7 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
     );
   }
 
-  // Functions & Buckets View
+  // Functions & Areas View
   if (view === 'functions') {
     return <FunctionSettings onBack={() => setView('menu')} />;
   }

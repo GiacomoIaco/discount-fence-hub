@@ -354,7 +354,7 @@ export const useHighPriorityInitiativesQuery = () => {
         .from('project_initiatives')
         .select(`
           *,
-          bucket:project_areas(
+          area:project_areas(
             *,
             function:project_functions(*)
           ),

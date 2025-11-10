@@ -10,11 +10,11 @@ interface FunctionSettingsProps {
 export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
   const [isCreatingFunction, setIsCreatingFunction] = useState(false);
-  const [isCreatingArea, setIsCreatingBucket] = useState(false);
+  const [isCreatingArea, setIsCreatingArea] = useState(false);
   const [editingFunction, setEditingFunction] = useState<ProjectFunction | null>(null);
-  const [editingArea, setEditingBucket] = useState<ProjectArea | null>(null);
+  const [editingArea, setEditingArea] = useState<ProjectArea | null>(null);
   const [deletingFunction, setDeletingFunction] = useState<ProjectFunction | null>(null);
-  const [deletingArea, setDeletingBucket] = useState<ProjectArea | null>(null);
+  const [deletingArea, setDeletingArea] = useState<ProjectArea | null>(null);
 
   const { data: functions, isLoading: functionsLoading } = useFunctionsQuery();
   const { data: areas, isLoading: areasLoading } = useAreasQuery(selectedFunctionId || undefined);
@@ -30,7 +30,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
     sort_order: 0,
   });
 
-  const [areaForm, setBucketForm] = useState<CreateAreaInput>({
+  const [areaForm, setAreaForm] = useState<CreateAreaInput>({
     function_id: '',
     name: '',
     description: '',
@@ -48,7 +48,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
     }
   };
 
-  const handleCreateBucket = async (e: React.FormEvent) => {
+  const handleCreateArea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFunctionId) return;
 
@@ -57,8 +57,8 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
         ...areaForm,
         function_id: selectedFunctionId,
       });
-      setIsCreatingBucket(false);
-      setBucketForm({ function_id: '', name: '', description: '', sort_order: 0 });
+      setIsCreatingArea(false);
+      setAreaForm({ function_id: '', name: '', description: '', sort_order: 0 });
     } catch (error) {
       console.error('Failed to create area:', error);
     }
@@ -97,7 +97,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
     }
   };
 
-  const handleUpdateBucket = async (e: React.FormEvent) => {
+  const handleUpdateArea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingArea) return;
 
@@ -107,13 +107,13 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
         name: editingArea.name,
         description: editingArea.description,
       });
-      setEditingBucket(null);
+      setEditingArea(null);
     } catch (error) {
       console.error('Failed to update area:', error);
     }
   };
 
-  const handleDeleteBucket = async () => {
+  const handleDeleteArea = async () => {
     if (!deletingArea) return;
 
     try {
@@ -121,7 +121,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
         id: deletingArea.id,
         is_active: false,
       });
-      setDeletingBucket(null);
+      setDeletingArea(null);
     } catch (error) {
       console.error('Failed to delete area:', error);
     }
@@ -150,7 +150,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Functions & Buckets</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Functions & Areas</h1>
               <p className="text-sm text-gray-600">Manage organizational structure</p>
             </div>
           </div>
@@ -360,19 +360,19 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
             </div>
           </div>
 
-          {/* Buckets List */}
+          {/* Areas List */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">
-                {selectedFunctionId ? 'Buckets' : 'Select a Function'}
+                {selectedFunctionId ? 'Areas' : 'Select a Function'}
               </h2>
               {selectedFunctionId && (
                 <button
-                  onClick={() => setIsCreatingBucket(true)}
+                  onClick={() => setIsCreatingArea(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Bucket
+                  Add Area
                 </button>
               )}
             </div>
@@ -382,8 +382,8 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                 {/* Create Bucket Form */}
                 {isCreatingArea && (
                   <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">Create New Bucket</h3>
-                    <form onSubmit={handleCreateBucket} className="space-y-3">
+                    <h3 className="font-semibold text-gray-900 mb-3">Create New Area</h3>
+                    <form onSubmit={handleCreateArea} className="space-y-3">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Name *
@@ -391,7 +391,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                         <input
                           type="text"
                           value={areaForm.name}
-                          onChange={(e) => setBucketForm({ ...areaForm, name: e.target.value })}
+                          onChange={(e) => setAreaForm({ ...areaForm, name: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                           required
                         />
@@ -402,7 +402,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                         </label>
                         <textarea
                           value={areaForm.description}
-                          onChange={(e) => setBucketForm({ ...areaForm, description: e.target.value })}
+                          onChange={(e) => setAreaForm({ ...areaForm, description: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                           rows={2}
                         />
@@ -417,7 +417,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setIsCreatingBucket(false)}
+                          onClick={() => setIsCreatingArea(false)}
                           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                         >
                           Cancel
@@ -427,18 +427,18 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                   </div>
                 )}
 
-                {/* Edit Bucket Modal */}
+                {/* Edit Area Modal */}
                 {editingArea && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                      <h3 className="text-lg font-semibold mb-4">Edit Bucket</h3>
-                      <form onSubmit={handleUpdateBucket} className="space-y-4">
+                      <h3 className="text-lg font-semibold mb-4">Edit Area</h3>
+                      <form onSubmit={handleUpdateArea} className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
                           <input
                             type="text"
                             value={editingArea.name}
-                            onChange={(e) => setEditingBucket({ ...editingArea, name: e.target.value })}
+                            onChange={(e) => setEditingArea({ ...editingArea, name: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                             required
                           />
@@ -447,7 +447,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                           <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                           <textarea
                             value={editingArea.description || ''}
-                            onChange={(e) => setEditingBucket({ ...editingArea, description: e.target.value })}
+                            onChange={(e) => setEditingArea({ ...editingArea, description: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                             rows={3}
                           />
@@ -462,7 +462,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setEditingBucket(null)}
+                            onClick={() => setEditingArea(null)}
                             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                           >
                             Cancel
@@ -473,24 +473,24 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                   </div>
                 )}
 
-                {/* Delete Bucket Confirmation */}
+                {/* Delete Area Confirmation */}
                 {deletingArea && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                      <h3 className="text-lg font-semibold mb-2">Delete Bucket?</h3>
+                      <h3 className="text-lg font-semibold mb-2">Delete Area?</h3>
                       <p className="text-gray-600 mb-4">
                         Are you sure you want to delete "{deletingArea.name}"? This will also archive all initiatives within this area.
                       </p>
                       <div className="flex gap-2">
                         <button
-                          onClick={handleDeleteBucket}
+                          onClick={handleDeleteArea}
                           disabled={updateArea.isPending}
                           className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                         >
                           {updateArea.isPending ? 'Deleting...' : 'Delete'}
                         </button>
                         <button
-                          onClick={() => setDeletingBucket(null)}
+                          onClick={() => setDeletingArea(null)}
                           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                         >
                           Cancel
@@ -500,7 +500,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                   </div>
                 )}
 
-                {/* Buckets List */}
+                {/* Areas List */}
                 {areasLoading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
@@ -523,14 +523,14 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                             </div>
                             <div className="flex gap-1 ml-2">
                               <button
-                                onClick={() => setEditingBucket(area)}
+                                onClick={() => setEditingArea(area)}
                                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                 title="Edit area"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => setDeletingBucket(area)}
+                                onClick={() => setDeletingArea(area)}
                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Delete area"
                               >
@@ -544,7 +544,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                       <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
                         <p className="text-gray-600 mb-3">No areas yet</p>
                         <button
-                          onClick={() => setIsCreatingBucket(true)}
+                          onClick={() => setIsCreatingArea(true)}
                           className="text-green-600 hover:text-green-700 font-medium text-sm"
                         >
                           Create your first area
