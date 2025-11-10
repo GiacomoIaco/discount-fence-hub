@@ -88,7 +88,7 @@ export interface ProjectFunctionAccess {
   updated_at: string;
 }
 
-export interface ProjectBucket {
+export interface ProjectArea {
   id: string;
   function_id: string;
   name: string;
@@ -101,7 +101,7 @@ export interface ProjectBucket {
 
 export interface ProjectInitiative {
   id: string;
-  bucket_id: string;
+  area_id: string;
 
   // Core fields
   title: string;
@@ -174,7 +174,7 @@ export interface ProjectComment {
 // ============================================
 
 export interface InitiativeWithDetails extends ProjectInitiative {
-  bucket?: ProjectBucket;
+  area?: ProjectArea;
   function?: ProjectFunction;
   assigned_user?: {
     id: string;
@@ -187,12 +187,12 @@ export interface InitiativeWithDetails extends ProjectInitiative {
 
 export interface FunctionWithAccess extends ProjectFunction {
   user_access?: ProjectFunctionAccess;
-  bucket_count?: number;
+  area_count?: number;
   initiative_count?: number;
   high_priority_count?: number;
 }
 
-export interface BucketWithInitiatives extends ProjectBucket {
+export interface AreaWithInitiatives extends ProjectArea {
   initiatives?: ProjectInitiative[];
   initiative_count?: number;
 }
@@ -214,20 +214,20 @@ export interface UpdateFunctionInput extends Partial<CreateFunctionInput> {
   is_active?: boolean;
 }
 
-export interface CreateBucketInput {
+export interface CreateAreaInput {
   function_id: string;
   name: string;
   description?: string;
   sort_order?: number;
 }
 
-export interface UpdateBucketInput extends Partial<CreateBucketInput> {
+export interface UpdateAreaInput extends Partial<CreateAreaInput> {
   id: string;
   is_active?: boolean;
 }
 
 export interface CreateInitiativeInput {
-  bucket_id: string;
+  area_id: string;
   title: string;
   description?: string;
   success_criteria?: string;
@@ -269,7 +269,7 @@ export interface GrantFunctionAccessInput {
 // ============================================
 
 export interface InitiativeFilters {
-  bucket_id?: string;
+  area_id?: string;
   function_id?: string;
   assigned_to?: string;
   status?: InitiativeStatus | InitiativeStatus[];
@@ -315,8 +315,8 @@ export interface WeeklySummaryByOwner {
 
 export interface WeeklySummaryByFunction {
   function: ProjectFunction;
-  buckets: {
-    bucket: ProjectBucket;
+  areas: {
+    area: ProjectArea;
     initiatives: InitiativeWithDetails[];
   }[];
   total_initiatives: number;
