@@ -1,4 +1,5 @@
-import { Calendar, User, TrendingUp, AlertCircle, CheckCircle2, Clock, Pause, XCircle, Flag } from 'lucide-react';
+import { Calendar, User, TrendingUp, AlertCircle, CheckCircle2, Clock, Pause, XCircle, Flag, Target } from 'lucide-react';
+import { useInitiativeGoalLinksQuery } from '../hooks/useGoalsQuery';
 import type { ProjectInitiative } from '../lib/leadership';
 
 interface InitiativeCardProps {
@@ -7,6 +8,7 @@ interface InitiativeCardProps {
 }
 
 export default function InitiativeCard({ initiative, onClick }: InitiativeCardProps) {
+  const { data: goalLinks } = useInitiativeGoalLinksQuery(initiative.id);
   // Status configuration
   const statusConfig = {
     not_started: { label: 'Not Started', icon: Clock, color: 'text-gray-500 bg-gray-100' },
@@ -51,6 +53,13 @@ export default function InitiativeCard({ initiative, onClick }: InitiativeCardPr
     if (initiative.target_quarter) return initiative.target_quarter;
     return 'No target set';
   };
+
+  // Goal indicators
+  const hasGoals = goalLinks && goalLinks.length > 0;
+  const hasHighWeightGoal = hasGoals && goalLinks.some((link) => {
+    const annualGoal = link.quarterly_goal?.annual_goal;
+    return annualGoal && annualGoal.weight >= 25;
+  });
 
   return (
     <button
@@ -98,6 +107,27 @@ export default function InitiativeCard({ initiative, onClick }: InitiativeCardPr
               style={{ width: `${initiative.progress_percent}%` }}
             />
           </div>
+        </div>
+      )}
+
+      {/* Goal Indicator */}
+      {!hasGoals && (
+        <div className="mb-3 flex items-center gap-1 text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+          <AlertCircle className="w-3 h-3" />
+          <span>No goals linked</span>
+        </div>
+      )}
+      {hasGoals && hasHighWeightGoal && (
+        <div className="mb-3 flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded font-medium">
+          <span>🔥</span>
+          <Target className="w-3 h-3" />
+          <span>{goalLinks.length} High Priority Goal{goalLinks.length > 1 ? 's' : ''}</span>
+        </div>
+      )}
+      {hasGoals && !hasHighWeightGoal && (
+        <div className="mb-3 flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+          <Target className="w-3 h-3" />
+          <span>{goalLinks.length} Goal{goalLinks.length > 1 ? 's' : ''} Linked</span>
         </div>
       )}
 

@@ -228,6 +228,22 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
       );
     }
 
+    // Check if any linked goal is high-weight (≥25%)
+    const hasHighWeightGoal = goalLinks.some((link) => {
+      const annualGoal = link.quarterly_goal?.annual_goal;
+      return annualGoal && annualGoal.weight >= 25;
+    });
+
+    if (hasHighWeightGoal) {
+      return (
+        <div className="flex items-center justify-center gap-1" title={`${goalLinks.length} goal(s) linked • High Priority`}>
+          <span className="text-orange-500 text-base">🔥</span>
+          <Target className="w-4 h-4 text-orange-600" />
+          <span className="text-xs text-orange-600 font-semibold">{goalLinks.length}</span>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center text-purple-600" title={`${goalLinks.length} goal(s) linked`}>
         <Target className="w-4 h-4" />
