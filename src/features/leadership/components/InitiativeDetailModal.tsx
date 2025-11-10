@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Trash2, Calendar, Flag, TrendingUp } from 'lucide-react';
+import { X, Save, Trash2, Calendar, Flag, TrendingUp, Target, Plus } from 'lucide-react';
 import { useInitiativeQuery, useCreateInitiative, useUpdateInitiative } from '../hooks/useLeadershipQuery';
+import {
+  useInitiativeGoalLinksQuery,
+  useAnnualGoalsWithQuarterlyQuery,
+  useCreateInitiativeGoalLink,
+  useDeleteInitiativeGoalLink,
+} from '../hooks/useGoalsQuery';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { CreateInitiativeInput, UpdateInitiativeInput } from '../lib/leadership';
+import type { QuarterlyGoal } from '../lib/goals.types';
+import { getQuarterLabel } from '../lib/goals.types';
 
 interface InitiativeDetailModalProps {
   initiativeId?: string;
@@ -17,6 +25,26 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
   const { data: initiative, isLoading } = useInitiativeQuery(initiativeId);
   const createInitiative = useCreateInitiative();
   const updateInitiative = useUpdateInitiative();
+
+  // Goal linking hooks
+  const { data: goalLinks } = useInitiativeGoalLinksQuery(initiativeId);
+  const currentYear = new Date().getFullYear();
+  const functionId = initiative?.area?.function_id;
+  const { data: annualGoals } = useAnnualGoalsWithQuarterlyQuery(functionId, currentYear);
+  const createGoalLink = useCreateInitiativeGoalLink();
+  const deleteGoalLink = useDeleteInitiativeGoalLink();
+
+  // Extract all quarterly goals from annual goals
+  const availableQuarterlyGoals: Array<QuarterlyGoal & { annual_goal_title: string }> = annualGoals?.flatMap((annualGoal) =>
+    (annualGoal.quarterly_goals || []).map((qg) => ({
+      ...qg,
+      annual_goal_title: annualGoal.title,
+    }))
+  ) || [];
+
+  // Filter out already linked goals
+  const linkedGoalIds = new Set(goalLinks?.map((link) => link.quarterly_goal_id));
+  const unlinkedQuarterlyGoals = availableQuarterlyGoals.filter((qg) => !linkedGoalIds.has(qg.id));
 
   const [formData, setFormData] = useState<Partial<CreateInitiativeInput>>({
     area_id: areaId || '',
@@ -34,6 +62,7 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
   });
 
   const [isEditing, setIsEditing] = useState(isCreating);
+  const [selectedGoalToLink, setSelectedGoalToLink] = useState<string>('');
 
   useEffect(() => {
     if (initiative && !isCreating) {
@@ -95,6 +124,28 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
       onClose();
     } catch (error) {
       console.error('Failed to archive initiative:', error);
+    }
+  };
+
+  const handleLinkGoal = async () => {
+    if (!initiativeId || !selectedGoalToLink) return;
+
+    try {
+      await createGoalLink.mutateAsync({
+        initiative_id: initiativeId,
+        quarterly_goal_id: selectedGoalToLink,
+      });
+      setSelectedGoalToLink('');
+    } catch (error) {
+      console.error('Failed to link goal:', error);
+    }
+  };
+
+  const handleUnlinkGoal = async (linkId: string) => {
+    try {
+      await deleteGoalLink.mutateAsync(linkId);
+    } catch (error) {
+      console.error('Failed to unlink goal:', error);
     }
   };
 
@@ -348,6 +399,84 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
               )}
             </div>
           </div>
+
+          {/* Linked Goals Section */}
+          {!isCreating && (
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="w-5 h-5 text-gray-400" />
+                <h3 className="text-sm font-semibold text-gray-900">Linked Quarterly Goals</h3>
+              </div>
+
+              {/* Existing Goal Links */}
+              {goalLinks && goalLinks.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {goalLinks.map((link) => {
+                    const qGoal = link.quarterly_goal;
+                    const annualGoal = qGoal.annual_goal;
+                    return (
+                      <div
+                        key={link.id}
+                        className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">
+                            {annualGoal?.title || 'Unknown Goal'}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            {getQuarterLabel(qGoal.quarter, qGoal.year)}
+                            {qGoal.target && ` • ${qGoal.target}`}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleUnlinkGoal(link.id)}
+                          className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                          title="Remove link"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mb-3">No quarterly goals linked yet</p>
+              )}
+
+              {/* Add New Goal Link */}
+              {unlinkedQuarterlyGoals.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedGoalToLink}
+                    onChange={(e) => setSelectedGoalToLink(e.target.value)}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select a goal to link...</option>
+                    {unlinkedQuarterlyGoals.map((qg) => (
+                      <option key={qg.id} value={qg.id}>
+                        {qg.annual_goal_title} - {getQuarterLabel(qg.quarter, qg.year)}
+                        {qg.target && ` (${qg.target})`}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleLinkGoal}
+                    disabled={!selectedGoalToLink}
+                    className="flex items-center gap-1 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Link
+                  </button>
+                </div>
+              )}
+
+              {unlinkedQuarterlyGoals.length === 0 && (!goalLinks || goalLinks.length === 0) && (
+                <p className="text-sm text-gray-500 italic">
+                  No quarterly goals available for this function. Create annual and quarterly goals first.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Action Buttons */}
           {isEditing && (
