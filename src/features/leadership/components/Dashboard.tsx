@@ -1,4 +1,4 @@
-import { Settings, Target, Calendar, AlertCircle } from 'lucide-react';
+import { Settings, Target, Calendar, AlertCircle, BarChart3 } from 'lucide-react';
 import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -8,6 +8,7 @@ interface DashboardProps {
   onViewHighPriority: () => void;
   onViewWeeklyCheckin: () => void;
   onViewGoals: () => void;
+  onViewProgress: () => void;
   onViewSettings: () => void;
 }
 
@@ -17,6 +18,7 @@ export default function Dashboard({
   onViewHighPriority,
   onViewWeeklyCheckin,
   onViewGoals,
+  onViewProgress,
   onViewSettings,
 }: DashboardProps) {
   const { profile } = useAuth();
@@ -106,6 +108,24 @@ export default function Dashboard({
                 </div>
                 <div className="bg-purple-100 p-3 rounded-lg">
                   <Target className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={onViewProgress}
+              className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all text-left"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Progress Analytics</div>
+                  <div className="text-2xl font-bold text-gray-900">Dashboard</div>
+                  <div className="text-sm text-gray-500 mt-2">Track metrics & goal achievement</div>
+                </div>
+                <div className="bg-indigo-100 p-3 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-indigo-600" />
                 </div>
               </div>
             </button>
