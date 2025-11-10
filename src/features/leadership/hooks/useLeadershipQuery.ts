@@ -3,17 +3,17 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import type {
   ProjectFunction,
-  ProjectBucket,
+  ProjectArea,
   ProjectInitiative,
   ProjectWeeklyUpdate,
   ProjectActivity,
   FunctionWithAccess,
   InitiativeWithDetails,
-  BucketWithInitiatives,
+  AreaWithInitiatives,
   CreateFunctionInput,
   UpdateFunctionInput,
-  CreateBucketInput,
-  UpdateBucketInput,
+  CreateAreaInput,
+  UpdateAreaInput,
   CreateInitiativeInput,
   UpdateInitiativeInput,
   InitiativeFilters,
@@ -27,12 +27,12 @@ export const leadershipKeys = {
   all: ['leadership'] as const,
   functions: () => [...leadershipKeys.all, 'functions'] as const,
   function: (id: string) => [...leadershipKeys.functions(), id] as const,
-  buckets: () => [...leadershipKeys.all, 'buckets'] as const,
-  bucket: (id: string) => [...leadershipKeys.buckets(), id] as const,
-  bucketsForFunction: (functionId: string) => [...leadershipKeys.buckets(), 'function', functionId] as const,
+  areas: () => [...leadershipKeys.all, 'areas'] as const,
+  area: (id: string) => [...leadershipKeys.areas(), id] as const,
+  areasForFunction: (functionId: string) => [...leadershipKeys.areas(), 'function', functionId] as const,
   initiatives: () => [...leadershipKeys.all, 'initiatives'] as const,
   initiative: (id: string) => [...leadershipKeys.initiatives(), id] as const,
-  initiativesForBucket: (bucketId: string) => [...leadershipKeys.initiatives(), 'bucket', bucketId] as const,
+  initiativesForArea: (areaId: string) => [...leadershipKeys.initiatives(), 'area', areaId] as const,
   myInitiatives: () => [...leadershipKeys.initiatives(), 'my'] as const,
   highPriorityInitiatives: () => [...leadershipKeys.initiatives(), 'high-priority'] as const,
   weeklyUpdates: (initiativeId: string) => [...leadershipKeys.all, 'weekly-updates', initiativeId] as const,
@@ -78,8 +78,8 @@ export const useFunctionsQuery = () => {
       // For each function, get counts
       const functionsWithCounts = await Promise.all(
         (functions || []).map(async (func: any) => {
-          const { count: bucketCount } = await supabase
-            .from('project_buckets')
+          const { count: areaCount } = await supabase
+            .from('project_areas')
             .select('*', { count: 'exact', head: true })
             .eq('function_id', func.id)
             .eq('is_active', true);
@@ -87,7 +87,7 @@ export const useFunctionsQuery = () => {
           const { count: initiativeCount } = await supabase
             .from('project_initiatives')
             .select('*', { count: 'exact', head: true })
-            .eq('bucket_id', func.id)
+            .eq('area_id', func.id)
             .is('archived_at', null);
 
           const { count: highPriorityCount } = await supabase
@@ -99,7 +99,7 @@ export const useFunctionsQuery = () => {
           return {
             ...func,
             user_access: func.user_access?.[0] || (isAdmin ? { role: 'admin' } : undefined),
-            bucket_count: bucketCount || 0,
+            area_count: areaCount || 0,
             initiative_count: initiativeCount || 0,
             high_priority_count: highPriorityCount || 0,
           };
@@ -152,20 +152,20 @@ export const useFunctionQuery = (functionId?: string) => {
 };
 
 // ============================================
-// BUCKETS QUERIES
+// AREAS QUERIES
 // ============================================
 
 /**
- * Fetch buckets for a specific function
+ * Fetch areas for a specific function
  */
-export const useBucketsQuery = (functionId?: string) => {
+export const useAreasQuery = (functionId?: string) => {
   return useQuery({
-    queryKey: leadershipKeys.bucketsForFunction(functionId!),
-    queryFn: async (): Promise<ProjectBucket[]> => {
+    queryKey: leadershipKeys.areasForFunction(functionId!),
+    queryFn: async (): Promise<ProjectArea[]> => {
       if (!functionId) throw new Error('Function ID is required');
 
       const { data, error } = await supabase
-        .from('project_buckets')
+        .from('project_areas')
         .select('*')
         .eq('function_id', functionId)
         .eq('is_active', true)
@@ -179,44 +179,44 @@ export const useBucketsQuery = (functionId?: string) => {
 };
 
 /**
- * Fetch buckets with their initiatives
+ * Fetch areas with their initiatives
  */
-export const useBucketsWithInitiativesQuery = (functionId?: string) => {
+export const useAreasWithInitiativesQuery = (functionId?: string) => {
   return useQuery({
-    queryKey: [...leadershipKeys.bucketsForFunction(functionId!), 'with-initiatives'],
-    queryFn: async (): Promise<BucketWithInitiatives[]> => {
+    queryKey: [...leadershipKeys.areasForFunction(functionId!), 'with-initiatives'],
+    queryFn: async (): Promise<AreaWithInitiatives[]> => {
       if (!functionId) throw new Error('Function ID is required');
 
-      const { data: buckets, error: bucketsError } = await supabase
-        .from('project_buckets')
+      const { data: areas, error: areasError } = await supabase
+        .from('project_areas')
         .select('*')
         .eq('function_id', functionId)
         .eq('is_active', true)
         .order('sort_order');
 
-      if (bucketsError) throw bucketsError;
+      if (areasError) throw areasError;
 
-      // Fetch initiatives for each bucket
-      const bucketsWithInitiatives = await Promise.all(
-        (buckets || []).map(async (bucket) => {
+      // Fetch initiatives for each area
+      const areasWithInitiatives = await Promise.all(
+        (areas || []).map(async (area) => {
           const { data: initiatives, error: initiativesError } = await supabase
             .from('project_initiatives')
             .select('*')
-            .eq('bucket_id', bucket.id)
+            .eq('area_id', area.id)
             .is('archived_at', null)
             .order('sort_order');
 
           if (initiativesError) throw initiativesError;
 
           return {
-            ...bucket,
+            ...area,
             initiatives: initiatives || [],
             initiative_count: initiatives?.length || 0,
           };
         })
       );
 
-      return bucketsWithInitiatives;
+      return areasWithInitiatives;
     },
     enabled: !!functionId,
   });
@@ -237,13 +237,13 @@ export const useInitiativesQuery = (filters: InitiativeFilters = {}) => {
         .from('project_initiatives')
         .select(`
           *,
-          bucket:project_buckets(*),
+          area:project_areas(*),
           assigned_user:user_profiles(id, full_name, avatar_url)
         `);
 
       // Apply filters
-      if (filters.bucket_id) {
-        query = query.eq('bucket_id', filters.bucket_id);
+      if (filters.area_id) {
+        query = query.eq('area_id', filters.area_id);
       }
 
       if (filters.assigned_to) {
@@ -301,7 +301,7 @@ export const useInitiativeQuery = (initiativeId?: string) => {
         .from('project_initiatives')
         .select(`
           *,
-          bucket:project_buckets(*),
+          area:project_areas(*),
           assigned_user:user_profiles(id, full_name, avatar_url)
         `)
         .eq('id', initiativeId)
@@ -329,7 +329,7 @@ export const useMyInitiativesQuery = () => {
         .from('project_initiatives')
         .select(`
           *,
-          bucket:project_buckets(*),
+          area:project_areas(*),
           assigned_user:user_profiles(id, full_name, avatar_url)
         `)
         .eq('assigned_to', user.id)
@@ -354,7 +354,7 @@ export const useHighPriorityInitiativesQuery = () => {
         .from('project_initiatives')
         .select(`
           *,
-          bucket:project_buckets(
+          bucket:project_areas(
             *,
             function:project_functions(*)
           ),
@@ -476,16 +476,16 @@ export const useUpdateFunction = () => {
 };
 
 // ============================================
-// MUTATIONS - BUCKETS
+// MUTATIONS - AREAS
 // ============================================
 
-export const useCreateBucket = () => {
+export const useCreateArea = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: CreateBucketInput): Promise<ProjectBucket> => {
+    mutationFn: async (input: CreateAreaInput): Promise<ProjectArea> => {
       const { data, error } = await supabase
-        .from('project_buckets')
+        .from('project_areas')
         .insert(input)
         .select()
         .single();
@@ -494,18 +494,18 @@ export const useCreateBucket = () => {
       return data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: leadershipKeys.bucketsForFunction(variables.function_id) });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areasForFunction(variables.function_id) });
     },
   });
 };
 
-export const useUpdateBucket = () => {
+export const useUpdateArea = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...input }: UpdateBucketInput): Promise<ProjectBucket> => {
+    mutationFn: async ({ id, ...input }: UpdateAreaInput): Promise<ProjectArea> => {
       const { data, error } = await supabase
-        .from('project_buckets')
+        .from('project_areas')
         .update(input)
         .eq('id', id)
         .select()
@@ -515,7 +515,7 @@ export const useUpdateBucket = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: leadershipKeys.buckets() });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
     },
   });
 };
