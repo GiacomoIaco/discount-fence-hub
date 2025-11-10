@@ -27,9 +27,6 @@ export default function MyInitiativesView({ onBack }: MyInitiativesViewProps) {
   const activeInitiatives = initiatives?.filter(i => i.status === 'active').length || 0;
   const completedInitiatives = initiatives?.filter(i => i.status === 'completed').length || 0;
   const atRiskInitiatives = initiatives?.filter(i => i.color_status === 'red').length || 0;
-  const averageProgress = initiatives && initiatives.length > 0
-    ? Math.round(initiatives.reduce((sum, i) => sum + i.progress_percent, 0) / initiatives.length)
-    : 0;
 
   // Apply filters
   const filteredInitiatives = initiatives?.filter((initiative) => {

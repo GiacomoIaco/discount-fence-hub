@@ -1,6 +1,5 @@
-import { ArrowLeft, TrendingUp, Target, AlertTriangle, CheckCircle, Clock, BarChart3, FileDown } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Target, AlertTriangle, CheckCircle, BarChart3, FileDown } from 'lucide-react';
 import { useFunctionsQuery, useInitiativesQuery } from '../hooks/useLeadershipQuery';
-import { useAnnualGoalsQuery } from '../hooks/useGoalsQuery';
 import { useAuth } from '../../../contexts/AuthContext';
 import { exportProgressDashboardPDF } from '../lib/pdfExport';
 
@@ -10,7 +9,6 @@ interface ProgressDashboardProps {
 
 export default function ProgressDashboard({ onBack }: ProgressDashboardProps) {
   const { profile } = useAuth();
-  const currentYear = new Date().getFullYear();
 
   const { data: functions } = useFunctionsQuery();
   const { data: allInitiatives } = useInitiativesQuery({});

@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { ProjectInitiative, InitiativeWithDetails } from './leadership';
+import type { InitiativeWithDetails } from './leadership';
 
 /**
  * Generate PDF report for progress dashboard
@@ -83,9 +83,6 @@ export const exportProgressDashboardPDF = (data: {
     headStyles: { fillColor: [59, 130, 246] },
     styles: { fontSize: 9 },
   });
-
-  // Add page break if needed
-  const finalY = (doc as any).lastAutoTable.finalY || 120;
 
   if (data.allInitiatives && data.allInitiatives.length > 0) {
     // Add new page for detailed initiatives list
