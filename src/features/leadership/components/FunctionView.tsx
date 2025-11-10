@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Plus, FolderOpen } from 'lucide-react';
-import { useBucketsWithInitiativesQuery, useFunctionQuery } from '../hooks/useLeadershipQuery';
+import { useAreasWithInitiativesQuery, useFunctionQuery } from '../hooks/useLeadershipQuery';
 import InitiativeCard from './InitiativeCard';
 import InitiativeDetailModal from './InitiativeDetailModal';
 
@@ -12,10 +12,10 @@ interface FunctionViewProps {
 export default function FunctionView({ functionId, onBack }: FunctionViewProps) {
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string | null>(null);
   const [isCreatingInitiative, setIsCreatingInitiative] = useState(false);
-  const [selectedBucketId, setSelectedBucketId] = useState<string | null>(null);
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
 
   const { data: func, isLoading: functionLoading } = useFunctionQuery(functionId);
-  const { data: buckets, isLoading: bucketsLoading } = useBucketsWithInitiativesQuery(functionId);
+  const { data: areas, isLoading: areasLoading } = useAreasWithInitiativesQuery(functionId);
 
   if (functionLoading) {
     return (
@@ -68,27 +68,27 @@ export default function FunctionView({ functionId, onBack }: FunctionViewProps) 
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {bucketsLoading ? (
+        {areasLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading buckets and initiatives...</p>
+            <p className="text-gray-600">Loading areas and initiatives...</p>
           </div>
-        ) : buckets && buckets.length > 0 ? (
+        ) : areas && areas.length > 0 ? (
           <div className="space-y-8">
-            {buckets.map((bucket) => (
-              <div key={bucket.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                {/* Bucket Header */}
+            {areas.map((area) => (
+              <div key={area.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
+                {/* Area Header */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">{bucket.name}</h2>
-                      {bucket.description && (
-                        <p className="text-sm text-gray-600 mt-1">{bucket.description}</p>
+                      <h2 className="text-xl font-bold text-gray-900">{area.name}</h2>
+                      {area.description && (
+                        <p className="text-sm text-gray-600 mt-1">{area.description}</p>
                       )}
                     </div>
                     <button
                       onClick={() => {
-                        setSelectedBucketId(bucket.id);
+                        setSelectedAreaId(area.id);
                         setIsCreatingInitiative(true);
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -101,9 +101,9 @@ export default function FunctionView({ functionId, onBack }: FunctionViewProps) 
 
                 {/* Initiatives Grid */}
                 <div className="p-6">
-                  {bucket.initiatives && bucket.initiatives.length > 0 ? (
+                  {area.initiatives && area.initiatives.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {bucket.initiatives.map((initiative) => (
+                      {area.initiatives.map((initiative) => (
                         <InitiativeCard
                           key={initiative.id}
                           initiative={initiative}
@@ -117,7 +117,7 @@ export default function FunctionView({ functionId, onBack }: FunctionViewProps) 
                       <p className="text-gray-500 mb-4">No initiatives yet</p>
                       <button
                         onClick={() => {
-                          setSelectedBucketId(bucket.id);
+                          setSelectedAreaId(area.id);
                           setIsCreatingInitiative(true);
                         }}
                         className="text-blue-600 hover:text-blue-700 font-medium"
@@ -133,9 +133,9 @@ export default function FunctionView({ functionId, onBack }: FunctionViewProps) 
         ) : (
           <div className="bg-white rounded-lg shadow-sm border-2 border-dashed border-gray-300 p-12 text-center">
             <FolderOpen className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No buckets yet</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No areas yet</h3>
             <p className="text-gray-600 mb-4">
-              This function doesn't have any buckets. Create buckets in Settings to organize initiatives.
+              This function doesn't have any areas. Create areas in Settings to organize initiatives.
             </p>
           </div>
         )}
@@ -150,12 +150,12 @@ export default function FunctionView({ functionId, onBack }: FunctionViewProps) 
       )}
 
       {/* Create Initiative Modal */}
-      {isCreatingInitiative && selectedBucketId && (
+      {isCreatingInitiative && selectedAreaId && (
         <InitiativeDetailModal
-          bucketId={selectedBucketId}
+          areaId={selectedAreaId}
           onClose={() => {
             setIsCreatingInitiative(false);
-            setSelectedBucketId(null);
+            setSelectedAreaId(null);
           }}
         />
       )}

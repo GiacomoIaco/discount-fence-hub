@@ -6,11 +6,11 @@ import type { CreateInitiativeInput, UpdateInitiativeInput } from '../lib/leader
 
 interface InitiativeDetailModalProps {
   initiativeId?: string;
-  bucketId?: string;
+  areaId?: string;
   onClose: () => void;
 }
 
-export default function InitiativeDetailModal({ initiativeId, bucketId, onClose }: InitiativeDetailModalProps) {
+export default function InitiativeDetailModal({ initiativeId, areaId, onClose }: InitiativeDetailModalProps) {
   const { user } = useAuth();
   const isCreating = !initiativeId;
 
@@ -19,7 +19,7 @@ export default function InitiativeDetailModal({ initiativeId, bucketId, onClose 
   const updateInitiative = useUpdateInitiative();
 
   const [formData, setFormData] = useState<Partial<CreateInitiativeInput>>({
-    bucket_id: bucketId || '',
+    area_id: areaId || '',
     title: '',
     description: '',
     success_criteria: '',
@@ -38,7 +38,7 @@ export default function InitiativeDetailModal({ initiativeId, bucketId, onClose 
   useEffect(() => {
     if (initiative && !isCreating) {
       setFormData({
-        bucket_id: initiative.bucket_id,
+        area_id: initiative.area_id,
         title: initiative.title,
         description: initiative.description || '',
         success_criteria: initiative.success_criteria || '',
