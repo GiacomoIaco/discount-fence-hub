@@ -123,6 +123,10 @@ export interface ProjectInitiative {
   progress_percent: number;
   color_status: ColorStatus;
 
+  // Weekly updates (quick check-in fields)
+  this_week?: string;
+  next_week?: string;
+
   // Audit
   created_by?: string;
   archived_at?: string;
@@ -130,6 +134,9 @@ export interface ProjectInitiative {
 
   created_at: string;
   updated_at: string;
+
+  // Joined data (optional, when fetched with relations)
+  area?: ProjectArea;
 }
 
 export interface ProjectWeeklyUpdate {
@@ -239,6 +246,8 @@ export interface CreateInitiativeInput {
   target_week?: string;
   target_quarter?: string;
   progress_percent?: number;
+  this_week?: string;
+  next_week?: string;
 }
 
 export interface UpdateInitiativeInput extends Partial<CreateInitiativeInput> {

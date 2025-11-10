@@ -201,7 +201,7 @@ export const useAreasWithInitiativesQuery = (functionId?: string) => {
         (areas || []).map(async (area) => {
           const { data: initiatives, error: initiativesError } = await supabase
             .from('project_initiatives')
-            .select('*')
+            .select('*, area:project_areas(*)')
             .eq('area_id', area.id)
             .is('archived_at', null)
             .order('sort_order');
