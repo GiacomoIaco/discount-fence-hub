@@ -7,6 +7,7 @@ interface DashboardProps {
   onViewMyInitiatives: () => void;
   onViewHighPriority: () => void;
   onViewWeeklyCheckin: () => void;
+  onViewGoals: () => void;
   onViewSettings: () => void;
 }
 
@@ -15,6 +16,7 @@ export default function Dashboard({
   onViewMyInitiatives,
   onViewHighPriority,
   onViewWeeklyCheckin,
+  onViewGoals,
   onViewSettings,
 }: DashboardProps) {
   const { profile } = useAuth();
@@ -58,7 +60,7 @@ export default function Dashboard({
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <button
             onClick={onViewMyInitiatives}
             className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all text-left"
@@ -90,6 +92,24 @@ export default function Dashboard({
               </div>
             </div>
           </button>
+
+          {isAdmin && (
+            <button
+              onClick={onViewGoals}
+              className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-purple-300 transition-all text-left"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">Annual Goals</div>
+                  <div className="text-2xl font-bold text-gray-900">Plan</div>
+                  <div className="text-sm text-gray-500 mt-2">Set strategic goals & priorities</div>
+                </div>
+                <div className="bg-purple-100 p-3 rounded-lg">
+                  <Target className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </button>
+          )}
 
           {isAdmin && (
             <button

@@ -7,8 +7,9 @@ import FunctionView from './components/FunctionView';
 import MyInitiativesView from './components/MyInitiativesView';
 import HighPriorityView from './components/HighPriorityView';
 import WeeklyCheckinView from './components/WeeklyCheckinView';
+import AnnualGoalPlanning from './components/Goals/AnnualGoalPlanning';
 
-type View = 'dashboard' | 'function' | 'initiative' | 'my-initiatives' | 'high-priority' | 'weekly-checkin' | 'settings';
+type View = 'dashboard' | 'function' | 'initiative' | 'my-initiatives' | 'high-priority' | 'weekly-checkin' | 'goals' | 'settings';
 
 interface LeadershipHubProps {
   onBack?: () => void;
@@ -59,6 +60,7 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
         onViewMyInitiatives={() => setView('my-initiatives')}
         onViewHighPriority={() => setView('high-priority')}
         onViewWeeklyCheckin={() => setView('weekly-checkin')}
+        onViewGoals={() => setView('goals')}
         onViewSettings={() => setView('settings')}
       />
     );
@@ -90,6 +92,11 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
   // Weekly Check-in View
   if (view === 'weekly-checkin') {
     return <WeeklyCheckinView onBack={() => setView('dashboard')} />;
+  }
+
+  // Goals View (Admin only)
+  if (view === 'goals') {
+    return <AnnualGoalPlanning />;
   }
 
   // Settings View (Admin only)
