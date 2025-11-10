@@ -6,7 +6,7 @@ import {
   useUpdateQuarterlyGoal,
   useDeleteQuarterlyGoal,
 } from '../../hooks/useGoalsQuery';
-import type { QuarterlyGoal, CreateQuarterlyGoalInput } from '../../lib/goals.types';
+import type { QuarterlyGoal } from '../../lib/goals.types';
 import { getQuarterLabel, getCurrentQuarter } from '../../lib/goals.types';
 
 interface QuarterlyBreakdownProps {
