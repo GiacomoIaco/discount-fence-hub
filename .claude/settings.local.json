@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run migrate:apply:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx tsx:*)",
+      "mcp__chrome-devtools__fill_form"
     ],
     "deny": [],
     "ask": []
