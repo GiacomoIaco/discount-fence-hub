@@ -86,7 +86,7 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
   const renderEditableCell = (
     initiative: ProjectInitiative,
     field: 'this_week' | 'next_week',
-    value: string | null
+    value: string | null | undefined
   ) => {
     const isEditing = editingCell?.initiativeId === initiative.id && editingCell?.field === field;
 
