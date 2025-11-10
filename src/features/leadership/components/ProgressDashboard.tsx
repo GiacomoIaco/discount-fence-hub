@@ -1,7 +1,8 @@
-import { ArrowLeft, TrendingUp, Target, AlertTriangle, CheckCircle, Clock, BarChart3 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Target, AlertTriangle, CheckCircle, Clock, BarChart3, FileDown } from 'lucide-react';
 import { useFunctionsQuery, useInitiativesQuery } from '../hooks/useLeadershipQuery';
 import { useAnnualGoalsQuery } from '../hooks/useGoalsQuery';
 import { useAuth } from '../../../contexts/AuthContext';
+import { exportProgressDashboardPDF } from '../lib/pdfExport';
 
 interface ProgressDashboardProps {
   onBack: () => void;
@@ -81,6 +82,19 @@ export default function ProgressDashboard({ onBack }: ProgressDashboardProps) {
 
   const isAdmin = profile?.role === 'admin';
 
+  const handleExportPDF = () => {
+    exportProgressDashboardPDF({
+      totalInitiatives,
+      activeInitiatives,
+      completedInitiatives,
+      atRiskInitiatives,
+      completionRate,
+      averageProgress,
+      initiativesByFunction,
+      allInitiatives,
+    });
+  };
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -99,17 +113,26 @@ export default function ProgressDashboard({ onBack }: ProgressDashboardProps) {
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Progress Analytics</h1>
-              <p className="text-sm text-gray-600">Executive summary of all initiatives and goals</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onBack}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Progress Analytics</h1>
+                <p className="text-sm text-gray-600">Executive summary of all initiatives and goals</p>
+              </div>
             </div>
+            <button
+              onClick={handleExportPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <FileDown className="w-5 h-5" />
+              Export PDF
+            </button>
           </div>
         </div>
       </div>

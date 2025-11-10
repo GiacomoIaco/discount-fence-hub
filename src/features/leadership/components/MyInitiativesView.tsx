@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { ArrowLeft, FolderOpen, Filter, LayoutGrid, Table, Target, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Filter, LayoutGrid, Table, Target, AlertCircle, CheckCircle, TrendingUp, FileDown } from 'lucide-react';
 import { useMyInitiativesQuery } from '../hooks/useLeadershipQuery';
+import { useAuth } from '../../../contexts/AuthContext';
 import InitiativeCard from './InitiativeCard';
 import InitiativeDetailModal from './InitiativeDetailModal';
 import InitiativeTableView from './InitiativeTableView';
+import { exportMyInitiativesPDF } from '../lib/pdfExport';
 
 interface MyInitiativesViewProps {
   onBack: () => void;
@@ -17,6 +19,7 @@ export default function MyInitiativesView({ onBack }: MyInitiativesViewProps) {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
 
+  const { profile } = useAuth();
   const { data: initiatives, isLoading } = useMyInitiativesQuery();
 
   // Calculate summary statistics
@@ -35,6 +38,12 @@ export default function MyInitiativesView({ onBack }: MyInitiativesViewProps) {
     return matchesStatus && matchesPriority;
   });
 
+  const handleExportPDF = () => {
+    if (initiatives) {
+      exportMyInitiativesPDF(initiatives, profile?.full_name || 'Unknown User');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -51,19 +60,30 @@ export default function MyInitiativesView({ onBack }: MyInitiativesViewProps) {
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900">My Initiatives</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Track and update initiatives assigned to you
-              </p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onBack}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex-1">
+                <h1 className="text-2xl font-bold text-gray-900">My Initiatives</h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Track and update initiatives assigned to you
+                </p>
+              </div>
             </div>
+            {initiatives && initiatives.length > 0 && (
+              <button
+                onClick={handleExportPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <FileDown className="w-5 h-5" />
+                Export PDF
+              </button>
+            )}
           </div>
         </div>
       </div>

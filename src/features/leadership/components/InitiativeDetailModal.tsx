@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Trash2, Calendar, Flag, TrendingUp, Target, Plus } from 'lucide-react';
+import { X, Save, Trash2, Calendar, Flag, TrendingUp, Target, Plus, FileDown } from 'lucide-react';
 import { useInitiativeQuery, useCreateInitiative, useUpdateInitiative } from '../hooks/useLeadershipQuery';
+import { exportInitiativePDF } from '../lib/pdfExport';
 import {
   useInitiativeGoalLinksQuery,
   useAnnualGoalsWithQuarterlyQuery,
@@ -127,6 +128,12 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
     }
   };
 
+  const handleExportPDF = () => {
+    if (initiative) {
+      exportInitiativePDF(initiative);
+    }
+  };
+
   const handleLinkGoal = async () => {
     if (!initiativeId || !selectedGoalToLink) return;
 
@@ -173,6 +180,14 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
           <div className="flex items-center gap-2">
             {!isCreating && !isEditing && (
               <>
+                <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Export to PDF"
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span className="text-sm">Export</span>
+                </button>
                 <button
                   onClick={() => setIsEditing(true)}
                   className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
