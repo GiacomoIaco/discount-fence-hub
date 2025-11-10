@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Target, AlertCircle, ChevronDown } from 'lucide-react';
 import { useUpdateInitiative } from '../hooks/useLeadershipQuery';
 import { useInitiativeGoalLinksQuery } from '../hooks/useGoalsQuery';
-import type { Initiative } from '../lib/leadership';
+import type { ProjectInitiative } from '../lib/leadership';
 
 interface InitiativeTableViewProps {
-  initiatives: Initiative[];
+  initiatives: ProjectInitiative[];
   onInitiativeClick: (initiativeId: string) => void;
 }
 
@@ -84,7 +84,7 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
   };
 
   const renderEditableCell = (
-    initiative: Initiative,
+    initiative: ProjectInitiative,
     field: 'this_week' | 'next_week',
     value: string | null
   ) => {
@@ -114,7 +114,7 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
     );
   };
 
-  const renderStatusCell = (initiative: Initiative) => {
+  const renderStatusCell = (initiative: ProjectInitiative) => {
     const isEditing = editingCell?.initiativeId === initiative.id && editingCell?.field === 'status';
 
     if (isEditing) {
@@ -147,7 +147,7 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
     );
   };
 
-  const renderPriorityCell = (initiative: Initiative) => {
+  const renderPriorityCell = (initiative: ProjectInitiative) => {
     const isEditing = editingCell?.initiativeId === initiative.id && editingCell?.field === 'priority';
 
     if (isEditing) {
@@ -177,7 +177,7 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
     );
   };
 
-  const renderProgressCell = (initiative: Initiative) => {
+  const renderProgressCell = (initiative: ProjectInitiative) => {
     const isEditing = editingCell?.initiativeId === initiative.id && editingCell?.field === 'progress_percent';
 
     if (isEditing) {
