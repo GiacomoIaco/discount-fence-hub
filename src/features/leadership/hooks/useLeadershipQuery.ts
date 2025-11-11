@@ -315,6 +315,49 @@ export const useInitiativeQuery = (initiativeId?: string) => {
 };
 
 /**
+ * Fetch initiatives by function ID
+ */
+export const useInitiativesByFunctionQuery = (functionId: string) => {
+  return useQuery({
+    queryKey: [...leadershipKeys.initiatives(), 'function', functionId],
+    queryFn: async (): Promise<InitiativeWithDetails[]> => {
+      // First get all areas for this function
+      const { data: areas, error: areasError } = await supabase
+        .from('project_areas')
+        .select('id')
+        .eq('function_id', functionId);
+
+      if (areasError) throw areasError;
+
+      const areaIds = areas?.map(a => a.id) || [];
+
+      if (areaIds.length === 0) {
+        return [];
+      }
+
+      // Then get all initiatives for those areas
+      const { data, error } = await supabase
+        .from('project_initiatives')
+        .select(`
+          *,
+          area:project_areas(
+            *,
+            function:project_functions(*)
+          ),
+          assigned_user:user_profiles(id, full_name, avatar_url)
+        `)
+        .in('area_id', areaIds)
+        .is('archived_at', null)
+        .order('sort_order');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!functionId,
+  });
+};
+
+/**
  * Fetch initiatives assigned to current user
  */
 export const useMyInitiativesQuery = () => {

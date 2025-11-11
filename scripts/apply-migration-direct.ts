@@ -85,7 +85,21 @@ GRANT EXECUTE ON FUNCTION exec_sql(TEXT) TO service_role;`);
       process.exit(1);
     }
 
-    const result = await response.json();
+    // exec_sql returns VOID, so response might be empty
+    // Check if response has content before parsing
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const text = await response.text();
+      if (text && text.trim()) {
+        try {
+          const result = JSON.parse(text);
+          // Response parsed successfully
+        } catch (e) {
+          // Ignore JSON parse errors for empty responses
+        }
+      }
+    }
+
     console.log('✅ Migration applied successfully!');
     console.log('');
 

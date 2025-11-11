@@ -9,6 +9,16 @@ import {
 } from '../../hooks/useGoalsQuery';
 import type { CreateAnnualGoalInput, AnnualGoal } from '../../lib/goals.types';
 import { isHighWeightGoal } from '../../lib/goals.types';
+import {
+  MetricType,
+  calculateAchievement,
+  calculateExpectedProgress,
+  calculatePaceStatus,
+  formatMetricValue,
+  getPaceStatusIcon,
+  getPaceStatusLabel,
+  getPaceStatusColor,
+} from '../../lib/leadership';
 import QuarterlyBreakdown from './QuarterlyBreakdown';
 
 export default function AnnualGoalPlanning() {
@@ -31,6 +41,10 @@ export default function AnnualGoalPlanning() {
     title: '',
     description: '',
     target: '',
+    metric_type: undefined,
+    target_value: undefined,
+    current_value: undefined,
+    unit: undefined,
     weight: 0,
     sort_order: 0,
   });
@@ -64,6 +78,10 @@ export default function AnnualGoalPlanning() {
         title: '',
         description: '',
         target: '',
+        metric_type: undefined,
+        target_value: undefined,
+        current_value: undefined,
+        unit: undefined,
         weight: 0,
         sort_order: 0,
       });
@@ -80,6 +98,10 @@ export default function AnnualGoalPlanning() {
       title: goal.title,
       description: goal.description || '',
       target: goal.target || '',
+      metric_type: goal.metric_type,
+      target_value: goal.target_value,
+      current_value: goal.current_value,
+      unit: goal.unit,
       weight: goal.weight,
       sort_order: goal.sort_order,
     });
@@ -105,6 +127,10 @@ export default function AnnualGoalPlanning() {
       title: '',
       description: '',
       target: '',
+      metric_type: undefined,
+      target_value: undefined,
+      current_value: undefined,
+      unit: undefined,
       weight: 0,
       sort_order: 0,
     });
@@ -261,20 +287,78 @@ export default function AnnualGoalPlanning() {
                           <p className="text-gray-600 mb-3">{goal.description}</p>
                         )}
 
-                        <div className="flex items-center gap-6 text-sm">
-                          {goal.target && (
-                            <div className="flex items-center gap-2">
-                              <Target className="w-4 h-4 text-gray-400" />
-                              <span className="text-gray-700">Target: {goal.target}</span>
+                        {/* Measurement Display */}
+                        {goal.metric_type && goal.metric_type !== 'text' ? (
+                          <div className="bg-gray-50 rounded-lg p-4 mb-3">
+                            <div className="grid grid-cols-2 gap-4 mb-3">
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Target</div>
+                                <div className="text-lg font-bold text-gray-900">
+                                  {formatMetricValue(goal.target_value, goal.unit)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Current</div>
+                                <div className="text-lg font-bold text-blue-600">
+                                  {formatMetricValue(goal.current_value, goal.unit)}
+                                </div>
+                              </div>
                             </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-700">
-                              Achievement: {goal.achievement_percentage}%
-                            </span>
+
+                            {/* Achievement Bar */}
+                            {(() => {
+                              const achievement = calculateAchievement(goal.current_value, goal.target_value);
+                              const expected = calculateExpectedProgress(goal.year);
+                              const paceStatus = calculatePaceStatus(achievement, expected);
+
+                              return achievement !== undefined ? (
+                                <div>
+                                  <div className="flex items-center justify-between text-sm mb-2">
+                                    <span className="text-gray-600">Progress</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-semibold ${getPaceStatusColor(paceStatus)}`}>
+                                        {getPaceStatusIcon(paceStatus)} {achievement.toFixed(1)}%
+                                      </span>
+                                      <span className="text-gray-400">•</span>
+                                      <span className="text-xs text-gray-500">
+                                        Expected: {expected.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                    <div
+                                      className={`h-full transition-all duration-300 ${
+                                        paceStatus === 'ahead' ? 'bg-green-500' :
+                                        paceStatus === 'on_track' ? 'bg-blue-500' : 'bg-red-500'
+                                      }`}
+                                      style={{ width: `${Math.min(achievement, 100)}%` }}
+                                    />
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500 text-center">
+                                    {getPaceStatusLabel(paceStatus)}
+                                  </div>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-6 text-sm mb-3">
+                            {goal.target && (
+                              <div className="flex items-center gap-2">
+                                <Target className="w-4 h-4 text-gray-400" />
+                                <span className="text-gray-700">Target: {goal.target}</span>
+                              </div>
+                            )}
+                            {goal.achievement_percentage !== undefined && (
+                              <div className="flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-gray-400" />
+                                <span className="text-gray-700">
+                                  Achievement: {goal.achievement_percentage}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Quarterly Goals Preview & Action */}
                         <div className="mt-4 pt-4 border-t border-gray-200">
@@ -358,37 +442,130 @@ export default function AnnualGoalPlanning() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Target
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.target}
-                      onChange={(e) => setFormData({ ...formData, target: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., -15% cost reduction"
-                    />
+                {/* Measurement Type Selection */}
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Measurement Tracking</h4>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Metric Type
+                      </label>
+                      <select
+                        value={formData.metric_type || ''}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          metric_type: e.target.value as any || undefined,
+                          // Auto-set unit based on type
+                          unit: e.target.value === 'revenue' ? '$' :
+                                e.target.value === 'percentage' ? '%' :
+                                e.target.value === 'score' ? 'rating' :
+                                e.target.value === 'count' ? 'count' :
+                                formData.unit
+                        })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Text Only (No Tracking)</option>
+                        <option value={MetricType.REVENUE}>Revenue ($)</option>
+                        <option value={MetricType.PERCENTAGE}>Percentage (%)</option>
+                        <option value={MetricType.COUNT}>Count (#)</option>
+                        <option value={MetricType.SCORE}>Score/Rating</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Weight % *
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.weight}
+                        onChange={(e) => setFormData({ ...formData, weight: Number(e.target.value) })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        min="0"
+                        max="100"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Remaining: {100 - (totalWeight - (editingGoal?.weight || 0))}%
+                      </p>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Weight % *
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.weight}
-                      onChange={(e) => setFormData({ ...formData, weight: Number(e.target.value) })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="0"
-                      max="100"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Remaining: {100 - (totalWeight - (editingGoal?.weight || 0))}%
-                    </p>
-                  </div>
+                  {/* Show numeric fields only if metric type is selected */}
+                  {formData.metric_type && formData.metric_type !== 'text' ? (
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Target Value *
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.target_value || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            target_value: e.target.value ? Number(e.target.value) : undefined
+                          })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="e.g., 30000000"
+                          step={formData.metric_type === 'score' ? '0.1' : '1'}
+                          required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Example: $30M = 30000000, 15% = 15, 4.9 rating = 4.9
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Current Value
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.current_value || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            current_value: e.target.value ? Number(e.target.value) : undefined
+                          })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="e.g., 18500000"
+                          step={formData.metric_type === 'score' ? '0.1' : '1'}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Current progress toward target
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Unit
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.unit || ''}
+                          onChange={(e) => setFormData({ ...formData, unit: e.target.value || undefined })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="$, %, count, rating"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Target (Text Description)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.target}
+                        onChange={(e) => setFormData({ ...formData, target: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g., -15% cost reduction"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Text description only - no automatic progress tracking
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 pt-4">

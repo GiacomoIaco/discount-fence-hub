@@ -1,26 +1,19 @@
 import { useState } from 'react';
 import { Monitor } from 'lucide-react';
 import { useIsDesktop } from './hooks/useLeadershipPermissions';
-import Dashboard from './components/Dashboard';
-import SettingsHub from './components/Settings/SettingsHub';
-import FunctionView from './components/FunctionView';
-import MyInitiativesView from './components/MyInitiativesView';
-import HighPriorityView from './components/HighPriorityView';
-import WeeklyCheckinView from './components/WeeklyCheckinView';
-import AnnualGoalPlanning from './components/Goals/AnnualGoalPlanning';
-import ProgressDashboard from './components/ProgressDashboard';
-
-type View = 'dashboard' | 'function' | 'initiative' | 'my-initiatives' | 'high-priority' | 'weekly-checkin' | 'goals' | 'settings' | 'progress';
+import { useFunctionsQuery } from './hooks/useLeadershipQuery';
+import LeadershipLayout from './LeadershipLayout';
+import FunctionWorkspace from './components/FunctionWorkspace';
 
 interface LeadershipHubProps {
   onBack?: () => void;
 }
 
 export default function LeadershipHub({ onBack }: LeadershipHubProps) {
-  const [view, setView] = useState<View>('dashboard');
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
 
   const isDesktop = useIsDesktop();
+  const { data: functions } = useFunctionsQuery();
 
   // Desktop-only check
   if (!isDesktop) {
@@ -50,66 +43,34 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
     );
   }
 
-  // Dashboard View
-  if (view === 'dashboard') {
-    return (
-      <Dashboard
-        onViewFunction={(functionId) => {
-          setSelectedFunctionId(functionId);
-          setView('function');
-        }}
-        onViewMyInitiatives={() => setView('my-initiatives')}
-        onViewHighPriority={() => setView('high-priority')}
-        onViewWeeklyCheckin={() => setView('weekly-checkin')}
-        onViewGoals={() => setView('goals')}
-        onViewProgress={() => setView('progress')}
-        onViewSettings={() => setView('settings')}
-      />
-    );
+  // Auto-select first function if none selected
+  if (!selectedFunctionId && functions && functions.length > 0) {
+    setSelectedFunctionId(functions[0].id);
   }
 
-  // Function View
-  if (view === 'function' && selectedFunctionId) {
-    return (
-      <FunctionView
-        functionId={selectedFunctionId}
-        onBack={() => {
-          setSelectedFunctionId(null);
-          setView('dashboard');
-        }}
-      />
-    );
-  }
-
-  // My Initiatives View
-  if (view === 'my-initiatives') {
-    return <MyInitiativesView onBack={() => setView('dashboard')} />;
-  }
-
-  // High Priority View (Admin only)
-  if (view === 'high-priority') {
-    return <HighPriorityView onBack={() => setView('dashboard')} />;
-  }
-
-  // Weekly Check-in View
-  if (view === 'weekly-checkin') {
-    return <WeeklyCheckinView onBack={() => setView('dashboard')} />;
-  }
-
-  // Goals View (Admin only)
-  if (view === 'goals') {
-    return <AnnualGoalPlanning />;
-  }
-
-  // Progress Dashboard View (Admin only)
-  if (view === 'progress') {
-    return <ProgressDashboard onBack={() => setView('dashboard')} />;
-  }
-
-  // Settings View (Admin only)
-  if (view === 'settings') {
-    return <SettingsHub onBack={() => setView('dashboard')} />;
-  }
-
-  return null;
+  return (
+    <LeadershipLayout
+      selectedFunctionId={selectedFunctionId}
+      onSelectFunction={setSelectedFunctionId}
+      onBack={onBack}
+    >
+      {selectedFunctionId ? (
+        <FunctionWorkspace functionId={selectedFunctionId} />
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center p-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Welcome to Leadership
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Select a function from the sidebar to get started
+            </p>
+            <p className="text-sm text-gray-500">
+              Or create your first function to begin tracking initiatives and goals
+            </p>
+          </div>
+        </div>
+      )}
+    </LeadershipLayout>
+  );
 }

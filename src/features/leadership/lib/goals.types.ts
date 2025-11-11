@@ -3,6 +3,20 @@
 // ============================================
 
 // ============================================
+// MEASUREMENT TYPES
+// ============================================
+
+export const MetricType = {
+  REVENUE: 'revenue',
+  PERCENTAGE: 'percentage',
+  COUNT: 'count',
+  SCORE: 'score',
+  TEXT: 'text',
+} as const;
+
+export type MetricType = typeof MetricType[keyof typeof MetricType];
+
+// ============================================
 // ANNUAL GOALS
 // ============================================
 
@@ -14,6 +28,12 @@ export interface AnnualGoal {
   title: string;
   description?: string;
   target?: string; // Simple text: "-15% cost reduction", "98% delivery"
+
+  // Measurement fields (new)
+  metric_type?: MetricType;
+  target_value?: number; // 30000000 for $30M, 15 for 15%, 4.9 for rating
+  current_value?: number;
+  unit?: string; // '$', '%', 'count', 'rating'
 
   weight: number; // % of focus (must total 100% per function)
   achievement_percentage: number; // 0-100, manually set
@@ -33,6 +53,13 @@ export interface CreateAnnualGoalInput {
   title: string;
   description?: string;
   target?: string;
+
+  // Measurement fields (new)
+  metric_type?: MetricType;
+  target_value?: number;
+  current_value?: number;
+  unit?: string;
+
   weight: number;
   sort_order?: number;
 }
