@@ -782,3 +782,99 @@ export const getMetricTypeLabel = (type?: MetricType): string => {
   };
   return labels[type];
 };
+
+// ============================================
+// STRATEGY & COMMENTS
+// ============================================
+
+export const StrategyStatus = {
+  DRAFT: 'draft',
+  SUBMITTED: 'submitted',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+} as const;
+
+export type StrategyStatus = typeof StrategyStatus[keyof typeof StrategyStatus];
+
+export const StrategySection = {
+  DESCRIPTION: 'description',
+  OBJECTIVES: 'objectives',
+  CURRENT_SITUATION: 'current_situation',
+  CHALLENGES: 'challenges',
+  OPPORTUNITIES: 'opportunities',
+  OPERATING_PLAN: 'operating_plan',
+  GENERAL: 'general',
+} as const;
+
+export type StrategySection = typeof StrategySection[keyof typeof StrategySection];
+
+export interface FunctionStrategy {
+  id: string;
+  function_id: string;
+  description?: string;
+  objectives?: string;
+  current_situation?: string;
+  challenges?: string;
+  opportunities?: string;
+  operating_plan?: string;
+  status: StrategyStatus;
+  created_by: string;
+  updated_by?: string;
+  created_at: string;
+  updated_at: string;
+  submitted_at?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+}
+
+export interface StrategyComment {
+  id: string;
+  function_id: string;
+  section?: StrategySection;
+  comment: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  is_resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  // Joined data
+  author?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
+}
+
+export interface CreateStrategyInput {
+  function_id: string;
+  description?: string;
+  objectives?: string;
+  current_situation?: string;
+  challenges?: string;
+  opportunities?: string;
+  operating_plan?: string;
+}
+
+export interface UpdateStrategyInput {
+  id: string;
+  description?: string;
+  objectives?: string;
+  current_situation?: string;
+  challenges?: string;
+  opportunities?: string;
+  operating_plan?: string;
+  status?: StrategyStatus;
+}
+
+export interface CreateCommentInput {
+  function_id: string;
+  section?: StrategySection;
+  comment: string;
+}
+
+export interface UpdateCommentInput {
+  id: string;
+  comment?: string;
+  is_resolved?: boolean;
+}

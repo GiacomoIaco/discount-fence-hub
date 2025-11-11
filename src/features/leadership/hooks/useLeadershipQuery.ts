@@ -17,6 +17,11 @@ import type {
   CreateInitiativeInput,
   UpdateInitiativeInput,
   InitiativeFilters,
+  FunctionStrategy,
+  StrategyComment,
+  CreateStrategyInput,
+  CreateCommentInput,
+  UpdateCommentInput,
 } from '../lib/leadership';
 
 // ============================================
@@ -37,6 +42,8 @@ export const leadershipKeys = {
   highPriorityInitiatives: () => [...leadershipKeys.initiatives(), 'high-priority'] as const,
   weeklyUpdates: (initiativeId: string) => [...leadershipKeys.all, 'weekly-updates', initiativeId] as const,
   activity: (initiativeId: string) => [...leadershipKeys.all, 'activity', initiativeId] as const,
+  strategy: (functionId: string) => [...leadershipKeys.all, 'strategy', functionId] as const,
+  comments: (functionId: string) => [...leadershipKeys.all, 'comments', functionId] as const,
 };
 
 // ============================================
@@ -616,6 +623,190 @@ export const useUpdateInitiative = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.initiatives() });
+    },
+  });
+};
+
+// ============================================
+// STRATEGY QUERIES & MUTATIONS
+// ============================================
+
+/**
+ * Fetch strategy for a function
+ */
+export const useFunctionStrategyQuery = (functionId: string) => {
+  return useQuery({
+    queryKey: leadershipKeys.strategy(functionId),
+    queryFn: async (): Promise<FunctionStrategy | null> => {
+      const { data, error } = await supabase
+        .from('function_strategy')
+        .select('*')
+        .eq('function_id', functionId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!functionId,
+  });
+};
+
+/**
+ * Create or update function strategy (upsert)
+ */
+export const useSaveStrategy = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: CreateStrategyInput): Promise<FunctionStrategy> => {
+      if (!user) throw new Error('User not authenticated');
+
+      // Try to update first
+      const { data: existing } = await supabase
+        .from('function_strategy')
+        .select('id')
+        .eq('function_id', input.function_id)
+        .maybeSingle();
+
+      if (existing) {
+        // Update existing
+        const { data, error } = await supabase
+          .from('function_strategy')
+          .update({
+            ...input,
+            updated_by: user.id,
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } else {
+        // Create new
+        const { data, error } = await supabase
+          .from('function_strategy')
+          .insert({
+            ...input,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.strategy(data.function_id) });
+    },
+  });
+};
+
+// ============================================
+// STRATEGY COMMENTS QUERIES & MUTATIONS
+// ============================================
+
+/**
+ * Fetch comments for a function's strategy
+ */
+export const useStrategyCommentsQuery = (functionId: string) => {
+  return useQuery({
+    queryKey: leadershipKeys.comments(functionId),
+    queryFn: async (): Promise<StrategyComment[]> => {
+      const { data, error } = await supabase
+        .from('strategy_comments')
+        .select(`
+          *,
+          author:user_profiles!strategy_comments_created_by_fkey(id, full_name, avatar_url)
+        `)
+        .eq('function_id', functionId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!functionId,
+  });
+};
+
+/**
+ * Create a new comment
+ */
+export const useCreateComment = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: CreateCommentInput): Promise<StrategyComment> => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('strategy_comments')
+        .insert({
+          ...input,
+          created_by: user.id,
+        })
+        .select(`
+          *,
+          author:user_profiles!strategy_comments_created_by_fkey(id, full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.comments(data.function_id) });
+    },
+  });
+};
+
+/**
+ * Update a comment
+ */
+export const useUpdateComment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, function_id, ...input }: UpdateCommentInput & { function_id: string }): Promise<StrategyComment> => {
+      const { data, error } = await supabase
+        .from('strategy_comments')
+        .update(input)
+        .eq('id', id)
+        .select(`
+          *,
+          author:user_profiles!strategy_comments_created_by_fkey(id, full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.comments(variables.function_id) });
+    },
+  });
+};
+
+/**
+ * Delete a comment
+ */
+export const useDeleteComment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; function_id: string }): Promise<void> => {
+      const { error } = await supabase
+        .from('strategy_comments')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.comments(variables.function_id) });
     },
   });
 };
