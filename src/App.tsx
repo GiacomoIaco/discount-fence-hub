@@ -111,6 +111,13 @@ function App() {
     localStorage.setItem('viewMode', viewMode);
   }, [viewMode]);
 
+  // Auto-collapse sidebar in Leadership mode for maximum screen space
+  useEffect(() => {
+    if (activeSection === 'leadership') {
+      setSidebarOpen(false);
+    }
+  }, [activeSection]);
+
   // Handle browser back button to prevent app close
   useEffect(() => {
     // Push initial state
@@ -450,7 +457,7 @@ function App() {
         />
 
         <div className="flex-1 overflow-auto">
-          <div className="p-8 max-w-7xl mx-auto">
+          <div className={activeSection === 'leadership' ? '' : 'p-8 max-w-7xl mx-auto'}>
             {renderContent()}
           </div>
         </div>

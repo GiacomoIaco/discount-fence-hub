@@ -38,13 +38,13 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
       {/* Tab Content */}
       <div className="flex-1 overflow-auto bg-gray-50">
         {activeTab === 'strategy' && (
-          <div className="p-6">
+          <div className="p-4">
             <StrategyAndPlanning functionId={functionId} />
           </div>
         )}
 
         {activeTab === 'initiatives' && (
-          <div className="p-6">
+          <div className="p-4">
             {isLoading ? (
               <div className="text-center py-12 text-gray-500">
                 Loading initiatives...
@@ -128,7 +128,7 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
         )}
 
         {activeTab === 'plans' && (
-          <div className="p-6">
+          <div className="p-4">
             <AnnualGoalPlanning functionId={functionId} />
           </div>
         )}

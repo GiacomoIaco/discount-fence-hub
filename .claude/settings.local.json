@@ -10,7 +10,8 @@
       "Bash(npx supabase db --help:*)",
       "mcp__chrome-devtools__list_network_requests",
       "Bash(git log:*)",
-      "mcp__chrome-devtools__get_network_request"
+      "mcp__chrome-devtools__get_network_request",
+      "Bash(npm run migrate:status:*)"
     ],
     "deny": [],
     "ask": []
