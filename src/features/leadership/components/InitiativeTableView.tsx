@@ -732,9 +732,6 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          {initiative.area?.name || 'Unknown Area'}
-                        </div>
                       </div>
                     </div>
                   </td>

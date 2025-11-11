@@ -3,6 +3,7 @@ import { Plus, FolderOpen } from 'lucide-react';
 import FunctionTabs, { type TabType } from './FunctionTabs';
 import InitiativeTableView from './InitiativeTableView';
 import AnnualGoalPlanning from './Goals/AnnualGoalPlanning';
+import StrategyAndPlanning from './Strategy/StrategyAndPlanning';
 import { useFunctionsQuery, useAreasQuery } from '../hooks/useLeadershipQuery';
 import { useInitiativesByFunctionQuery } from '../hooks/useLeadershipQuery';
 import InitiativeDetailModal from './InitiativeDetailModal';
@@ -13,7 +14,7 @@ interface FunctionWorkspaceProps {
 }
 
 export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('initiatives');
+  const [activeTab, setActiveTab] = useState<TabType>('strategy');
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string | null>(null);
   const [isCreatingInitiative, setIsCreatingInitiative] = useState(false);
   const [selectedAreaIdForCreate, setSelectedAreaIdForCreate] = useState<string | null>(null);
@@ -36,6 +37,12 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
 
       {/* Tab Content */}
       <div className="flex-1 overflow-auto bg-gray-50">
+        {activeTab === 'strategy' && (
+          <div className="p-6">
+            <StrategyAndPlanning functionId={functionId} />
+          </div>
+        )}
+
         {activeTab === 'initiatives' && (
           <div className="p-6">
             {isLoading ? (
