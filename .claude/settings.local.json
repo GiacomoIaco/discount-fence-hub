@@ -6,7 +6,8 @@
       "Bash(npx tsx:*)",
       "mcp__chrome-devtools__fill_form",
       "Bash(npm run migrate:direct:*)",
-      "Bash(supabase db push:*)"
+      "Bash(supabase db push:*)",
+      "Bash(npx supabase db --help:*)"
     ],
     "deny": [],
     "ask": []

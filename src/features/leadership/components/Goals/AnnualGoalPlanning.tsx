@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Target, TrendingUp, Edit2, Trash2, AlertCircle, CheckCircle, Calendar } from 'lucide-react';
 import { useFunctionsQuery } from '../../hooks/useLeadershipQuery';
 import {
@@ -35,6 +35,13 @@ export default function AnnualGoalPlanning({ functionId }: AnnualGoalPlanningPro
 
   const { data: functions } = useFunctionsQuery();
   const { data: goals, isLoading } = useAnnualGoalsWithQuarterlyQuery(selectedFunctionId || undefined, selectedYear);
+
+  // Sync selectedFunctionId when functionId prop changes
+  useEffect(() => {
+    if (functionId) {
+      setSelectedFunctionId(functionId);
+    }
+  }, [functionId]);
   const createGoal = useCreateAnnualGoal();
   const updateGoal = useUpdateAnnualGoal();
   const deleteGoal = useDeleteAnnualGoal();
@@ -150,11 +157,10 @@ export default function AnnualGoalPlanning({ functionId }: AnnualGoalPlanningPro
         </p>
       </div>
 
-      {/* Function and Year Selector */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex items-center gap-4">
-          {/* Only show function selector if functionId prop is not provided */}
-          {!functionId ? (
+      {/* Function and Year Selector - Only show when no functionId provided */}
+      {!functionId && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Function
@@ -172,17 +178,30 @@ export default function AnnualGoalPlanning({ functionId }: AnnualGoalPlanningPro
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Function
-              </label>
-              <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                {functions?.find(f => f.id === functionId)?.name || 'Loading...'}
-              </div>
-            </div>
-          )}
 
+            <div className="w-48">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Year
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {[currentYear - 1, currentYear, currentYear + 1].map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Year Selector when functionId is provided */}
+      {functionId && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="w-48">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Year
@@ -200,7 +219,7 @@ export default function AnnualGoalPlanning({ functionId }: AnnualGoalPlanningPro
             </select>
           </div>
         </div>
-      </div>
+      )}
 
       {selectedFunctionId ? (
         <>
