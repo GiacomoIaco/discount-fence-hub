@@ -5,6 +5,7 @@ import { useFunctionsQuery } from './hooks/useLeadershipQuery';
 import LeadershipLayout from './LeadershipLayout';
 import FunctionWorkspace from './components/FunctionWorkspace';
 import ProgressDashboard from './components/ProgressDashboard';
+import NewFunctionModal from './components/NewFunctionModal';
 
 interface LeadershipHubProps {
   onBack?: () => void;
@@ -88,20 +89,14 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
         </div>
       )}
 
-      {/* TODO: Add New Function Modal */}
+      {/* New Function Modal */}
       {showNewFunctionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Create New Function</h3>
-            <p className="text-gray-600 mb-4">Modal coming soon...</p>
-            <button
-              onClick={() => setShowNewFunctionModal(false)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <NewFunctionModal
+          onClose={() => setShowNewFunctionModal(false)}
+          onSuccess={() => {
+            // Refresh will happen automatically via React Query
+          }}
+        />
       )}
     </LeadershipLayout>
   );

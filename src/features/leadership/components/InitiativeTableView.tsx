@@ -2,14 +2,16 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Target, AlertCircle, ChevronDown, ChevronRight, TrendingUp, Plus, Folder, FolderOpen, Search, X } from 'lucide-react';
 import { useUpdateInitiative } from '../hooks/useLeadershipQuery';
 import { useInitiativeGoalLinksQuery, useTasksQuery, useCreateTask } from '../hooks/useGoalsQuery';
-import type { ProjectInitiative } from '../lib/leadership';
+import type { ProjectInitiative, ProjectArea } from '../lib/leadership';
 import WeeklyMetrics from './WeeklyMetrics';
 import TaskRow from './TaskRow';
 import Toast, { type ToastType } from './Toast';
 
 interface InitiativeTableViewProps {
   initiatives: ProjectInitiative[];
+  areas?: ProjectArea[];
   onInitiativeClick: (initiativeId: string) => void;
+  onAddInitiativeToArea?: (areaId: string) => void;
 }
 
 interface EditingCell {
@@ -23,7 +25,7 @@ interface PendingChange {
   value: any;
 }
 
-export default function InitiativeTableView({ initiatives, onInitiativeClick }: InitiativeTableViewProps) {
+export default function InitiativeTableView({ initiatives, areas = [], onInitiativeClick, onAddInitiativeToArea }: InitiativeTableViewProps) {
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<string>>(new Set());
@@ -70,10 +72,16 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
     });
   }, [initiatives, filterStatus, filterPriority, showNeedsUpdateOnly, searchQuery]);
 
-  // Group initiatives by area
+  // Group initiatives by area - include all areas even if empty
   const initiativesByArea = useMemo(() => {
     const grouped = new Map<string, ProjectInitiative[]>();
 
+    // First, initialize all areas with empty arrays
+    areas.forEach(area => {
+      grouped.set(area.id, []);
+    });
+
+    // Then add initiatives to their respective areas
     filteredInitiatives.forEach(initiative => {
       const areaId = initiative.area?.id || 'no-area';
       if (!grouped.has(areaId)) {
@@ -83,7 +91,7 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
     });
 
     return grouped;
-  }, [filteredInitiatives]);
+  }, [filteredInitiatives, areas]);
 
   // Warn before navigation if there are unsaved changes
   useEffect(() => {
@@ -661,32 +669,49 @@ export default function InitiativeTableView({ initiatives, onInitiativeClick }: 
         <tbody>
           {Array.from(initiativesByArea.entries()).map(([areaId, areaInitiatives]) => {
             const isAreaCollapsed = collapsedAreas.has(areaId);
-            const areaName = areaInitiatives[0]?.area?.name || 'Uncategorized';
+            // Get area name from areas array first, fallback to initiative's area data
+            const area = areas.find(a => a.id === areaId);
+            const areaName = area?.name || areaInitiatives[0]?.area?.name || 'Uncategorized';
 
             return (
               <React.Fragment key={areaId}>
                 {/* Area Header Row */}
                 <tr className="bg-gray-100 border-t-2 border-gray-300">
                   <td colSpan={8} className="px-4 py-2">
-                    <button
-                      onClick={() => toggleAreaCollapse(areaId)}
-                      className="flex items-center gap-2 w-full text-left hover:bg-gray-200 rounded px-2 py-1 transition-colors"
-                    >
-                      {isAreaCollapsed ? (
-                        <FolderOpen className="w-4 h-4 text-gray-600" />
-                      ) : (
-                        <Folder className="w-4 h-4 text-gray-600" />
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => toggleAreaCollapse(areaId)}
+                        className="flex items-center gap-2 text-left hover:bg-gray-200 rounded px-2 py-1 transition-colors flex-1"
+                      >
+                        {isAreaCollapsed ? (
+                          <FolderOpen className="w-4 h-4 text-gray-600" />
+                        ) : (
+                          <Folder className="w-4 h-4 text-gray-600" />
+                        )}
+                        {isAreaCollapsed ? (
+                          <ChevronRight className="w-4 h-4 text-gray-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-600" />
+                        )}
+                        <span className="font-semibold text-gray-900">{areaName}</span>
+                        <span className="text-sm text-gray-500">
+                          ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
+                        </span>
+                      </button>
+                      {onAddInitiativeToArea && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddInitiativeToArea(areaId);
+                          }}
+                          className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Add initiative to this area"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Add Initiative</span>
+                        </button>
                       )}
-                      {isAreaCollapsed ? (
-                        <ChevronRight className="w-4 h-4 text-gray-600" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-600" />
-                      )}
-                      <span className="font-semibold text-gray-900">{areaName}</span>
-                      <span className="text-sm text-gray-500">
-                        ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
-                      </span>
-                    </button>
+                    </div>
                   </td>
                 </tr>
 

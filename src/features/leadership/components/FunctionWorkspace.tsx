@@ -81,15 +81,20 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
                 </div>
 
                 {/* Initiatives List */}
-                {initiatives && initiatives.length > 0 ? (
+                {(areas && areas.length > 0) ? (
                   <InitiativeTableView
-                    initiatives={initiatives}
+                    initiatives={initiatives || []}
+                    areas={areas}
                     onInitiativeClick={(id) => setSelectedInitiativeId(id)}
+                    onAddInitiativeToArea={(areaId) => {
+                      setSelectedAreaIdForCreate(areaId);
+                      setIsCreatingInitiative(true);
+                    }}
                   />
                 ) : (
                   <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No initiatives yet
+                      No areas created yet
                     </h3>
                     <p className="text-gray-600 mb-6">
                       {!areas || areas.length === 0
