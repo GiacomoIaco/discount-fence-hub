@@ -579,6 +579,12 @@ export const useCreateInitiative = () => {
         .from('project_initiatives')
         .insert({
           ...input,
+          // Provide defaults for required fields if not provided
+          status: input.status || 'not_started',
+          priority: input.priority || 'medium',
+          progress_percent: input.progress_percent ?? 0,
+          color_status: 'green', // Default to green for new initiatives
+          sort_order: 0, // Will be updated if needed
           created_by: user.id,
         })
         .select()
