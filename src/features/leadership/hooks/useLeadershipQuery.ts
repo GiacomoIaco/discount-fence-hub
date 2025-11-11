@@ -238,7 +238,7 @@ export const useInitiativesQuery = (filters: InitiativeFilters = {}) => {
         .select(`
           *,
           area:project_areas(*),
-          assigned_user:user_profiles(id, full_name, avatar_url)
+          assigned_user:user_profiles!project_initiatives_assigned_to_fkey(id, full_name, avatar_url)
         `);
 
       // Apply filters
@@ -302,7 +302,7 @@ export const useInitiativeQuery = (initiativeId?: string) => {
         .select(`
           *,
           area:project_areas(*),
-          assigned_user:user_profiles(id, full_name, avatar_url)
+          assigned_user:user_profiles!project_initiatives_assigned_to_fkey(id, full_name, avatar_url)
         `)
         .eq('id', initiativeId)
         .single();
@@ -344,7 +344,7 @@ export const useInitiativesByFunctionQuery = (functionId: string) => {
             *,
             function:project_functions(*)
           ),
-          assigned_user:user_profiles(id, full_name, avatar_url)
+          assigned_user:user_profiles!project_initiatives_assigned_to_fkey(id, full_name, avatar_url)
         `)
         .in('area_id', areaIds)
         .is('archived_at', null)
@@ -373,7 +373,7 @@ export const useMyInitiativesQuery = () => {
         .select(`
           *,
           area:project_areas(*),
-          assigned_user:user_profiles(id, full_name, avatar_url)
+          assigned_user:user_profiles!project_initiatives_assigned_to_fkey(id, full_name, avatar_url)
         `)
         .eq('assigned_to', user.id)
         .is('archived_at', null)
@@ -401,7 +401,7 @@ export const useHighPriorityInitiativesQuery = () => {
             *,
             function:project_functions(*)
           ),
-          assigned_user:user_profiles(id, full_name, avatar_url)
+          assigned_user:user_profiles!project_initiatives_assigned_to_fkey(id, full_name, avatar_url)
         `)
         .eq('priority', 'high')
         .is('archived_at', null)
