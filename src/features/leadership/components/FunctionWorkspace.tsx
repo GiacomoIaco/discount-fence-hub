@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, FolderOpen } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 import FunctionTabs, { type TabType } from './FunctionTabs';
 import InitiativeTableView from './InitiativeTableView';
 import AnnualGoalPlanning from './Goals/AnnualGoalPlanning';
@@ -51,33 +51,16 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
               </div>
             ) : (
               <>
-                {/* Add Initiative and Manage Areas Buttons */}
+                {/* Manage Areas Button */}
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-xl font-bold text-gray-900">Initiatives</h2>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowAreaManagement(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                      Manage Areas
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!areas || areas.length === 0) {
-                          alert('Please create an Area first before adding initiatives.\n\nClick "Manage Areas" to get started.');
-                          return;
-                        }
-                        // Default to first area, or show selector in modal
-                        setSelectedAreaIdForCreate(areas[0].id);
-                        setIsCreatingInitiative(true);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      New Initiative
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setShowAreaManagement(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    Manage Areas
+                  </button>
                 </div>
 
                 {/* Initiatives List */}

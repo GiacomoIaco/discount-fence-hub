@@ -1,6 +1,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Target, AlertCircle, ChevronDown, ChevronRight, TrendingUp, Plus, Folder, FolderOpen, Search, X } from 'lucide-react';
-import { useUpdateInitiative } from '../hooks/useLeadershipQuery';
+import { Target, AlertCircle, ChevronDown, ChevronRight, TrendingUp, Plus, Folder, FolderOpen, Search, X, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useUpdateInitiative, useUpdateArea } from '../hooks/useLeadershipQuery';
 import { useInitiativeGoalLinksQuery, useTasksQuery, useCreateTask } from '../hooks/useGoalsQuery';
 import type { ProjectInitiative, ProjectArea } from '../lib/leadership';
 import WeeklyMetrics from './WeeklyMetrics';
@@ -42,8 +59,27 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [showNeedsUpdateOnly, setShowNeedsUpdateOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [localAreas, setLocalAreas] = useState<ProjectArea[]>(areas);
   const updateInitiative = useUpdateInitiative();
+  const updateArea = useUpdateArea();
   const createTask = useCreateTask();
+
+  // Update local areas when props change
+  useEffect(() => {
+    setLocalAreas(areas);
+  }, [areas]);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Filter initiatives
   const filteredInitiatives = useMemo(() => {
@@ -77,11 +113,11 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
     const grouped = new Map<string, ProjectInitiative[]>();
 
     // First, initialize all areas with empty arrays
-    areas.forEach(area => {
+    localAreas.forEach(area => {
       grouped.set(area.id, []);
     });
 
-    // Then add initiatives to their respective areas
+    // Then add initiatives to their respective areas and sort by sort_order
     filteredInitiatives.forEach(initiative => {
       const areaId = initiative.area?.id || 'no-area';
       if (!grouped.has(areaId)) {
@@ -90,8 +126,13 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
       grouped.get(areaId)!.push(initiative);
     });
 
+    // Sort initiatives within each area by sort_order
+    grouped.forEach((inits) => {
+      inits.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    });
+
     return grouped;
-  }, [filteredInitiatives, areas]);
+  }, [filteredInitiatives, localAreas]);
 
   // Warn before navigation if there are unsaved changes
   useEffect(() => {
@@ -132,6 +173,86 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
       }
       return next;
     });
+  };
+
+  // Handle drag end for initiatives
+  const handleInitiativeDragEnd = async (event: DragEndEvent, areaId: string) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const areaInitiatives = initiativesByArea.get(areaId) || [];
+    const oldIndex = areaInitiatives.findIndex(i => i.id === active.id);
+    const newIndex = areaInitiatives.findIndex(i => i.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Reorder initiatives
+    const reorderedInitiatives = arrayMove(areaInitiatives, oldIndex, newIndex);
+
+    // Update sort_order for all affected initiatives
+    try {
+      await Promise.all(
+        reorderedInitiatives.map((initiative, index) =>
+          updateInitiative.mutateAsync({
+            id: initiative.id,
+            sort_order: index,
+          })
+        )
+      );
+
+      setToast({
+        message: 'Initiative order updated',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Failed to update initiative order:', error);
+      setToast({
+        message: 'Failed to update order. Please try again.',
+        type: 'error'
+      });
+    }
+  };
+
+  // Handle drag end for areas
+  const handleAreaDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = localAreas.findIndex(a => a.id === active.id);
+    const newIndex = localAreas.findIndex(a => a.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistically update local state
+    const reorderedAreas = arrayMove(localAreas, oldIndex, newIndex);
+    setLocalAreas(reorderedAreas);
+
+    // Update sort_order in database
+    try {
+      await Promise.all(
+        reorderedAreas.map((area, index) =>
+          updateArea.mutateAsync({
+            id: area.id,
+            sort_order: index,
+          })
+        )
+      );
+
+      setToast({
+        message: 'Area order updated',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Failed to update area order:', error);
+      // Revert on error
+      setLocalAreas(areas);
+      setToast({
+        message: 'Failed to update order. Please try again.',
+        type: 'error'
+      });
+    }
   };
 
   const toggleExpand = (initiativeId: string) => {
@@ -491,6 +612,269 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
     );
   };
 
+  // Sortable Initiative Row Component
+  const SortableInitiativeRow = ({ initiative, idx }: {
+    initiative: ProjectInitiative;
+    idx: number;
+  }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: initiative.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    const isExpanded = expandedInitiatives.has(initiative.id);
+    const isAddingTask = addingTaskTo === initiative.id;
+    const needsUpdate = needsWeeklyUpdate(initiative);
+
+    return (
+      <>
+        {/* Initiative Row */}
+        <tr
+          ref={setNodeRef}
+          style={style}
+          key={initiative.id}
+          className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
+            idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+          } ${needsUpdate ? 'border-l-4 border-l-orange-400 bg-orange-50' : ''}`}
+        >
+          {/* Title with Expand/Collapse and Drag Handle */}
+          <td className="px-4 py-3 sticky left-0 bg-inherit">
+            <div className="flex items-center gap-2">
+              {/* Drag Handle */}
+              <button
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Drag to reorder initiative"
+              >
+                <GripVertical className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                onClick={() => toggleExpand(initiative.id)}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-gray-600" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                )}
+              </button>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onInitiativeClick(initiative.id)}
+                    className="text-left font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                  >
+                    {initiative.title}
+                  </button>
+                  {needsUpdate && (
+                    <div title="This initiative needs a weekly update">
+                      <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </td>
+
+          {/* Status */}
+          <td className="px-4 py-3">{renderStatusCell(initiative)}</td>
+
+          {/* Priority */}
+          <td className="px-4 py-3">{renderPriorityCell(initiative)}</td>
+
+          {/* This Week */}
+          <td className="px-4 py-3">
+            {renderEditableCell(initiative, 'this_week', initiative.this_week)}
+          </td>
+
+          {/* Next Week */}
+          <td className="px-4 py-3">
+            {renderEditableCell(initiative, 'next_week', initiative.next_week)}
+          </td>
+
+          {/* Progress */}
+          <td className="px-4 py-3">{renderProgressCell(initiative)}</td>
+
+          {/* Goals Indicator */}
+          <td className="px-4 py-3">
+            <GoalIndicator initiativeId={initiative.id} />
+          </td>
+
+          {/* Actions */}
+          <td className="px-4 py-3">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAddingTaskTo(initiative.id);
+                  setNewTaskTitle('');
+                  if (!isExpanded) {
+                    toggleExpand(initiative.id);
+                  }
+                }}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Add task"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setWeeklyMetricsInitiative({
+                    id: initiative.id,
+                    title: initiative.title,
+                  });
+                }}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Track weekly metrics"
+              >
+                <TrendingUp className="w-4 h-4" />
+              </button>
+            </div>
+          </td>
+        </tr>
+
+        {/* Task Rows (when expanded) */}
+        {isExpanded && <TaskRows initiativeId={initiative.id} />}
+
+        {/* Add Task Row */}
+        {isAddingTask && (
+          <tr className="bg-blue-50 border-b border-blue-100">
+            <td colSpan={8} className="px-4 py-2">
+              <div className="flex items-center gap-2 pl-12">
+                <input
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddTask(initiative.id);
+                    } else if (e.key === 'Escape') {
+                      setAddingTaskTo(null);
+                      setNewTaskTitle('');
+                    }
+                  }}
+                  placeholder="Task name..."
+                  className="flex-1 px-3 py-2 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleAddTask(initiative.id)}
+                  className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setAddingTaskTo(null);
+                    setNewTaskTitle('');
+                  }}
+                  className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+      </>
+    );
+  };
+
+  // Sortable Area Header Component
+  const SortableAreaHeader = ({ areaId, areaName, initiativeCount }: {
+    areaId: string;
+    areaName: string;
+    initiativeCount: number;
+  }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: areaId });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    const isAreaCollapsed = collapsedAreas.has(areaId);
+
+    return (
+      <tr
+        ref={setNodeRef}
+        style={style}
+        className="bg-gray-100 border-t-2 border-gray-300"
+      >
+        <td colSpan={8} className="px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-1">
+              {/* Drag Handle */}
+              <button
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Drag to reorder area"
+              >
+                <GripVertical className="w-4 h-4 text-gray-500" />
+              </button>
+
+              <button
+                onClick={() => toggleAreaCollapse(areaId)}
+                className="flex items-center gap-2 text-left hover:bg-gray-200 rounded px-2 py-1 transition-colors flex-1"
+              >
+                {isAreaCollapsed ? (
+                  <FolderOpen className="w-4 h-4 text-gray-600" />
+                ) : (
+                  <Folder className="w-4 h-4 text-gray-600" />
+                )}
+                {isAreaCollapsed ? (
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-600" />
+                )}
+                <span className="font-semibold text-gray-900">{areaName}</span>
+                <span className="text-sm text-gray-500">
+                  ({initiativeCount} initiative{initiativeCount !== 1 ? 's' : ''})
+                </span>
+              </button>
+            </div>
+
+            {onAddInitiativeToArea && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddInitiativeToArea(areaId);
+                }}
+                className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                title="Add initiative to this area"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Initiative</span>
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   // Count initiatives needing updates
   const initiativesNeedingUpdate = useMemo(() => {
     return initiatives.filter(needsWeeklyUpdate);
@@ -667,207 +1051,57 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
           </tr>
         </thead>
         <tbody>
-          {Array.from(initiativesByArea.entries()).map(([areaId, areaInitiatives]) => {
-            const isAreaCollapsed = collapsedAreas.has(areaId);
-            // Get area name from areas array first, fallback to initiative's area data
-            const area = areas.find(a => a.id === areaId);
-            const areaName = area?.name || areaInitiatives[0]?.area?.name || 'Uncategorized';
+          {/* DndContext for Area Reordering */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleAreaDragEnd}
+          >
+            <SortableContext
+              items={localAreas.map(a => a.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {Array.from(initiativesByArea.entries()).map(([areaId, areaInitiatives]) => {
+                const isAreaCollapsed = collapsedAreas.has(areaId);
+                // Get area name from areas array first, fallback to initiative's area data
+                const area = localAreas.find(a => a.id === areaId);
+                const areaName = area?.name || areaInitiatives[0]?.area?.name || 'Uncategorized';
 
-            return (
-              <React.Fragment key={areaId}>
-                {/* Area Header Row */}
-                <tr className="bg-gray-100 border-t-2 border-gray-300">
-                  <td colSpan={8} className="px-4 py-2">
-                    <div className="flex items-center justify-between">
-                      <button
-                        onClick={() => toggleAreaCollapse(areaId)}
-                        className="flex items-center gap-2 text-left hover:bg-gray-200 rounded px-2 py-1 transition-colors flex-1"
+                return (
+                  <React.Fragment key={areaId}>
+                    {/* Sortable Area Header Row */}
+                    <SortableAreaHeader
+                      areaId={areaId}
+                      areaName={areaName}
+                      initiativeCount={areaInitiatives.length}
+                    />
+
+                    {/* Initiative Rows (only if area not collapsed) */}
+                    {!isAreaCollapsed && areaInitiatives.length > 0 && (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(event) => handleInitiativeDragEnd(event, areaId)}
                       >
-                        {isAreaCollapsed ? (
-                          <FolderOpen className="w-4 h-4 text-gray-600" />
-                        ) : (
-                          <Folder className="w-4 h-4 text-gray-600" />
-                        )}
-                        {isAreaCollapsed ? (
-                          <ChevronRight className="w-4 h-4 text-gray-600" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-gray-600" />
-                        )}
-                        <span className="font-semibold text-gray-900">{areaName}</span>
-                        <span className="text-sm text-gray-500">
-                          ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
-                        </span>
-                      </button>
-                      {onAddInitiativeToArea && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddInitiativeToArea(areaId);
-                          }}
-                          className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Add initiative to this area"
+                        <SortableContext
+                          items={areaInitiatives.map(i => i.id)}
+                          strategy={verticalListSortingStrategy}
                         >
-                          <Plus className="w-4 h-4" />
-                          <span>Add Initiative</span>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-
-                {/* Initiative Rows (only if area not collapsed) */}
-                {!isAreaCollapsed && areaInitiatives.map((initiative, idx) => {
-            const isExpanded = expandedInitiatives.has(initiative.id);
-            const isAddingTask = addingTaskTo === initiative.id;
-            const needsUpdate = needsWeeklyUpdate(initiative);
-
-            return (
-              <>
-                {/* Initiative Row */}
-                <tr
-                  key={initiative.id}
-                  className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                    idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-                  } ${needsUpdate ? 'border-l-4 border-l-orange-400 bg-orange-50' : ''}`}
-                >
-                  {/* Title with Expand/Collapse */}
-                  <td className="px-4 py-3 sticky left-0 bg-inherit">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => toggleExpand(initiative.id)}
-                        className="p-1 hover:bg-gray-200 rounded transition-colors"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-gray-600" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-gray-600" />
-                        )}
-                      </button>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => onInitiativeClick(initiative.id)}
-                            className="text-left font-medium text-gray-900 hover:text-blue-600 transition-colors"
-                          >
-                            {initiative.title}
-                          </button>
-                          {needsUpdate && (
-                            <div title="This initiative needs a weekly update">
-                              <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-4 py-3">{renderStatusCell(initiative)}</td>
-
-                  {/* Priority */}
-                  <td className="px-4 py-3">{renderPriorityCell(initiative)}</td>
-
-                  {/* This Week */}
-                  <td className="px-4 py-3">
-                    {renderEditableCell(initiative, 'this_week', initiative.this_week)}
-                  </td>
-
-                  {/* Next Week */}
-                  <td className="px-4 py-3">
-                    {renderEditableCell(initiative, 'next_week', initiative.next_week)}
-                  </td>
-
-                  {/* Progress */}
-                  <td className="px-4 py-3">{renderProgressCell(initiative)}</td>
-
-                  {/* Goals Indicator */}
-                  <td className="px-4 py-3">
-                    <GoalIndicator initiativeId={initiative.id} />
-                  </td>
-
-                  {/* Actions */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAddingTaskTo(initiative.id);
-                          setNewTaskTitle('');
-                          if (!isExpanded) {
-                            toggleExpand(initiative.id);
-                          }
-                        }}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Add task"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setWeeklyMetricsInitiative({
-                            id: initiative.id,
-                            title: initiative.title,
-                          });
-                        }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Track weekly metrics"
-                      >
-                        <TrendingUp className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-
-                {/* Task Rows (when expanded) */}
-                {isExpanded && <TaskRows initiativeId={initiative.id} />}
-
-                {/* Add Task Row */}
-                {isAddingTask && (
-                  <tr className="bg-blue-50 border-b border-blue-100">
-                    <td colSpan={8} className="px-4 py-2">
-                      <div className="flex items-center gap-2 pl-12">
-                        <input
-                          type="text"
-                          value={newTaskTitle}
-                          onChange={(e) => setNewTaskTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleAddTask(initiative.id);
-                            } else if (e.key === 'Escape') {
-                              setAddingTaskTo(null);
-                              setNewTaskTitle('');
-                            }
-                          }}
-                          placeholder="Task name..."
-                          className="flex-1 px-3 py-2 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleAddTask(initiative.id)}
-                          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Add
-                        </button>
-                        <button
-                          onClick={() => {
-                            setAddingTaskTo(null);
-                            setNewTaskTitle('');
-                          }}
-                          className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
-            );
-          })}
-              </React.Fragment>
-            );
-          })}
+                          {areaInitiatives.map((initiative, idx) => (
+                            <SortableInitiativeRow
+                              key={initiative.id}
+                              initiative={initiative}
+                              idx={idx}
+                            />
+                          ))}
+                        </SortableContext>
+                      </DndContext>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </SortableContext>
+          </DndContext>
         </tbody>
       </table>
 

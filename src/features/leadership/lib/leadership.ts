@@ -441,6 +441,7 @@ export interface CreateInitiativeInput {
 export interface UpdateInitiativeInput extends Partial<CreateInitiativeInput> {
   id: string;
   archived_at?: string;
+  sort_order?: number;
 }
 
 export interface CreateWeeklyUpdateInput {
