@@ -1,6 +1,6 @@
-import { ListTodo, Target, BarChart3 } from 'lucide-react';
+import { ListTodo, Target } from 'lucide-react';
 
-export type TabType = 'initiatives' | 'plans' | 'reports';
+export type TabType = 'initiatives' | 'plans';
 
 interface FunctionTabsProps {
   activeTab: TabType;
@@ -21,12 +21,6 @@ export default function FunctionTabs({ activeTab, onTabChange, functionName }: F
       label: 'Plans',
       icon: Target,
       description: 'Annual and quarterly goals'
-    },
-    {
-      id: 'reports' as TabType,
-      label: 'Reports',
-      icon: BarChart3,
-      description: 'Analytics and progress'
     }
   ];
 

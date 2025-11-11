@@ -6,6 +6,9 @@ interface LeadershipLayoutProps {
   children: ReactNode;
   selectedFunctionId?: string | null;
   onSelectFunction?: (functionId: string) => void;
+  onReportsClick?: () => void;
+  onNewFunctionClick?: () => void;
+  showingReports?: boolean;
   onBack?: () => void;
 }
 
@@ -19,6 +22,9 @@ export default function LeadershipLayout({
   children,
   selectedFunctionId,
   onSelectFunction,
+  onReportsClick,
+  onNewFunctionClick,
+  showingReports,
   onBack
 }: LeadershipLayoutProps) {
   return (
@@ -27,6 +33,9 @@ export default function LeadershipLayout({
       <FunctionSidebar
         selectedFunctionId={selectedFunctionId}
         onSelectFunction={onSelectFunction}
+        onReportsClick={onReportsClick}
+        onNewFunctionClick={onNewFunctionClick}
+        showingReports={showingReports}
       />
 
       {/* Main Content Area */}

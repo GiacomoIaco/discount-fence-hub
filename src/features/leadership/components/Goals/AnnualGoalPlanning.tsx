@@ -21,9 +21,13 @@ import {
 } from '../../lib/leadership';
 import QuarterlyBreakdown from './QuarterlyBreakdown';
 
-export default function AnnualGoalPlanning() {
+interface AnnualGoalPlanningProps {
+  functionId?: string; // If provided, will filter to this function only
+}
+
+export default function AnnualGoalPlanning({ functionId }: AnnualGoalPlanningProps = {}) {
   const currentYear = new Date().getFullYear();
-  const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
+  const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(functionId || null);
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [isCreating, setIsCreating] = useState(false);
   const [editingGoal, setEditingGoal] = useState<AnnualGoal | null>(null);
@@ -149,23 +153,35 @@ export default function AnnualGoalPlanning() {
       {/* Function and Year Selector */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Function
-            </label>
-            <select
-              value={selectedFunctionId || ''}
-              onChange={(e) => setSelectedFunctionId(e.target.value || null)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select a function...</option>
-              {functions?.map((func) => (
-                <option key={func.id} value={func.id}>
-                  {func.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Only show function selector if functionId prop is not provided */}
+          {!functionId ? (
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Function
+              </label>
+              <select
+                value={selectedFunctionId || ''}
+                onChange={(e) => setSelectedFunctionId(e.target.value || null)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select a function...</option>
+                {functions?.map((func) => (
+                  <option key={func.id} value={func.id}>
+                    {func.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Function
+              </label>
+              <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                {functions?.find(f => f.id === functionId)?.name || 'Loading...'}
+              </div>
+            </div>
+          )}
 
           <div className="w-48">
             <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import FunctionTabs, { type TabType } from './FunctionTabs';
 import InitiativeTableView from './InitiativeTableView';
 import AnnualGoalPlanning from './Goals/AnnualGoalPlanning';
-import ProgressDashboard from './ProgressDashboard';
 import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
 import { useInitiativesByFunctionQuery } from '../hooks/useLeadershipQuery';
 import InitiativeDetailModal from './InitiativeDetailModal';
@@ -66,13 +65,7 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
 
         {activeTab === 'plans' && (
           <div className="p-6">
-            <AnnualGoalPlanning />
-          </div>
-        )}
-
-        {activeTab === 'reports' && (
-          <div className="p-6">
-            <ProgressDashboard onBack={() => setActiveTab('initiatives')} />
+            <AnnualGoalPlanning functionId={functionId} />
           </div>
         )}
       </div>

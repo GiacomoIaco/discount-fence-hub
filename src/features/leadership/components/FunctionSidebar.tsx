@@ -1,16 +1,22 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronRight, Target } from 'lucide-react';
+import { Plus, Search, ChevronRight, Target, BarChart3 } from 'lucide-react';
 import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
 import { useInitiativesQuery } from '../hooks/useLeadershipQuery';
 
 interface FunctionSidebarProps {
   selectedFunctionId?: string | null;
   onSelectFunction?: (functionId: string) => void;
+  onReportsClick?: () => void;
+  onNewFunctionClick?: () => void;
+  showingReports?: boolean;
 }
 
 export default function FunctionSidebar({
   selectedFunctionId,
-  onSelectFunction
+  onSelectFunction,
+  onReportsClick,
+  onNewFunctionClick,
+  showingReports = false
 }: FunctionSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: functions, isLoading } = useFunctionsQuery();
@@ -144,14 +150,42 @@ export default function FunctionSidebar({
         )}
       </div>
 
+      {/* Reports Button */}
+      <div className="px-4 pb-2 border-t border-gray-200 pt-4">
+        <button
+          onClick={onReportsClick}
+          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
+            showingReports
+              ? 'bg-blue-50 border border-blue-200'
+              : 'hover:bg-gray-50 border border-transparent'
+          }`}
+        >
+          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <BarChart3 className="w-5 h-5 text-purple-600" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-sm font-medium ${
+                showingReports ? 'text-blue-900' : 'text-gray-900'
+              }`}>
+                Reports
+              </span>
+              {showingReports && (
+                <ChevronRight className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              )}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              Analytics & insights
+            </div>
+          </div>
+        </button>
+      </div>
+
       {/* Add Function Button */}
       <div className="p-4 border-t border-gray-200">
         <button
           className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-          onClick={() => {
-            // TODO: Open create function modal
-            alert('Create function modal - TODO');
-          }}
+          onClick={onNewFunctionClick}
         >
           <Plus className="w-4 h-4" />
           New Function
