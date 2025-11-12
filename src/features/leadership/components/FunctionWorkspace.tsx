@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import FunctionTabs, { type TabType } from './FunctionTabs';
 import InitiativeTableView from './InitiativeTableView';
-import AnnualGoalPlanning from './Goals/AnnualGoalPlanning';
+import OperatingPlanHub from './OperatingPlan/OperatingPlanHub';
 import StrategyAndPlanning from './Strategy/StrategyAndPlanning';
 import { useFunctionsQuery, useAreasQuery } from '../hooks/useLeadershipQuery';
 import { useInitiativesByFunctionQuery } from '../hooks/useLeadershipQuery';
@@ -116,9 +116,7 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
         )}
 
         {activeTab === 'plans' && (
-          <div className="p-4">
-            <AnnualGoalPlanning functionId={functionId} />
-          </div>
+          <OperatingPlanHub functionId={functionId} />
         )}
       </div>
 

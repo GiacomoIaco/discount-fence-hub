@@ -93,6 +93,7 @@ export interface ProjectArea {
   function_id: string;
   name: string;
   description?: string;
+  strategic_description?: string; // NEW: For operating plan
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -118,6 +119,7 @@ export interface ProjectInitiative {
   target_date?: string; // ISO date string
   target_week?: string; // "Week of YYYY-MM-DD"
   target_quarter?: string; // "Q1 2025"
+  annual_target?: string; // NEW: For operating plan annual targets
 
   // Progress tracking
   progress_percent: number;
@@ -413,6 +415,7 @@ export interface CreateAreaInput {
   function_id: string;
   name: string;
   description?: string;
+  strategic_description?: string;
   sort_order?: number;
 }
 
@@ -433,6 +436,7 @@ export interface CreateInitiativeInput {
   target_date?: string;
   target_week?: string;
   target_quarter?: string;
+  annual_target?: string;
   progress_percent?: number;
   this_week?: string;
   next_week?: string;
