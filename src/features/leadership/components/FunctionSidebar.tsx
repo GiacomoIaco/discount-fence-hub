@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronRight, Target, BarChart3 } from 'lucide-react';
+import { Plus, Search, ChevronRight, Target, BarChart3, Settings } from 'lucide-react';
 import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
 import { useInitiativesQuery } from '../hooks/useLeadershipQuery';
 
@@ -7,16 +7,20 @@ interface FunctionSidebarProps {
   selectedFunctionId?: string | null;
   onSelectFunction?: (functionId: string) => void;
   onReportsClick?: () => void;
+  onSettingsClick?: () => void;
   onNewFunctionClick?: () => void;
   showingReports?: boolean;
+  showingSettings?: boolean;
 }
 
 export default function FunctionSidebar({
   selectedFunctionId,
   onSelectFunction,
   onReportsClick,
+  onSettingsClick,
   onNewFunctionClick,
-  showingReports = false
+  showingReports = false,
+  showingSettings = false
 }: FunctionSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: functions, isLoading } = useFunctionsQuery();
@@ -150,8 +154,8 @@ export default function FunctionSidebar({
         )}
       </div>
 
-      {/* Reports Button */}
-      <div className="px-4 pb-2 border-t border-gray-200 pt-4">
+      {/* Reports & Settings Buttons */}
+      <div className="px-4 pb-2 border-t border-gray-200 pt-4 space-y-2">
         <button
           onClick={onReportsClick}
           className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
@@ -176,6 +180,34 @@ export default function FunctionSidebar({
             </div>
             <div className="text-xs text-gray-500 mt-0.5">
               Analytics & insights
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={onSettingsClick}
+          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
+            showingSettings
+              ? 'bg-blue-50 border border-blue-200'
+              : 'hover:bg-gray-50 border border-transparent'
+          }`}
+        >
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <Settings className="w-5 h-5 text-gray-600" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-sm font-medium ${
+                showingSettings ? 'text-blue-900' : 'text-gray-900'
+              }`}>
+                Settings
+              </span>
+              {showingSettings && (
+                <ChevronRight className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              )}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              Functions & areas
             </div>
           </div>
         </button>

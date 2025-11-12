@@ -7,8 +7,10 @@ interface LeadershipLayoutProps {
   selectedFunctionId?: string | null;
   onSelectFunction?: (functionId: string) => void;
   onReportsClick?: () => void;
+  onSettingsClick?: () => void;
   onNewFunctionClick?: () => void;
   showingReports?: boolean;
+  showingSettings?: boolean;
   onBack?: () => void;
 }
 
@@ -23,8 +25,10 @@ export default function LeadershipLayout({
   selectedFunctionId,
   onSelectFunction,
   onReportsClick,
+  onSettingsClick,
   onNewFunctionClick,
   showingReports,
+  showingSettings,
   onBack
 }: LeadershipLayoutProps) {
   return (
@@ -34,8 +38,10 @@ export default function LeadershipLayout({
         selectedFunctionId={selectedFunctionId}
         onSelectFunction={onSelectFunction}
         onReportsClick={onReportsClick}
+        onSettingsClick={onSettingsClick}
         onNewFunctionClick={onNewFunctionClick}
         showingReports={showingReports}
+        showingSettings={showingSettings}
       />
 
       {/* Main Content Area */}

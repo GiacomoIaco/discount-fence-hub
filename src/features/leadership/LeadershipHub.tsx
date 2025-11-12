@@ -6,6 +6,7 @@ import LeadershipLayout from './LeadershipLayout';
 import FunctionWorkspace from './components/FunctionWorkspace';
 import ProgressDashboard from './components/ProgressDashboard';
 import NewFunctionModal from './components/NewFunctionModal';
+import FunctionSettings from './components/Settings/FunctionSettings';
 
 interface LeadershipHubProps {
   onBack?: () => void;
@@ -14,6 +15,7 @@ interface LeadershipHubProps {
 export default function LeadershipHub({ onBack }: LeadershipHubProps) {
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
   const [showingReports, setShowingReports] = useState(false);
+  const [showingSettings, setShowingSettings] = useState(false);
   const [showNewFunctionModal, setShowNewFunctionModal] = useState(false);
 
   const isDesktop = useIsDesktop();
@@ -47,8 +49,8 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
     );
   }
 
-  // Auto-select first function if none selected and not showing reports
-  if (!showingReports && !selectedFunctionId && functions && functions.length > 0) {
+  // Auto-select first function if none selected and not showing reports or settings
+  if (!showingReports && !showingSettings && !selectedFunctionId && functions && functions.length > 0) {
     setSelectedFunctionId(functions[0].id);
   }
 
@@ -57,17 +59,27 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
       selectedFunctionId={selectedFunctionId}
       onSelectFunction={(functionId) => {
         setSelectedFunctionId(functionId);
-        setShowingReports(false); // Switch from reports to function view
+        setShowingReports(false);
+        setShowingSettings(false);
       }}
       onReportsClick={() => {
         setShowingReports(true);
-        setSelectedFunctionId(null); // Deselect function when viewing reports
+        setShowingSettings(false);
+        setSelectedFunctionId(null);
+      }}
+      onSettingsClick={() => {
+        setShowingSettings(true);
+        setShowingReports(false);
+        setSelectedFunctionId(null);
       }}
       onNewFunctionClick={() => setShowNewFunctionModal(true)}
       showingReports={showingReports}
+      showingSettings={showingSettings}
       onBack={onBack}
     >
-      {showingReports ? (
+      {showingSettings ? (
+        <FunctionSettings onBack={() => setShowingSettings(false)} />
+      ) : showingReports ? (
         <div className="p-6">
           <ProgressDashboard onBack={() => setShowingReports(false)} />
         </div>
