@@ -545,6 +545,7 @@ export const useCreateArea = () => {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.areasForFunction(variables.function_id) });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.functions() }); // Update area counts
     },
   });
 };

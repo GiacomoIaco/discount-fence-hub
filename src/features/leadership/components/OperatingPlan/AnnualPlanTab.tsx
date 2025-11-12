@@ -187,7 +187,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
 
               {/* Strategic Description - Collapsible */}
               {!isStratDescCollapsed && (
-                <div className="mt-2 pt-2 border-t border-gray-200">
+                <div className="mt-2 pt-2 border-t border-blue-700 bg-white rounded-md">
                   {editingField?.type === 'strategic_desc' && editingField.id === area.id ? (
                     <textarea
                       autoFocus

@@ -1,7 +1,43 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronRight, Target, BarChart3, Settings } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  ChevronRight,
+  Target,
+  BarChart3,
+  Settings,
+  Briefcase,
+  TrendingUp,
+  Users,
+  DollarSign,
+  BarChart,
+  Wrench,
+  Truck,
+  Building,
+  ShoppingCart,
+  Megaphone,
+  Award,
+  Zap
+} from 'lucide-react';
 import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
 import { useInitiativesQuery } from '../hooks/useLeadershipQuery';
+
+// Icon mapping for function icons
+const ICON_MAP: Record<string, any> = {
+  Briefcase,
+  Target,
+  TrendingUp,
+  Users,
+  DollarSign,
+  BarChart,
+  Wrench,
+  Truck,
+  Building,
+  ShoppingCart,
+  Megaphone,
+  Award,
+  Zap
+};
 
 interface FunctionSidebarProps {
   selectedFunctionId?: string | null;
@@ -95,6 +131,7 @@ export default function FunctionSidebar({
               const count = getInitiativeCount(func.id);
               const onTrackPercent = getOnTrackPercent(func.id);
               const isSelected = selectedFunctionId === func.id;
+              const IconComponent = func.icon ? ICON_MAP[func.icon] : null;
 
               return (
                 <button
@@ -111,7 +148,11 @@ export default function FunctionSidebar({
                     className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold flex-shrink-0"
                     style={{ backgroundColor: func.color || '#6B7280' }}
                   >
-                    {func.icon || func.name.charAt(0).toUpperCase()}
+                    {IconComponent ? (
+                      <IconComponent className="w-5 h-5" />
+                    ) : (
+                      func.name.charAt(0).toUpperCase()
+                    )}
                   </div>
 
                   {/* Function Info */}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Target, AlertCircle, ChevronDown, ChevronRight, TrendingUp, Plus, Folder, FolderOpen, Search, X, GripVertical } from 'lucide-react';
+import { Target, AlertCircle, ChevronDown, ChevronRight, TrendingUp, Plus, Search, X, GripVertical } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -820,7 +820,7 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
       <tr
         ref={setNodeRef}
         style={style}
-        className="bg-gray-100 border-t-2 border-gray-300"
+        className="bg-blue-900 border-t-2 border-blue-700"
       >
         <td colSpan={8} className="px-4 py-2">
           <div className="flex items-center justify-between">
@@ -829,28 +829,23 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
               <button
                 {...attributes}
                 {...listeners}
-                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded transition-colors"
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-blue-800 rounded transition-colors"
                 title="Drag to reorder area"
               >
-                <GripVertical className="w-4 h-4 text-gray-500" />
+                <GripVertical className="w-4 h-4 text-blue-200" />
               </button>
 
               <button
                 onClick={() => toggleAreaCollapse(areaId)}
-                className="flex items-center gap-2 text-left hover:bg-gray-200 rounded px-2 py-1 transition-colors flex-1"
+                className="flex items-center gap-2 text-left hover:bg-blue-800 rounded px-2 py-1 transition-colors flex-1"
               >
                 {isAreaCollapsed ? (
-                  <FolderOpen className="w-4 h-4 text-gray-600" />
+                  <ChevronRight className="w-4 h-4 text-white" />
                 ) : (
-                  <Folder className="w-4 h-4 text-gray-600" />
+                  <ChevronDown className="w-4 h-4 text-white" />
                 )}
-                {isAreaCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-gray-600" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-600" />
-                )}
-                <span className="font-semibold text-gray-900">{areaName}</span>
-                <span className="text-sm text-gray-500">
+                <span className="font-semibold text-white">{areaName}</span>
+                <span className="text-sm text-blue-200">
                   ({initiativeCount} initiative{initiativeCount !== 1 ? 's' : ''})
                 </span>
               </button>
@@ -862,7 +857,7 @@ export default function InitiativeTableView({ initiatives, areas = [], onInitiat
                   e.stopPropagation();
                   onAddInitiativeToArea(areaId);
                 }}
-                className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-sm text-white hover:bg-blue-800 rounded transition-colors"
                 title="Add initiative to this area"
               >
                 <Plus className="w-4 h-4" />

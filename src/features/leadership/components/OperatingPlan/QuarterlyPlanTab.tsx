@@ -321,25 +321,25 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
 
         return (
           <div key={area.id} className="bg-white rounded-lg border border-gray-200 shadow-sm">
-            {/* Area Header */}
-            <div className="border-b border-blue-700 p-4 bg-blue-900">
+            {/* Area Header - Compact */}
+            <div className="border-b border-blue-700 px-4 py-2 bg-blue-900">
               <button
                 onClick={() => toggleAreaCollapse(area.id)}
                 className="flex items-center gap-2 w-full text-left"
               >
                 {isCollapsed ? (
-                  <ChevronRight className="w-5 h-5 text-white flex-shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-white flex-shrink-0" />
                 ) : (
-                  <ChevronDown className="w-5 h-5 text-white flex-shrink-0" />
+                  <ChevronDown className="w-4 h-4 text-white flex-shrink-0" />
                 )}
                 {isCollapsed ? (
-                  <Folder className="w-5 h-5 text-white flex-shrink-0" />
+                  <Folder className="w-4 h-4 text-white flex-shrink-0" />
                 ) : (
-                  <FolderOpen className="w-5 h-5 text-white flex-shrink-0" />
+                  <FolderOpen className="w-4 h-4 text-white flex-shrink-0" />
                 )}
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white">{area.name}</h3>
-                  <p className="text-sm text-blue-200">
+                  <h3 className="text-base font-semibold text-white">{area.name}</h3>
+                  <p className="text-xs text-blue-200">
                     {areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''}
                   </p>
                 </div>
