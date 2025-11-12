@@ -69,7 +69,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
   const [areaForm, setAreaForm] = useState<CreateAreaInput>({
     function_id: '',
     name: '',
-    description: '',
+    strategic_description: '',
     sort_order: 0,
   });
 
@@ -94,7 +94,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
         function_id: selectedFunctionId,
       });
       setIsCreatingArea(false);
-      setAreaForm({ function_id: '', name: '', description: '', sort_order: 0 });
+      setAreaForm({ function_id: '', name: '', strategic_description: '', sort_order: 0 });
     } catch (error) {
       console.error('Failed to create area:', error);
     }
@@ -143,7 +143,7 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
       await updateArea.mutateAsync({
         id: editingArea.id,
         name: editingArea.name,
-        description: editingArea.description,
+        strategic_description: editingArea.strategic_description,
       });
       setEditingArea(null);
     } catch (error) {
@@ -473,13 +473,14 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Description
+                          Strategic Description
                         </label>
                         <textarea
-                          value={areaForm.description}
-                          onChange={(e) => setAreaForm({ ...areaForm, description: e.target.value })}
+                          value={areaForm.strategic_description}
+                          onChange={(e) => setAreaForm({ ...areaForm, strategic_description: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          rows={2}
+                          rows={3}
+                          placeholder="Describe the strategic direction and purpose..."
                         />
                       </div>
                       <div className="flex gap-2">
@@ -519,12 +520,13 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Strategic Description</label>
                           <textarea
-                            value={editingArea.description || ''}
-                            onChange={(e) => setEditingArea({ ...editingArea, description: e.target.value })}
+                            value={editingArea.strategic_description || ''}
+                            onChange={(e) => setEditingArea({ ...editingArea, strategic_description: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                             rows={3}
+                            placeholder="Describe the strategic direction and purpose..."
                           />
                         </div>
                         <div className="flex gap-2">
@@ -592,8 +594,8 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <h3 className="font-semibold text-gray-900">{area.name}</h3>
-                              {area.description && (
-                                <p className="text-sm text-gray-600 mt-1">{area.description}</p>
+                              {area.strategic_description && (
+                                <p className="text-sm text-gray-600 mt-1">{area.strategic_description}</p>
                               )}
                             </div>
                             <div className="flex gap-1 ml-2">

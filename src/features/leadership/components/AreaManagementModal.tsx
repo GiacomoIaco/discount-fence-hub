@@ -18,7 +18,7 @@ export default function AreaManagementModal({ functionId, onClose }: AreaManagem
   const [formData, setFormData] = useState<CreateAreaInput>({
     function_id: functionId,
     name: '',
-    description: '',
+    strategic_description: '',
     sort_order: 0,
   });
 
@@ -40,7 +40,7 @@ export default function AreaManagementModal({ functionId, onClose }: AreaManagem
       setFormData({
         function_id: functionId,
         name: '',
-        description: '',
+        strategic_description: '',
         sort_order: 0,
       });
     } catch (error) {
@@ -53,7 +53,7 @@ export default function AreaManagementModal({ functionId, onClose }: AreaManagem
     setFormData({
       function_id: area.function_id,
       name: area.name,
-      description: area.description || '',
+      strategic_description: area.strategic_description || '',
       sort_order: area.sort_order,
     });
     setIsCreating(true);
@@ -65,7 +65,7 @@ export default function AreaManagementModal({ functionId, onClose }: AreaManagem
     setFormData({
       function_id: functionId,
       name: '',
-      description: '',
+      strategic_description: '',
       sort_order: 0,
     });
   };
@@ -110,8 +110,8 @@ export default function AreaManagementModal({ functionId, onClose }: AreaManagem
                     >
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{area.name}</h3>
-                        {area.description && (
-                          <p className="text-sm text-gray-600 mt-1">{area.description}</p>
+                        {area.strategic_description && (
+                          <p className="text-sm text-gray-600 mt-1">{area.strategic_description}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -157,14 +157,14 @@ export default function AreaManagementModal({ functionId, onClose }: AreaManagem
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Description
+                        Strategic Description
                       </label>
                       <textarea
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        value={formData.strategic_description}
+                        onChange={(e) => setFormData({ ...formData, strategic_description: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        rows={2}
-                        placeholder="Optional description of this area"
+                        rows={3}
+                        placeholder="Describe the strategic direction and purpose of this area..."
                       />
                     </div>
 
