@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Calendar, Target, TrendingUp } from 'lucide-react';
 import AnnualPlanTab from './AnnualPlanTab';
 import QuarterlyPlanTab from './QuarterlyPlanTab';
+import BonusKPIsTab from './BonusKPIsTab';
 
 interface OperatingPlanHubProps {
   functionId: string;
@@ -99,9 +100,7 @@ export default function OperatingPlanHub({ functionId }: OperatingPlanHubProps) 
 
         {activeSubTab === 'bonus-kpis' && (
           <div className="p-6">
-            <div className="text-center py-12 text-gray-500">
-              Annual Bonus KPIs tab - Coming soon
-            </div>
+            <BonusKPIsTab functionId={functionId} year={selectedYear} />
           </div>
         )}
       </div>
