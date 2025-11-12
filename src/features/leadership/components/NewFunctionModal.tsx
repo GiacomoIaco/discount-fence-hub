@@ -1,6 +1,38 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import {
+  X,
+  Briefcase,
+  Target,
+  TrendingUp,
+  Users,
+  DollarSign,
+  BarChart,
+  Wrench,
+  Truck,
+  Building,
+  ShoppingCart,
+  Megaphone,
+  Award,
+  Zap
+} from 'lucide-react';
 import { useCreateFunction } from '../hooks/useLeadershipQuery';
+
+// Available icons for functions
+const FUNCTION_ICONS = [
+  { name: 'Briefcase', Icon: Briefcase },
+  { name: 'Target', Icon: Target },
+  { name: 'TrendingUp', Icon: TrendingUp },
+  { name: 'Users', Icon: Users },
+  { name: 'DollarSign', Icon: DollarSign },
+  { name: 'BarChart', Icon: BarChart },
+  { name: 'Wrench', Icon: Wrench },
+  { name: 'Truck', Icon: Truck },
+  { name: 'Building', Icon: Building },
+  { name: 'ShoppingCart', Icon: ShoppingCart },
+  { name: 'Megaphone', Icon: Megaphone },
+  { name: 'Award', Icon: Award },
+  { name: 'Zap', Icon: Zap },
+];
 
 interface NewFunctionModalProps {
   onClose: () => void;
@@ -13,6 +45,7 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
     name: '',
     description: '',
     color: '#3B82F6',
+    icon: 'Briefcase',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,6 +61,7 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
         name: formData.name,
         description: formData.description || undefined,
         color: formData.color,
+        icon: formData.icon,
       });
 
       onSuccess?.();
@@ -81,6 +115,30 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* Icon Picker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Icon
+            </label>
+            <div className="grid grid-cols-7 gap-2">
+              {FUNCTION_ICONS.map(({ name, Icon }) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, icon: name })}
+                  className={`p-2 rounded-lg border-2 transition-colors ${
+                    formData.icon === name
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                  title={name}
+                >
+                  <Icon className="w-5 h-5 mx-auto" style={{ color: formData.color }} />
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Color */}

@@ -1,7 +1,43 @@
 import { useState } from 'react';
-import { ArrowLeft, Plus, Folder, Edit2, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  Folder,
+  Edit2,
+  Trash2,
+  Briefcase,
+  Target,
+  TrendingUp,
+  Users,
+  DollarSign,
+  BarChart,
+  Wrench,
+  Truck,
+  Building,
+  ShoppingCart,
+  Megaphone,
+  Award,
+  Zap
+} from 'lucide-react';
 import { useFunctionsQuery, useCreateFunction, useUpdateFunction, useAreasQuery, useCreateArea, useUpdateArea } from '../../hooks/useLeadershipQuery';
 import type { CreateFunctionInput, CreateAreaInput, ProjectFunction, ProjectArea } from '../../lib/leadership';
+
+// Available icons for functions
+const FUNCTION_ICONS = [
+  { name: 'Briefcase', Icon: Briefcase },
+  { name: 'Target', Icon: Target },
+  { name: 'TrendingUp', Icon: TrendingUp },
+  { name: 'Users', Icon: Users },
+  { name: 'DollarSign', Icon: DollarSign },
+  { name: 'BarChart', Icon: BarChart },
+  { name: 'Wrench', Icon: Wrench },
+  { name: 'Truck', Icon: Truck },
+  { name: 'Building', Icon: Building },
+  { name: 'ShoppingCart', Icon: ShoppingCart },
+  { name: 'Megaphone', Icon: Megaphone },
+  { name: 'Award', Icon: Award },
+  { name: 'Zap', Icon: Zap },
+];
 
 interface FunctionSettingsProps {
   onBack: () => void;
@@ -73,6 +109,8 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
         id: editingFunction.id,
         name: editingFunction.name,
         description: editingFunction.description,
+        color: editingFunction.color,
+        icon: editingFunction.icon,
       });
       setEditingFunction(null);
     } catch (error) {
@@ -245,6 +283,43 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
                         rows={3}
                       />
                     </div>
+
+                    {/* Icon Picker */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
+                      <div className="grid grid-cols-7 gap-2">
+                        {FUNCTION_ICONS.map(({ name, Icon }) => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => setEditingFunction({ ...editingFunction, icon: name })}
+                            className={`p-2 rounded-lg border-2 transition-colors ${
+                              editingFunction.icon === name
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                            title={name}
+                          >
+                            <Icon className="w-5 h-5 mx-auto" style={{ color: editingFunction.color }} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Color Picker */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={editingFunction.color || '#3B82F6'}
+                          onChange={(e) => setEditingFunction({ ...editingFunction, color: e.target.value })}
+                          className="h-10 w-20 border border-gray-300 rounded cursor-pointer"
+                        />
+                        <span className="text-sm text-gray-600">{editingFunction.color || '#3B82F6'}</span>
+                      </div>
+                    </div>
+
                     <div className="flex gap-2">
                       <button
                         type="submit"
