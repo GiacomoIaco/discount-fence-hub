@@ -1,6 +1,6 @@
-import { ListTodo, Target, Lightbulb } from 'lucide-react';
+import { ListTodo, Target, Lightbulb, Calendar, TrendingUp } from 'lucide-react';
 
-export type TabType = 'strategy' | 'plans' | 'initiatives';
+export type TabType = 'strategy' | 'annual-plan' | 'quarterly-plan' | 'initiatives' | 'bonus-kpis';
 
 interface FunctionTabsProps {
   activeTab: TabType;
@@ -17,16 +17,28 @@ export default function FunctionTabs({ activeTab, onTabChange, functionName }: F
       description: 'Define function strategy and operating plan'
     },
     {
-      id: 'plans' as TabType,
-      label: 'Plan and KPI',
+      id: 'annual-plan' as TabType,
+      label: 'Annual Plan',
       icon: Target,
-      description: 'Annual and quarterly goals'
+      description: 'Annual initiatives and targets'
+    },
+    {
+      id: 'quarterly-plan' as TabType,
+      label: 'Quarterly Plan',
+      icon: Calendar,
+      description: 'Quarterly objectives and execution'
     },
     {
       id: 'initiatives' as TabType,
       label: 'Initiatives',
       icon: ListTodo,
       description: 'Track projects and tasks'
+    },
+    {
+      id: 'bonus-kpis' as TabType,
+      label: 'Annual Bonus KPIs',
+      icon: TrendingUp,
+      description: 'Annual bonus key performance indicators'
     }
   ];
 
