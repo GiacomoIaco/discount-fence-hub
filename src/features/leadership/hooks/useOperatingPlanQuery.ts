@@ -531,7 +531,6 @@ export const useBulkImportOperatingPlan = () => {
           strategic_description: area.strategic_description || null,
           sort_order: index,
           is_active: true,
-          created_by: user.id,
         }));
 
         const { data: insertedAreas, error: areasError } = await supabase
@@ -568,7 +567,6 @@ export const useBulkImportOperatingPlan = () => {
             progress_percent: 0,
             color_status: 'green',
             sort_order: index,
-            created_by: user.id,
           }));
 
         console.log('[Bulk Import] Initiatives to insert after filtering:', initiativesToInsert.length);
@@ -601,7 +599,6 @@ export const useBulkImportOperatingPlan = () => {
             year: input.year,
             quarter: obj.quarter,
             objective: obj.objective,
-            created_by: user.id,
           }));
 
         if (objectivesToInsert.length > 0) {
@@ -632,7 +629,6 @@ export const useBulkImportOperatingPlan = () => {
           current_text: null,
           sort_order: index,
           is_active: true,
-          created_by: user.id,
         }));
 
         const { error: kpisError } = await supabase
