@@ -4,6 +4,7 @@ import { useAreasQuery, useInitiativesByFunctionQuery } from '../../hooks/useLea
 import {
   useQuarterlyObjectivesByFunctionQuery,
   useUpdateQuarterlyObjective,
+  useCreateQuarterlyObjective,
 } from '../../hooks/useOperatingPlanQuery';
 import type { ProjectInitiative } from '../../lib/leadership';
 import type { QuarterlyObjective, WorkflowState, QuarterlyScore } from '../../lib/operating-plan.types';
@@ -30,6 +31,8 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
   const [scoringObjective, setScoringObjective] = useState<QuarterlyObjective | null>(null);
   const [movingObjective, setMovingObjective] = useState<QuarterlyObjective | null>(null);
+  const [editingObjective, setEditingObjective] = useState<QuarterlyObjective | null>(null);
+  const [creatingObjective, setCreatingObjective] = useState<{ initiativeId: string; quarter: QuarterNumber } | null>(null);
 
   const { data: areas } = useAreasQuery(functionId);
   const { data: initiatives } = useInitiativesByFunctionQuery(functionId);
@@ -395,29 +398,50 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                                       {objective.objective}
                                     </p>
 
-                                    {currentQuarterStatus.canScore && isSelectedQuarter && (
-                                      <button
-                                        onClick={() => setScoringObjective(objective)}
-                                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                      >
-                                        {objective.bu_score !== null ? 'Update Score' : 'Add Score'}
-                                      </button>
-                                    )}
+                                    <div className="flex flex-wrap gap-2">
+                                      {currentQuarterStatus.canEdit && isSelectedQuarter && (
+                                        <button
+                                          onClick={() => setEditingObjective(objective)}
+                                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                        >
+                                          Edit
+                                        </button>
+                                      )}
 
-                                    {objective.locked && !objective.ceo_score && isSelectedQuarter && (
-                                      <button
-                                        onClick={() => setMovingObjective(objective)}
-                                        className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
-                                      >
-                                        <MoveRight className="w-3 h-3" />
-                                        Move to Q{q + 1}
-                                      </button>
-                                    )}
+                                      {currentQuarterStatus.canScore && isSelectedQuarter && (
+                                        <button
+                                          onClick={() => setScoringObjective(objective)}
+                                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                        >
+                                          {objective.bu_score !== null ? 'Update Score' : 'Add Score'}
+                                        </button>
+                                      )}
+
+                                      {objective.locked && !objective.ceo_score && isSelectedQuarter && q < 4 && (
+                                        <button
+                                          onClick={() => setMovingObjective(objective)}
+                                          className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
+                                        >
+                                          <MoveRight className="w-3 h-3" />
+                                          Move to Q{q + 1}
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 ) : (
-                                  <p className="text-sm text-gray-400 italic">
-                                    {q === 1 ? 'Click to add objective...' : 'TBD - Placeholder'}
-                                  </p>
+                                  <button
+                                    onClick={() => setCreatingObjective({ initiativeId: initiative.id, quarter: q })}
+                                    disabled={!currentQuarterStatus.canEdit || !isSelectedQuarter}
+                                    className={`text-sm text-left w-full ${
+                                      currentQuarterStatus.canEdit && isSelectedQuarter
+                                        ? 'text-blue-600 hover:text-blue-700 cursor-pointer'
+                                        : 'text-gray-400 cursor-default'
+                                    } italic`}
+                                  >
+                                    {currentQuarterStatus.canEdit && isSelectedQuarter
+                                      ? 'Click to add objective...'
+                                      : 'TBD - Placeholder'}
+                                  </button>
                                 )}
                               </div>
                             );
@@ -446,6 +470,25 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
         <MoveObjectiveModal
           objective={movingObjective}
           onClose={() => setMovingObjective(null)}
+        />
+      )}
+
+      {/* Objective Editor Modal - Edit */}
+      {editingObjective && (
+        <ObjectiveEditorModal
+          year={year}
+          objective={editingObjective}
+          onClose={() => setEditingObjective(null)}
+        />
+      )}
+
+      {/* Objective Editor Modal - Create */}
+      {creatingObjective && (
+        <ObjectiveEditorModal
+          year={year}
+          initiativeId={creatingObjective.initiativeId}
+          quarter={creatingObjective.quarter}
+          onClose={() => setCreatingObjective(null)}
         />
       )}
     </div>
@@ -629,6 +672,79 @@ function MoveObjectiveModal({ objective, onClose }: MoveObjectiveModalProps) {
             className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
           >
             Move Objective
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Objective Editor Modal Component
+interface ObjectiveEditorModalProps {
+  year: number;
+  objective?: QuarterlyObjective;
+  initiativeId?: string;
+  quarter?: QuarterNumber;
+  onClose: () => void;
+}
+
+function ObjectiveEditorModal({ year, objective, initiativeId, quarter, onClose }: ObjectiveEditorModalProps) {
+  const [objectiveText, setObjectiveText] = useState(objective?.objective || '');
+  const createObjective = useCreateQuarterlyObjective();
+  const updateObjective = useUpdateQuarterlyObjective();
+
+  const handleSave = async () => {
+    if (objective) {
+      // Edit existing objective
+      await updateObjective.mutateAsync({
+        id: objective.id,
+        objective: objectiveText,
+      });
+    } else if (initiativeId && quarter) {
+      // Create new objective
+      await createObjective.mutateAsync({
+        initiative_id: initiativeId,
+        year,
+        quarter,
+        objective: objectiveText,
+      });
+    }
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {objective ? 'Edit Objective' : `Add Q${quarter} Objective`}
+        </h3>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Objective Description
+          </label>
+          <textarea
+            autoFocus
+            value={objectiveText}
+            onChange={(e) => setObjectiveText(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[100px]"
+            placeholder="Describe what should be achieved this quarter..."
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!objectiveText.trim()}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {objective ? 'Save Changes' : 'Create Objective'}
           </button>
         </div>
       </div>
