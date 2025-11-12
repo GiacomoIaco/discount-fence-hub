@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Calendar, Target, TrendingUp } from 'lucide-react';
+import { Calendar, Target, TrendingUp, Upload } from 'lucide-react';
 import AnnualPlanTab from './AnnualPlanTab';
 import QuarterlyPlanTab from './QuarterlyPlanTab';
 import BonusKPIsTab from './BonusKPIsTab';
+import OperatingPlanUploadModal from './OperatingPlanUploadModal';
 
 interface OperatingPlanHubProps {
   functionId: string;
@@ -14,6 +15,7 @@ export default function OperatingPlanHub({ functionId }: OperatingPlanHubProps) 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('annual-plan');
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   return (
     <div className="h-full flex flex-col">
@@ -27,8 +29,16 @@ export default function OperatingPlanHub({ functionId }: OperatingPlanHubProps) 
             </p>
           </div>
 
-          {/* Year Selector */}
+          {/* Actions */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              <Upload className="w-4 h-4" />
+              Import Plan
+            </button>
+
             <label className="text-sm font-medium text-gray-700">Year:</label>
             <select
               value={selectedYear}
@@ -104,6 +114,19 @@ export default function OperatingPlanHub({ functionId }: OperatingPlanHubProps) 
           </div>
         )}
       </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <OperatingPlanUploadModal
+          functionId={functionId}
+          year={selectedYear}
+          onClose={() => setShowUploadModal(false)}
+          onImportComplete={() => {
+            setShowUploadModal(false);
+            // Data will be automatically refreshed by React Query
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -474,3 +474,173 @@ export const useBonusCalculationsQuery = (functionId: string, userId: string, ye
     },
   });
 };
+
+// ============================================
+// Bulk Import for Operating Plan Upload
+// ============================================
+
+export interface BulkImportOperatingPlanInput {
+  function_id: string;
+  year: number;
+  areas: Array<{
+    name: string;
+    strategic_description?: string;
+  }>;
+  initiatives: Array<{
+    area_name: string;
+    title: string;
+    description?: string;
+    annual_target?: string;
+  }>;
+  quarterly_objectives: Array<{
+    initiative_title: string;
+    quarter: number;
+    objective: string;
+  }>;
+  bonus_kpis: Array<{
+    name: string;
+    description?: string;
+    unit: 'dollars' | 'percent' | 'score' | 'count' | 'text';
+    target_value?: number;
+    target_text?: string;
+    min_threshold?: number;
+    min_multiplier?: number;
+    max_threshold?: number;
+    max_multiplier?: number;
+  }>;
+}
+
+export const useBulkImportOperatingPlan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: BulkImportOperatingPlanInput) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Step 1: Insert areas
+      const areaMap = new Map<string, string>(); // area_name -> area_id
+
+      if (input.areas.length > 0) {
+        const areasToInsert = input.areas.map((area, index) => ({
+          function_id: input.function_id,
+          name: area.name,
+          strategic_description: area.strategic_description || null,
+          sort_order: index,
+          is_active: true,
+          created_by: user.id,
+        }));
+
+        const { data: insertedAreas, error: areasError } = await supabase
+          .from('project_areas')
+          .insert(areasToInsert)
+          .select();
+
+        if (areasError) throw areasError;
+
+        // Map area names to IDs
+        insertedAreas?.forEach((area) => {
+          areaMap.set(area.name, area.id);
+        });
+      }
+
+      // Step 2: Insert initiatives
+      const initiativeMap = new Map<string, string>(); // initiative_title -> initiative_id
+
+      if (input.initiatives.length > 0) {
+        const initiativesToInsert = input.initiatives
+          .filter((initiative) => areaMap.has(initiative.area_name))
+          .map((initiative, index) => ({
+            area_id: areaMap.get(initiative.area_name)!,
+            title: initiative.title,
+            description: initiative.description || null,
+            annual_target: initiative.annual_target || null,
+            status: 'not_started' as const,
+            priority: 'medium' as const,
+            progress_percent: 0,
+            color_status: 'green',
+            sort_order: index,
+            created_by: user.id,
+          }));
+
+        if (initiativesToInsert.length > 0) {
+          const { data: insertedInitiatives, error: initiativesError } = await supabase
+            .from('project_initiatives')
+            .insert(initiativesToInsert)
+            .select();
+
+          if (initiativesError) throw initiativesError;
+
+          // Map initiative titles to IDs
+          insertedInitiatives?.forEach((initiative) => {
+            initiativeMap.set(initiative.title, initiative.id);
+          });
+        }
+      }
+
+      // Step 3: Insert quarterly objectives
+      if (input.quarterly_objectives.length > 0) {
+        const objectivesToInsert = input.quarterly_objectives
+          .filter((obj) => initiativeMap.has(obj.initiative_title))
+          .map((obj) => ({
+            initiative_id: initiativeMap.get(obj.initiative_title)!,
+            year: input.year,
+            quarter: obj.quarter,
+            objective: obj.objective,
+            created_by: user.id,
+          }));
+
+        if (objectivesToInsert.length > 0) {
+          const { error: objectivesError } = await supabase
+            .from('initiative_quarterly_objectives')
+            .insert(objectivesToInsert);
+
+          if (objectivesError) throw objectivesError;
+        }
+      }
+
+      // Step 4: Insert bonus KPIs
+      if (input.bonus_kpis.length > 0) {
+        const kpisToInsert = input.bonus_kpis.map((kpi, index) => ({
+          function_id: input.function_id,
+          year: input.year,
+          name: kpi.name,
+          description: kpi.description || null,
+          unit: kpi.unit,
+          target_value: kpi.target_value || null,
+          target_text: kpi.target_text || null,
+          min_threshold: kpi.min_threshold || null,
+          min_multiplier: kpi.min_multiplier || 0.5,
+          max_threshold: kpi.max_threshold || null,
+          max_multiplier: kpi.max_multiplier || 2.0,
+          current_value: null,
+          current_text: null,
+          sort_order: index,
+          is_active: true,
+          created_by: user.id,
+        }));
+
+        const { error: kpisError } = await supabase
+          .from('bonus_kpis')
+          .insert(kpisToInsert);
+
+        if (kpisError) throw kpisError;
+      }
+
+      return {
+        areasCreated: areaMap.size,
+        initiativesCreated: initiativeMap.size,
+        objectivesCreated: input.quarterly_objectives.filter((obj) =>
+          initiativeMap.has(obj.initiative_title)
+        ).length,
+        kpisCreated: input.bonus_kpis.length,
+      };
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate all relevant queries
+      queryClient.invalidateQueries({ queryKey: ['leadership'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterly-objectives-by-function', variables.function_id] });
+      queryClient.invalidateQueries({ queryKey: ['bonus-kpis', variables.function_id, variables.year] });
+    },
+  });
+};
