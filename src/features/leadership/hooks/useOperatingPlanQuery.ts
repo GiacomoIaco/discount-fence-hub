@@ -625,8 +625,6 @@ export const useBulkImportOperatingPlan = () => {
           min_multiplier: kpi.min_multiplier || 0.5,
           max_threshold: kpi.max_threshold || null,
           max_multiplier: kpi.max_multiplier || 2.0,
-          current_value: null,
-          current_text: null,
           sort_order: index,
           is_active: true,
         }));
