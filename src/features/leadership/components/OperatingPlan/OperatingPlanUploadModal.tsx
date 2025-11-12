@@ -244,6 +244,15 @@ export default function OperatingPlanUploadModal({
       setStep('importing');
       setError(null);
 
+      console.log('Starting import with data:', {
+        function_id: functionId,
+        year: parsedData.year || year,
+        areas: parsedData.areas.length,
+        initiatives: parsedData.initiatives.length,
+        quarterly_objectives: parsedData.quarterly_objectives.length,
+        bonus_kpis: parsedData.bonus_kpis.length,
+      });
+
       const result = await bulkImport.mutateAsync({
         function_id: functionId,
         year: parsedData.year || year,
@@ -253,15 +262,32 @@ export default function OperatingPlanUploadModal({
         bonus_kpis: parsedData.bonus_kpis,
       });
 
+      console.log('Import result:', result);
+
       toast.success(
         `Successfully imported: ${result.areasCreated} areas, ${result.initiativesCreated} initiatives, ${result.objectivesCreated} quarterly objectives, ${result.kpisCreated} KPIs`
       );
       onImportComplete();
     } catch (err: any) {
-      console.error('Import error:', err);
-      setError(err.message || 'Failed to import data');
+      console.error('Import error details:', {
+        message: err.message,
+        error: err,
+        stack: err.stack,
+      });
+
+      // Extract more helpful error message
+      let errorMessage = 'Failed to import data';
+      if (err.message) {
+        if (err.message.includes('duplicate') || err.message.includes('unique')) {
+          errorMessage = 'Some items already exist with the same names. Please rename them in the review before importing.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      setError(errorMessage);
       setStep('review');
-      toast.error(err.message || 'Failed to import data');
+      toast.error(errorMessage);
     }
   };
 
@@ -397,6 +423,17 @@ export default function OperatingPlanUploadModal({
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 space-y-4">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Import Failed</p>
+                <p className="text-sm mt-1">{error}</p>
+              </div>
+            </div>
+          )}
+
           {/* Year */}
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
@@ -733,7 +770,7 @@ export default function OperatingPlanUploadModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           {step === 'upload' && renderUploadStep()}
           {(step === 'extracting' || step === 'parsing' || step === 'importing') &&
             renderProcessingStep()}

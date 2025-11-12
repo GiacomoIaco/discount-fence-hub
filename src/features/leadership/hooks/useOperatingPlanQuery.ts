@@ -515,13 +515,16 @@ export const useBulkImportOperatingPlan = () => {
 
   return useMutation({
     mutationFn: async (input: BulkImportOperatingPlanInput) => {
+      console.log('[Bulk Import] Starting mutation...');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
+      console.log('[Bulk Import] User authenticated:', user.id);
 
       // Step 1: Insert areas
       const areaMap = new Map<string, string>(); // area_name -> area_id
 
       if (input.areas.length > 0) {
+        console.log('[Bulk Import] Inserting areas:', input.areas.length);
         const areasToInsert = input.areas.map((area, index) => ({
           function_id: input.function_id,
           name: area.name,
@@ -536,7 +539,11 @@ export const useBulkImportOperatingPlan = () => {
           .insert(areasToInsert)
           .select();
 
-        if (areasError) throw areasError;
+        if (areasError) {
+          console.error('[Bulk Import] Areas error:', areasError);
+          throw areasError;
+        }
+        console.log('[Bulk Import] Areas inserted:', insertedAreas?.length);
 
         // Map area names to IDs
         insertedAreas?.forEach((area) => {
@@ -548,6 +555,7 @@ export const useBulkImportOperatingPlan = () => {
       const initiativeMap = new Map<string, string>(); // initiative_title -> initiative_id
 
       if (input.initiatives.length > 0) {
+        console.log('[Bulk Import] Processing initiatives:', input.initiatives.length);
         const initiativesToInsert = input.initiatives
           .filter((initiative) => areaMap.has(initiative.area_name))
           .map((initiative, index) => ({
@@ -563,13 +571,19 @@ export const useBulkImportOperatingPlan = () => {
             created_by: user.id,
           }));
 
+        console.log('[Bulk Import] Initiatives to insert after filtering:', initiativesToInsert.length);
+
         if (initiativesToInsert.length > 0) {
           const { data: insertedInitiatives, error: initiativesError } = await supabase
             .from('project_initiatives')
             .insert(initiativesToInsert)
             .select();
 
-          if (initiativesError) throw initiativesError;
+          if (initiativesError) {
+            console.error('[Bulk Import] Initiatives error:', initiativesError);
+            throw initiativesError;
+          }
+          console.log('[Bulk Import] Initiatives inserted:', insertedInitiatives?.length);
 
           // Map initiative titles to IDs
           insertedInitiatives?.forEach((initiative) => {
@@ -601,6 +615,7 @@ export const useBulkImportOperatingPlan = () => {
 
       // Step 4: Insert bonus KPIs
       if (input.bonus_kpis.length > 0) {
+        console.log('[Bulk Import] Inserting bonus KPIs:', input.bonus_kpis.length);
         const kpisToInsert = input.bonus_kpis.map((kpi, index) => ({
           function_id: input.function_id,
           year: input.year,
@@ -624,10 +639,14 @@ export const useBulkImportOperatingPlan = () => {
           .from('bonus_kpis')
           .insert(kpisToInsert);
 
-        if (kpisError) throw kpisError;
+        if (kpisError) {
+          console.error('[Bulk Import] KPIs error:', kpisError);
+          throw kpisError;
+        }
+        console.log('[Bulk Import] KPIs inserted successfully');
       }
 
-      return {
+      const result = {
         areasCreated: areaMap.size,
         initiativesCreated: initiativeMap.size,
         objectivesCreated: input.quarterly_objectives.filter((obj) =>
@@ -635,6 +654,9 @@ export const useBulkImportOperatingPlan = () => {
         ).length,
         kpisCreated: input.bonus_kpis.length,
       };
+
+      console.log('[Bulk Import] Completed successfully:', result);
+      return result;
     },
     onSuccess: (_, variables) => {
       // Invalidate all relevant queries
