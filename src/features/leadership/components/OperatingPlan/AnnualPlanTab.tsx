@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, FolderOpen, Target } from 'lucide-react';
-import { useAreasQuery, useInitiativesByFunctionQuery, useUpdateArea, useUpdateInitiative } from '../../hooks/useLeadershipQuery';
+import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2 } from 'lucide-react';
+import { useAreasQuery, useInitiativesByFunctionQuery, useUpdateArea, useUpdateInitiative, useDeleteArea } from '../../hooks/useLeadershipQuery';
 import type { ProjectArea, ProjectInitiative } from '../../lib/leadership';
 import AreaManagementModal from '../AreaManagementModal';
 import InitiativeDetailModal from '../InitiativeDetailModal';
+import { toast } from 'react-hot-toast';
 
 interface AnnualPlanTabProps {
   functionId: string;
@@ -14,12 +15,13 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const { data: areas } = useAreasQuery(functionId);
   const { data: initiatives } = useInitiativesByFunctionQuery(functionId);
   const [collapsedStrategicDesc, setCollapsedStrategicDesc] = useState<Set<string>>(new Set(areas?.map(a => a.id) || []));
-  const [editingField, setEditingField] = useState<{ type: 'strategic_desc' | 'description' | 'annual_target'; id: string } | null>(null);
+  const [editingField, setEditingField] = useState<{ type: 'strategic_desc' | 'title' | 'description' | 'annual_target'; id: string } | null>(null);
   const [showAreaModal, setShowAreaModal] = useState(false);
   const [showInitiativeModal, setShowInitiativeModal] = useState<{ areaId?: string } | null>(null);
 
   const updateArea = useUpdateArea();
   const updateInitiative = useUpdateInitiative();
+  const deleteArea = useDeleteArea();
 
   const toggleStrategicDesc = (areaId: string) => {
     setCollapsedStrategicDesc(prev => {
@@ -47,7 +49,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
 
   const handleSaveInitiativeField = async (
     initiative: ProjectInitiative,
-    field: 'description' | 'annual_target',
+    field: 'title' | 'description' | 'annual_target',
     value: string
   ) => {
     try {
@@ -58,6 +60,24 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
       setEditingField(null);
     } catch (error) {
       console.error(`Failed to update ${field}:`, error);
+    }
+  };
+
+  const handleDeleteArea = async (area: ProjectArea, initiativesCount: number) => {
+    const confirmMessage = initiativesCount > 0
+      ? `Are you sure you want to delete "${area.name}"? This will also delete ${initiativesCount} initiative${initiativesCount !== 1 ? 's' : ''} and all their quarterly objectives.`
+      : `Are you sure you want to delete "${area.name}"?`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      await deleteArea.mutateAsync(area.id);
+      toast.success(`Deleted "${area.name}" successfully`);
+    } catch (error) {
+      console.error('Failed to delete area:', error);
+      toast.error('Failed to delete area');
     }
   };
 
@@ -124,23 +144,23 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
         return (
           <div key={area.id} className="bg-white rounded-lg border border-gray-200">
             {/* Area Header - Compact */}
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-2">
+            <div className="border-b border-blue-700 bg-blue-900 px-4 py-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-gray-900">{area.name}</h3>
+                <h3 className="text-base font-semibold text-white">{area.name}</h3>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-blue-200">
                     {areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''}
                   </span>
                   <button
                     onClick={() => setShowInitiativeModal({ areaId: area.id })}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-white hover:bg-blue-800 rounded transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     Add Initiative
                   </button>
                   <button
                     onClick={() => toggleStrategicDesc(area.id)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-white hover:bg-blue-800 rounded transition-colors"
                   >
                     {isStratDescCollapsed ? (
                       <>
@@ -153,6 +173,14 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                         <span>Hide Strategy</span>
                       </>
                     )}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteArea(area, areaInitiatives.length)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-red-200 hover:bg-blue-800 rounded transition-colors"
+                    title="Delete area and all initiatives"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -211,7 +239,30 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                       <tr key={initiative.id} className="hover:bg-gray-50">
                         {/* Initiative Name */}
                         <td className="px-3 py-2 align-top">
-                          <div className="font-medium text-gray-900">{initiative.title}</div>
+                          {editingField?.type === 'title' && editingField.id === initiative.id ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              defaultValue={initiative.title}
+                              onBlur={(e) => handleSaveInitiativeField(initiative, 'title', e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setEditingField(null);
+                                } else if (e.key === 'Enter') {
+                                  handleSaveInitiativeField(initiative, 'title', e.currentTarget.value);
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-sm font-medium border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Initiative name"
+                            />
+                          ) : (
+                            <div
+                              onClick={() => setEditingField({ type: 'title', id: initiative.id })}
+                              className="w-full px-2 py-1 text-sm font-medium border border-transparent rounded hover:border-gray-300 hover:bg-gray-50 cursor-text text-gray-900"
+                            >
+                              {initiative.title}
+                            </div>
+                          )}
                         </td>
 
                         {/* Description */}

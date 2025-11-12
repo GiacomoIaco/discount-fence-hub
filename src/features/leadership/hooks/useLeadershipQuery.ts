@@ -554,7 +554,7 @@ export const useUpdateArea = () => {
 
   return useMutation({
     mutationFn: async ({ id, ...input }: UpdateAreaInput): Promise<ProjectArea> => {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('project_areas')
         .update(input)
         .eq('id', id)
@@ -566,6 +566,34 @@ export const useUpdateArea = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
+    },
+  });
+};
+
+export const useDeleteArea = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      // First, delete all initiatives in this area (which will cascade to quarterly objectives)
+      const { error: initiativesError } = await supabase
+        .from('project_initiatives')
+        .delete()
+        .eq('area_id', id);
+
+      if (initiativesError) throw initiativesError;
+
+      // Then delete the area itself
+      const { error: areaError } = await supabase
+        .from('project_areas')
+        .delete()
+        .eq('id', id);
+
+      if (areaError) throw areaError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.initiatives() });
     },
   });
 };

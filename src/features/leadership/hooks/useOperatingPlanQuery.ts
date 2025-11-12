@@ -520,45 +520,105 @@ export const useBulkImportOperatingPlan = () => {
       if (!user) throw new Error('User not authenticated');
       console.log('[Bulk Import] User authenticated:', user.id);
 
-      // Step 1: Insert areas
+      // Step 1: Check for existing areas and insert only new ones
       const areaMap = new Map<string, string>(); // area_name -> area_id
+      let areasSkipped = 0;
 
       if (input.areas.length > 0) {
-        console.log('[Bulk Import] Inserting areas:', input.areas.length);
-        const areasToInsert = input.areas.map((area, index) => ({
-          function_id: input.function_id,
-          name: area.name,
-          strategic_description: area.strategic_description || null,
-          sort_order: index,
-          is_active: true,
-        }));
+        console.log('[Bulk Import] Checking for existing areas...');
 
-        const { data: insertedAreas, error: areasError } = await supabase
+        // Fetch existing areas for this function
+        const { data: existingAreas } = await supabase
           .from('project_areas')
-          .insert(areasToInsert)
-          .select();
+          .select('id, name')
+          .eq('function_id', input.function_id);
 
-        if (areasError) {
-          console.error('[Bulk Import] Areas error:', areasError);
-          throw areasError;
-        }
-        console.log('[Bulk Import] Areas inserted:', insertedAreas?.length);
+        const existingAreaNames = new Set(existingAreas?.map(a => a.name) || []);
 
-        // Map area names to IDs
-        insertedAreas?.forEach((area) => {
+        // Map existing areas
+        existingAreas?.forEach((area) => {
           areaMap.set(area.name, area.id);
         });
+
+        // Filter out duplicates
+        const newAreas = input.areas.filter((area) => !existingAreaNames.has(area.name));
+        areasSkipped = input.areas.length - newAreas.length;
+
+        console.log('[Bulk Import] Areas to insert:', newAreas.length, '| Skipped (already exist):', areasSkipped);
+
+        if (newAreas.length > 0) {
+          const areasToInsert = newAreas.map((area, index) => ({
+            function_id: input.function_id,
+            name: area.name,
+            strategic_description: area.strategic_description || null,
+            sort_order: (existingAreas?.length || 0) + index,
+            is_active: true,
+          }));
+
+          const { data: insertedAreas, error: areasError } = await supabase
+            .from('project_areas')
+            .insert(areasToInsert)
+            .select();
+
+          if (areasError) {
+            console.error('[Bulk Import] Areas error:', areasError);
+            throw areasError;
+          }
+          console.log('[Bulk Import] Areas inserted:', insertedAreas?.length);
+
+          // Map newly inserted area names to IDs
+          insertedAreas?.forEach((area) => {
+            areaMap.set(area.name, area.id);
+          });
+        }
       }
 
-      // Step 2: Insert initiatives
+      // Step 2: Check for existing initiatives and insert only new ones
       const initiativeMap = new Map<string, string>(); // initiative_title -> initiative_id
+      let initiativesSkipped = 0;
 
       if (input.initiatives.length > 0) {
-        console.log('[Bulk Import] Processing initiatives:', input.initiatives.length);
-        const initiativesToInsert = input.initiatives
+        console.log('[Bulk Import] Checking for existing initiatives...');
+
+        // Get all area IDs we're working with
+        const areaIds = Array.from(areaMap.values());
+
+        // Fetch existing initiatives in these areas
+        const { data: existingInitiatives } = await supabase
+          .from('project_initiatives')
+          .select('id, title, area_id')
+          .in('area_id', areaIds);
+
+        // Create a set of existing initiative titles (area-scoped)
+        const existingInitiativeKeys = new Set(
+          existingInitiatives?.map(i => `${i.area_id}:${i.title}`) || []
+        );
+
+        // Map existing initiatives
+        existingInitiatives?.forEach((initiative) => {
+          initiativeMap.set(initiative.title, initiative.id);
+        });
+
+        // Filter initiatives that match to existing areas and are not duplicates
+        const initiativesWithAreaId = input.initiatives
           .filter((initiative) => areaMap.has(initiative.area_name))
-          .map((initiative, index) => ({
+          .map((initiative) => ({
+            ...initiative,
             area_id: areaMap.get(initiative.area_name)!,
+          }));
+
+        const newInitiatives = initiativesWithAreaId.filter((initiative) => {
+          const key = `${initiative.area_id}:${initiative.title}`;
+          return !existingInitiativeKeys.has(key);
+        });
+
+        initiativesSkipped = initiativesWithAreaId.length - newInitiatives.length;
+
+        console.log('[Bulk Import] Initiatives to insert:', newInitiatives.length, '| Skipped (already exist):', initiativesSkipped);
+
+        if (newInitiatives.length > 0) {
+          const initiativesToInsert = newInitiatives.map((initiative, index) => ({
+            area_id: initiative.area_id,
             title: initiative.title,
             description: initiative.description || null,
             annual_target: initiative.annual_target || null,
@@ -569,9 +629,6 @@ export const useBulkImportOperatingPlan = () => {
             sort_order: index,
           }));
 
-        console.log('[Bulk Import] Initiatives to insert after filtering:', initiativesToInsert.length);
-
-        if (initiativesToInsert.length > 0) {
           const { data: insertedInitiatives, error: initiativesError } = await supabase
             .from('project_initiatives')
             .insert(initiativesToInsert)
@@ -583,7 +640,7 @@ export const useBulkImportOperatingPlan = () => {
           }
           console.log('[Bulk Import] Initiatives inserted:', insertedInitiatives?.length);
 
-          // Map initiative titles to IDs
+          // Map newly inserted initiative titles to IDs
           insertedInitiatives?.forEach((initiative) => {
             initiativeMap.set(initiative.title, initiative.id);
           });
@@ -641,8 +698,10 @@ export const useBulkImportOperatingPlan = () => {
       }
 
       const result = {
-        areasCreated: areaMap.size,
-        initiativesCreated: initiativeMap.size,
+        areasCreated: areaMap.size - areasSkipped,
+        areasSkipped,
+        initiativesCreated: initiativeMap.size - initiativesSkipped,
+        initiativesSkipped,
         objectivesCreated: input.quarterly_objectives.filter((obj) =>
           initiativeMap.has(obj.initiative_title)
         ).length,

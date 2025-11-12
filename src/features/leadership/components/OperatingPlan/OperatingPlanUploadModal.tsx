@@ -264,9 +264,14 @@ export default function OperatingPlanUploadModal({
 
       console.log('Import result:', result);
 
-      toast.success(
-        `Successfully imported: ${result.areasCreated} areas, ${result.initiativesCreated} initiatives, ${result.objectivesCreated} quarterly objectives, ${result.kpisCreated} KPIs`
-      );
+      // Build success message
+      let successMessage = `Successfully imported: ${result.areasCreated} areas, ${result.initiativesCreated} initiatives, ${result.objectivesCreated} quarterly objectives, ${result.kpisCreated} KPIs`;
+
+      if (result.areasSkipped > 0 || result.initiativesSkipped > 0) {
+        successMessage += ` (Skipped ${result.areasSkipped} duplicate areas, ${result.initiativesSkipped} duplicate initiatives)`;
+      }
+
+      toast.success(successMessage);
       onImportComplete();
     } catch (err: any) {
       console.error('Import error details:', {
