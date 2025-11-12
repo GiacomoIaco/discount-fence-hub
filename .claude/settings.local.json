@@ -11,7 +11,9 @@
       "mcp__chrome-devtools__list_network_requests",
       "Bash(git log:*)",
       "mcp__chrome-devtools__get_network_request",
-      "Bash(npm run migrate:status:*)"
+      "Bash(npm run migrate:status:*)",
+      "Bash(npm run migrate:apply:030:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []
