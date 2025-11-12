@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Upload, FileText, X, AlertCircle, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
 import { useBulkImportOperatingPlan } from '../../hooks/useOperatingPlanQuery';
 
@@ -130,6 +131,26 @@ export default function OperatingPlanUploadModal({
     return result.value;
   };
 
+  const extractTextFromExcel = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    let fullText = '';
+
+    // Process all sheets
+    workbook.SheetNames.forEach((sheetName, index) => {
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Add sheet name as a header
+      fullText += `\n\n=== Sheet ${index + 1}: ${sheetName} ===\n\n`;
+
+      // Convert sheet to text (CSV format for structure)
+      const sheetText = XLSX.utils.sheet_to_csv(worksheet, { FS: '\t' });
+      fullText += sheetText;
+    });
+
+    return fullText;
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) return;
 
@@ -150,6 +171,12 @@ export default function OperatingPlanUploadModal({
       ) {
         documentType = 'Word document';
         documentText = await extractTextFromWord(selectedFile);
+      } else if (
+        selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        selectedFile.type === 'application/vnd.ms-excel'
+      ) {
+        documentType = 'Excel spreadsheet';
+        documentText = await extractTextFromExcel(selectedFile);
       } else if (selectedFile.type.startsWith('image/')) {
         // For images, we'll send the base64 directly to Claude Vision
         documentType = 'image';
