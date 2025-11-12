@@ -37,6 +37,7 @@ export interface CreateQuarterlyObjectiveInput {
 export interface UpdateQuarterlyObjectiveInput {
   id: string;
   objective?: string;
+  quarter?: number;
   bu_score?: QuarterlyScore | null;
   ceo_score?: QuarterlyScore | null;
   workflow_state?: WorkflowState;

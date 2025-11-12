@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Calendar, Target, TrendingUp } from 'lucide-react';
 import AnnualPlanTab from './AnnualPlanTab';
+import QuarterlyPlanTab from './QuarterlyPlanTab';
 
 interface OperatingPlanHubProps {
   functionId: string;
@@ -92,9 +93,7 @@ export default function OperatingPlanHub({ functionId }: OperatingPlanHubProps) 
 
         {activeSubTab === 'quarterly-plan' && (
           <div className="p-6">
-            <div className="text-center py-12 text-gray-500">
-              Quarterly Plan tab - Coming soon
-            </div>
+            <QuarterlyPlanTab functionId={functionId} year={selectedYear} />
           </div>
         )}
 
