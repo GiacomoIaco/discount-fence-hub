@@ -132,6 +132,8 @@ export interface ProjectInitiative {
   // Audit
   created_by?: string;
   archived_at?: string;
+  is_active: boolean;
+  deactivated_at?: string;
   sort_order: number;
 
   created_at: string;
@@ -882,4 +884,159 @@ export interface UpdateCommentInput {
   id: string;
   comment?: string;
   is_resolved?: boolean;
+}
+
+// ============================================
+// ANNUAL PLANNING SYSTEM
+// ============================================
+
+export const ActionStatus = {
+  NOT_STARTED: 'not_started',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+} as const;
+
+export type ActionStatus = typeof ActionStatus[keyof typeof ActionStatus];
+
+export const Assessment = {
+  GREEN: 'green',
+  YELLOW: 'yellow',
+  RED: 'red',
+} as const;
+
+export type Assessment = typeof Assessment[keyof typeof Assessment];
+
+export interface InitiativeAnnualAction {
+  id: string;
+  initiative_id: string;
+  year: number;
+  action_text: string;
+  status: ActionStatus;
+  assessment?: Assessment;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export interface InitiativeAnnualTarget {
+  id: string;
+  initiative_id: string;
+  year: number;
+  metric_name: string;
+  target_value?: string;
+  actual_value?: string;
+  unit?: string;
+  assessment?: Assessment;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export interface InitiativeUpdate {
+  id: string;
+  initiative_id: string;
+  update_text: string;
+  week_start_date: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  // Joined data
+  author?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
+}
+
+export interface InitiativeQuarterlyObjective {
+  id: string;
+  initiative_id: string;
+  year: number;
+  quarter: 1 | 2 | 3 | 4;
+  objective_text: string;
+
+  // Scoring (numeric scores for backward compatibility)
+  bu_score?: number;
+  ceo_score?: number;
+
+  // Color assessments (new UI representation)
+  bu_assessment?: Assessment;
+  ceo_assessment?: Assessment;
+
+  // Workflow
+  workflow_state: 'draft' | 'bu_scoring' | 'pending_ceo_review' | 'ceo_approved';
+  scored_at?: string;
+  approved_at?: string;
+  locked: boolean;
+
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+// Create/Update interfaces
+export interface CreateAnnualActionInput {
+  initiative_id: string;
+  year: number;
+  action_text: string;
+  sort_order?: number;
+}
+
+export interface UpdateAnnualActionInput {
+  id: string;
+  action_text?: string;
+  status?: ActionStatus;
+  assessment?: Assessment;
+  sort_order?: number;
+}
+
+export interface CreateAnnualTargetInput {
+  initiative_id: string;
+  year: number;
+  metric_name: string;
+  target_value?: string;
+  unit?: string;
+  sort_order?: number;
+}
+
+export interface UpdateAnnualTargetInput {
+  id: string;
+  metric_name?: string;
+  target_value?: string;
+  actual_value?: string;
+  unit?: string;
+  assessment?: Assessment;
+  sort_order?: number;
+}
+
+export interface CreateInitiativeUpdateInput {
+  initiative_id: string;
+  update_text: string;
+  week_start_date: string;
+}
+
+export interface UpdateInitiativeUpdateInput {
+  id: string;
+  update_text?: string;
+  week_start_date?: string;
+}
+
+export interface CreateQuarterlyObjectiveInput {
+  initiative_id: string;
+  year: number;
+  quarter: 1 | 2 | 3 | 4;
+  objective_text: string;
+}
+
+export interface UpdateQuarterlyObjectiveInput {
+  id: string;
+  objective_text?: string;
+  bu_score?: number;
+  ceo_score?: number;
+  bu_assessment?: Assessment;
+  ceo_assessment?: Assessment;
+  workflow_state?: 'draft' | 'bu_scoring' | 'pending_ceo_review' | 'ceo_approved';
+  locked?: boolean;
 }

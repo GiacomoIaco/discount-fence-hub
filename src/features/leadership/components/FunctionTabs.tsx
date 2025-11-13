@@ -6,9 +6,13 @@ interface FunctionTabsProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
   functionName?: string;
+  selectedYear?: number;
 }
 
-export default function FunctionTabs({ activeTab, onTabChange, functionName }: FunctionTabsProps) {
+export default function FunctionTabs({ activeTab, onTabChange, functionName, selectedYear }: FunctionTabsProps) {
+  // Tabs that are year-specific
+  const yearSpecificTabs = ['annual-plan', 'quarterly-plan', 'bonus-kpis'];
+
   const tabs = [
     {
       id: 'strategy' as TabType,
@@ -58,6 +62,8 @@ export default function FunctionTabs({ activeTab, onTabChange, functionName }: F
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 
+            const showYearBadge = yearSpecificTabs.includes(tab.id) && selectedYear;
+
             return (
               <button
                 key={tab.id}
@@ -73,6 +79,17 @@ export default function FunctionTabs({ activeTab, onTabChange, functionName }: F
               >
                 <Icon className="w-4 h-4" />
                 <span className="font-medium text-sm">{tab.label}</span>
+                {showYearBadge && (
+                  <span className={`
+                    px-2 py-0.5 rounded-full text-xs font-semibold
+                    ${isActive
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-600'
+                    }
+                  `}>
+                    {selectedYear}
+                  </span>
+                )}
               </button>
             );
           })}

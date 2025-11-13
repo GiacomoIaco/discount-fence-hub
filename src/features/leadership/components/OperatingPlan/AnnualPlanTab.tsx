@@ -1,9 +1,28 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2 } from 'lucide-react';
-import { useAreasQuery, useInitiativesByFunctionQuery, useUpdateArea, useUpdateInitiative, useDeleteArea } from '../../hooks/useLeadershipQuery';
-import type { ProjectArea, ProjectInitiative } from '../../lib/leadership';
+import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2, GripVertical, CheckCircle2, Circle, AlertCircle, Archive, ArchiveRestore } from 'lucide-react';
+import {
+  useAreasQuery,
+  useInitiativesByFunctionQuery,
+  useUpdateArea,
+  useUpdateInitiative,
+  useDeleteArea,
+  useDeactivateArea,
+  useActivateArea,
+  useDeactivateInitiative,
+  useActivateInitiative,
+  useAllAnnualActionsByFunctionQuery,
+  useAllAnnualTargetsByFunctionQuery,
+  useCreateAnnualAction,
+  useUpdateAnnualAction,
+  useDeleteAnnualAction,
+  useCreateAnnualTarget,
+  useUpdateAnnualTarget,
+  useDeleteAnnualTarget,
+} from '../../hooks/useLeadershipQuery';
+import type { ProjectArea, ProjectInitiative, InitiativeAnnualAction, InitiativeAnnualTarget, ActionStatus, Assessment } from '../../lib/leadership';
 import AreaManagementModal from '../AreaManagementModal';
 import InitiativeDetailModal from '../InitiativeDetailModal';
+import CopyYearButton from '../CopyYearButton';
 import { toast } from 'react-hot-toast';
 
 interface AnnualPlanTabProps {
@@ -14,14 +33,31 @@ interface AnnualPlanTabProps {
 export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) {
   const { data: areas } = useAreasQuery(functionId);
   const { data: initiatives } = useInitiativesByFunctionQuery(functionId);
+  const { data: actionsByInitiative } = useAllAnnualActionsByFunctionQuery(functionId, year);
+  const { data: targetsByInitiative } = useAllAnnualTargetsByFunctionQuery(functionId, year);
+
   const [collapsedStrategicDesc, setCollapsedStrategicDesc] = useState<Set<string>>(new Set(areas?.map(a => a.id) || []));
-  const [editingField, setEditingField] = useState<{ type: 'strategic_desc' | 'title' | 'description' | 'annual_target'; id: string } | null>(null);
+  const [editingField, setEditingField] = useState<{ type: 'strategic_desc' | 'title'; id: string } | null>(null);
   const [showAreaModal, setShowAreaModal] = useState(false);
   const [showInitiativeModal, setShowInitiativeModal] = useState<{ areaId?: string } | null>(null);
+  const [addingAction, setAddingAction] = useState<string | null>(null);
+  const [addingTarget, setAddingTarget] = useState<string | null>(null);
+  const [editingAction, setEditingAction] = useState<string | null>(null);
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
 
   const updateArea = useUpdateArea();
   const updateInitiative = useUpdateInitiative();
   const deleteArea = useDeleteArea();
+  const deactivateArea = useDeactivateArea();
+  const activateArea = useActivateArea();
+  const deactivateInitiative = useDeactivateInitiative();
+  const activateInitiative = useActivateInitiative();
+  const createAction = useCreateAnnualAction();
+  const updateAction = useUpdateAnnualAction();
+  const deleteAction = useDeleteAnnualAction();
+  const createTarget = useCreateAnnualTarget();
+  const updateTarget = useUpdateAnnualTarget();
+  const deleteTarget = useDeleteAnnualTarget();
 
   const toggleStrategicDesc = (areaId: string) => {
     setCollapsedStrategicDesc(prev => {
@@ -47,25 +83,21 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
     }
   };
 
-  const handleSaveInitiativeField = async (
-    initiative: ProjectInitiative,
-    field: 'title' | 'description' | 'annual_target',
-    value: string
-  ) => {
+  const handleSaveInitiativeTitle = async (initiative: ProjectInitiative, newTitle: string) => {
     try {
       await updateInitiative.mutateAsync({
         id: initiative.id,
-        [field]: value || undefined,
+        title: newTitle,
       });
       setEditingField(null);
     } catch (error) {
-      console.error(`Failed to update ${field}:`, error);
+      console.error('Failed to update title:', error);
     }
   };
 
   const handleDeleteArea = async (area: ProjectArea, initiativesCount: number) => {
     const confirmMessage = initiativesCount > 0
-      ? `Are you sure you want to delete "${area.name}"? This will also delete ${initiativesCount} initiative${initiativesCount !== 1 ? 's' : ''} and all their quarterly objectives.`
+      ? `Are you sure you want to delete "${area.name}"? This will also delete ${initiativesCount} initiative${initiativesCount !== 1 ? 's' : ''} and all their data.`
       : `Are you sure you want to delete "${area.name}"?`;
 
     if (!window.confirm(confirmMessage)) {
@@ -78,6 +110,162 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
     } catch (error) {
       console.error('Failed to delete area:', error);
       toast.error('Failed to delete area');
+    }
+  };
+
+  const handleDeactivateArea = async (area: ProjectArea) => {
+    if (!window.confirm(`Deactivate "${area.name}"? This will hide it from planning views.`)) {
+      return;
+    }
+
+    try {
+      await deactivateArea.mutateAsync(area.id);
+      toast.success(`Deactivated "${area.name}"`);
+    } catch (error: any) {
+      console.error('Failed to deactivate area:', error);
+      // Show specific error message about active initiatives
+      if (error.message?.includes('some initiatives are still active')) {
+        toast.error('Cannot deactivate area: some initiatives are still active');
+      } else {
+        toast.error('Failed to deactivate area');
+      }
+    }
+  };
+
+  const handleActivateArea = async (area: ProjectArea) => {
+    try {
+      await activateArea.mutateAsync(area.id);
+      toast.success(`Activated "${area.name}"`);
+    } catch (error) {
+      console.error('Failed to activate area:', error);
+      toast.error('Failed to activate area');
+    }
+  };
+
+  const handleDeactivateInitiative = async (initiative: ProjectInitiative) => {
+    if (!window.confirm(`Deactivate "${initiative.title}"? This will hide it from planning views.`)) {
+      return;
+    }
+
+    try {
+      await deactivateInitiative.mutateAsync(initiative.id);
+      toast.success(`Deactivated "${initiative.title}"`);
+    } catch (error) {
+      console.error('Failed to deactivate initiative:', error);
+      toast.error('Failed to deactivate initiative');
+    }
+  };
+
+  const handleActivateInitiative = async (initiative: ProjectInitiative) => {
+    try {
+      await activateInitiative.mutateAsync(initiative.id);
+      toast.success(`Activated "${initiative.title}"`);
+    } catch (error) {
+      console.error('Failed to activate initiative:', error);
+      toast.error('Failed to activate initiative');
+    }
+  };
+
+  // Action handlers
+  const handleAddAction = async (initiativeId: string, actionText: string) => {
+    if (!actionText.trim()) return;
+
+    try {
+      const actions = actionsByInitiative?.[initiativeId] || [];
+      await createAction.mutateAsync({
+        initiative_id: initiativeId,
+        year,
+        action_text: actionText,
+        sort_order: actions.length,
+      });
+      setAddingAction(null);
+      toast.success('Action added');
+    } catch (error) {
+      console.error('Failed to create action:', error);
+      toast.error('Failed to add action');
+    }
+  };
+
+  const handleUpdateAction = async (action: InitiativeAnnualAction, updates: Partial<InitiativeAnnualAction>) => {
+    try {
+      await updateAction.mutateAsync({
+        id: action.id,
+        initiative_id: action.initiative_id,
+        year: action.year,
+        ...updates,
+      });
+      setEditingAction(null);
+    } catch (error) {
+      console.error('Failed to update action:', error);
+      toast.error('Failed to update action');
+    }
+  };
+
+  const handleDeleteAction = async (action: InitiativeAnnualAction) => {
+    if (!window.confirm('Delete this action?')) return;
+
+    try {
+      await deleteAction.mutateAsync({
+        id: action.id,
+        initiative_id: action.initiative_id,
+        year: action.year,
+      });
+      toast.success('Action deleted');
+    } catch (error) {
+      console.error('Failed to delete action:', error);
+      toast.error('Failed to delete action');
+    }
+  };
+
+  // Target handlers
+  const handleAddTarget = async (initiativeId: string, metricName: string, targetValue: string) => {
+    if (!metricName.trim()) return;
+
+    try {
+      const targets = targetsByInitiative?.[initiativeId] || [];
+      await createTarget.mutateAsync({
+        initiative_id: initiativeId,
+        year,
+        metric_name: metricName,
+        target_value: targetValue,
+        sort_order: targets.length,
+      });
+      setAddingTarget(null);
+      toast.success('Target added');
+    } catch (error) {
+      console.error('Failed to create target:', error);
+      toast.error('Failed to add target');
+    }
+  };
+
+  const handleUpdateTarget = async (target: InitiativeAnnualTarget, updates: Partial<InitiativeAnnualTarget>) => {
+    try {
+      await updateTarget.mutateAsync({
+        id: target.id,
+        initiative_id: target.initiative_id,
+        year: target.year,
+        ...updates,
+      });
+      setEditingTarget(null);
+    } catch (error) {
+      console.error('Failed to update target:', error);
+      toast.error('Failed to update target');
+    }
+  };
+
+  const handleDeleteTarget = async (target: InitiativeAnnualTarget) => {
+    if (!window.confirm('Delete this target?')) return;
+
+    try {
+      await deleteTarget.mutateAsync({
+        id: target.id,
+        initiative_id: target.initiative_id,
+        year: target.year,
+      });
+      toast.success('Target deleted');
+    } catch (error) {
+      console.error('Failed to delete target:', error);
+      toast.error('Failed to delete target');
     }
   };
 
@@ -114,6 +302,30 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
     );
   }
 
+  const getActionStatusIcon = (status: ActionStatus) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+      case 'in_progress':
+        return <AlertCircle className="w-4 h-4 text-blue-600" />;
+      default:
+        return <Circle className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getAssessmentColor = (assessment?: Assessment) => {
+    switch (assessment) {
+      case 'green':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'yellow':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'red':
+        return 'bg-red-100 text-red-800 border-red-300';
+      default:
+        return 'bg-gray-100 text-gray-600 border-gray-300';
+    }
+  };
+
   return (
     <div className="max-w-full mx-auto space-y-4">
       {/* Header */}
@@ -123,27 +335,30 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
             <Target className="w-5 h-5" />
             <span className="font-medium">Annual Plan for {year}</span>
           </div>
-          <button
-            onClick={() => setShowAreaModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Area
-          </button>
+          <div className="flex items-center gap-2">
+            <CopyYearButton functionId={functionId} fromYear={year - 1} toYear={year} />
+            <button
+              onClick={() => setShowAreaModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Area
+            </button>
+          </div>
         </div>
         <p className="text-sm text-blue-700 mt-1">
-          Define key initiatives, descriptions, and annual targets for each area
+          Define actions/objectives and annual targets for each initiative
         </p>
       </div>
 
-      {/* Areas - Compact Tabular View */}
+      {/* Areas */}
       {areas.map((area) => {
         const areaInitiatives = initiativesByArea[area.id] || [];
         const isStratDescCollapsed = collapsedStrategicDesc.has(area.id);
 
         return (
           <div key={area.id} className="bg-white rounded-lg border border-gray-200">
-            {/* Area Header - Compact */}
+            {/* Area Header */}
             <div className="border-b border-blue-700 bg-blue-900 px-4 py-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-white">{area.name}</h3>
@@ -174,6 +389,25 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                       </>
                     )}
                   </button>
+                  {area.is_active ? (
+                    <button
+                      onClick={() => handleDeactivateArea(area)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-orange-200 hover:bg-blue-800 rounded transition-colors"
+                      title="Deactivate area (only if all initiatives are inactive)"
+                    >
+                      <Archive className="w-3 h-3" />
+                      <span>Deactivate</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleActivateArea(area)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-green-200 hover:bg-blue-800 rounded transition-colors"
+                      title="Activate area"
+                    >
+                      <ArchiveRestore className="w-3 h-3" />
+                      <span>Activate</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDeleteArea(area, areaInitiatives.length)}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-red-200 hover:bg-blue-800 rounded transition-colors"
@@ -217,118 +451,287 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
               )}
             </div>
 
-            {/* Initiatives Table - Compact */}
+            {/* Initiatives */}
             {areaInitiatives.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[25%]">
-                        Initiative
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[45%]">
-                        Description / Details
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[30%]">
-                        Annual Target
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {areaInitiatives.map((initiative) => (
-                      <tr key={initiative.id} className="hover:bg-gray-50">
-                        {/* Initiative Name */}
-                        <td className="px-3 py-2 align-top">
+              <div className="divide-y divide-gray-200">
+                {areaInitiatives.map((initiative) => {
+                  const actions = actionsByInitiative?.[initiative.id] || [];
+                  const targets = targetsByInitiative?.[initiative.id] || [];
+
+                  return (
+                    <div key={initiative.id} className="p-4">
+                      {/* Initiative Title */}
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex-1">
                           {editingField?.type === 'title' && editingField.id === initiative.id ? (
                             <input
                               type="text"
                               autoFocus
                               defaultValue={initiative.title}
-                              onBlur={(e) => handleSaveInitiativeField(initiative, 'title', e.target.value)}
+                              onBlur={(e) => handleSaveInitiativeTitle(initiative, e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
                                   setEditingField(null);
                                 } else if (e.key === 'Enter') {
-                                  handleSaveInitiativeField(initiative, 'title', e.currentTarget.value);
+                                  handleSaveInitiativeTitle(initiative, e.currentTarget.value);
                                 }
                               }}
-                              className="w-full px-2 py-1 text-sm font-medium border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="Initiative name"
+                              className="w-full px-2 py-1 text-base font-semibold border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                           ) : (
-                            <div
+                            <h4
                               onClick={() => setEditingField({ type: 'title', id: initiative.id })}
-                              className="w-full px-2 py-1 text-sm font-medium border border-transparent rounded hover:border-gray-300 hover:bg-gray-50 cursor-text text-gray-900"
+                              className="text-base font-semibold text-gray-900 cursor-pointer hover:text-blue-600"
                             >
                               {initiative.title}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Description */}
-                        <td className="px-3 py-2 align-top">
-                          {editingField?.type === 'description' && editingField.id === initiative.id ? (
-                            <textarea
-                              autoFocus
-                              defaultValue={initiative.description || ''}
-                              onBlur={(e) => handleSaveInitiativeField(initiative, 'description', e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  setEditingField(null);
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[60px]"
-                              placeholder="What is this initiative and why does it matter?"
-                            />
-                          ) : (
-                            <div
-                              onClick={() => setEditingField({ type: 'description', id: initiative.id })}
-                              className="w-full px-2 py-1 text-sm border border-transparent rounded hover:border-gray-300 hover:bg-gray-50 cursor-text min-h-[60px]"
-                            >
-                              {initiative.description ? (
-                                <p className="text-gray-700 whitespace-pre-wrap">{initiative.description}</p>
-                              ) : (
-                                <p className="text-gray-400 italic">Click to add description...</p>
+                              {!initiative.is_active && (
+                                <span className="ml-2 text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
+                                  Inactive
+                                </span>
                               )}
-                            </div>
+                            </h4>
                           )}
-                        </td>
+                        </div>
+                        {initiative.is_active ? (
+                          <button
+                            onClick={() => handleDeactivateInitiative(initiative)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                            title="Deactivate initiative"
+                          >
+                            <Archive className="w-3 h-3" />
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivateInitiative(initiative)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors"
+                            title="Activate initiative"
+                          >
+                            <ArchiveRestore className="w-3 h-3" />
+                            Activate
+                          </button>
+                        )}
+                      </div>
 
-                        {/* Annual Target */}
-                        <td className="px-3 py-2 align-top">
-                          {editingField?.type === 'annual_target' && editingField.id === initiative.id ? (
-                            <input
-                              type="text"
-                              autoFocus
-                              defaultValue={initiative.annual_target || ''}
-                              onBlur={(e) => handleSaveInitiativeField(initiative, 'annual_target', e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  setEditingField(null);
-                                } else if (e.key === 'Enter') {
-                                  handleSaveInitiativeField(initiative, 'annual_target', e.currentTarget.value);
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="e.g., $7M revenue at 28%+ margins"
-                            />
-                          ) : (
-                            <div
-                              onClick={() => setEditingField({ type: 'annual_target', id: initiative.id })}
-                              className="w-full px-2 py-1 text-sm border border-transparent rounded hover:border-gray-300 hover:bg-gray-50 cursor-text"
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Actions/Objectives Column */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-semibold text-gray-700">Actions/Objectives</h5>
+                            <button
+                              onClick={() => setAddingAction(initiative.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {initiative.annual_target ? (
-                                <p className="text-gray-700">{initiative.annual_target}</p>
-                              ) : (
-                                <p className="text-gray-400 italic">Click to add target...</p>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              <Plus className="w-3 h-3" />
+                              Add
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {actions.map((action) => (
+                              <div key={action.id} className="group border border-gray-200 rounded p-2 hover:border-gray-300">
+                                {editingAction === action.id ? (
+                                  <textarea
+                                    autoFocus
+                                    defaultValue={action.action_text}
+                                    onBlur={(e) => handleUpdateAction(action, { action_text: e.target.value })}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape') setEditingAction(null);
+                                    }}
+                                    className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+                                    rows={3}
+                                  />
+                                ) : (
+                                  <>
+                                    <div className="flex items-start gap-2">
+                                      {getActionStatusIcon(action.status)}
+                                      <p
+                                        onClick={() => setEditingAction(action.id)}
+                                        className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-gray-900"
+                                      >
+                                        {action.action_text}
+                                      </p>
+                                      <button
+                                        onClick={() => handleDeleteAction(action)}
+                                        className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <select
+                                        value={action.status}
+                                        onChange={(e) => handleUpdateAction(action, { status: e.target.value as ActionStatus })}
+                                        className="text-xs border-gray-200 rounded px-2 py-1"
+                                      >
+                                        <option value="not_started">Not Started</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="completed">Completed</option>
+                                      </select>
+                                      {action.assessment && (
+                                        <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(action.assessment)}`}>
+                                          {action.assessment.toUpperCase()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+
+                            {addingAction === initiative.id && (
+                              <div className="border border-blue-300 rounded p-2">
+                                <textarea
+                                  autoFocus
+                                  placeholder="Describe the action or objective..."
+                                  onBlur={(e) => {
+                                    if (e.target.value.trim()) {
+                                      handleAddAction(initiative.id, e.target.value);
+                                    } else {
+                                      setAddingAction(null);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') setAddingAction(null);
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      if (e.currentTarget.value.trim()) {
+                                        handleAddAction(initiative.id, e.currentTarget.value);
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-2 py-1 text-sm border-0 focus:ring-0"
+                                  rows={3}
+                                />
+                              </div>
+                            )}
+
+                            {actions.length === 0 && addingAction !== initiative.id && (
+                              <p className="text-sm text-gray-400 italic">No actions defined yet</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Annual Targets Column */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-semibold text-gray-700">Annual Targets</h5>
+                            <button
+                              onClick={() => setAddingTarget(initiative.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Add
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {targets.map((target) => (
+                              <div key={target.id} className="group border border-gray-200 rounded p-2 hover:border-gray-300">
+                                {editingTarget === target.id ? (
+                                  <div className="space-y-2">
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      defaultValue={target.metric_name}
+                                      placeholder="Metric name"
+                                      onBlur={(e) => handleUpdateTarget(target, { metric_name: e.target.value })}
+                                      className="w-full px-2 py-1 text-sm font-medium border border-blue-300 rounded"
+                                    />
+                                    <input
+                                      type="text"
+                                      defaultValue={target.target_value || ''}
+                                      placeholder="Target value"
+                                      onBlur={(e) => handleUpdateTarget(target, { target_value: e.target.value })}
+                                      className="w-full px-2 py-1 text-sm border border-blue-300 rounded"
+                                    />
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div onClick={() => setEditingTarget(target.id)} className="flex-1 cursor-pointer">
+                                        <p className="text-sm font-medium text-gray-900">{target.metric_name}</p>
+                                        {target.target_value && (
+                                          <p className="text-sm text-gray-600 mt-1">Target: {target.target_value}</p>
+                                        )}
+                                        {target.actual_value && (
+                                          <p className="text-sm text-gray-600">Actual: {target.actual_value}</p>
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={() => handleDeleteTarget(target)}
+                                        className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    {target.assessment && (
+                                      <div className="mt-2">
+                                        <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(target.assessment)}`}>
+                                          {target.assessment.toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            ))}
+
+                            {addingTarget === initiative.id && (
+                              <div className="border border-blue-300 rounded p-2 space-y-2">
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  placeholder="Metric name (e.g., Revenue, Cost Reduction)"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      setAddingTarget(null);
+                                    } else if (e.key === 'Enter') {
+                                      const metricName = e.currentTarget.value;
+                                      const targetValue = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                      if (metricName.trim()) {
+                                        handleAddTarget(initiative.id, metricName, targetValue?.value || '');
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-2 py-1 text-sm font-medium border-0 focus:ring-0"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Target value (e.g., $2M, 15% reduction)"
+                                  onBlur={(e) => {
+                                    const metricInput = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                    const metricName = metricInput?.value || '';
+                                    if (metricName.trim()) {
+                                      handleAddTarget(initiative.id, metricName, e.target.value);
+                                    } else {
+                                      setAddingTarget(null);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') setAddingTarget(null);
+                                    if (e.key === 'Enter') {
+                                      const metricInput = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                      const metricName = metricInput?.value || '';
+                                      if (metricName.trim()) {
+                                        handleAddTarget(initiative.id, metricName, e.currentTarget.value);
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-2 py-1 text-sm border-0 focus:ring-0"
+                                />
+                              </div>
+                            )}
+
+                            {targets.length === 0 && addingTarget !== initiative.id && (
+                              <p className="text-sm text-gray-400 italic">No targets defined yet</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-6 text-center text-gray-500 text-sm">

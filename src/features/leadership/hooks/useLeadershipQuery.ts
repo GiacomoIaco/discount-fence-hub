@@ -22,6 +22,18 @@ import type {
   CreateStrategyInput,
   CreateCommentInput,
   UpdateCommentInput,
+  InitiativeAnnualAction,
+  InitiativeAnnualTarget,
+  InitiativeUpdate,
+  InitiativeQuarterlyObjective,
+  CreateAnnualActionInput,
+  UpdateAnnualActionInput,
+  CreateAnnualTargetInput,
+  UpdateAnnualTargetInput,
+  CreateInitiativeUpdateInput,
+  UpdateInitiativeUpdateInput,
+  CreateQuarterlyObjectiveInput,
+  UpdateQuarterlyObjectiveInput,
 } from '../lib/leadership';
 
 // ============================================
@@ -44,6 +56,10 @@ export const leadershipKeys = {
   activity: (initiativeId: string) => [...leadershipKeys.all, 'activity', initiativeId] as const,
   strategy: (functionId: string) => [...leadershipKeys.all, 'strategy', functionId] as const,
   comments: (functionId: string) => [...leadershipKeys.all, 'comments', functionId] as const,
+  annualActions: (initiativeId: string, year: number) => [...leadershipKeys.all, 'annual-actions', initiativeId, year] as const,
+  annualTargets: (initiativeId: string, year: number) => [...leadershipKeys.all, 'annual-targets', initiativeId, year] as const,
+  initiativeUpdates: (initiativeId: string) => [...leadershipKeys.all, 'initiative-updates', initiativeId] as const,
+  quarterlyObjectives: (initiativeId: string, year: number) => [...leadershipKeys.all, 'quarterly-objectives', initiativeId, year] as const,
 };
 
 // ============================================
@@ -599,6 +615,65 @@ export const useDeleteArea = () => {
   });
 };
 
+/**
+ * Deactivate an area (only if all initiatives are inactive)
+ */
+export const useDeactivateArea = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      // Check if area can be deactivated using the database function
+      const { data: canDeactivate, error: checkError } = await supabase
+        .rpc('can_deactivate_area', { p_area_id: id });
+
+      if (checkError) throw checkError;
+
+      if (!canDeactivate) {
+        throw new Error('Cannot deactivate area: some initiatives are still active');
+      }
+
+      // Deactivate the area
+      const { error: updateError } = await supabase
+        .from('project_areas')
+        .update({
+          is_active: false,
+          deactivated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
+    },
+  });
+};
+
+/**
+ * Activate an area
+ */
+export const useActivateArea = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const { error } = await supabase
+        .from('project_areas')
+        .update({
+          is_active: true,
+          deactivated_at: null,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
+    },
+  });
+};
+
 // ============================================
 // MUTATIONS - INITIATIVES
 // ============================================
@@ -652,6 +727,56 @@ export const useUpdateInitiative = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.initiatives() });
+    },
+  });
+};
+
+/**
+ * Deactivate an initiative
+ */
+export const useDeactivateInitiative = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const { error } = await supabase
+        .from('project_initiatives')
+        .update({
+          is_active: false,
+          deactivated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.initiatives() });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
+    },
+  });
+};
+
+/**
+ * Activate an initiative
+ */
+export const useActivateInitiative = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const { error } = await supabase
+        .from('project_initiatives')
+        .update({
+          is_active: true,
+          deactivated_at: null,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.initiatives() });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.areas() });
     },
   });
 };
@@ -836,6 +961,474 @@ export const useDeleteComment = () => {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.comments(variables.function_id) });
+    },
+  });
+};
+
+// ============================================
+// ANNUAL PLANNING QUERIES & MUTATIONS
+// ============================================
+
+/**
+ * Fetch annual actions for an initiative in a specific year
+ */
+export const useAnnualActionsQuery = (initiativeId: string, year: number) => {
+  return useQuery({
+    queryKey: leadershipKeys.annualActions(initiativeId, year),
+    queryFn: async (): Promise<InitiativeAnnualAction[]> => {
+      const { data, error } = await supabase
+        .from('initiative_annual_actions')
+        .select('*')
+        .eq('initiative_id', initiativeId)
+        .eq('year', year)
+        .order('sort_order');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!initiativeId && !!year,
+  });
+};
+
+/**
+ * Fetch annual targets for an initiative in a specific year
+ */
+export const useAnnualTargetsQuery = (initiativeId: string, year: number) => {
+  return useQuery({
+    queryKey: leadershipKeys.annualTargets(initiativeId, year),
+    queryFn: async (): Promise<InitiativeAnnualTarget[]> => {
+      const { data, error } = await supabase
+        .from('initiative_annual_targets')
+        .select('*')
+        .eq('initiative_id', initiativeId)
+        .eq('year', year)
+        .order('sort_order');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!initiativeId && !!year,
+  });
+};
+
+/**
+ * Fetch all annual actions for a function's initiatives in a specific year
+ */
+export const useAllAnnualActionsByFunctionQuery = (functionId: string, year: number) => {
+  return useQuery({
+    queryKey: [...leadershipKeys.all, 'function-actions', functionId, year],
+    queryFn: async (): Promise<Record<string, InitiativeAnnualAction[]>> => {
+      // First get all areas for this function
+      const { data: areas } = await supabase
+        .from('project_areas')
+        .select('id')
+        .eq('function_id', functionId);
+
+      const areaIds = areas?.map(a => a.id) || [];
+      if (areaIds.length === 0) return {};
+
+      // Get all initiatives for those areas
+      const { data: initiatives } = await supabase
+        .from('project_initiatives')
+        .select('id')
+        .in('area_id', areaIds);
+
+      const initiativeIds = initiatives?.map(i => i.id) || [];
+      if (initiativeIds.length === 0) return {};
+
+      // Get all actions for those initiatives
+      const { data, error } = await supabase
+        .from('initiative_annual_actions')
+        .select('*')
+        .in('initiative_id', initiativeIds)
+        .eq('year', year)
+        .order('sort_order');
+
+      if (error) throw error;
+
+      // Group by initiative_id
+      const actionsByInitiative: Record<string, InitiativeAnnualAction[]> = {};
+      (data || []).forEach(action => {
+        if (!actionsByInitiative[action.initiative_id]) {
+          actionsByInitiative[action.initiative_id] = [];
+        }
+        actionsByInitiative[action.initiative_id].push(action);
+      });
+
+      return actionsByInitiative;
+    },
+    enabled: !!functionId && !!year,
+  });
+};
+
+/**
+ * Fetch all annual targets for a function's initiatives in a specific year
+ */
+export const useAllAnnualTargetsByFunctionQuery = (functionId: string, year: number) => {
+  return useQuery({
+    queryKey: [...leadershipKeys.all, 'function-targets', functionId, year],
+    queryFn: async (): Promise<Record<string, InitiativeAnnualTarget[]>> => {
+      // First get all areas for this function
+      const { data: areas } = await supabase
+        .from('project_areas')
+        .select('id')
+        .eq('function_id', functionId);
+
+      const areaIds = areas?.map(a => a.id) || [];
+      if (areaIds.length === 0) return {};
+
+      // Get all initiatives for those areas
+      const { data: initiatives } = await supabase
+        .from('project_initiatives')
+        .select('id')
+        .in('area_id', areaIds);
+
+      const initiativeIds = initiatives?.map(i => i.id) || [];
+      if (initiativeIds.length === 0) return {};
+
+      // Get all targets for those initiatives
+      const { data, error } = await supabase
+        .from('initiative_annual_targets')
+        .select('*')
+        .in('initiative_id', initiativeIds)
+        .eq('year', year)
+        .order('sort_order');
+
+      if (error) throw error;
+
+      // Group by initiative_id
+      const targetsByInitiative: Record<string, InitiativeAnnualTarget[]> = {};
+      (data || []).forEach(target => {
+        if (!targetsByInitiative[target.initiative_id]) {
+          targetsByInitiative[target.initiative_id] = [];
+        }
+        targetsByInitiative[target.initiative_id].push(target);
+      });
+
+      return targetsByInitiative;
+    },
+    enabled: !!functionId && !!year,
+  });
+};
+
+/**
+ * Create annual action
+ */
+export const useCreateAnnualAction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateAnnualActionInput): Promise<InitiativeAnnualAction> => {
+      const { data, error } = await supabase
+        .from('initiative_annual_actions')
+        .insert(input)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.annualActions(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Update annual action
+ */
+export const useUpdateAnnualAction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...input }: UpdateAnnualActionInput & { initiative_id: string; year: number }): Promise<InitiativeAnnualAction> => {
+      const { data, error } = await supabase
+        .from('initiative_annual_actions')
+        .update(input)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.annualActions(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Delete annual action
+ */
+export const useDeleteAnnualAction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number }): Promise<void> => {
+      const { error } = await supabase
+        .from('initiative_annual_actions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.annualActions(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Create annual target
+ */
+export const useCreateAnnualTarget = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateAnnualTargetInput): Promise<InitiativeAnnualTarget> => {
+      const { data, error } = await supabase
+        .from('initiative_annual_targets')
+        .insert(input)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.annualTargets(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Update annual target
+ */
+export const useUpdateAnnualTarget = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...input }: UpdateAnnualTargetInput & { initiative_id: string; year: number }): Promise<InitiativeAnnualTarget> => {
+      const { data, error } = await supabase
+        .from('initiative_annual_targets')
+        .update(input)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.annualTargets(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Delete annual target
+ */
+export const useDeleteAnnualTarget = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number }): Promise<void> => {
+      const { error } = await supabase
+        .from('initiative_annual_targets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.annualTargets(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Fetch initiative updates (timeline)
+ */
+export const useInitiativeUpdatesQuery = (initiativeId: string) => {
+  return useQuery({
+    queryKey: leadershipKeys.initiativeUpdates(initiativeId),
+    queryFn: async (): Promise<InitiativeUpdate[]> => {
+      const { data, error } = await supabase
+        .from('initiative_updates')
+        .select(`
+          *,
+          author:user_profiles!initiative_updates_created_by_fkey(id, full_name, avatar_url)
+        `)
+        .eq('initiative_id', initiativeId)
+        .order('week_start_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!initiativeId,
+  });
+};
+
+/**
+ * Create initiative update
+ */
+export const useCreateInitiativeUpdate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateInitiativeUpdateInput): Promise<InitiativeUpdate> => {
+      const { data, error } = await supabase
+        .from('initiative_updates')
+        .insert(input)
+        .select(`
+          *,
+          author:user_profiles!initiative_updates_created_by_fkey(id, full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.initiativeUpdates(variables.initiative_id) });
+    },
+  });
+};
+
+/**
+ * Update initiative update
+ */
+export const useUpdateInitiativeUpdate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...input }: UpdateInitiativeUpdateInput & { initiative_id: string }): Promise<InitiativeUpdate> => {
+      const { data, error } = await supabase
+        .from('initiative_updates')
+        .update(input)
+        .eq('id', id)
+        .select(`
+          *,
+          author:user_profiles!initiative_updates_created_by_fkey(id, full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.initiativeUpdates(variables.initiative_id) });
+    },
+  });
+};
+
+/**
+ * Delete initiative update
+ */
+export const useDeleteInitiativeUpdate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, initiative_id }: { id: string; initiative_id: string }): Promise<void> => {
+      const { error } = await supabase
+        .from('initiative_updates')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.initiativeUpdates(variables.initiative_id) });
+    },
+  });
+};
+
+/**
+ * Fetch quarterly objectives for an initiative in a specific year
+ */
+export const useQuarterlyObjectivesQuery = (initiativeId: string, year: number) => {
+  return useQuery({
+    queryKey: leadershipKeys.quarterlyObjectives(initiativeId, year),
+    queryFn: async (): Promise<InitiativeQuarterlyObjective[]> => {
+      const { data, error } = await supabase
+        .from('initiative_quarterly_objectives')
+        .select('*')
+        .eq('initiative_id', initiativeId)
+        .eq('year', year)
+        .order('quarter');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!initiativeId && !!year,
+  });
+};
+
+/**
+ * Create quarterly objective
+ */
+export const useCreateQuarterlyObjective = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateQuarterlyObjectiveInput): Promise<InitiativeQuarterlyObjective> => {
+      const { data, error } = await supabase
+        .from('initiative_quarterly_objectives')
+        .insert(input)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.quarterlyObjectives(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Update quarterly objective
+ */
+export const useUpdateQuarterlyObjective = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...input }: UpdateQuarterlyObjectiveInput & { initiative_id: string; year: number }): Promise<InitiativeQuarterlyObjective> => {
+      const { data, error } = await supabase
+        .from('initiative_quarterly_objectives')
+        .update(input)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.quarterlyObjectives(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+/**
+ * Delete quarterly objective
+ */
+export const useDeleteQuarterlyObjective = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, initiative_id, year }: { id: string; initiative_id: string; year: number }): Promise<void> => {
+      const { error } = await supabase
+        .from('initiative_quarterly_objectives')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.quarterlyObjectives(variables.initiative_id, variables.year) });
     },
   });
 };

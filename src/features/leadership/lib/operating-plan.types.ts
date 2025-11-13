@@ -9,15 +9,19 @@
 
 export type WorkflowState = 'draft' | 'bu_scoring' | 'pending_ceo_review' | 'ceo_approved';
 export type QuarterlyScore = 0 | 0.25 | 0.5 | 0.75 | 1.0;
+export type Assessment = 'green' | 'yellow' | 'red';
 
 export interface QuarterlyObjective {
   id: string;
   initiative_id: string;
   year: number;
   quarter: number; // 1-4
-  objective: string;
+  objective_text: string; // Renamed from 'objective'
   bu_score: QuarterlyScore | null;
   ceo_score: QuarterlyScore | null;
+  // New color assessments
+  bu_assessment: Assessment | null;
+  ceo_assessment: Assessment | null;
   workflow_state: WorkflowState;
   scored_at: string | null;
   approved_at: string | null;
@@ -31,15 +35,17 @@ export interface CreateQuarterlyObjectiveInput {
   initiative_id: string;
   year: number;
   quarter: number;
-  objective: string;
+  objective_text: string; // Renamed from 'objective'
 }
 
 export interface UpdateQuarterlyObjectiveInput {
   id: string;
-  objective?: string;
+  objective_text?: string; // Renamed from 'objective'
   quarter?: number;
   bu_score?: QuarterlyScore | null;
   ceo_score?: QuarterlyScore | null;
+  bu_assessment?: Assessment | null;
+  ceo_assessment?: Assessment | null;
   workflow_state?: WorkflowState;
   scored_at?: string | null;
   approved_at?: string | null;
