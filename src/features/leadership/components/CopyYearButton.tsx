@@ -72,7 +72,6 @@ export default function CopyYearButton({ functionId, fromYear, toYear }: CopyYea
   };
 
   // Only show if viewing a future year
-  const currentYear = new Date().getFullYear();
   const shouldShow = toYear > fromYear;
 
   if (!shouldShow) return null;

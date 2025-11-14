@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Calendar, Trash2, Lock, Unlock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Calendar, Trash2, Lock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import {
   useAreasQuery,
   useInitiativesByFunctionQuery,
@@ -98,7 +98,6 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
     if (!objectiveText.trim()) return;
 
     try {
-      const objectives = objectivesByInitiative[initiativeId] || [];
       await createObjective.mutateAsync({
         initiative_id: initiativeId,
         year,

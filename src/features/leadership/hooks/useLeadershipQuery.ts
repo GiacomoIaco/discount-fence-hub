@@ -1330,7 +1330,7 @@ export const useDeleteInitiativeUpdate = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, initiative_id }: { id: string; initiative_id: string }): Promise<void> => {
+    mutationFn: async ({ id }: { id: string; initiative_id: string }): Promise<void> => {
       const { error } = await supabase
         .from('initiative_updates')
         .delete()
@@ -1419,7 +1419,7 @@ export const useDeleteQuarterlyObjective = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, initiative_id, year }: { id: string; initiative_id: string; year: number }): Promise<void> => {
+    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number }): Promise<void> => {
       const { error } = await supabase
         .from('initiative_quarterly_objectives')
         .delete()

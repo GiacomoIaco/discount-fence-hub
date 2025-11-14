@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2, GripVertical, CheckCircle2, Circle, AlertCircle, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2, CheckCircle2, Circle, AlertCircle, Archive, ArchiveRestore } from 'lucide-react';
 import {
   useAreasQuery,
   useInitiativesByFunctionQuery,

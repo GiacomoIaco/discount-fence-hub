@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { FolderOpen, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import FunctionTabs, { type TabType } from './FunctionTabs';
-import InitiativeTableView from './InitiativeTableView';
 import InitiativeTimelineTab from './InitiativeTimelineTab';
 import AnnualPlanTab from './OperatingPlan/AnnualPlanTab';
 import QuarterlyPlanTab from './OperatingPlan/QuarterlyPlanTab';
 import BonusKPIsTab from './OperatingPlan/BonusKPIsTab';
 import OperatingPlanUploadModal from './OperatingPlan/OperatingPlanUploadModal';
 import StrategyAndPlanning from './Strategy/StrategyAndPlanning';
-import { useFunctionsQuery, useAreasQuery } from '../hooks/useLeadershipQuery';
-import { useInitiativesByFunctionQuery } from '../hooks/useLeadershipQuery';
+import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
 import InitiativeDetailModal from './InitiativeDetailModal';
 import AreaManagementModal from './AreaManagementModal';
 
@@ -28,8 +26,6 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
   const [showAreaManagement, setShowAreaManagement] = useState(false);
 
   const { data: functions } = useFunctionsQuery();
-  const { data: initiatives, isLoading } = useInitiativesByFunctionQuery(functionId);
-  const { data: areas } = useAreasQuery(functionId);
 
   const selectedFunction = functions?.find(f => f.id === functionId);
 

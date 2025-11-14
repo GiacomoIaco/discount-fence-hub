@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, Clock, Filter, Eye, EyeOff, Archive, ArchiveRestore } from 'lucide-react';
 import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative } from '../hooks/useLeadershipQuery';
 import { useTasksQuery, useCreateTask, useUpdateTask } from '../hooks/useGoalsQuery';
-import type { ProjectInitiative, InitiativeUpdate } from '../lib/leadership';
+import type { ProjectInitiative } from '../lib/leadership';
 import type { Task } from '../lib/goals.types';
 import { toast } from 'react-hot-toast';
 import { getMondayOfWeek } from '../lib/leadership';
@@ -110,7 +110,6 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
       await updateTask.mutateAsync({
         id: task.id,
         status: task.status === 'done' ? 'todo' : 'done',
-        completed_at: task.status === 'done' ? null : new Date().toISOString(),
       });
     } catch (error) {
       console.error('Failed to update task:', error);
@@ -380,16 +379,15 @@ function InitiativeRow({
         )}
       </div>
 
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span className="flex items-center gap-1">
-            <CheckSquare className="w-4 h-4" />
-            {activeTasks.length} task{activeTasks.length !== 1 ? 's' : ''}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="w-4 h-4" />
-            {weekUpdates.length} update{weekUpdates.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+      <div className="flex items-center gap-4 text-sm text-gray-600">
+        <span className="flex items-center gap-1">
+          <CheckSquare className="w-4 h-4" />
+          {activeTasks.length} task{activeTasks.length !== 1 ? 's' : ''}
+        </span>
+        <span className="flex items-center gap-1">
+          <Clock className="w-4 h-4" />
+          {weekUpdates.length} update{weekUpdates.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {isExpanded && (

@@ -47,7 +47,7 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
   });
 
   const [isEditing, setIsEditing] = useState(isCreating);
-  const [newObjective, setNewObjective] = useState({ quarter: 1, objective: '' });
+  const [newObjective, setNewObjective] = useState({ quarter: 1, objective_text: '' });
 
   useEffect(() => {
     if (initiative && !isCreating) {
@@ -121,16 +121,16 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
   };
 
   const handleAddObjective = async () => {
-    if (!initiativeId || !newObjective.objective.trim()) return;
+    if (!initiativeId || !newObjective.objective_text.trim()) return;
 
     try {
       await createObjective.mutateAsync({
         initiative_id: initiativeId,
         year: currentYear,
         quarter: newObjective.quarter,
-        objective: newObjective.objective,
+        objective_text: newObjective.objective_text,
       });
-      setNewObjective({ quarter: 1, objective: '' });
+      setNewObjective({ quarter: 1, objective_text: '' });
     } catch (error) {
       console.error('Failed to add quarterly objective:', error);
     }
@@ -446,7 +446,7 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
                             Q{quarter} {currentYear}
                           </div>
                           <div className="text-sm text-gray-900">
-                            {objective.objective}
+                            {objective.objective_text}
                           </div>
                         </div>
                         <button
@@ -480,15 +480,15 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
                   </select>
                 </div>
                 <textarea
-                  value={newObjective.objective}
-                  onChange={(e) => setNewObjective({ ...newObjective, objective: e.target.value })}
+                  value={newObjective.objective_text}
+                  onChange={(e) => setNewObjective({ ...newObjective, objective_text: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={2}
                   placeholder="What should be achieved in this quarter?"
                 />
                 <button
                   onClick={handleAddObjective}
-                  disabled={!newObjective.objective.trim()}
+                  disabled={!newObjective.objective_text.trim()}
                   className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
