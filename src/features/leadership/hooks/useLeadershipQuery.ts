@@ -34,6 +34,11 @@ import type {
   UpdateInitiativeUpdateInput,
   CreateQuarterlyObjectiveInput,
   UpdateQuarterlyObjectiveInput,
+  AnnualPlanStatus,
+  FinalizePlanInput,
+  ApprovePlanInput,
+  RejectPlanInput,
+  ReopenPlanInput,
 } from '../lib/leadership';
 
 // ============================================
@@ -1420,7 +1425,7 @@ export const useDeleteQuarterlyObjective = () => {
 
   return useMutation({
     mutationFn: async ({ id }: { id: string; initiative_id: string; year: number }): Promise<void> => {
-      const { error } = await supabase
+      const { error} = await supabase
         .from('initiative_quarterly_objectives')
         .delete()
         .eq('id', id);
@@ -1429,6 +1434,183 @@ export const useDeleteQuarterlyObjective = () => {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.quarterlyObjectives(variables.initiative_id, variables.year) });
+    },
+  });
+};
+
+// ============================================
+// ANNUAL PLAN FINALIZATION
+// ============================================
+
+/**
+ * Fetch annual plan status for a function/year
+ */
+export const useAnnualPlanStatus = (functionId: string, year: number) => {
+  return useQuery({
+    queryKey: [...leadershipKeys.functions(), 'plan-status', functionId, year],
+    queryFn: async (): Promise<AnnualPlanStatus | null> => {
+      const { data, error } = await supabase
+        .from('annual_plan_status')
+        .select('*')
+        .eq('function_id', functionId)
+        .eq('year', year)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!functionId && !!year,
+  });
+};
+
+/**
+ * Finalize annual plan
+ */
+export const useFinalizePlan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: FinalizePlanInput): Promise<AnnualPlanStatus> => {
+      const { data: existing } = await supabase
+        .from('annual_plan_status')
+        .select('*')
+        .eq('function_id', input.function_id)
+        .eq('year', input.year)
+        .maybeSingle();
+
+      if (existing) {
+        // Update existing record
+        const { data, error } = await supabase
+          .from('annual_plan_status')
+          .update({
+            is_finalized: true,
+            finalized_by: (await supabase.auth.getUser()).data.user?.id,
+            finalized_at: new Date().toISOString(),
+            is_rejected: false,
+            rejected_by: null,
+            rejected_at: null,
+            rejection_reason: null,
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } else {
+        // Create new record
+        const { data, error } = await supabase
+          .from('annual_plan_status')
+          .insert({
+            function_id: input.function_id,
+            year: input.year,
+            is_finalized: true,
+            finalized_by: (await supabase.auth.getUser()).data.user?.id,
+            finalized_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...leadershipKeys.functions(), 'plan-status', variables.function_id, variables.year] });
+    },
+  });
+};
+
+/**
+ * Approve annual plan (super-admin only)
+ */
+export const useApprovePlan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: ApprovePlanInput): Promise<AnnualPlanStatus> => {
+      const { data, error } = await supabase
+        .from('annual_plan_status')
+        .update({
+          is_approved: true,
+          approved_by: (await supabase.auth.getUser()).data.user?.id,
+          approved_at: new Date().toISOString(),
+          is_rejected: false,
+        })
+        .eq('id', input.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [...leadershipKeys.functions(), 'plan-status', data.function_id, data.year] });
+    },
+  });
+};
+
+/**
+ * Reject annual plan (super-admin only)
+ */
+export const useRejectPlan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: RejectPlanInput): Promise<AnnualPlanStatus> => {
+      const { data, error } = await supabase
+        .from('annual_plan_status')
+        .update({
+          is_rejected: true,
+          rejected_by: (await supabase.auth.getUser()).data.user?.id,
+          rejected_at: new Date().toISOString(),
+          rejection_reason: input.rejection_reason,
+          is_approved: false,
+        })
+        .eq('id', input.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [...leadershipKeys.functions(), 'plan-status', data.function_id, data.year] });
+    },
+  });
+};
+
+/**
+ * Reopen annual plan (super-admin only)
+ */
+export const useReopenPlan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: ReopenPlanInput): Promise<AnnualPlanStatus> => {
+      const { data, error } = await supabase
+        .from('annual_plan_status')
+        .update({
+          is_finalized: false,
+          is_approved: false,
+          is_rejected: false,
+          finalized_by: null,
+          finalized_at: null,
+          approved_by: null,
+          approved_at: null,
+          rejected_by: null,
+          rejected_at: null,
+          rejection_reason: null,
+        })
+        .eq('id', input.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [...leadershipKeys.functions(), 'plan-status', data.function_id, data.year] });
     },
   });
 };

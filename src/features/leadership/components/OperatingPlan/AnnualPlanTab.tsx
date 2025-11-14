@@ -44,6 +44,8 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const [addingTarget, setAddingTarget] = useState<string | null>(null);
   const [editingAction, setEditingAction] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [tempActionText, setTempActionText] = useState<string>('');
+  const [tempTargetData, setTempTargetData] = useState<{ metric_name: string; target_value: string }>({ metric_name: '', target_value: '' });
 
   const updateArea = useUpdateArea();
   const updateInitiative = useUpdateInitiative();
@@ -481,14 +483,17 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                           ) : (
                             <h4
                               onClick={() => setEditingField({ type: 'title', id: initiative.id })}
-                              className="text-base font-semibold text-gray-900 cursor-pointer hover:text-blue-600"
+                              className="text-base font-semibold text-red-600 cursor-pointer hover:text-red-700 flex items-center gap-2"
                             >
-                              {initiative.title}
-                              {!initiative.is_active && (
-                                <span className="ml-2 text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
-                                  Inactive
-                                </span>
-                              )}
+                              <span className="w-2 h-2 bg-red-600 rounded-full flex-shrink-0"></span>
+                              <span className="flex-1">
+                                {initiative.title}
+                                {!initiative.is_active && (
+                                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
+                                    Inactive
+                                  </span>
+                                )}
+                              </span>
                             </h4>
                           )}
                         </div>
@@ -513,7 +518,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-[3fr_1fr] gap-4">
                         {/* Actions/Objectives Column */}
                         <div>
                           <div className="flex items-center justify-between mb-2">
@@ -533,10 +538,22 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                 {editingAction === action.id ? (
                                   <textarea
                                     autoFocus
-                                    defaultValue={action.action_text}
-                                    onBlur={(e) => handleUpdateAction(action, { action_text: e.target.value })}
+                                    value={tempActionText}
+                                    onChange={(e) => setTempActionText(e.target.value)}
+                                    onBlur={async () => {
+                                      if (tempActionText.trim() && tempActionText !== action.action_text) {
+                                        await handleUpdateAction(action, { action_text: tempActionText });
+                                      } else {
+                                        setEditingAction(null);
+                                      }
+                                    }}
                                     onKeyDown={(e) => {
-                                      if (e.key === 'Escape') setEditingAction(null);
+                                      if (e.key === 'Escape') {
+                                        setEditingAction(null);
+                                      } else if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        e.currentTarget.blur();
+                                      }
                                     }}
                                     className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
                                     rows={3}
@@ -546,7 +563,10 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                     <div className="flex items-start gap-2">
                                       {getActionStatusIcon(action.status)}
                                       <p
-                                        onClick={() => setEditingAction(action.id)}
+                                        onClick={() => {
+                                          setTempActionText(action.action_text);
+                                          setEditingAction(action.id);
+                                        }}
                                         className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-gray-900"
                                       >
                                         {action.action_text}
@@ -633,23 +653,63 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                     <input
                                       type="text"
                                       autoFocus
-                                      defaultValue={target.metric_name}
+                                      value={tempTargetData.metric_name}
+                                      onChange={(e) => setTempTargetData({ ...tempTargetData, metric_name: e.target.value })}
                                       placeholder="Metric name"
-                                      onBlur={(e) => handleUpdateTarget(target, { metric_name: e.target.value })}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          (e.currentTarget.nextElementSibling as HTMLInputElement)?.focus();
+                                        } else if (e.key === 'Escape') {
+                                          setEditingTarget(null);
+                                        }
+                                      }}
                                       className="w-full px-2 py-1 text-sm font-medium border border-blue-300 rounded"
                                     />
                                     <input
                                       type="text"
-                                      defaultValue={target.target_value || ''}
+                                      value={tempTargetData.target_value}
+                                      onChange={(e) => setTempTargetData({ ...tempTargetData, target_value: e.target.value })}
                                       placeholder="Target value"
-                                      onBlur={(e) => handleUpdateTarget(target, { target_value: e.target.value })}
+                                      onBlur={async () => {
+                                        if (tempTargetData.metric_name.trim()) {
+                                          const updates: Partial<InitiativeAnnualTarget> = {};
+                                          if (tempTargetData.metric_name !== target.metric_name) {
+                                            updates.metric_name = tempTargetData.metric_name;
+                                          }
+                                          if (tempTargetData.target_value !== target.target_value) {
+                                            updates.target_value = tempTargetData.target_value;
+                                          }
+                                          if (Object.keys(updates).length > 0) {
+                                            await handleUpdateTarget(target, updates);
+                                          } else {
+                                            setEditingTarget(null);
+                                          }
+                                        } else {
+                                          setEditingTarget(null);
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          e.currentTarget.blur();
+                                        } else if (e.key === 'Escape') {
+                                          setEditingTarget(null);
+                                        }
+                                      }}
                                       className="w-full px-2 py-1 text-sm border border-blue-300 rounded"
                                     />
                                   </div>
                                 ) : (
                                   <>
                                     <div className="flex items-start justify-between gap-2">
-                                      <div onClick={() => setEditingTarget(target.id)} className="flex-1 cursor-pointer">
+                                      <div onClick={() => {
+                                        setTempTargetData({
+                                          metric_name: target.metric_name,
+                                          target_value: target.target_value || ''
+                                        });
+                                        setEditingTarget(target.id);
+                                      }} className="flex-1 cursor-pointer">
                                         <p className="text-sm font-medium text-gray-900">{target.metric_name}</p>
                                         {target.target_value && (
                                           <p className="text-sm text-gray-600 mt-1">Target: {target.target_value}</p>

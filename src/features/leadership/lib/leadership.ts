@@ -1040,3 +1040,43 @@ export interface UpdateQuarterlyObjectiveInput {
   workflow_state?: 'draft' | 'bu_scoring' | 'pending_ceo_review' | 'ceo_approved';
   locked?: boolean;
 }
+
+// ============================================
+// ANNUAL PLAN FINALIZATION
+// ============================================
+
+export interface AnnualPlanStatus {
+  id: string;
+  function_id: string;
+  year: number;
+  is_finalized: boolean;
+  finalized_by?: string;
+  finalized_at?: string;
+  is_approved: boolean;
+  approved_by?: string;
+  approved_at?: string;
+  is_rejected: boolean;
+  rejected_by?: string;
+  rejected_at?: string;
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinalizePlanInput {
+  function_id: string;
+  year: number;
+}
+
+export interface ApprovePlanInput {
+  id: string;
+}
+
+export interface RejectPlanInput {
+  id: string;
+  rejection_reason?: string;
+}
+
+export interface ReopenPlanInput {
+  id: string;
+}
