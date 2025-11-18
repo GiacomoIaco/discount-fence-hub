@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2, Archive, ArchiveRestore, Lock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import {
   useAreasQuery,
   useInitiativesByFunctionQuery,
@@ -18,7 +18,8 @@ import {
   useUpdateAnnualTarget,
   useDeleteAnnualTarget,
 } from '../../hooks/useLeadershipQuery';
-import type { ProjectArea, ProjectInitiative } from '../../lib/leadership';
+import type { ProjectArea, ProjectInitiative, Assessment } from '../../lib/leadership';
+import type { WorkflowState } from '../../lib/operating-plan.types';
 import AreaManagementModal from '../AreaManagementModal';
 import InitiativeDetailModal from '../InitiativeDetailModal';
 import CopyYearButton from '../CopyYearButton';
@@ -43,6 +44,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const [addingTarget, setAddingTarget] = useState<string | null>(null); // initiative ID
   const [editingAction, setEditingAction] = useState<string | null>(null); // action ID
   const [editingTarget, setEditingTarget] = useState<string | null>(null); // target ID
+  const [scoringMode, setScoringMode] = useState<'bu' | 'ceo' | null>(null);
 
   const updateArea = useUpdateArea();
   const deleteArea = useDeleteArea();
@@ -204,8 +206,8 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   };
 
   // Add new target
-  const handleAddTarget = async (initiativeId: string, metricName: string, targetValue: string) => {
-    if (!metricName.trim()) {
+  const handleAddTarget = async (initiativeId: string, targetText: string) => {
+    if (!targetText.trim()) {
       setAddingTarget(null);
       return;
     }
@@ -215,8 +217,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
       await createTarget.mutateAsync({
         initiative_id: initiativeId,
         year,
-        metric_name: metricName.trim(),
-        target_value: targetValue.trim(),
+        target_text: targetText.trim(),
         sort_order: existingTargets.length,
         function_id: functionId,
       });
@@ -229,14 +230,19 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   };
 
   // Update existing target
-  const handleUpdateTarget = async (targetId: string, updates: { metric_name?: string; target_value?: string }, initiativeId: string) => {
+  const handleUpdateTarget = async (targetId: string, targetText: string, initiativeId: string) => {
+    if (!targetText.trim()) {
+      setEditingTarget(null);
+      return;
+    }
+
     try {
       await updateTarget.mutateAsync({
         id: targetId,
         initiative_id: initiativeId,
         year,
         function_id: functionId,
-        ...updates,
+        target_text: targetText.trim(),
       });
       setEditingTarget(null);
       toast.success('Target updated');
@@ -254,6 +260,210 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
     } catch (error) {
       console.error('Failed to delete target:', error);
       toast.error('Failed to delete target');
+    }
+  };
+
+  // Workflow and Scoring Helpers
+  const getAllActionsAndTargets = () => {
+    const allActions = Object.values(actionsByInitiative || {}).flat();
+    const allTargets = Object.values(targetsByInitiative || {}).flat();
+    return [...allActions, ...allTargets];
+  };
+
+  const getPlanWorkflowState = (): { state: WorkflowState | 'mixed' | 'empty'; canEdit: boolean; canScoreBU: boolean; canScoreCEO: boolean; canLock: boolean } => {
+    const items = getAllActionsAndTargets();
+
+    if (items.length === 0) {
+      return { state: 'empty', canEdit: true, canScoreBU: false, canScoreCEO: false, canLock: false };
+    }
+
+    const states = new Set(items.map(item => item.workflow_state));
+
+    if (states.size === 1) {
+      const state = Array.from(states)[0];
+      return {
+        state,
+        canEdit: state === 'draft',
+        canScoreBU: state === 'bu_scoring',
+        canScoreCEO: state === 'pending_ceo_review',
+        canLock: state === 'draft',
+      };
+    }
+
+    return { state: 'mixed', canEdit: false, canScoreBU: false, canScoreCEO: false, canLock: false };
+  };
+
+  const workflowState = getPlanWorkflowState();
+
+  const handleLockPlan = async () => {
+    if (!window.confirm(`Lock the ${year} Annual Plan? This will start the scoring process.`)) return;
+
+    try {
+      await Promise.all([
+        ...Object.values(actionsByInitiative || {}).flat().map(action =>
+          updateAction.mutateAsync({
+            id: action.id,
+            initiative_id: action.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: 'bu_scoring',
+            locked: true,
+          })
+        ),
+        ...Object.values(targetsByInitiative || {}).flat().map(target =>
+          updateTarget.mutateAsync({
+            id: target.id,
+            initiative_id: target.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: 'bu_scoring',
+            locked: true,
+          })
+        ),
+      ]);
+      toast.success(`${year} Annual Plan locked for BU scoring`);
+    } catch (error) {
+      console.error('Failed to lock plan:', error);
+      toast.error('Failed to lock plan');
+    }
+  };
+
+  const handleSubmitBUScores = async () => {
+    const actions = Object.values(actionsByInitiative || {}).flat();
+    const targets = Object.values(targetsByInitiative || {}).flat();
+    const unscoredActions = actions.filter(a => !a.bu_assessment && !a.bu_score);
+    const unscoredTargets = targets.filter(t => !t.bu_assessment && !t.bu_score);
+
+    if (unscoredActions.length > 0 || unscoredTargets.length > 0) {
+      toast.error(`Please score all ${unscoredActions.length} actions and ${unscoredTargets.length} targets before submitting`);
+      return;
+    }
+
+    if (!window.confirm(`Submit BU scores for CEO review?`)) return;
+
+    try {
+      await Promise.all([
+        ...actions.map(action =>
+          updateAction.mutateAsync({
+            id: action.id,
+            initiative_id: action.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: 'pending_ceo_review',
+            scored_at: new Date().toISOString(),
+          })
+        ),
+        ...targets.map(target =>
+          updateTarget.mutateAsync({
+            id: target.id,
+            initiative_id: target.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: 'pending_ceo_review',
+            scored_at: new Date().toISOString(),
+          })
+        ),
+      ]);
+      setScoringMode(null);
+      toast.success('Submitted for CEO review');
+    } catch (error) {
+      console.error('Failed to submit scores:', error);
+      toast.error('Failed to submit scores');
+    }
+  };
+
+  const handleCEOApprove = async () => {
+    const actions = Object.values(actionsByInitiative || {}).flat();
+    const targets = Object.values(targetsByInitiative || {}).flat();
+    const unscoredActions = actions.filter(a => !a.ceo_assessment && !a.ceo_score);
+    const unscoredTargets = targets.filter(t => !t.ceo_assessment && !t.ceo_score);
+
+    if (unscoredActions.length > 0 || unscoredTargets.length > 0) {
+      toast.error(`Please score all ${unscoredActions.length} actions and ${unscoredTargets.length} targets before approving`);
+      return;
+    }
+
+    if (!window.confirm(`Approve the ${year} Annual Plan? This will finalize all scores.`)) return;
+
+    try {
+      await Promise.all([
+        ...actions.map(action =>
+          updateAction.mutateAsync({
+            id: action.id,
+            initiative_id: action.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: 'approved',
+            approved_at: new Date().toISOString(),
+          })
+        ),
+        ...targets.map(target =>
+          updateTarget.mutateAsync({
+            id: target.id,
+            initiative_id: target.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: 'approved',
+            approved_at: new Date().toISOString(),
+          })
+        ),
+      ]);
+      setScoringMode(null);
+      toast.success(`${year} Annual Plan approved`);
+    } catch (error) {
+      console.error('Failed to approve:', error);
+      toast.error('Failed to approve');
+    }
+  };
+
+  const getAssessmentColor = (assessment?: Assessment | null) => {
+    switch (assessment) {
+      case 'dark_green':
+        return 'bg-green-600 text-white border-green-700';
+      case 'light_green':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'light_yellow':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'dark_yellow':
+        return 'bg-yellow-500 text-yellow-900 border-yellow-600';
+      case 'red':
+        return 'bg-red-100 text-red-800 border-red-300';
+      default:
+        return 'bg-gray-100 text-gray-600 border-gray-300';
+    }
+  };
+
+  const getWorkflowIcon = () => {
+    switch (workflowState.state) {
+      case 'draft':
+        return <Clock className="w-5 h-5 text-gray-500" />;
+      case 'bu_scoring':
+        return <AlertCircle className="w-5 h-5 text-blue-500" />;
+      case 'pending_ceo_review':
+        return <AlertCircle className="w-5 h-5 text-purple-500" />;
+      case 'approved':
+        return <CheckCircle2 className="w-5 h-5 text-green-500" />;
+      default:
+        return <Target className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  const getWorkflowLabel = () => {
+    switch (workflowState.state) {
+      case 'draft':
+        return 'Draft - Editable';
+      case 'bu_scoring':
+        return 'BU Scoring in Progress';
+      case 'pending_ceo_review':
+        return 'Pending CEO Review';
+      case 'approved':
+        return 'Approved & Complete';
+      case 'mixed':
+        return 'Mixed States';
+      case 'empty':
+        return 'No Items Yet';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -291,13 +501,72 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   return (
     <div className="max-w-full mx-auto space-y-4">
       {/* Header */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-blue-900">
-            <Target className="w-5 h-5" />
-            <span className="font-medium">Annual Plan for {year}</span>
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-gray-900">
+              <Target className="w-5 h-5" />
+              <span className="font-medium">Annual Plan for {year}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              {getWorkflowIcon()}
+              <span className="text-sm font-medium text-gray-700">{getWorkflowLabel()}</span>
+            </div>
           </div>
+
+          {/* Workflow Actions */}
           <div className="flex items-center gap-2">
+            {workflowState.canLock && (
+              <button
+                onClick={handleLockPlan}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Lock className="w-4 h-4" />
+                Lock & Start Scoring
+              </button>
+            )}
+
+            {workflowState.canScoreBU && (
+              <>
+                {scoringMode === 'bu' ? (
+                  <button
+                    onClick={handleSubmitBUScores}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Submit BU Scores
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setScoringMode('bu')}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Score as BU
+                  </button>
+                )}
+              </>
+            )}
+
+            {workflowState.canScoreCEO && (
+              <>
+                {scoringMode === 'ceo' ? (
+                  <button
+                    onClick={handleCEOApprove}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Approve as CEO
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setScoringMode('ceo')}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Score as CEO
+                  </button>
+                )}
+              </>
+            )}
+
             <CopyYearButton functionId={functionId} fromYear={year - 1} toYear={year} />
             <button
               onClick={() => setShowAreaModal(true)}
@@ -308,8 +577,8 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
             </button>
           </div>
         </div>
-        <p className="text-sm text-blue-700 mt-1">
-          Define actions/objectives and annual targets for each initiative
+        <p className="text-sm text-gray-600">
+          Define actions/objectives and annual targets for each initiative. {workflowState.canScoreBU || workflowState.canScoreCEO ? 'Use scoring dropdowns to assess each item.' : ''}
         </p>
       </div>
 
@@ -482,7 +751,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                               </div>
 
                               {actions.map((action) => (
-                                <div key={action.id} className="group flex items-start gap-2 p-2 border border-gray-200 rounded hover:border-gray-300">
+                                <div key={action.id} className="group border border-gray-200 rounded p-2 hover:border-gray-300">
                                   {editingAction === action.id ? (
                                     <textarea
                                       autoFocus
@@ -495,24 +764,99 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                           e.currentTarget.blur();
                                         }
                                       }}
-                                      className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+                                      className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
                                       rows={2}
                                     />
                                   ) : (
                                     <>
-                                      <span className="text-gray-400">-</span>
-                                      <p
-                                        onClick={() => setEditingAction(action.id)}
-                                        className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-gray-900"
-                                      >
-                                        {action.action_text}
-                                      </p>
-                                      <button
-                                        onClick={() => handleDeleteAction(action.id, initiative.id)}
-                                        className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
+                                      <div className="flex items-start gap-2">
+                                        <span className="text-gray-400">-</span>
+                                        <p
+                                          onClick={() => workflowState.canEdit && setEditingAction(action.id)}
+                                          className={`flex-1 text-sm text-gray-700 ${workflowState.canEdit ? 'cursor-pointer hover:text-gray-900' : ''}`}
+                                        >
+                                          {action.action_text}
+                                        </p>
+                                        {workflowState.canEdit && (
+                                          <button
+                                            onClick={() => handleDeleteAction(action.id, initiative.id)}
+                                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {/* Scoring UI */}
+                                      {(workflowState.canScoreBU || workflowState.canScoreCEO || action.bu_assessment || action.ceo_assessment) && (
+                                        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100">
+                                          {/* BU Score */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-gray-600">BU:</span>
+                                            {scoringMode === 'bu' && workflowState.canScoreBU ? (
+                                              <select
+                                                value={action.bu_assessment || ''}
+                                                onChange={(e) =>
+                                                  updateAction.mutateAsync({
+                                                    id: action.id,
+                                                    initiative_id: initiative.id,
+                                                    year,
+                                                    function_id: functionId,
+                                                    bu_assessment: (e.target.value as Assessment) || null,
+                                                  })
+                                                }
+                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                              >
+                                                <option value="">Not Scored</option>
+                                                <option value="dark_green">Dark Green - Excellent</option>
+                                                <option value="light_green">Light Green - Good</option>
+                                                <option value="light_yellow">Light Yellow - Met</option>
+                                                <option value="dark_yellow">Dark Yellow - Below</option>
+                                                <option value="red">Red - Poor</option>
+                                              </select>
+                                            ) : action.bu_assessment ? (
+                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(action.bu_assessment)}`}>
+                                                {action.bu_assessment.toUpperCase()}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-gray-400">Not scored</span>
+                                            )}
+                                          </div>
+
+                                          {/* CEO Score */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-gray-600">CEO:</span>
+                                            {scoringMode === 'ceo' && workflowState.canScoreCEO ? (
+                                              <select
+                                                value={action.ceo_assessment || ''}
+                                                onChange={(e) =>
+                                                  updateAction.mutateAsync({
+                                                    id: action.id,
+                                                    initiative_id: initiative.id,
+                                                    year,
+                                                    function_id: functionId,
+                                                    ceo_assessment: (e.target.value as Assessment) || null,
+                                                  })
+                                                }
+                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                              >
+                                                <option value="">Not Scored</option>
+                                                <option value="dark_green">Dark Green - Excellent</option>
+                                                <option value="light_green">Light Green - Good</option>
+                                                <option value="light_yellow">Light Yellow - Met</option>
+                                                <option value="dark_yellow">Dark Yellow - Below</option>
+                                                <option value="red">Red - Poor</option>
+                                              </select>
+                                            ) : action.ceo_assessment ? (
+                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(action.ceo_assessment)}`}>
+                                                {action.ceo_assessment.toUpperCase()}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-gray-400">Not scored</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -559,89 +903,121 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                               {targets.map((target) => (
                                 <div key={target.id} className="group p-2 border border-gray-200 rounded hover:border-gray-300">
                                   {editingTarget === target.id ? (
-                                    <div className="space-y-2">
-                                      <input
-                                        type="text"
-                                        autoFocus
-                                        defaultValue={target.metric_name}
-                                        placeholder="Metric name"
-                                        onBlur={(e) => handleUpdateTarget(target.id, { metric_name: e.target.value }, initiative.id)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            (e.currentTarget.nextElementSibling as HTMLInputElement)?.focus();
-                                          } else if (e.key === 'Escape') {
-                                            setEditingTarget(null);
-                                          }
-                                        }}
-                                        className="w-full px-2 py-1 text-sm font-medium border border-blue-300 rounded"
-                                      />
-                                      <input
-                                        type="text"
-                                        defaultValue={target.target_value || ''}
-                                        placeholder="Target value"
-                                        onBlur={(e) => {
-                                          handleUpdateTarget(target.id, { target_value: e.target.value }, initiative.id);
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            e.currentTarget.blur();
-                                          } else if (e.key === 'Escape') {
-                                            setEditingTarget(null);
-                                          }
-                                        }}
-                                        className="w-full px-2 py-1 text-sm border border-blue-300 rounded"
-                                      />
-                                    </div>
+                                    <textarea
+                                      autoFocus
+                                      defaultValue={target.target_text}
+                                      placeholder="Target description (e.g., Achieve $7M revenue at 27%+ margins)"
+                                      onBlur={(e) => handleUpdateTarget(target.id, e.target.value, initiative.id)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                          setEditingTarget(null);
+                                        }
+                                      }}
+                                      className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+                                      rows={3}
+                                    />
                                   ) : (
                                     <>
                                       <div className="flex items-start justify-between gap-2">
-                                        <div
-                                          onClick={() => setEditingTarget(target.id)}
-                                          className="flex-1 cursor-pointer"
+                                        <p
+                                          onClick={() => workflowState.canEdit && setEditingTarget(target.id)}
+                                          className={`flex-1 text-sm text-gray-900 ${workflowState.canEdit ? 'cursor-pointer hover:text-gray-700' : ''}`}
                                         >
-                                          <p className="text-sm font-medium text-gray-900">{target.metric_name}</p>
-                                          {target.target_value && (
-                                            <p className="text-sm text-gray-600 mt-1">{target.target_value}</p>
-                                          )}
-                                        </div>
-                                        <button
-                                          onClick={() => handleDeleteTarget(target.id, initiative.id)}
-                                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
+                                          {target.target_text}
+                                        </p>
+                                        {workflowState.canEdit && (
+                                          <button
+                                            onClick={() => handleDeleteTarget(target.id, initiative.id)}
+                                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        )}
                                       </div>
+
+                                      {/* Scoring UI */}
+                                      {(workflowState.canScoreBU || workflowState.canScoreCEO || target.bu_assessment || target.ceo_assessment) && (
+                                        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100">
+                                          {/* BU Score */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-gray-600">BU:</span>
+                                            {scoringMode === 'bu' && workflowState.canScoreBU ? (
+                                              <select
+                                                value={target.bu_assessment || ''}
+                                                onChange={(e) =>
+                                                  updateTarget.mutateAsync({
+                                                    id: target.id,
+                                                    initiative_id: initiative.id,
+                                                    year,
+                                                    function_id: functionId,
+                                                    bu_assessment: (e.target.value as Assessment) || null,
+                                                  })
+                                                }
+                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                              >
+                                                <option value="">Not Scored</option>
+                                                <option value="dark_green">Dark Green - Excellent</option>
+                                                <option value="light_green">Light Green - Good</option>
+                                                <option value="light_yellow">Light Yellow - Met</option>
+                                                <option value="dark_yellow">Dark Yellow - Below</option>
+                                                <option value="red">Red - Poor</option>
+                                              </select>
+                                            ) : target.bu_assessment ? (
+                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(target.bu_assessment)}`}>
+                                                {target.bu_assessment.toUpperCase()}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-gray-400">Not scored</span>
+                                            )}
+                                          </div>
+
+                                          {/* CEO Score */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-gray-600">CEO:</span>
+                                            {scoringMode === 'ceo' && workflowState.canScoreCEO ? (
+                                              <select
+                                                value={target.ceo_assessment || ''}
+                                                onChange={(e) =>
+                                                  updateTarget.mutateAsync({
+                                                    id: target.id,
+                                                    initiative_id: initiative.id,
+                                                    year,
+                                                    function_id: functionId,
+                                                    ceo_assessment: (e.target.value as Assessment) || null,
+                                                  })
+                                                }
+                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                              >
+                                                <option value="">Not Scored</option>
+                                                <option value="dark_green">Dark Green - Excellent</option>
+                                                <option value="light_green">Light Green - Good</option>
+                                                <option value="light_yellow">Light Yellow - Met</option>
+                                                <option value="dark_yellow">Dark Yellow - Below</option>
+                                                <option value="red">Red - Poor</option>
+                                              </select>
+                                            ) : target.ceo_assessment ? (
+                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(target.ceo_assessment)}`}>
+                                                {target.ceo_assessment.toUpperCase()}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-gray-400">Not scored</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
                                     </>
                                   )}
                                 </div>
                               ))}
 
                               {addingTarget === initiative.id && (
-                                <div className="border border-blue-300 rounded p-2 space-y-2">
-                                  <input
-                                    type="text"
+                                <div className="border border-blue-300 rounded p-2">
+                                  <textarea
                                     autoFocus
-                                    placeholder="Metric name (e.g., Revenue)"
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Escape') {
-                                        setAddingTarget(null);
-                                      } else if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        (e.currentTarget.nextElementSibling as HTMLInputElement)?.focus();
-                                      }
-                                    }}
-                                    className="w-full px-2 py-1 text-sm font-medium border-0 focus:ring-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="Target value (e.g., $7M at 27%+ margins)"
+                                    placeholder="Target description (e.g., Achieve $7M revenue at 27%+ margins)"
                                     onBlur={(e) => {
-                                      const metricInput = e.currentTarget.previousElementSibling as HTMLInputElement;
-                                      const metricName = metricInput?.value || '';
-                                      if (metricName.trim()) {
-                                        handleAddTarget(initiative.id, metricName, e.target.value);
+                                      if (e.target.value.trim()) {
+                                        handleAddTarget(initiative.id, e.target.value);
                                       } else {
                                         setAddingTarget(null);
                                       }
@@ -649,12 +1025,10 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                     onKeyDown={(e) => {
                                       if (e.key === 'Escape') {
                                         setAddingTarget(null);
-                                      } else if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        e.currentTarget.blur();
                                       }
                                     }}
                                     className="w-full px-2 py-1 text-sm border-0 focus:ring-0"
+                                    rows={3}
                                   />
                                 </div>
                               )}

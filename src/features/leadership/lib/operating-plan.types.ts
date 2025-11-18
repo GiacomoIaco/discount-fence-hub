@@ -7,9 +7,9 @@
 // Quarterly Objectives
 // ============================================
 
-export type WorkflowState = 'draft' | 'bu_scoring' | 'pending_ceo_review' | 'ceo_approved';
+export type WorkflowState = 'draft' | 'locked' | 'bu_scoring' | 'pending_ceo_review' | 'approved' | 'ceo_approved'; // ceo_approved kept for backward compatibility
 export type QuarterlyScore = 0 | 0.25 | 0.5 | 0.75 | 1.0;
-export type Assessment = 'green' | 'yellow' | 'red';
+export type Assessment = 'red' | 'dark_yellow' | 'light_yellow' | 'light_green' | 'dark_green';
 
 export interface QuarterlyObjective {
   id: string;

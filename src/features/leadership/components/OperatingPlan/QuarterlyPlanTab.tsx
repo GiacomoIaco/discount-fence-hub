@@ -213,10 +213,14 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
 
   const getAssessmentColor = (assessment?: Assessment | null) => {
     switch (assessment) {
-      case 'green':
+      case 'dark_green':
+        return 'bg-green-600 text-white border-green-700';
+      case 'light_green':
         return 'bg-green-100 text-green-800 border-green-300';
-      case 'yellow':
+      case 'light_yellow':
         return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'dark_yellow':
+        return 'bg-yellow-500 text-yellow-900 border-yellow-600';
       case 'red':
         return 'bg-red-100 text-red-800 border-red-300';
       default:
@@ -452,9 +456,11 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                                         className="text-xs border-gray-200 rounded px-2 py-1"
                                       >
                                         <option value="">Not Scored</option>
-                                        <option value="green">Green</option>
-                                        <option value="yellow">Yellow</option>
-                                        <option value="red">Red</option>
+                                        <option value="dark_green">Dark Green - Excellent</option>
+                                        <option value="light_green">Light Green - Good</option>
+                                        <option value="light_yellow">Light Yellow - Met</option>
+                                        <option value="dark_yellow">Dark Yellow - Below</option>
+                                        <option value="red">Red - Poor</option>
                                       </select>
                                     ) : objective.bu_assessment ? (
                                       <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(objective.bu_assessment)}`}>
@@ -475,9 +481,11 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                                         className="text-xs border-gray-200 rounded px-2 py-1"
                                       >
                                         <option value="">Not Scored</option>
-                                        <option value="green">Green</option>
-                                        <option value="yellow">Yellow</option>
-                                        <option value="red">Red</option>
+                                        <option value="dark_green">Dark Green - Excellent</option>
+                                        <option value="light_green">Light Green - Good</option>
+                                        <option value="light_yellow">Light Yellow - Met</option>
+                                        <option value="dark_yellow">Dark Yellow - Below</option>
+                                        <option value="red">Red - Poor</option>
                                       </select>
                                     ) : objective.ceo_assessment ? (
                                       <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(objective.ceo_assessment)}`}>

@@ -899,9 +899,11 @@ export const ActionStatus = {
 export type ActionStatus = typeof ActionStatus[keyof typeof ActionStatus];
 
 export const Assessment = {
-  GREEN: 'green',
-  YELLOW: 'yellow',
   RED: 'red',
+  DARK_YELLOW: 'dark_yellow',
+  LIGHT_YELLOW: 'light_yellow',
+  LIGHT_GREEN: 'light_green',
+  DARK_GREEN: 'dark_green',
 } as const;
 
 export type Assessment = typeof Assessment[keyof typeof Assessment];
@@ -912,7 +914,18 @@ export interface InitiativeAnnualAction {
   year: number;
   action_text: string;
   status: ActionStatus;
-  assessment?: Assessment;
+  assessment?: Assessment; // Legacy field
+  // Workflow and scoring
+  workflow_state: 'draft' | 'locked' | 'bu_scoring' | 'pending_ceo_review' | 'approved';
+  locked: boolean;
+  bu_assessment?: Assessment | null;
+  ceo_assessment?: Assessment | null;
+  bu_score?: number | null; // 0-100
+  ceo_score?: number | null; // 0-100
+  bu_comments?: string | null;
+  ceo_comments?: string | null;
+  scored_at?: string | null;
+  approved_at?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -923,11 +936,24 @@ export interface InitiativeAnnualTarget {
   id: string;
   initiative_id: string;
   year: number;
-  metric_name: string;
+  target_text: string; // Single field: "Achieve $7M revenue at 27%+ margins"
+  // Legacy fields (kept for backward compatibility)
+  metric_name?: string;
   target_value?: string;
-  actual_value?: string;
   unit?: string;
-  assessment?: Assessment;
+  actual_value?: string;
+  assessment?: Assessment; // Legacy field
+  // Workflow and scoring
+  workflow_state: 'draft' | 'locked' | 'bu_scoring' | 'pending_ceo_review' | 'approved';
+  locked: boolean;
+  bu_assessment?: Assessment | null;
+  ceo_assessment?: Assessment | null;
+  bu_score?: number | null; // 0-100
+  ceo_score?: number | null; // 0-100
+  bu_comments?: string | null;
+  ceo_comments?: string | null;
+  scored_at?: string | null;
+  approved_at?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -988,26 +1014,42 @@ export interface UpdateAnnualActionInput {
   id: string;
   action_text?: string;
   status?: ActionStatus;
-  assessment?: Assessment;
+  assessment?: Assessment; // Legacy
+  workflow_state?: 'draft' | 'locked' | 'bu_scoring' | 'pending_ceo_review' | 'approved';
+  locked?: boolean;
+  bu_assessment?: Assessment | null;
+  ceo_assessment?: Assessment | null;
+  bu_score?: number | null;
+  ceo_score?: number | null;
+  bu_comments?: string | null;
+  ceo_comments?: string | null;
+  scored_at?: string | null;
+  approved_at?: string | null;
   sort_order?: number;
 }
 
 export interface CreateAnnualTargetInput {
   initiative_id: string;
   year: number;
-  metric_name: string;
-  target_value?: string;
-  unit?: string;
+  target_text: string; // Single field
   sort_order?: number;
 }
 
 export interface UpdateAnnualTargetInput {
   id: string;
-  metric_name?: string;
-  target_value?: string;
+  target_text?: string;
   actual_value?: string;
-  unit?: string;
-  assessment?: Assessment;
+  assessment?: Assessment; // Legacy
+  workflow_state?: 'draft' | 'locked' | 'bu_scoring' | 'pending_ceo_review' | 'approved';
+  locked?: boolean;
+  bu_assessment?: Assessment | null;
+  ceo_assessment?: Assessment | null;
+  bu_score?: number | null;
+  ceo_score?: number | null;
+  bu_comments?: string | null;
+  ceo_comments?: string | null;
+  scored_at?: string | null;
+  approved_at?: string | null;
   sort_order?: number;
 }
 
