@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Calendar, Trash2, Lock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Plus, Calendar, Trash2, Lock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import {
-  useAreasQuery,
   useInitiativesByFunctionQuery,
+  useAllAnnualActionsByFunctionQuery,
+  useAllAnnualTargetsByFunctionQuery,
 } from '../../hooks/useLeadershipQuery';
 import {
   useQuarterlyObjectivesByFunctionQuery,
@@ -10,7 +11,6 @@ import {
   useCreateQuarterlyObjective,
   useDeleteQuarterlyObjective,
 } from '../../hooks/useOperatingPlanQuery';
-import type { ProjectInitiative } from '../../lib/leadership';
 import type { QuarterlyObjective, WorkflowState, Assessment } from '../../lib/operating-plan.types';
 import { toast } from 'react-hot-toast';
 
@@ -23,32 +23,26 @@ type QuarterNumber = 1 | 2 | 3 | 4;
 
 export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabProps) {
   const [selectedQuarter, setSelectedQuarter] = useState<QuarterNumber>(1);
-  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
   const [addingObjective, setAddingObjective] = useState<string | null>(null);
   const [editingObjective, setEditingObjective] = useState<string | null>(null);
   const [scoringMode, setScoringMode] = useState<'bu' | 'ceo' | null>(null);
 
-  const { data: areas } = useAreasQuery(functionId);
   const { data: initiatives } = useInitiativesByFunctionQuery(functionId);
   const { data: allObjectives } = useQuarterlyObjectivesByFunctionQuery(functionId, year);
+  const { data: annualActionsByInitiative } = useAllAnnualActionsByFunctionQuery(functionId, year);
+  const { data: annualTargetsByInitiative } = useAllAnnualTargetsByFunctionQuery(functionId, year);
   const updateObjective = useUpdateQuarterlyObjective();
   const createObjective = useCreateQuarterlyObjective();
   const deleteObjective = useDeleteQuarterlyObjective();
 
-  const toggleAreaCollapse = (areaId: string) => {
-    setCollapsedAreas(prev => {
-      const next = new Set(prev);
-      if (next.has(areaId)) {
-        next.delete(areaId);
-      } else {
-        next.add(areaId);
-      }
-      return next;
-    });
-  };
-
   // Get objectives for the selected quarter
   const quarterObjectives = allObjectives?.filter(obj => obj.quarter === selectedQuarter) || [];
+
+  // Get previous quarter objectives (Q1 has no previous quarter)
+  const previousQuarter = selectedQuarter === 1 ? null : (selectedQuarter - 1) as QuarterNumber;
+  const previousQuarterObjectives = previousQuarter
+    ? allObjectives?.filter(obj => obj.quarter === previousQuarter) || []
+    : [];
 
   // Group objectives by initiative
   const objectivesByInitiative = quarterObjectives.reduce((acc, obj) => {
@@ -59,15 +53,24 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
     return acc;
   }, {} as Record<string, QuarterlyObjective[]>);
 
-  // Group initiatives by area
-  const initiativesByArea = initiatives?.reduce((acc, initiative) => {
-    const areaId = initiative.area?.id || 'uncategorized';
-    if (!acc[areaId]) {
-      acc[areaId] = [];
+  // Group previous quarter objectives by initiative
+  const previousObjectivesByInitiative = previousQuarterObjectives.reduce((acc, obj) => {
+    if (!acc[obj.initiative_id]) {
+      acc[obj.initiative_id] = [];
     }
-    acc[areaId].push(initiative);
+    acc[obj.initiative_id].push(obj);
     return acc;
-  }, {} as Record<string, ProjectInitiative[]>) || {};
+  }, {} as Record<string, QuarterlyObjective[]>);
+
+  // Get workflow state for each quarter (for tab status dots)
+  const getQuarterStatus = (quarter: QuarterNumber): WorkflowState | 'mixed' | 'empty' => {
+    const quarterObjs = allObjectives?.filter(obj => obj.quarter === quarter) || [];
+    if (quarterObjs.length === 0) return 'empty';
+
+    const states = new Set(quarterObjs.map(obj => obj.workflow_state));
+    if (states.size === 1) return Array.from(states)[0];
+    return 'mixed';
+  };
 
   // Determine quarter workflow state
   const getQuarterWorkflowState = (): { state: WorkflowState | 'mixed' | 'empty'; canEdit: boolean; canScoreBU: boolean; canScoreCEO: boolean; canLock: boolean } => {
@@ -262,16 +265,36 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
     }
   };
 
-  if (!areas || areas.length === 0) {
+  const getStatusDotColor = (status: WorkflowState | 'mixed' | 'empty') => {
+    switch (status) {
+      case 'draft':
+        return 'bg-gray-400';
+      case 'bu_scoring':
+        return 'bg-blue-500';
+      case 'pending_ceo_review':
+        return 'bg-purple-500';
+      case 'ceo_approved':
+      case 'approved':
+        return 'bg-green-500';
+      case 'mixed':
+        return 'bg-yellow-500';
+      case 'empty':
+        return 'bg-gray-300';
+      default:
+        return 'bg-gray-300';
+    }
+  };
+
+  if (!initiatives || initiatives.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            No areas created yet
+            No initiatives created yet
           </h3>
           <p className="text-gray-600">
-            Create areas in the Annual Plan tab first to organize your quarterly objectives
+            Create initiatives in the Annual Plan tab first to organize your quarterly objectives
           </p>
         </div>
       </div>
@@ -280,28 +303,41 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
 
   return (
     <div className="max-w-full mx-auto space-y-4">
-      {/* Header with Quarter Selector and Workflow Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-700">Quarter:</label>
-            <select
-              value={selectedQuarter}
-              onChange={(e) => setSelectedQuarter(Number(e.target.value) as QuarterNumber)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-            >
-              {[1, 2, 3, 4].map((q) => (
-                <option key={q} value={q}>
+      {/* Header with Quarter Tabs and Workflow Status */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        {/* Quarter Tabs */}
+        <div className="border-b border-gray-200">
+          <div className="flex items-center">
+            {([1, 2, 3, 4] as QuarterNumber[]).map((q) => {
+              const status = getQuarterStatus(q);
+              const isActive = selectedQuarter === q;
+              return (
+                <button
+                  key={q}
+                  onClick={() => setSelectedQuarter(q)}
+                  className={`
+                    flex items-center gap-2 px-6 py-3 border-b-2 font-medium text-sm transition-colors
+                    ${isActive
+                      ? 'border-blue-600 text-blue-600 bg-blue-50'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <div className={`w-2 h-2 rounded-full ${getStatusDotColor(status)}`} />
                   Q{q} {year}
-                </option>
-              ))}
-            </select>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
+        {/* Workflow Status and Actions */}
+        <div className="p-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
               {getWorkflowIcon()}
               <span className="text-sm font-medium text-gray-700">{getWorkflowLabel()}</span>
             </div>
-          </div>
 
           {/* Workflow Actions */}
           <div className="flex items-center gap-2">
@@ -358,60 +394,115 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
           </div>
         </div>
 
-        <p className="text-sm text-gray-600 mt-2">
-          Define quarterly objectives for each initiative. Objectives can be scored and approved through a BU → CEO workflow.
-        </p>
+          <p className="text-sm text-gray-600 mt-2">
+            Define quarterly objectives for each initiative. Previous quarter results and annual plan context are shown for reference.
+          </p>
+        </div>
       </div>
 
-      {/* Areas and Initiatives */}
-      {areas.map((area) => {
-        const areaInitiatives = initiativesByArea[area.id] || [];
-        const isCollapsed = collapsedAreas.has(area.id);
-
-        if (areaInitiatives.length === 0) return null;
-
-        return (
-          <div key={area.id} className="bg-white rounded-lg border border-gray-200">
-            {/* Area Header */}
-            <div
-              className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100"
-              onClick={() => toggleAreaCollapse(area.id)}
-            >
-              <div className="flex items-center gap-2">
-                {isCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                )}
-                <h3 className="text-base font-semibold text-gray-900">{area.name}</h3>
-                <span className="text-sm text-gray-500">
-                  ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
-                </span>
-              </div>
+      {/* 4-Column Table: Initiative | Annual Plan | Previous Quarter | Current Quarter */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {/* Table Header */}
+        <div className="grid grid-cols-12 gap-4 bg-gray-50 border-b border-gray-200 px-4 py-3">
+          <div className="col-span-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+            Initiative
+          </div>
+          <div className="col-span-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+            {year} Annual Plan Reference
+          </div>
+          {previousQuarter && (
+            <div className="col-span-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              Q{previousQuarter} Results
             </div>
+          )}
+          <div className={`${previousQuarter ? "col-span-3" : "col-span-6"} text-xs font-semibold text-gray-700 uppercase tracking-wider`}>
+            Q{selectedQuarter} Objectives
+          </div>
+        </div>
 
-            {/* Initiatives */}
-            {!isCollapsed && (
-              <div className="divide-y divide-gray-200">
-                {areaInitiatives.map((initiative) => {
-                  const objectives = objectivesByInitiative[initiative.id] || [];
+        {/* Table Rows */}
+        <div className="divide-y divide-gray-200">
+          {initiatives.map((initiative) => {
+            const objectives = objectivesByInitiative[initiative.id] || [];
+            const previousObjectives = previousObjectivesByInitiative[initiative.id] || [];
+            const annualActions = annualActionsByInitiative?.[initiative.id] || [];
+            const annualTargets = annualTargetsByInitiative?.[initiative.id] || [];
 
-                  return (
-                    <div key={initiative.id} className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-base font-semibold text-gray-900">{initiative.title}</h4>
-                        {workflowState.canEdit && (
-                          <button
-                            onClick={() => setAddingObjective(initiative.id)}
-                            className="flex items-center gap-1 px-3 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                            Add Objective
-                          </button>
-                        )}
-                      </div>
+            return (
+              <div key={initiative.id} className="grid grid-cols-12 gap-4 px-4 py-4 hover:bg-gray-50">
+                {/* Column 1: Initiative Name (15% ~ 2 cols) */}
+                <div className="col-span-2">
+                  <div className="sticky top-0">
+                    <h4 className="text-sm font-semibold text-gray-900 leading-tight">
+                      {initiative.title}
+                    </h4>
+                    {initiative.area && (
+                      <p className="text-xs text-gray-500 mt-1">{initiative.area.name}</p>
+                    )}
+                  </div>
+                </div>
 
-                      <div className="space-y-2">
+                {/* Column 2: Annual Plan Reference (30% ~ 4 cols) */}
+                <div className="col-span-4 space-y-2">
+                  {annualActions.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-1">Actions:</p>
+                      <ul className="space-y-1">
+                        {annualActions.map((action) => (
+                          <li key={action.id} className="text-xs text-gray-700 pl-2 border-l-2 border-gray-300">
+                            {action.action_text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {annualTargets.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-1">Targets:</p>
+                      <ul className="space-y-1">
+                        {annualTargets.map((target) => (
+                          <li key={target.id} className="text-xs text-gray-700 pl-2 border-l-2 border-blue-300">
+                            {target.target_text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {annualActions.length === 0 && annualTargets.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">No annual plan items</p>
+                  )}
+                </div>
+
+                {/* Column 3: Previous Quarter Results (25% ~ 3 cols) - Only show if not Q1 */}
+                {previousQuarter && (
+                  <div className="col-span-3 space-y-2">
+                    {previousObjectives.length > 0 ? (
+                      previousObjectives.map((obj) => (
+                        <div key={obj.id} className="text-xs bg-gray-50 rounded p-2 border border-gray-200">
+                          <p className="text-gray-700 mb-1">{obj.objective_text}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {obj.bu_assessment && (
+                              <span className={`text-xs px-2 py-0.5 rounded border ${getAssessmentColor(obj.bu_assessment)}`}>
+                                BU: {obj.bu_assessment.replace('_', ' ').toUpperCase()}
+                              </span>
+                            )}
+                            {obj.ceo_assessment && (
+                              <span className={`text-xs px-2 py-0.5 rounded border ${getAssessmentColor(obj.ceo_assessment)}`}>
+                                CEO: {obj.ceo_assessment.replace('_', ' ').toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-400 italic">No Q{previousQuarter} objectives</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Column 4: Current Quarter Objectives (30% ~ 3 or 6 cols) */}
+                <div className={previousQuarter ? "col-span-3" : "col-span-6"}>
+                  <div className="space-y-2">
                         {objectives.map((objective) => (
                           <div key={objective.id} className="group border border-gray-200 rounded p-3 hover:border-gray-300">
                             {editingObjective === objective.id ? (
@@ -535,18 +626,27 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                           </div>
                         )}
 
-                        {objectives.length === 0 && addingObjective !== initiative.id && (
-                          <p className="text-sm text-gray-400 italic py-2">No objectives for Q{selectedQuarter} yet</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    {objectives.length === 0 && addingObjective !== initiative.id && (
+                      <p className="text-xs text-gray-400 italic">No objectives for Q{selectedQuarter} yet</p>
+                    )}
+
+                    {/* Add Objective Button */}
+                    {workflowState.canEdit && addingObjective !== initiative.id && (
+                      <button
+                        onClick={() => setAddingObjective(initiative.id)}
+                        className="flex items-center gap-1 px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors border border-dashed border-gray-300 hover:border-blue-300 w-full justify-center"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add Q{selectedQuarter} Objective
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
