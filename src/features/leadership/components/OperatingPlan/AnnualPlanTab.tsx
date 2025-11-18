@@ -159,6 +159,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
         year,
         action_text: actionText.trim(),
         sort_order: existingActions.length,
+        function_id: functionId,
       });
       setAddingAction(null);
       toast.success('Action added');
@@ -181,6 +182,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
         initiative_id: initiativeId,
         year,
         action_text: actionText.trim(),
+        function_id: functionId,
       });
       setEditingAction(null);
       toast.success('Action updated');
@@ -193,7 +195,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   // Delete action
   const handleDeleteAction = async (actionId: string, initiativeId: string) => {
     try {
-      await deleteAction.mutateAsync({ id: actionId, initiative_id: initiativeId, year });
+      await deleteAction.mutateAsync({ id: actionId, initiative_id: initiativeId, year, function_id: functionId });
       toast.success('Action deleted');
     } catch (error) {
       console.error('Failed to delete action:', error);
@@ -216,6 +218,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
         metric_name: metricName.trim(),
         target_value: targetValue.trim(),
         sort_order: existingTargets.length,
+        function_id: functionId,
       });
       setAddingTarget(null);
       toast.success('Target added');
@@ -232,6 +235,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
         id: targetId,
         initiative_id: initiativeId,
         year,
+        function_id: functionId,
         ...updates,
       });
       setEditingTarget(null);
@@ -245,7 +249,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   // Delete target
   const handleDeleteTarget = async (targetId: string, initiativeId: string) => {
     try {
-      await deleteTarget.mutateAsync({ id: targetId, initiative_id: initiativeId, year });
+      await deleteTarget.mutateAsync({ id: targetId, initiative_id: initiativeId, year, function_id: functionId });
       toast.success('Target deleted');
     } catch (error) {
       console.error('Failed to delete target:', error);

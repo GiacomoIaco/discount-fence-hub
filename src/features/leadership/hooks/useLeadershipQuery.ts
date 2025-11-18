@@ -1123,10 +1123,11 @@ export const useCreateAnnualAction = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: CreateAnnualActionInput): Promise<InitiativeAnnualAction> => {
+    mutationFn: async (input: CreateAnnualActionInput & { function_id: string }): Promise<InitiativeAnnualAction> => {
+      const { function_id, ...actionInput } = input;
       const { data, error } = await supabase
         .from('initiative_annual_actions')
-        .insert(input)
+        .insert(actionInput)
         .select()
         .single();
 
@@ -1134,6 +1135,11 @@ export const useCreateAnnualAction = () => {
       return data;
     },
     onSuccess: (_, variables) => {
+      // Invalidate the function-level query that fetches all actions
+      queryClient.invalidateQueries({
+        queryKey: [...leadershipKeys.all, 'function-actions', variables.function_id, variables.year]
+      });
+      // Also invalidate the individual initiative query for backwards compatibility
       queryClient.invalidateQueries({ queryKey: leadershipKeys.annualActions(variables.initiative_id, variables.year) });
     },
   });
@@ -1146,7 +1152,7 @@ export const useUpdateAnnualAction = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...input }: UpdateAnnualActionInput & { initiative_id: string; year: number }): Promise<InitiativeAnnualAction> => {
+    mutationFn: async ({ id, function_id, ...input }: UpdateAnnualActionInput & { initiative_id: string; year: number; function_id: string }): Promise<InitiativeAnnualAction> => {
       const { data, error } = await supabase
         .from('initiative_annual_actions')
         .update(input)
@@ -1158,6 +1164,11 @@ export const useUpdateAnnualAction = () => {
       return data;
     },
     onSuccess: (_, variables) => {
+      // Invalidate the function-level query that fetches all actions
+      queryClient.invalidateQueries({
+        queryKey: [...leadershipKeys.all, 'function-actions', variables.function_id, variables.year]
+      });
+      // Also invalidate the individual initiative query for backwards compatibility
       queryClient.invalidateQueries({ queryKey: leadershipKeys.annualActions(variables.initiative_id, variables.year) });
     },
   });
@@ -1170,7 +1181,7 @@ export const useDeleteAnnualAction = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number }): Promise<void> => {
+    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number; function_id: string }): Promise<void> => {
       const { error } = await supabase
         .from('initiative_annual_actions')
         .delete()
@@ -1179,6 +1190,11 @@ export const useDeleteAnnualAction = () => {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
+      // Invalidate the function-level query that fetches all actions
+      queryClient.invalidateQueries({
+        queryKey: [...leadershipKeys.all, 'function-actions', variables.function_id, variables.year]
+      });
+      // Also invalidate the individual initiative query for backwards compatibility
       queryClient.invalidateQueries({ queryKey: leadershipKeys.annualActions(variables.initiative_id, variables.year) });
     },
   });
@@ -1191,10 +1207,11 @@ export const useCreateAnnualTarget = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: CreateAnnualTargetInput): Promise<InitiativeAnnualTarget> => {
+    mutationFn: async (input: CreateAnnualTargetInput & { function_id: string }): Promise<InitiativeAnnualTarget> => {
+      const { function_id, ...targetInput } = input;
       const { data, error } = await supabase
         .from('initiative_annual_targets')
-        .insert(input)
+        .insert(targetInput)
         .select()
         .single();
 
@@ -1202,6 +1219,11 @@ export const useCreateAnnualTarget = () => {
       return data;
     },
     onSuccess: (_, variables) => {
+      // Invalidate the function-level query that fetches all targets
+      queryClient.invalidateQueries({
+        queryKey: [...leadershipKeys.all, 'function-targets', variables.function_id, variables.year]
+      });
+      // Also invalidate the individual initiative query for backwards compatibility
       queryClient.invalidateQueries({ queryKey: leadershipKeys.annualTargets(variables.initiative_id, variables.year) });
     },
   });
@@ -1214,7 +1236,7 @@ export const useUpdateAnnualTarget = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...input }: UpdateAnnualTargetInput & { initiative_id: string; year: number }): Promise<InitiativeAnnualTarget> => {
+    mutationFn: async ({ id, function_id, ...input }: UpdateAnnualTargetInput & { initiative_id: string; year: number; function_id: string }): Promise<InitiativeAnnualTarget> => {
       const { data, error } = await supabase
         .from('initiative_annual_targets')
         .update(input)
@@ -1226,6 +1248,11 @@ export const useUpdateAnnualTarget = () => {
       return data;
     },
     onSuccess: (_, variables) => {
+      // Invalidate the function-level query that fetches all targets
+      queryClient.invalidateQueries({
+        queryKey: [...leadershipKeys.all, 'function-targets', variables.function_id, variables.year]
+      });
+      // Also invalidate the individual initiative query for backwards compatibility
       queryClient.invalidateQueries({ queryKey: leadershipKeys.annualTargets(variables.initiative_id, variables.year) });
     },
   });
@@ -1238,7 +1265,7 @@ export const useDeleteAnnualTarget = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number }): Promise<void> => {
+    mutationFn: async ({ id }: { id: string; initiative_id: string; year: number; function_id: string }): Promise<void> => {
       const { error } = await supabase
         .from('initiative_annual_targets')
         .delete()
@@ -1247,6 +1274,11 @@ export const useDeleteAnnualTarget = () => {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
+      // Invalidate the function-level query that fetches all targets
+      queryClient.invalidateQueries({
+        queryKey: [...leadershipKeys.all, 'function-targets', variables.function_id, variables.year]
+      });
+      // Also invalidate the individual initiative query for backwards compatibility
       queryClient.invalidateQueries({ queryKey: leadershipKeys.annualTargets(variables.initiative_id, variables.year) });
     },
   });
