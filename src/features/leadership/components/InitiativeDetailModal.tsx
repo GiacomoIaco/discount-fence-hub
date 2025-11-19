@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Trash2, Calendar, Flag, TrendingUp, Target, Plus, FileDown } from 'lucide-react';
+import { X, Save, Trash2, Calendar, TrendingUp, Plus, FileDown } from 'lucide-react';
 import { useInitiativeQuery, useCreateInitiative, useUpdateInitiative } from '../hooks/useLeadershipQuery';
 import { exportInitiativePDF } from '../lib/pdfExport';
 import {
@@ -239,47 +239,13 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
             )}
           </div>
 
-          {/* Success Criteria */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Success Criteria
-            </label>
-            {isEditing ? (
-              <textarea
-                value={formData.success_criteria}
-                onChange={(e) => setFormData({ ...formData, success_criteria: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={2}
-                placeholder="What defines success for this initiative?"
-                disabled={!isEditing}
-              />
-            ) : (
-              <p className="text-gray-700">{formData.success_criteria || 'No criteria defined'}</p>
-            )}
-          </div>
+          {/* Hidden fields - now managed through Annual Plan tab
+          Success Criteria - managed through annual actions
+          Annual Target - managed through annual targets table
+          */}
 
-          {/* Annual Target */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              <Target className="w-4 h-4 inline mr-1" />
-              Annual Target
-            </label>
-            {isEditing ? (
-              <input
-                type="text"
-                value={formData.annual_target}
-                onChange={(e) => setFormData({ ...formData, annual_target: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., $7M revenue at 28%+ margins"
-                disabled={!isEditing}
-              />
-            ) : (
-              <p className="text-gray-700">{formData.annual_target || 'No annual target defined'}</p>
-            )}
-          </div>
-
-          {/* Status, Priority, Progress in a grid */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Status and Target Date in a grid */}
+          <div className="grid grid-cols-2 gap-4">
             {/* Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -305,119 +271,25 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
               )}
             </div>
 
-            {/* Priority */}
+            {/* Target Date (optional) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Flag className="w-4 h-4 inline mr-1" />
-                Priority
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!isEditing}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              ) : (
-                <p className="text-gray-900 capitalize">{formData.priority}</p>
-              )}
-            </div>
-
-            {/* Progress */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Progress %
+                <Calendar className="w-4 h-4 inline mr-1" />
+                Target Date (optional)
               </label>
               {isEditing ? (
                 <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.progress_percent}
-                  onChange={(e) => setFormData({ ...formData, progress_percent: parseInt(e.target.value) || 0 })}
+                  type="date"
+                  value={formData.target_date}
+                  onChange={(e) => setFormData({ ...formData, target_date: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={!isEditing}
                 />
               ) : (
-                <p className="text-gray-900">{formData.progress_percent}%</p>
-              )}
-            </div>
-          </div>
-
-          {/* Target Type and Date */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Target Type
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.target_type}
-                  onChange={(e) => setFormData({ ...formData, target_type: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!isEditing}
-                >
-                  <option value="date">Specific Date</option>
-                  <option value="week">Week</option>
-                  <option value="quarter">Quarter</option>
-                  <option value="ongoing">Ongoing</option>
-                </select>
-              ) : (
-                <p className="text-gray-900 capitalize">{formData.target_type?.replace('_', ' ')}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                Target
-              </label>
-              {isEditing ? (
-                <>
-                  {formData.target_type === 'date' && (
-                    <input
-                      type="date"
-                      value={formData.target_date}
-                      onChange={(e) => setFormData({ ...formData, target_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!isEditing}
-                    />
-                  )}
-                  {formData.target_type === 'week' && (
-                    <input
-                      type="text"
-                      value={formData.target_week}
-                      onChange={(e) => setFormData({ ...formData, target_week: e.target.value })}
-                      placeholder="e.g., Week 24"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!isEditing}
-                    />
-                  )}
-                  {formData.target_type === 'quarter' && (
-                    <input
-                      type="text"
-                      value={formData.target_quarter}
-                      onChange={(e) => setFormData({ ...formData, target_quarter: e.target.value })}
-                      placeholder="e.g., Q1 2025"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!isEditing}
-                    />
-                  )}
-                  {formData.target_type === 'ongoing' && (
-                    <p className="text-gray-500 px-3 py-2">No specific target date</p>
-                  )}
-                </>
-              ) : (
                 <p className="text-gray-900">
-                  {formData.target_date && new Date(formData.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {formData.target_week && formData.target_week}
-                  {formData.target_quarter && formData.target_quarter}
-                  {formData.target_type === 'ongoing' && 'Ongoing'}
-                  {!formData.target_date && !formData.target_week && !formData.target_quarter && formData.target_type !== 'ongoing' && 'Not set'}
+                  {formData.target_date
+                    ? new Date(formData.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'No target date set'}
                 </p>
               )}
             </div>

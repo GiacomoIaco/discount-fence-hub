@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, ChevronDown, ChevronRight, FolderOpen, Target, Trash2, Archive, ArchiveRestore, Lock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import {
   useAreasQuery,
@@ -37,15 +37,22 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const { data: targetsByInitiative } = useAllAnnualTargetsByFunctionQuery(functionId, year);
 
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set()); // Areas collapsed (initiatives hidden)
-  const [collapsedStrategicDesc, setCollapsedStrategicDesc] = useState<Set<string>>(new Set(areas?.map(a => a.id) || []));
+  const [collapsedStrategicDesc, setCollapsedStrategicDesc] = useState<Set<string>>(new Set());
   const [editingStrategicDesc, setEditingStrategicDesc] = useState<string | null>(null);
   const [showAreaModal, setShowAreaModal] = useState(false);
-  const [showInitiativeModal, setShowInitiativeModal] = useState<{ areaId?: string } | null>(null);
+  const [showInitiativeModal, setShowInitiativeModal] = useState<{ areaId?: string; initiativeId?: string } | null>(null);
   const [addingAction, setAddingAction] = useState<string | null>(null); // initiative ID
   const [addingTarget, setAddingTarget] = useState<string | null>(null); // initiative ID
   const [editingAction, setEditingAction] = useState<string | null>(null); // action ID
   const [editingTarget, setEditingTarget] = useState<string | null>(null); // target ID
   const [scoringMode, setScoringMode] = useState<'bu' | 'ceo' | null>(null);
+
+  // Initialize all area strategies as collapsed when areas load
+  useEffect(() => {
+    if (areas && areas.length > 0) {
+      setCollapsedStrategicDesc(new Set(areas.map(a => a.id)));
+    }
+  }, [areas]);
 
   const updateArea = useUpdateArea();
   const deleteArea = useDeleteArea();
@@ -730,7 +737,12 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                             <div className="flex items-start gap-2">
                               <div className="flex-1">
                                 <div className="font-bold text-gray-900 text-sm">
-                                  {initiative.title}
+                                  <button
+                                    onClick={() => setShowInitiativeModal({ initiativeId: initiative.id })}
+                                    className="text-left hover:text-blue-600 hover:underline transition-colors"
+                                  >
+                                    {initiative.title}
+                                  </button>
                                   {!initiative.is_active && (
                                     <span className="block mt-1 text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded inline-block">
                                       Inactive
@@ -1081,9 +1093,10 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
         />
       )}
 
-      {/* Initiative Creation Modal */}
+      {/* Initiative Detail Modal */}
       {showInitiativeModal && (
         <InitiativeDetailModal
+          initiativeId={showInitiativeModal.initiativeId}
           areaId={showInitiativeModal.areaId}
           onClose={() => setShowInitiativeModal(null)}
         />
