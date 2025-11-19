@@ -493,6 +493,30 @@ export interface WeeklyUpdateFilters {
 }
 
 // ============================================
+// WEEK LOCK TYPES
+// ============================================
+
+export interface WeekLock {
+  id: string;
+  week_start_date: string;
+  locked: boolean;
+  locked_at?: string;
+  locked_by?: string;
+  lock_reason?: 'auto_friday_2pm' | 'auto_monday_12pm' | 'manual';
+  in_grace_period: boolean;
+  grace_period_ends_at?: string;
+  unlocked_by?: string;
+  unlocked_at?: string;
+  unlock_reason?: string;
+  summary_email_sent: boolean;
+  summary_email_sent_at?: string;
+  reminder_email_sent: boolean;
+  reminder_email_sent_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
 // EMAIL SUMMARY TYPES
 // ============================================
 

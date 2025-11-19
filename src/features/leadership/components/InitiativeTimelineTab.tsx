@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, ChevronLeft, Archive, ArchiveRestore, Eye, EyeOff, Filter, Clock } from 'lucide-react';
-import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useUpdateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative } from '../hooks/useLeadershipQuery';
+import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, ChevronLeft, Archive, ArchiveRestore, Eye, EyeOff, Filter, Clock, Lock, Unlock } from 'lucide-react';
+import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useUpdateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative, useWeekLockQuery, useUnlockWeek } from '../hooks/useLeadershipQuery';
 import { useTasksQuery, useCreateTask, useUpdateTask } from '../hooks/useGoalsQuery';
 import type { ProjectInitiative } from '../lib/leadership';
 import type { Task } from '../lib/goals.types';
 import { toast } from 'react-hot-toast';
 import { getMondayOfWeek } from '../lib/leadership';
 import TaskEditModal from './TaskEditModal';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface InitiativeTimelineTabProps {
   functionId: string;
@@ -19,10 +20,20 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
   const [selectedWeek, setSelectedWeek] = useState<Date>(getMondayOfWeek());
 
+  const { profile } = useAuth();
   const { data: areas } = useAreasQuery(functionId);
   const { data: allInitiatives } = useInitiativesByFunctionQuery(functionId);
   const deactivateInitiative = useDeactivateInitiative();
   const activateInitiative = useActivateInitiative();
+
+  // Week lock status
+  const weekStartDate = selectedWeek.toISOString().split('T')[0];
+  const { data: weekLock } = useWeekLockQuery(weekStartDate);
+  const unlockWeek = useUnlockWeek();
+
+  const isWeekLocked = (weekLock?.locked && !weekLock?.in_grace_period) || false;
+  const isInGracePeriod = weekLock?.in_grace_period || false;
+  const isAdmin = profile?.role === 'admin';
 
   // Filter initiatives by active status
   const initiatives = allInitiatives?.filter(initiative => {
@@ -100,6 +111,22 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
 
   const goToCurrentWeek = () => {
     setSelectedWeek(getMondayOfWeek());
+  };
+
+  const handleUnlockWeek = async () => {
+    const reason = window.prompt('Reason for unlocking this week:');
+    if (!reason) return;
+
+    try {
+      await unlockWeek.mutateAsync({
+        weekStartDate,
+        unlockReason: reason,
+      });
+      toast.success('Week unlocked successfully');
+    } catch (error) {
+      console.error('Failed to unlock week:', error);
+      toast.error('Failed to unlock week');
+    }
   };
 
   const isCurrentWeek = selectedWeek.getTime() === getMondayOfWeek().getTime();
@@ -209,9 +236,23 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
           </div>
         </div>
 
-        <p className="text-sm text-gray-600">
-          Track weekly progress and manage tasks. Past weeks are readonly, current week is editable.
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            Track weekly progress and manage tasks. {isWeekLocked ? 'This week is locked.' : isInGracePeriod ? 'Grace period active until Monday 12pm.' : 'Current week is editable.'}
+          </p>
+
+          {isWeekLocked && isAdmin && (
+            <button
+              onClick={handleUnlockWeek}
+              disabled={unlockWeek.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              title="CEO Override: Unlock this week"
+            >
+              <Unlock className="w-4 h-4" />
+              {unlockWeek.isPending ? 'Unlocking...' : 'Unlock Week'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Areas and Initiatives Table */}
@@ -275,11 +316,17 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
                           </span>
                         </div>
                       </th>
-                      <th className={`px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4 ${isCurrentWeek ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                      <th className={`px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4 ${isWeekLocked ? 'bg-red-50' : isInGracePeriod ? 'bg-orange-50' : isCurrentWeek ? 'bg-blue-50' : 'bg-gray-50'}`}>
                         <div className="flex flex-col">
-                          <span>Selected Week</span>
-                          <span className={`text-xs font-normal normal-case ${isCurrentWeek ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
+                          <div className="flex items-center gap-2">
+                            {isWeekLocked && <Lock className="w-4 h-4 text-red-600" />}
+                            {isInGracePeriod && <Clock className="w-4 h-4 text-orange-600" />}
+                            <span>Selected Week</span>
+                          </div>
+                          <span className={`text-xs font-normal normal-case ${isWeekLocked ? 'text-red-600 font-semibold' : isInGracePeriod ? 'text-orange-600 font-semibold' : isCurrentWeek ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
                             {formatWeekHeader(selectedWeek, isCurrentWeek)}
+                            {isInGracePeriod && ' (Grace Period)'}
+                            {isWeekLocked && ' (Locked)'}
                           </span>
                         </div>
                       </th>
@@ -295,6 +342,8 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
                         initiative={initiative}
                         selectedWeek={selectedWeek}
                         isCurrentWeek={isCurrentWeek}
+                        isWeekLocked={isWeekLocked}
+                        isInGracePeriod={isInGracePeriod}
                         onDeactivate={handleDeactivateInitiative}
                         onActivate={handleActivateInitiative}
                       />
@@ -315,6 +364,8 @@ interface InitiativeTableRowProps {
   initiative: ProjectInitiative;
   selectedWeek: Date;
   isCurrentWeek: boolean;
+  isWeekLocked: boolean;
+  isInGracePeriod: boolean;
   onDeactivate: (initiative: ProjectInitiative) => void;
   onActivate: (initiative: ProjectInitiative) => void;
 }
@@ -323,6 +374,8 @@ function InitiativeTableRow({
   initiative,
   selectedWeek,
   isCurrentWeek,
+  isWeekLocked,
+  isInGracePeriod,
   onDeactivate,
   onActivate,
 }: InitiativeTableRowProps) {
@@ -331,6 +384,10 @@ function InitiativeTableRow({
   const [addingTask, setAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Determine if editing is allowed
+  // Can edit if it's current week OR if it's in grace period (but not locked)
+  const canEdit = isCurrentWeek || (!isWeekLocked && isInGracePeriod);
 
   const { data: tasks } = useTasksQuery(initiative.id);
   const { data: allUpdates } = useInitiativeUpdatesQuery(initiative.id);
@@ -544,9 +601,9 @@ function InitiativeTableRow({
         )}
       </td>
 
-      {/* This Week Column (Editable for current week) */}
-      <td className={`px-4 py-3 align-top ${isCurrentWeek ? 'bg-blue-50' : ''}`}>
-        {isCurrentWeek ? (
+      {/* This Week Column (Editable if allowed) */}
+      <td className={`px-4 py-3 align-top ${isWeekLocked ? 'bg-red-50' : isInGracePeriod ? 'bg-orange-50' : isCurrentWeek ? 'bg-blue-50' : ''}`}>
+        {canEdit ? (
           isEditingThisWeek ? (
             <div className="space-y-2">
               <textarea
@@ -590,7 +647,7 @@ function InitiativeTableRow({
                 setIsEditingThisWeek(true);
                 setThisWeekText(thisWeekUpdate?.update_text || '');
               }}
-              className="cursor-pointer hover:bg-blue-50 rounded p-2 min-h-[60px] transition-colors"
+              className="cursor-pointer hover:bg-blue-100 rounded p-2 min-h-[60px] transition-colors"
             >
               {thisWeekUpdate ? (
                 <div className="text-sm text-gray-700">
@@ -606,18 +663,26 @@ function InitiativeTableRow({
             </div>
           )
         ) : (
-          // Past/future weeks - readonly
-          thisWeekUpdate ? (
-            <div className="text-sm text-gray-700">
-              <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
-                <Clock className="w-3 h-3" />
-                {thisWeekUpdate.author && <span>{thisWeekUpdate.author.full_name}</span>}
+          // Locked weeks - readonly with lock message
+          <div>
+            {thisWeekUpdate ? (
+              <div className="text-sm text-gray-700">
+                <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                  <Clock className="w-3 h-3" />
+                  {thisWeekUpdate.author && <span>{thisWeekUpdate.author.full_name}</span>}
+                </div>
+                <p className="whitespace-pre-wrap">{thisWeekUpdate.update_text}</p>
               </div>
-              <p className="whitespace-pre-wrap">{thisWeekUpdate.update_text}</p>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-400 italic">No update</p>
-          )
+            ) : (
+              <p className="text-sm text-gray-400 italic">No update</p>
+            )}
+            {isWeekLocked && (
+              <div className="flex items-center gap-2 text-xs text-red-600 mt-2 italic">
+                <Lock className="w-3 h-3" />
+                Week locked
+              </div>
+            )}
+          </div>
         )}
       </td>
 
@@ -698,37 +763,39 @@ function InitiativeTableRow({
             </details>
           )}
 
-          {/* Add Task Input */}
-          {addingTask ? (
-            <div className="flex items-center gap-2 py-1">
-              <Square className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              <input
-                autoFocus
-                type="text"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="Task title..."
-                onBlur={handleAddTask}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setAddingTask(false);
-                    setNewTaskTitle('');
-                  }
-                  if (e.key === 'Enter') {
-                    handleAddTask();
-                  }
-                }}
-                className="flex-1 text-sm px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          ) : (
-            <button
-              onClick={() => setAddingTask(true)}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-1"
-            >
-              <Plus className="w-3 h-3" />
-              Add Task
-            </button>
+          {/* Add Task Input - Only show if week is not locked */}
+          {!isWeekLocked && (
+            addingTask ? (
+              <div className="flex items-center gap-2 py-1">
+                <Square className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                <input
+                  autoFocus
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  placeholder="Task title..."
+                  onBlur={handleAddTask}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setAddingTask(false);
+                      setNewTaskTitle('');
+                    }
+                    if (e.key === 'Enter') {
+                      handleAddTask();
+                    }
+                  }}
+                  className="flex-1 text-sm px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingTask(true)}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-1"
+              >
+                <Plus className="w-3 h-3" />
+                Add Task
+              </button>
+            )
           )}
 
           {activeTasks.length === 0 && recentlyCompletedTasks.length === 0 && !addingTask && (

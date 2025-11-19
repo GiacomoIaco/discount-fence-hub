@@ -39,6 +39,7 @@ import type {
   ApprovePlanInput,
   RejectPlanInput,
   ReopenPlanInput,
+  WeekLock,
 } from '../lib/leadership';
 
 // ============================================
@@ -1643,6 +1644,92 @@ export const useReopenPlan = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [...leadershipKeys.functions(), 'plan-status', data.function_id, data.year] });
+    },
+  });
+};
+
+// ============================================
+// WEEK LOCKS
+// ============================================
+
+/**
+ * Query week lock status for a specific week
+ */
+export const useWeekLockQuery = (weekStartDate: string) => {
+  return useQuery({
+    queryKey: ['weekLock', weekStartDate],
+    queryFn: async (): Promise<WeekLock | null> => {
+      const { data, error } = await supabase
+        .from('initiative_week_locks')
+        .select('*')
+        .eq('week_start_date', weekStartDate)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!weekStartDate,
+  });
+};
+
+/**
+ * Unlock a week (CEO override)
+ */
+export const useUnlockWeek = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      weekStartDate,
+      unlockReason
+    }: {
+      weekStartDate: string;
+      unlockReason: string;
+    }): Promise<void> => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase.rpc('unlock_week', {
+        p_week_start_date: weekStartDate,
+        p_unlocked_by: user.id,
+        p_unlock_reason: unlockReason,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['weekLock', variables.weekStartDate] });
+    },
+  });
+};
+
+/**
+ * Lock a week manually (admin only)
+ */
+export const useLockWeek = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      weekStartDate,
+      lockReason
+    }: {
+      weekStartDate: string;
+      lockReason?: string;
+    }): Promise<void> => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase.rpc('lock_week', {
+        p_week_start_date: weekStartDate,
+        p_locked_by: user.id,
+        p_lock_reason: lockReason || 'manual',
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['weekLock', variables.weekStartDate] });
     },
   });
 };
