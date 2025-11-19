@@ -6,6 +6,7 @@ import type { ProjectInitiative } from '../lib/leadership';
 import type { Task } from '../lib/goals.types';
 import { toast } from 'react-hot-toast';
 import { getMondayOfWeek } from '../lib/leadership';
+import TaskEditModal from './TaskEditModal';
 
 interface InitiativeTimelineTabProps {
   functionId: string;
@@ -221,6 +222,24 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
         // Skip areas with no initiatives based on current filter
         if (areaInitiatives.length === 0) return null;
 
+        // Calculate last week date
+        const lastWeek = new Date(selectedWeek);
+        lastWeek.setDate(lastWeek.getDate() - 7);
+
+        // Format week header dates
+        const formatWeekHeader = (date: Date, isCurrent: boolean) => {
+          const start = new Date(date);
+          const end = new Date(date);
+          end.setDate(end.getDate() + 6);
+
+          const dateStr = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+          if (isCurrent) {
+            return `${dateStr} (Current)`;
+          }
+          return dateStr;
+        };
+
         return (
           <div key={area.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             {/* Area Header - Blue separator like Annual Plan */}
@@ -248,11 +267,21 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/5">
                         Initiative
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4">
-                        Last Week
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4 bg-gray-50">
+                        <div className="flex flex-col">
+                          <span>Previous Week</span>
+                          <span className="text-xs font-normal text-gray-500 normal-case">
+                            {formatWeekHeader(lastWeek, false)}
+                          </span>
+                        </div>
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4">
-                        This Week
+                      <th className={`px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4 ${isCurrentWeek ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                        <div className="flex flex-col">
+                          <span>Selected Week</span>
+                          <span className={`text-xs font-normal normal-case ${isCurrentWeek ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
+                            {formatWeekHeader(selectedWeek, isCurrentWeek)}
+                          </span>
+                        </div>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/3">
                         Tasks
@@ -301,6 +330,7 @@ function InitiativeTableRow({
   const [thisWeekText, setThisWeekText] = useState('');
   const [addingTask, setAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const { data: tasks } = useTasksQuery(initiative.id);
   const { data: allUpdates } = useInitiativeUpdatesQuery(initiative.id);
@@ -344,6 +374,7 @@ function InitiativeTableRow({
   const handleSaveUpdate = async () => {
     if (!thisWeekText.trim()) {
       setIsEditingThisWeek(false);
+      setThisWeekText('');
       return;
     }
 
@@ -370,6 +401,11 @@ function InitiativeTableRow({
       console.error('Failed to save update:', error);
       toast.error('Failed to save update');
     }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingThisWeek(false);
+    setThisWeekText(thisWeekUpdate?.update_text || '');
   };
 
   const handleAddTask = async () => {
@@ -407,10 +443,26 @@ function InitiativeTableRow({
     }
   };
 
-  const getTaskStatusColor = (status: string) => {
-    switch (status) {
-      case 'done':
-        return 'text-green-600';
+  const getTaskStatusColor = (task: Task) => {
+    // If done, always green
+    if (task.status === 'done') {
+      return 'text-green-600';
+    }
+
+    // Check if overdue
+    if (task.due_date) {
+      const dueDate = new Date(task.due_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      dueDate.setHours(0, 0, 0, 0);
+
+      if (dueDate < today) {
+        return 'text-red-600'; // Overdue
+      }
+    }
+
+    // Status-based colors
+    switch (task.status) {
       case 'in_progress':
         return 'text-blue-600';
       case 'blocked':
@@ -420,38 +472,62 @@ function InitiativeTableRow({
     }
   };
 
+  const getTaskDueDateIndicator = (task: Task) => {
+    if (!task.due_date || task.status === 'done') return null;
+
+    const dueDate = new Date(task.due_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return <span className="text-xs text-red-600 font-semibold ml-2">(overdue)</span>;
+    } else if (diffDays === 0) {
+      return <span className="text-xs text-orange-600 font-semibold ml-2">(due today)</span>;
+    } else if (diffDays === 1) {
+      return <span className="text-xs text-yellow-600 ml-2">(due tomorrow)</span>;
+    } else if (diffDays <= 3) {
+      return <span className="text-xs text-gray-600 ml-2">(due in {diffDays} days)</span>;
+    }
+
+    return null;
+  };
+
   return (
-    <tr className="hover:bg-gray-50">
-      {/* Initiative Column */}
-      <td className="px-4 py-3 align-top">
-        <div className="flex flex-col gap-1">
-          <div className="font-medium text-gray-900 text-sm">{initiative.title}</div>
-          {!initiative.is_active && (
-            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded w-fit">
-              Inactive
-            </span>
-          )}
-          {initiative.is_active ? (
-            <button
-              onClick={() => onDeactivate(initiative)}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-orange-600 hover:bg-orange-50 rounded transition-colors w-fit"
-              title="Deactivate initiative"
-            >
-              <Archive className="w-3 h-3" />
-              Deactivate
-            </button>
-          ) : (
-            <button
-              onClick={() => onActivate(initiative)}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors w-fit"
-              title="Activate initiative"
-            >
-              <ArchiveRestore className="w-3 h-3" />
-              Activate
-            </button>
-          )}
-        </div>
-      </td>
+    <>
+      <tr className="hover:bg-gray-50">
+        {/* Initiative Column */}
+        <td className="px-4 py-3 align-top">
+          <div className="flex flex-col gap-1">
+            <div className="font-medium text-gray-900 text-sm">{initiative.title}</div>
+            {!initiative.is_active && (
+              <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded w-fit">
+                Inactive
+              </span>
+            )}
+            {initiative.is_active ? (
+              <button
+                onClick={() => onDeactivate(initiative)}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-orange-600 hover:bg-orange-50 rounded transition-colors w-fit"
+                title="Deactivate initiative"
+              >
+                <Archive className="w-3 h-3" />
+                Deactivate
+              </button>
+            ) : (
+              <button
+                onClick={() => onActivate(initiative)}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors w-fit"
+                title="Activate initiative"
+              >
+                <ArchiveRestore className="w-3 h-3" />
+                Activate
+              </button>
+            )}
+          </div>
+        </td>
 
       {/* Last Week Column (Readonly) */}
       <td className="px-4 py-3 align-top bg-gray-50">
@@ -469,7 +545,7 @@ function InitiativeTableRow({
       </td>
 
       {/* This Week Column (Editable for current week) */}
-      <td className="px-4 py-3 align-top">
+      <td className={`px-4 py-3 align-top ${isCurrentWeek ? 'bg-blue-50' : ''}`}>
         {isCurrentWeek ? (
           isEditingThisWeek ? (
             <div className="space-y-2">
@@ -480,14 +556,33 @@ function InitiativeTableRow({
                 placeholder="What progress was made this week?"
                 className="w-full text-sm px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
-                onBlur={handleSaveUpdate}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
-                    setIsEditingThisWeek(false);
-                    setThisWeekText(thisWeekUpdate?.update_text || '');
+                    handleCancelEdit();
+                  }
+                  if (e.key === 'Enter' && e.ctrlKey) {
+                    handleSaveUpdate();
                   }
                 }}
               />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveUpdate}
+                  disabled={createUpdate.isPending || updateUpdate.isPending}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {createUpdate.isPending || updateUpdate.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <span className="text-xs text-gray-500 self-center ml-2">
+                  Ctrl+Enter to save, Esc to cancel
+                </span>
+              </div>
             </div>
           ) : (
             <div
@@ -537,12 +632,15 @@ function InitiativeTableRow({
                 className="mt-0.5 hover:scale-110 transition-transform flex-shrink-0"
               >
                 {task.status === 'done' ? (
-                  <CheckSquare className={`w-4 h-4 ${getTaskStatusColor(task.status)}`} />
+                  <CheckSquare className={`w-4 h-4 ${getTaskStatusColor(task)}`} />
                 ) : (
-                  <Square className={`w-4 h-4 ${getTaskStatusColor(task.status)}`} />
+                  <Square className={`w-4 h-4 ${getTaskStatusColor(task)}`} />
                 )}
               </button>
-              <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+              <button
+                onClick={() => setEditingTask(task)}
+                className={`text-sm flex-1 text-left hover:underline ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}
+              >
                 {task.title}
                 {task.status === 'blocked' && (
                   <span className="ml-2 text-xs text-red-600">(blocked)</span>
@@ -550,7 +648,8 @@ function InitiativeTableRow({
                 {task.status === 'in_progress' && (
                   <span className="ml-2 text-xs text-blue-600">(in progress)</span>
                 )}
-              </span>
+                {getTaskDueDateIndicator(task)}
+              </button>
             </div>
           ))}
 
@@ -563,9 +662,12 @@ function InitiativeTableRow({
               >
                 <CheckSquare className="w-4 h-4 text-green-600" />
               </button>
-              <span className="text-sm flex-1 line-through text-gray-400">
+              <button
+                onClick={() => setEditingTask(task)}
+                className="text-sm flex-1 text-left line-through text-gray-400 hover:underline"
+              >
                 {task.title}
-              </span>
+              </button>
             </div>
           ))}
 
@@ -584,9 +686,12 @@ function InitiativeTableRow({
                     >
                       <CheckSquare className="w-4 h-4 text-green-600" />
                     </button>
-                    <span className="text-sm flex-1 line-through text-gray-400">
+                    <button
+                      onClick={() => setEditingTask(task)}
+                      className="text-sm flex-1 text-left line-through text-gray-400 hover:underline"
+                    >
                       {task.title}
-                    </span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -629,8 +734,17 @@ function InitiativeTableRow({
           {activeTasks.length === 0 && recentlyCompletedTasks.length === 0 && !addingTask && (
             <p className="text-sm text-gray-400 italic py-1">No active tasks</p>
           )}
-        </div>
-      </td>
-    </tr>
+          </div>
+        </td>
+      </tr>
+
+      {/* Task Edit Modal */}
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+    </>
   );
 }
