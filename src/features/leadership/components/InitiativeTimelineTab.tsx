@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, Clock, Filter, Eye, EyeOff, Archive, ArchiveRestore } from 'lucide-react';
-import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative } from '../hooks/useLeadershipQuery';
+import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, ChevronLeft, Archive, ArchiveRestore, Eye, EyeOff, Filter, Clock } from 'lucide-react';
+import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useUpdateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative } from '../hooks/useLeadershipQuery';
 import { useTasksQuery, useCreateTask, useUpdateTask } from '../hooks/useGoalsQuery';
 import type { ProjectInitiative } from '../lib/leadership';
 import type { Task } from '../lib/goals.types';
@@ -15,17 +15,11 @@ type ActiveFilter = 'all' | 'active' | 'inactive';
 
 export default function InitiativeTimelineTab({ functionId }: InitiativeTimelineTabProps) {
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
-  const [expandedInitiatives, setExpandedInitiatives] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
-  const [addingUpdateTo, setAddingUpdateTo] = useState<string | null>(null);
-  const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<Date>(getMondayOfWeek());
 
   const { data: areas } = useAreasQuery(functionId);
   const { data: allInitiatives } = useInitiativesByFunctionQuery(functionId);
-  const createUpdate = useCreateInitiativeUpdate();
-  const createTask = useCreateTask();
-  const updateTask = useUpdateTask();
   const deactivateInitiative = useDeactivateInitiative();
   const activateInitiative = useActivateInitiative();
 
@@ -49,18 +43,6 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
     });
   };
 
-  const toggleInitiativeExpand = (initiativeId: string) => {
-    setExpandedInitiatives(prev => {
-      const next = new Set(prev);
-      if (next.has(initiativeId)) {
-        next.delete(initiativeId);
-      } else {
-        next.add(initiativeId);
-      }
-      return next;
-    });
-  };
-
   // Group initiatives by area
   const initiativesByArea = initiatives.reduce((acc, initiative) => {
     const areaId = initiative.area?.id || 'uncategorized';
@@ -70,52 +52,6 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
     acc[areaId].push(initiative);
     return acc;
   }, {} as Record<string, ProjectInitiative[]>);
-
-  const handleAddUpdate = async (initiativeId: string, updateText: string) => {
-    if (!updateText.trim()) return;
-
-    try {
-      await createUpdate.mutateAsync({
-        initiative_id: initiativeId,
-        update_text: updateText,
-        week_start_date: selectedWeek.toISOString().split('T')[0],
-      });
-      setAddingUpdateTo(null);
-      toast.success('Update added');
-    } catch (error) {
-      console.error('Failed to create update:', error);
-      toast.error('Failed to add update');
-    }
-  };
-
-  const handleAddTask = async (initiativeId: string, taskTitle: string) => {
-    if (!taskTitle.trim()) return;
-
-    try {
-      await createTask.mutateAsync({
-        initiative_id: initiativeId,
-        title: taskTitle,
-        status: 'todo',
-      });
-      setAddingTaskTo(null);
-      toast.success('Task added');
-    } catch (error) {
-      console.error('Failed to create task:', error);
-      toast.error('Failed to add task');
-    }
-  };
-
-  const handleToggleTask = async (task: Task) => {
-    try {
-      await updateTask.mutateAsync({
-        id: task.id,
-        status: task.status === 'done' ? 'todo' : 'done',
-      });
-    } catch (error) {
-      console.error('Failed to update task:', error);
-      toast.error('Failed to update task');
-    }
-  };
 
   const handleDeactivateInitiative = async (initiative: ProjectInitiative) => {
     if (!window.confirm(`Deactivate "${initiative.title}"? This will hide it from planning views.`)) {
@@ -149,6 +85,24 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
     return `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   };
 
+  const goToPreviousWeek = () => {
+    const prev = new Date(selectedWeek);
+    prev.setDate(prev.getDate() - 7);
+    setSelectedWeek(prev);
+  };
+
+  const goToNextWeek = () => {
+    const next = new Date(selectedWeek);
+    next.setDate(next.getDate() + 7);
+    setSelectedWeek(next);
+  };
+
+  const goToCurrentWeek = () => {
+    setSelectedWeek(getMondayOfWeek());
+  };
+
+  const isCurrentWeek = selectedWeek.getTime() === getMondayOfWeek().getTime();
+
   if (!areas || areas.length === 0) {
     return (
       <div className="max-w-full mx-auto">
@@ -167,69 +121,99 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
 
   return (
     <div className="max-w-full mx-auto space-y-4">
-      {/* Header with Filters */}
+      {/* Header with Week Navigation and Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between mb-3">
+          {/* Week Navigation */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={goToPreviousWeek}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Previous week"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Show:</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setActiveFilter('active')}
-                  className={`px-3 py-1 text-sm rounded ${
-                    activeFilter === 'active'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Eye className="w-3 h-3 inline-block mr-1" />
-                  Active
-                </button>
-                <button
-                  onClick={() => setActiveFilter('inactive')}
-                  className={`px-3 py-1 text-sm rounded ${
-                    activeFilter === 'inactive'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <EyeOff className="w-3 h-3 inline-block mr-1" />
-                  Inactive
-                </button>
-                <button
-                  onClick={() => setActiveFilter('all')}
-                  className={`px-3 py-1 text-sm rounded ${
-                    activeFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  All
-                </button>
+              <Calendar className="w-5 h-5 text-gray-500" />
+              <div className="text-center">
+                <div className="text-sm font-semibold text-gray-900">
+                  Week of {formatWeekRange(selectedWeek)}
+                </div>
+                <input
+                  type="date"
+                  value={selectedWeek.toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedWeek(getMondayOfWeek(new Date(e.target.value)))}
+                  className="text-xs px-2 py-0.5 border border-gray-300 rounded mt-1"
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pl-4 border-l border-gray-300">
-              <Calendar className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Week of:</span>
-              <input
-                type="date"
-                value={selectedWeek.toISOString().split('T')[0]}
-                onChange={(e) => setSelectedWeek(getMondayOfWeek(new Date(e.target.value)))}
-                className="px-2 py-1 text-sm border border-gray-300 rounded"
-              />
-              <span className="text-sm text-gray-600">({formatWeekRange(selectedWeek)})</span>
+            <button
+              onClick={goToNextWeek}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Next week"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-600" />
+            </button>
+
+            {!isCurrentWeek && (
+              <button
+                onClick={goToCurrentWeek}
+                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Go to Current Week
+              </button>
+            )}
+          </div>
+
+          {/* Active Filter */}
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Show:</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setActiveFilter('active')}
+                className={`px-3 py-1 text-sm rounded ${
+                  activeFilter === 'active'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Eye className="w-3 h-3 inline-block mr-1" />
+                Active
+              </button>
+              <button
+                onClick={() => setActiveFilter('inactive')}
+                className={`px-3 py-1 text-sm rounded ${
+                  activeFilter === 'inactive'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <EyeOff className="w-3 h-3 inline-block mr-1" />
+                Inactive
+              </button>
+              <button
+                onClick={() => setActiveFilter('all')}
+                className={`px-3 py-1 text-sm rounded ${
+                  activeFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All
+              </button>
             </div>
           </div>
         </div>
 
-        <p className="text-sm text-gray-600 mt-2">
-          Track ongoing work with tasks and weekly updates. Tasks are operational to-dos, updates are progress narratives.
+        <p className="text-sm text-gray-600">
+          Track weekly progress and manage tasks. Past weeks are readonly, current week is editable.
         </p>
       </div>
 
-      {/* Areas and Initiatives */}
+      {/* Areas and Initiatives Table */}
       {areas.map((area) => {
         const areaInitiatives = initiativesByArea[area.id] || [];
         const isCollapsed = collapsedAreas.has(area.id);
@@ -238,50 +222,56 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
         if (areaInitiatives.length === 0) return null;
 
         return (
-          <div key={area.id} className="bg-white rounded-lg border border-gray-200">
-            {/* Area Header */}
+          <div key={area.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            {/* Area Header - Blue separator like Annual Plan */}
             <div
-              className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100"
+              className="bg-blue-900 border-b border-blue-700 px-4 py-2 cursor-pointer hover:bg-blue-800 transition-colors flex items-center gap-2"
               onClick={() => toggleAreaCollapse(area.id)}
             >
-              <div className="flex items-center gap-2">
-                {isCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                )}
-                <h3 className="text-base font-semibold text-gray-900">{area.name}</h3>
-                <span className="text-sm text-gray-500">
-                  ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
-                </span>
-              </div>
+              {isCollapsed ? (
+                <ChevronRight className="w-4 h-4 text-white" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-white" />
+              )}
+              <h3 className="text-base font-semibold text-white">{area.name}</h3>
+              <span className="text-xs text-blue-200">
+                ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
+              </span>
             </div>
 
-            {/* Initiatives */}
+            {/* Initiatives Table */}
             {!isCollapsed && (
-              <div className="divide-y divide-gray-200">
-                {areaInitiatives.map((initiative) => {
-                  const isExpanded = expandedInitiatives.has(initiative.id);
-
-                  return (
-                    <InitiativeRow
-                      key={initiative.id}
-                      initiative={initiative}
-                      isExpanded={isExpanded}
-                      onToggleExpand={() => toggleInitiativeExpand(initiative.id)}
-                      selectedWeek={selectedWeek}
-                      addingUpdateTo={addingUpdateTo}
-                      setAddingUpdateTo={setAddingUpdateTo}
-                      addingTaskTo={addingTaskTo}
-                      setAddingTaskTo={setAddingTaskTo}
-                      onAddUpdate={handleAddUpdate}
-                      onAddTask={handleAddTask}
-                      onToggleTask={handleToggleTask}
-                      onDeactivate={handleDeactivateInitiative}
-                      onActivate={handleActivateInitiative}
-                    />
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/5">
+                        Initiative
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4">
+                        Last Week
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/4">
+                        This Week
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-1/3">
+                        Tasks
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {areaInitiatives.map((initiative) => (
+                      <InitiativeTableRow
+                        key={initiative.id}
+                        initiative={initiative}
+                        selectedWeek={selectedWeek}
+                        isCurrentWeek={isCurrentWeek}
+                        onDeactivate={handleDeactivateInitiative}
+                        onActivate={handleActivateInitiative}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -291,256 +281,356 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
   );
 }
 
-// Separate component for each initiative row
-interface InitiativeRowProps {
+// Separate component for each initiative table row
+interface InitiativeTableRowProps {
   initiative: ProjectInitiative;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
   selectedWeek: Date;
-  addingUpdateTo: string | null;
-  setAddingUpdateTo: (id: string | null) => void;
-  addingTaskTo: string | null;
-  setAddingTaskTo: (id: string | null) => void;
-  onAddUpdate: (initiativeId: string, updateText: string) => void;
-  onAddTask: (initiativeId: string, taskTitle: string) => void;
-  onToggleTask: (task: Task) => void;
+  isCurrentWeek: boolean;
   onDeactivate: (initiative: ProjectInitiative) => void;
   onActivate: (initiative: ProjectInitiative) => void;
 }
 
-function InitiativeRow({
+function InitiativeTableRow({
   initiative,
-  isExpanded,
-  onToggleExpand,
   selectedWeek,
-  addingUpdateTo,
-  setAddingUpdateTo,
-  addingTaskTo,
-  setAddingTaskTo,
-  onAddUpdate,
-  onAddTask,
-  onToggleTask,
+  isCurrentWeek,
   onDeactivate,
   onActivate,
-}: InitiativeRowProps) {
-  const { data: tasks } = useTasksQuery(initiative.id);
-  const { data: updates } = useInitiativeUpdatesQuery(initiative.id);
+}: InitiativeTableRowProps) {
+  const [isEditingThisWeek, setIsEditingThisWeek] = useState(false);
+  const [thisWeekText, setThisWeekText] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
 
-  // Filter updates for selected week (optional)
-  const weekUpdates = updates?.filter(update => {
+  const { data: tasks } = useTasksQuery(initiative.id);
+  const { data: allUpdates } = useInitiativeUpdatesQuery(initiative.id);
+  const createUpdate = useCreateInitiativeUpdate();
+  const updateUpdate = useUpdateInitiativeUpdate();
+  const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
+
+  // Get last week's date
+  const lastWeek = new Date(selectedWeek);
+  lastWeek.setDate(lastWeek.getDate() - 7);
+
+  // Find updates for last week and this week
+  const lastWeekUpdate = allUpdates?.find(update => {
+    const updateDate = new Date(update.week_start_date);
+    return updateDate.getTime() === lastWeek.getTime();
+  });
+
+  const thisWeekUpdate = allUpdates?.find(update => {
     const updateDate = new Date(update.week_start_date);
     return updateDate.getTime() === selectedWeek.getTime();
-  }) || [];
+  });
+
+  // Filter tasks by completion date
+  const now = new Date();
+  const oneWeekAgo = new Date(now);
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
   const activeTasks = tasks?.filter(t => t.status !== 'done') || [];
-  const completedTasks = tasks?.filter(t => t.status === 'done') || [];
+  const recentlyCompletedTasks = tasks?.filter(t => {
+    if (t.status !== 'done' || !t.completed_at) return false;
+    const completedDate = new Date(t.completed_at);
+    return completedDate >= oneWeekAgo;
+  }) || [];
+  const olderCompletedTasks = tasks?.filter(t => {
+    if (t.status !== 'done' || !t.completed_at) return false;
+    const completedDate = new Date(t.completed_at);
+    return completedDate < oneWeekAgo;
+  }) || [];
+
+  const handleSaveUpdate = async () => {
+    if (!thisWeekText.trim()) {
+      setIsEditingThisWeek(false);
+      return;
+    }
+
+    try {
+      if (thisWeekUpdate) {
+        // Update existing
+        await updateUpdate.mutateAsync({
+          id: thisWeekUpdate.id,
+          initiative_id: initiative.id,
+          update_text: thisWeekText,
+        });
+        toast.success('Update saved');
+      } else {
+        // Create new
+        await createUpdate.mutateAsync({
+          initiative_id: initiative.id,
+          update_text: thisWeekText,
+          week_start_date: selectedWeek.toISOString().split('T')[0],
+        });
+        toast.success('Update added');
+      }
+      setIsEditingThisWeek(false);
+    } catch (error) {
+      console.error('Failed to save update:', error);
+      toast.error('Failed to save update');
+    }
+  };
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) {
+      setAddingTask(false);
+      return;
+    }
+
+    try {
+      await createTask.mutateAsync({
+        initiative_id: initiative.id,
+        title: newTaskTitle,
+        status: 'todo',
+      });
+      toast.success('Task added');
+      setNewTaskTitle('');
+      setAddingTask(false);
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      toast.error('Failed to add task');
+    }
+  };
+
+  const handleToggleTask = async (task: Task) => {
+    try {
+      const newStatus = task.status === 'done' ? 'todo' : 'done';
+      await updateTask.mutateAsync({
+        id: task.id,
+        status: newStatus,
+        completed_at: newStatus === 'done' ? new Date().toISOString() : null,
+      });
+    } catch (error) {
+      console.error('Failed to update task:', error);
+      toast.error('Failed to update task');
+    }
+  };
+
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case 'done':
+        return 'text-green-600';
+      case 'in_progress':
+        return 'text-blue-600';
+      case 'blocked':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between group">
-        <div
-          className="flex items-center gap-2 flex-1 cursor-pointer"
-          onClick={onToggleExpand}
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          )}
-          <h4 className="text-base font-semibold text-gray-900">{initiative.title}</h4>
+    <tr className="hover:bg-gray-50">
+      {/* Initiative Column */}
+      <td className="px-4 py-3 align-top">
+        <div className="flex flex-col gap-1">
+          <div className="font-medium text-gray-900 text-sm">{initiative.title}</div>
           {!initiative.is_active && (
-            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">Inactive</span>
+            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded w-fit">
+              Inactive
+            </span>
+          )}
+          {initiative.is_active ? (
+            <button
+              onClick={() => onDeactivate(initiative)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-orange-600 hover:bg-orange-50 rounded transition-colors w-fit"
+              title="Deactivate initiative"
+            >
+              <Archive className="w-3 h-3" />
+              Deactivate
+            </button>
+          ) : (
+            <button
+              onClick={() => onActivate(initiative)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors w-fit"
+              title="Activate initiative"
+            >
+              <ArchiveRestore className="w-3 h-3" />
+              Activate
+            </button>
           )}
         </div>
-        {initiative.is_active ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeactivate(initiative);
-            }}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-orange-600 hover:bg-orange-50 rounded transition-colors"
-            title="Deactivate initiative"
-          >
-            <Archive className="w-3 h-3" />
-            Deactivate
-          </button>
+      </td>
+
+      {/* Last Week Column (Readonly) */}
+      <td className="px-4 py-3 align-top bg-gray-50">
+        {lastWeekUpdate ? (
+          <div className="text-sm text-gray-700">
+            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+              <Clock className="w-3 h-3" />
+              {lastWeekUpdate.author && <span>{lastWeekUpdate.author.full_name}</span>}
+            </div>
+            <p className="whitespace-pre-wrap">{lastWeekUpdate.update_text}</p>
+          </div>
         ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onActivate(initiative);
-            }}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors"
-            title="Activate initiative"
-          >
-            <ArchiveRestore className="w-3 h-3" />
-            Activate
-          </button>
+          <p className="text-sm text-gray-400 italic">No update</p>
         )}
-      </div>
+      </td>
 
-      <div className="flex items-center gap-4 text-sm text-gray-600">
-        <span className="flex items-center gap-1">
-          <CheckSquare className="w-4 h-4" />
-          {activeTasks.length} task{activeTasks.length !== 1 ? 's' : ''}
-        </span>
-        <span className="flex items-center gap-1">
-          <Clock className="w-4 h-4" />
-          {weekUpdates.length} update{weekUpdates.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {isExpanded && (
-        <div className="mt-4 ml-6 space-y-4">
-          {/* Tasks Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h5 className="text-sm font-semibold text-gray-700">Tasks</h5>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAddingTaskTo(initiative.id);
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" />
-                Add Task
-              </button>
-            </div>
-
-            <div className="space-y-1">
-              {activeTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-2 py-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleTask(task);
-                    }}
-                    className="text-gray-400 hover:text-blue-600"
-                  >
-                    <Square className="w-4 h-4" />
-                  </button>
-                  <span className="text-sm text-gray-700">{task.title}</span>
-                </div>
-              ))}
-
-              {completedTasks.length > 0 && (
-                <details className="mt-2">
-                  <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
-                    {completedTasks.length} completed task{completedTasks.length !== 1 ? 's' : ''}
-                  </summary>
-                  <div className="ml-4 mt-1 space-y-1">
-                    {completedTasks.map((task) => (
-                      <div key={task.id} className="flex items-center gap-2 py-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleTask(task);
-                          }}
-                          className="text-green-600 hover:text-gray-400"
-                        >
-                          <CheckSquare className="w-4 h-4" />
-                        </button>
-                        <span className="text-sm text-gray-500 line-through">{task.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-
-              {addingTaskTo === initiative.id && (
-                <div className="flex items-center gap-2 py-1">
-                  <Square className="w-4 h-4 text-gray-300" />
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Task title..."
-                    onBlur={(e) => {
-                      if (e.target.value.trim()) {
-                        onAddTask(initiative.id, e.target.value);
-                      } else {
-                        setAddingTaskTo(null);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setAddingTaskTo(null);
-                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                        onAddTask(initiative.id, e.currentTarget.value);
-                      }
-                    }}
-                    className="flex-1 text-sm px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-
-              {activeTasks.length === 0 && addingTaskTo !== initiative.id && (
-                <p className="text-sm text-gray-400 italic py-1">No active tasks</p>
-              )}
-            </div>
-          </div>
-
-          {/* Updates Timeline Section */}
-          <div className="border-t border-gray-200 pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h5 className="text-sm font-semibold text-gray-700">Weekly Updates</h5>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAddingUpdateTo(initiative.id);
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" />
-                Add Update
-              </button>
-            </div>
-
+      {/* This Week Column (Editable for current week) */}
+      <td className="px-4 py-3 align-top">
+        {isCurrentWeek ? (
+          isEditingThisWeek ? (
             <div className="space-y-2">
-              {updates?.slice(0, 5).map((update) => (
-                <div key={update.id} className="border-l-2 border-blue-200 pl-3 py-1">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                    <Calendar className="w-3 h-3" />
-                    <span>Week of {new Date(update.week_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    {update.author && <span>• {update.author.full_name}</span>}
+              <textarea
+                autoFocus
+                value={thisWeekText}
+                onChange={(e) => setThisWeekText(e.target.value)}
+                placeholder="What progress was made this week?"
+                className="w-full text-sm px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={4}
+                onBlur={handleSaveUpdate}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsEditingThisWeek(false);
+                    setThisWeekText(thisWeekUpdate?.update_text || '');
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              onClick={() => {
+                setIsEditingThisWeek(true);
+                setThisWeekText(thisWeekUpdate?.update_text || '');
+              }}
+              className="cursor-pointer hover:bg-blue-50 rounded p-2 min-h-[60px] transition-colors"
+            >
+              {thisWeekUpdate ? (
+                <div className="text-sm text-gray-700">
+                  <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                    <Clock className="w-3 h-3" />
+                    {thisWeekUpdate.author && <span>{thisWeekUpdate.author.full_name}</span>}
                   </div>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{update.update_text}</p>
+                  <p className="whitespace-pre-wrap">{thisWeekUpdate.update_text}</p>
                 </div>
-              ))}
-
-              {addingUpdateTo === initiative.id && (
-                <div className="border-l-2 border-blue-400 pl-3 py-1">
-                  <textarea
-                    autoFocus
-                    placeholder="What progress was made this week?"
-                    onBlur={(e) => {
-                      if (e.target.value.trim()) {
-                        onAddUpdate(initiative.id, e.target.value);
-                      } else {
-                        setAddingUpdateTo(null);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setAddingUpdateTo(null);
-                    }}
-                    className="w-full text-sm px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                  />
-                </div>
-              )}
-
-              {(!updates || updates.length === 0) && addingUpdateTo !== initiative.id && (
-                <p className="text-sm text-gray-400 italic py-1">No updates yet</p>
-              )}
-
-              {updates && updates.length > 5 && (
-                <p className="text-xs text-gray-500 italic">
-                  Showing 5 most recent. Total: {updates.length} updates.
-                </p>
+              ) : (
+                <p className="text-sm text-gray-400 italic">Click to add update...</p>
               )}
             </div>
-          </div>
+          )
+        ) : (
+          // Past/future weeks - readonly
+          thisWeekUpdate ? (
+            <div className="text-sm text-gray-700">
+              <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                <Clock className="w-3 h-3" />
+                {thisWeekUpdate.author && <span>{thisWeekUpdate.author.full_name}</span>}
+              </div>
+              <p className="whitespace-pre-wrap">{thisWeekUpdate.update_text}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 italic">No update</p>
+          )
+        )}
+      </td>
+
+      {/* Tasks Column */}
+      <td className="px-4 py-3 align-top">
+        <div className="space-y-1">
+          {/* Active Tasks */}
+          {activeTasks.map((task) => (
+            <div key={task.id} className="flex items-start gap-2 py-1 group">
+              <button
+                onClick={() => handleToggleTask(task)}
+                className="mt-0.5 hover:scale-110 transition-transform flex-shrink-0"
+              >
+                {task.status === 'done' ? (
+                  <CheckSquare className={`w-4 h-4 ${getTaskStatusColor(task.status)}`} />
+                ) : (
+                  <Square className={`w-4 h-4 ${getTaskStatusColor(task.status)}`} />
+                )}
+              </button>
+              <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                {task.title}
+                {task.status === 'blocked' && (
+                  <span className="ml-2 text-xs text-red-600">(blocked)</span>
+                )}
+                {task.status === 'in_progress' && (
+                  <span className="ml-2 text-xs text-blue-600">(in progress)</span>
+                )}
+              </span>
+            </div>
+          ))}
+
+          {/* Recently Completed Tasks (< 1 week) */}
+          {recentlyCompletedTasks.map((task) => (
+            <div key={task.id} className="flex items-start gap-2 py-1 group">
+              <button
+                onClick={() => handleToggleTask(task)}
+                className="mt-0.5 hover:scale-110 transition-transform flex-shrink-0"
+              >
+                <CheckSquare className="w-4 h-4 text-green-600" />
+              </button>
+              <span className="text-sm flex-1 line-through text-gray-400">
+                {task.title}
+              </span>
+            </div>
+          ))}
+
+          {/* Older Completed Tasks (Collapsed) */}
+          {olderCompletedTasks.length > 0 && (
+            <details className="mt-2">
+              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+                {olderCompletedTasks.length} older completed task{olderCompletedTasks.length !== 1 ? 's' : ''}
+              </summary>
+              <div className="ml-4 mt-1 space-y-1">
+                {olderCompletedTasks.map((task) => (
+                  <div key={task.id} className="flex items-start gap-2 py-1 group">
+                    <button
+                      onClick={() => handleToggleTask(task)}
+                      className="mt-0.5 hover:scale-110 transition-transform flex-shrink-0"
+                    >
+                      <CheckSquare className="w-4 h-4 text-green-600" />
+                    </button>
+                    <span className="text-sm flex-1 line-through text-gray-400">
+                      {task.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Add Task Input */}
+          {addingTask ? (
+            <div className="flex items-center gap-2 py-1">
+              <Square className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                placeholder="Task title..."
+                onBlur={handleAddTask}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setAddingTask(false);
+                    setNewTaskTitle('');
+                  }
+                  if (e.key === 'Enter') {
+                    handleAddTask();
+                  }
+                }}
+                className="flex-1 text-sm px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingTask(true)}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-1"
+            >
+              <Plus className="w-3 h-3" />
+              Add Task
+            </button>
+          )}
+
+          {activeTasks.length === 0 && recentlyCompletedTasks.length === 0 && !addingTask && (
+            <p className="text-sm text-gray-400 italic py-1">No active tasks</p>
+          )}
         </div>
-      )}
-    </div>
+      </td>
+    </tr>
   );
 }

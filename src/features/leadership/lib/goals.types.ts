@@ -135,6 +135,7 @@ export interface CreateTaskInput {
 
 export interface UpdateTaskInput extends Partial<CreateTaskInput> {
   id: string;
+  completed_at?: string | null;
 }
 
 // ============================================
