@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Calendar, Trash2, Lock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Plus, Calendar, Trash2, Lock, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import {
+  useAreasQuery,
   useInitiativesByFunctionQuery,
   useAllAnnualActionsByFunctionQuery,
   useAllAnnualTargetsByFunctionQuery,
@@ -26,7 +27,9 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
   const [addingObjective, setAddingObjective] = useState<string | null>(null);
   const [editingObjective, setEditingObjective] = useState<string | null>(null);
   const [scoringMode, setScoringMode] = useState<'bu' | 'ceo' | null>(null);
+  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
 
+  const { data: areas } = useAreasQuery(functionId);
   const { data: initiatives } = useInitiativesByFunctionQuery(functionId);
   const { data: allObjectives } = useQuarterlyObjectivesByFunctionQuery(functionId, year);
   const { data: annualActionsByInitiative } = useAllAnnualActionsByFunctionQuery(functionId, year);
@@ -34,6 +37,19 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
   const updateObjective = useUpdateQuarterlyObjective();
   const createObjective = useCreateQuarterlyObjective();
   const deleteObjective = useDeleteQuarterlyObjective();
+
+  // Toggle area collapse
+  const toggleArea = (areaId: string) => {
+    setCollapsedAreas(prev => {
+      const next = new Set(prev);
+      if (next.has(areaId)) {
+        next.delete(areaId);
+      } else {
+        next.add(areaId);
+      }
+      return next;
+    });
+  };
 
   // Get objectives for the selected quarter
   const quarterObjectives = allObjectives?.filter(obj => obj.quarter === selectedQuarter) || [];
@@ -61,6 +77,16 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
     acc[obj.initiative_id].push(obj);
     return acc;
   }, {} as Record<string, QuarterlyObjective[]>);
+
+  // Group initiatives by area
+  const initiativesByArea = initiatives?.reduce((acc, initiative) => {
+    const areaId = initiative.area?.id || 'uncategorized';
+    if (!acc[areaId]) {
+      acc[areaId] = [];
+    }
+    acc[areaId].push(initiative);
+    return acc;
+  }, {} as Record<string, typeof initiatives>) || {};
 
   // Get workflow state for each quarter (for tab status dots)
   const getQuarterStatus = (quarter: QuarterNumber): WorkflowState | 'mixed' | 'empty' => {
@@ -420,16 +446,43 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
           </div>
         </div>
 
-        {/* Table Rows */}
-        <div className="divide-y divide-gray-200">
-          {initiatives.map((initiative) => {
-            const objectives = objectivesByInitiative[initiative.id] || [];
-            const previousObjectives = previousObjectivesByInitiative[initiative.id] || [];
-            const annualActions = annualActionsByInitiative?.[initiative.id] || [];
-            const annualTargets = annualTargetsByInitiative?.[initiative.id] || [];
+        {/* Table Rows Grouped by Area */}
+        <div>
+          {areas?.map((area) => {
+            const areaInitiatives = initiativesByArea[area.id] || [];
+            const isAreaCollapsed = collapsedAreas.has(area.id);
+
+            if (areaInitiatives.length === 0) return null;
 
             return (
-              <div key={initiative.id} className="grid grid-cols-12 gap-4 px-4 py-4 hover:bg-gray-50">
+              <div key={area.id}>
+                {/* Area Separator Row */}
+                <div
+                  className="bg-blue-900 border-b border-blue-700 px-4 py-2 cursor-pointer hover:bg-blue-800 transition-colors flex items-center gap-2"
+                  onClick={() => toggleArea(area.id)}
+                >
+                  {isAreaCollapsed ? (
+                    <ChevronRight className="w-4 h-4 text-white" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-white" />
+                  )}
+                  <h3 className="text-base font-semibold text-white">{area.name}</h3>
+                  <span className="text-xs text-blue-200">
+                    ({areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''})
+                  </span>
+                </div>
+
+                {/* Area Initiatives */}
+                {!isAreaCollapsed && (
+                  <div className="divide-y divide-gray-200">
+                    {areaInitiatives.map((initiative) => {
+                      const objectives = objectivesByInitiative[initiative.id] || [];
+                      const previousObjectives = previousObjectivesByInitiative[initiative.id] || [];
+                      const annualActions = annualActionsByInitiative?.[initiative.id] || [];
+                      const annualTargets = annualTargetsByInitiative?.[initiative.id] || [];
+
+                      return (
+                        <div key={initiative.id} className="grid grid-cols-12 gap-4 px-4 py-4 hover:bg-gray-50">
                 {/* Column 1: Initiative Name (15% ~ 2 cols) */}
                 <div className="col-span-2">
                   <div className="sticky top-0">
@@ -482,14 +535,16 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                           <p className="text-gray-700 mb-1">{obj.objective_text}</p>
                           <div className="flex items-center gap-2 flex-wrap">
                             {obj.bu_assessment && (
-                              <span className={`text-xs px-2 py-0.5 rounded border ${getAssessmentColor(obj.bu_assessment)}`}>
-                                BU: {obj.bu_assessment.replace('_', ' ').toUpperCase()}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-600">BU:</span>
+                                <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(obj.bu_assessment)}`} title={obj.bu_assessment.replace('_', ' ')} />
+                              </div>
                             )}
                             {obj.ceo_assessment && (
-                              <span className={`text-xs px-2 py-0.5 rounded border ${getAssessmentColor(obj.ceo_assessment)}`}>
-                                CEO: {obj.ceo_assessment.replace('_', ' ').toUpperCase()}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-600">CEO:</span>
+                                <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(obj.ceo_assessment)}`} title={obj.ceo_assessment.replace('_', ' ')} />
+                              </div>
                             )}
                           </div>
                         </div>
@@ -554,9 +609,7 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                                         <option value="red">Red - Poor</option>
                                       </select>
                                     ) : objective.bu_assessment ? (
-                                      <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(objective.bu_assessment)}`}>
-                                        {objective.bu_assessment.toUpperCase()}
-                                      </span>
+                                      <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(objective.bu_assessment)}`} title={objective.bu_assessment.replace('_', ' ')} />
                                     ) : (
                                       <span className="text-xs text-gray-400">Not scored</span>
                                     )}
@@ -579,9 +632,7 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                                         <option value="red">Red - Poor</option>
                                       </select>
                                     ) : objective.ceo_assessment ? (
-                                      <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(objective.ceo_assessment)}`}>
-                                        {objective.ceo_assessment.toUpperCase()}
-                                      </span>
+                                      <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(objective.ceo_assessment)}`} title={objective.ceo_assessment.replace('_', ' ')} />
                                     ) : (
                                       <span className="text-xs text-gray-400">Not scored</span>
                                     )}
@@ -640,12 +691,17 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
                         Add Q{selectedQuarter} Objective
                       </button>
                     )}
-                  </div>
-                </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
       </div>
     </div>
   );

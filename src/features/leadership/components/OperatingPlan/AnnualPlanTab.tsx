@@ -36,6 +36,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const { data: actionsByInitiative } = useAllAnnualActionsByFunctionQuery(functionId, year);
   const { data: targetsByInitiative } = useAllAnnualTargetsByFunctionQuery(functionId, year);
 
+  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set()); // Areas collapsed (initiatives hidden)
   const [collapsedStrategicDesc, setCollapsedStrategicDesc] = useState<Set<string>>(new Set(areas?.map(a => a.id) || []));
   const [editingStrategicDesc, setEditingStrategicDesc] = useState<string | null>(null);
   const [showAreaModal, setShowAreaModal] = useState(false);
@@ -58,6 +59,18 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const createTarget = useCreateAnnualTarget();
   const updateTarget = useUpdateAnnualTarget();
   const deleteTarget = useDeleteAnnualTarget();
+
+  const toggleArea = (areaId: string) => {
+    setCollapsedAreas(prev => {
+      const next = new Set(prev);
+      if (next.has(areaId)) {
+        next.delete(areaId);
+      } else {
+        next.add(areaId);
+      }
+      return next;
+    });
+  };
 
   const toggleStrategicDesc = (areaId: string) => {
     setCollapsedStrategicDesc(prev => {
@@ -586,13 +599,21 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
       {areas.map((area) => {
         const areaInitiatives = initiativesByArea[area.id] || [];
         const isStratDescCollapsed = collapsedStrategicDesc.has(area.id);
+        const isAreaCollapsed = collapsedAreas.has(area.id);
 
         return (
           <div key={area.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             {/* Area Header */}
             <div className="border-b border-blue-700 bg-blue-900 px-4 py-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-white">{area.name}</h3>
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleArea(area.id)}>
+                  {isAreaCollapsed ? (
+                    <ChevronRight className="w-4 h-4 text-white" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-white" />
+                  )}
+                  <h3 className="text-base font-semibold text-white">{area.name}</h3>
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-blue-200">
                     {areaInitiatives.length} initiative{areaInitiatives.length !== 1 ? 's' : ''}
@@ -651,7 +672,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
               </div>
 
               {/* Strategic Description - Collapsible */}
-              {!isStratDescCollapsed && (
+              {!isAreaCollapsed && !isStratDescCollapsed && (
                 <div className="mt-2 pt-2 border-t border-blue-700 bg-white rounded-md">
                   {editingStrategicDesc === area.id ? (
                     <textarea
@@ -681,7 +702,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
             </div>
 
             {/* Initiatives Table */}
-            {areaInitiatives.length > 0 ? (
+            {!isAreaCollapsed && areaInitiatives.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -815,9 +836,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                 <option value="red">Red - Poor</option>
                                               </select>
                                             ) : action.bu_assessment ? (
-                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(action.bu_assessment)}`}>
-                                                {action.bu_assessment.toUpperCase()}
-                                              </span>
+                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(action.bu_assessment)}`} title={action.bu_assessment.replace('_', ' ')} />
                                             ) : (
                                               <span className="text-xs text-gray-400">Not scored</span>
                                             )}
@@ -848,9 +867,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                 <option value="red">Red - Poor</option>
                                               </select>
                                             ) : action.ceo_assessment ? (
-                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(action.ceo_assessment)}`}>
-                                                {action.ceo_assessment.toUpperCase()}
-                                              </span>
+                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(action.ceo_assessment)}`} title={action.ceo_assessment.replace('_', ' ')} />
                                             ) : (
                                               <span className="text-xs text-gray-400">Not scored</span>
                                             )}
@@ -963,9 +980,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                 <option value="red">Red - Poor</option>
                                               </select>
                                             ) : target.bu_assessment ? (
-                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(target.bu_assessment)}`}>
-                                                {target.bu_assessment.toUpperCase()}
-                                              </span>
+                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(target.bu_assessment)}`} title={target.bu_assessment.replace('_', ' ')} />
                                             ) : (
                                               <span className="text-xs text-gray-400">Not scored</span>
                                             )}
@@ -996,9 +1011,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                 <option value="red">Red - Poor</option>
                                               </select>
                                             ) : target.ceo_assessment ? (
-                                              <span className={`text-xs px-2 py-1 rounded border ${getAssessmentColor(target.ceo_assessment)}`}>
-                                                {target.ceo_assessment.toUpperCase()}
-                                              </span>
+                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(target.ceo_assessment)}`} title={target.ceo_assessment.replace('_', ' ')} />
                                             ) : (
                                               <span className="text-xs text-gray-400">Not scored</span>
                                             )}
@@ -1044,7 +1057,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                   </tbody>
                 </table>
               </div>
-            ) : (
+            ) : !isAreaCollapsed ? (
               <div className="p-6 text-center text-gray-500 text-sm">
                 <p>No initiatives in this area yet</p>
                 <button
@@ -1055,7 +1068,7 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                   Add First Initiative
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         );
       })}
