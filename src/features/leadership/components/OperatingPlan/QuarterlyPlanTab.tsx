@@ -187,13 +187,13 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
   };
 
   const handleSubmitBUScores = async () => {
-    const unscored = quarterObjectives.filter(obj => !obj.bu_assessment && !obj.bu_score);
+    const unscored = quarterObjectives.filter(obj => !obj.bu_assessment);
     if (unscored.length > 0) {
-      toast.error(`Please score all ${unscored.length} objectives before submitting`);
+      toast.error(`Please score all ${unscored.length} objective${unscored.length !== 1 ? 's' : ''} before submitting for Q${selectedQuarter}`);
       return;
     }
 
-    if (!window.confirm(`Submit BU scores for CEO review?`)) return;
+    if (!window.confirm(`Submit BU scores for CEO review? All ${quarterObjectives.length} Q${selectedQuarter} objectives will be locked for BU changes.`)) return;
 
     try {
       await Promise.all(
@@ -214,13 +214,13 @@ export default function QuarterlyPlanTab({ functionId, year }: QuarterlyPlanTabP
   };
 
   const handleCEOApprove = async () => {
-    const unscored = quarterObjectives.filter(obj => !obj.ceo_assessment && !obj.ceo_score);
+    const unscored = quarterObjectives.filter(obj => !obj.ceo_assessment);
     if (unscored.length > 0) {
-      toast.error(`Please score all ${unscored.length} objectives before approving`);
+      toast.error(`Please score all ${unscored.length} objective${unscored.length !== 1 ? 's' : ''} before approving Q${selectedQuarter}`);
       return;
     }
 
-    if (!window.confirm(`Approve Q${selectedQuarter}? This will finalize all scores.`)) return;
+    if (!window.confirm(`Approve Q${selectedQuarter} ${year}? This will finalize all ${quarterObjectives.length} objectives.`)) return;
 
     try {
       await Promise.all(

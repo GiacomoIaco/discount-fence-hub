@@ -351,15 +351,16 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const handleSubmitBUScores = async () => {
     const actions = Object.values(actionsByInitiative || {}).flat();
     const targets = Object.values(targetsByInitiative || {}).flat();
-    const unscoredActions = actions.filter(a => !a.bu_assessment && !a.bu_score);
-    const unscoredTargets = targets.filter(t => !t.bu_assessment && !t.bu_score);
+    const unscoredActions = actions.filter(a => !a.bu_assessment);
+    const unscoredTargets = targets.filter(t => !t.bu_assessment);
 
     if (unscoredActions.length > 0 || unscoredTargets.length > 0) {
-      toast.error(`Please score all ${unscoredActions.length} actions and ${unscoredTargets.length} targets before submitting`);
+      const total = unscoredActions.length + unscoredTargets.length;
+      toast.error(`Please score all items before submitting (${total} remaining: ${unscoredActions.length} actions, ${unscoredTargets.length} targets)`);
       return;
     }
 
-    if (!window.confirm(`Submit BU scores for CEO review?`)) return;
+    if (!window.confirm(`Submit BU scores for CEO review? All ${actions.length + targets.length} items will be locked for BU changes.`)) return;
 
     try {
       await Promise.all([
@@ -395,15 +396,16 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
   const handleCEOApprove = async () => {
     const actions = Object.values(actionsByInitiative || {}).flat();
     const targets = Object.values(targetsByInitiative || {}).flat();
-    const unscoredActions = actions.filter(a => !a.ceo_assessment && !a.ceo_score);
-    const unscoredTargets = targets.filter(t => !t.ceo_assessment && !t.ceo_score);
+    const unscoredActions = actions.filter(a => !a.ceo_assessment);
+    const unscoredTargets = targets.filter(t => !t.ceo_assessment);
 
     if (unscoredActions.length > 0 || unscoredTargets.length > 0) {
-      toast.error(`Please score all ${unscoredActions.length} actions and ${unscoredTargets.length} targets before approving`);
+      const total = unscoredActions.length + unscoredTargets.length;
+      toast.error(`Please score all items before approving (${total} remaining: ${unscoredActions.length} actions, ${unscoredTargets.length} targets)`);
       return;
     }
 
-    if (!window.confirm(`Approve the ${year} Annual Plan? This will finalize all scores.`)) return;
+    if (!window.confirm(`Approve the ${year} Annual Plan? This will finalize all ${actions.length + targets.length} items.`)) return;
 
     try {
       await Promise.all([
@@ -479,11 +481,55 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
       case 'approved':
         return 'Approved & Complete';
       case 'mixed':
-        return 'Mixed States';
+        return 'Mixed States - Needs Sync';
       case 'empty':
         return 'No Items Yet';
       default:
         return 'Unknown';
+    }
+  };
+
+  const handleResetToMostCommonState = async () => {
+    const items = getAllActionsAndTargets();
+    const stateCounts = items.reduce((acc, item) => {
+      acc[item.workflow_state] = (acc[item.workflow_state] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const mostCommonState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0][0] as WorkflowState;
+    // Map ceo_approved to approved for API compatibility
+    const targetState = (mostCommonState === 'ceo_approved' ? 'approved' : mostCommonState) as 'draft' | 'locked' | 'bu_scoring' | 'pending_ceo_review' | 'approved';
+
+    if (!window.confirm(`Reset all items to "${mostCommonState}" state? This will synchronize all ${items.length} actions and targets.`)) return;
+
+    try {
+      const actions = Object.values(actionsByInitiative || {}).flat();
+      const targets = Object.values(targetsByInitiative || {}).flat();
+
+      await Promise.all([
+        ...actions.map(action =>
+          updateAction.mutateAsync({
+            id: action.id,
+            initiative_id: action.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: targetState,
+          })
+        ),
+        ...targets.map(target =>
+          updateTarget.mutateAsync({
+            id: target.id,
+            initiative_id: target.initiative_id,
+            year,
+            function_id: functionId,
+            workflow_state: targetState,
+          })
+        ),
+      ]);
+      toast.success(`All items synchronized to ${targetState} state`);
+    } catch (error) {
+      console.error('Failed to sync states:', error);
+      toast.error('Failed to synchronize states');
     }
   };
 
@@ -587,6 +633,18 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
               </>
             )}
 
+            {/* Mixed States Recovery */}
+            {workflowState.state === 'mixed' && (
+              <button
+                onClick={handleResetToMostCommonState}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 transition-colors"
+                title="Synchronize all items to the most common state"
+              >
+                <AlertCircle className="w-4 h-4" />
+                Sync All Items
+              </button>
+            )}
+
             <CopyYearButton functionId={functionId} fromYear={year - 1} toYear={year} />
             <button
               onClick={() => setShowAreaModal(true)}
@@ -598,7 +656,15 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
           </div>
         </div>
         <p className="text-sm text-gray-600">
-          Define actions/objectives and annual targets for each initiative. {workflowState.canScoreBU || workflowState.canScoreCEO ? 'Use scoring dropdowns to assess each item.' : ''}
+          {workflowState.state === 'mixed' ? (
+            <span className="text-orange-600 font-medium">
+              ⚠️ Items are in different workflow states. Use "Sync All Items" to resolve this and continue with the workflow.
+            </span>
+          ) : (
+            <>
+              Define actions/objectives and annual targets for each initiative. {workflowState.canScoreBU || workflowState.canScoreCEO ? 'Use scoring dropdowns to assess each item.' : ''}
+            </>
+          )}
         </p>
       </div>
 
