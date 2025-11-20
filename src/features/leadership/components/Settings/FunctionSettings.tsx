@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Plus,
@@ -17,9 +17,11 @@ import {
   ShoppingCart,
   Megaphone,
   Award,
-  Zap
+  Zap,
+  UserPlus
 } from 'lucide-react';
-import { useFunctionsQuery, useCreateFunction, useUpdateFunction, useAreasQuery, useCreateArea, useUpdateArea } from '../../hooks/useLeadershipQuery';
+import { useFunctionsQuery, useCreateFunction, useUpdateFunction, useAreasQuery, useCreateArea, useUpdateArea, useFunctionOwnersQuery, useAddFunctionOwner, useRemoveFunctionOwner } from '../../hooks/useLeadershipQuery';
+import { useUsers } from '../../../requests/hooks/useRequests';
 import type { CreateFunctionInput, CreateAreaInput, ProjectFunction, ProjectArea } from '../../lib/leadership';
 
 // Available icons for functions
@@ -100,19 +102,25 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
     }
   };
 
-  const handleUpdateFunction = async (e: React.FormEvent) => {
+  const handleUpdateFunction = async (e: React.FormEvent, editedData?: any) => {
     e.preventDefault();
     if (!editingFunction) return;
+
+    // Use editedData if provided (from modal), otherwise use editingFunction state
+    const dataToSave = editedData || editingFunction;
 
     try {
       await updateFunction.mutateAsync({
         id: editingFunction.id,
-        name: editingFunction.name,
-        description: editingFunction.description,
-        color: editingFunction.color,
-        icon: editingFunction.icon,
+        name: dataToSave.name,
+        description: dataToSave.description,
+        color: dataToSave.color,
+        icon: dataToSave.icon,
       });
-      setEditingFunction(null);
+      // Don't close here - let the modal handle it
+      if (!editedData) {
+        setEditingFunction(null);
+      }
     } catch (error) {
       console.error('Failed to update function:', error);
     }
@@ -260,85 +268,12 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
 
             {/* Edit Function Modal */}
             {editingFunction && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                  <h3 className="text-lg font-semibold mb-4">Edit Function</h3>
-                  <form onSubmit={handleUpdateFunction} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                      <input
-                        type="text"
-                        value={editingFunction.name}
-                        onChange={(e) => setEditingFunction({ ...editingFunction, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <textarea
-                        value={editingFunction.description || ''}
-                        onChange={(e) => setEditingFunction({ ...editingFunction, description: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        rows={3}
-                      />
-                    </div>
-
-                    {/* Icon Picker */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
-                      <div className="grid grid-cols-7 gap-2">
-                        {FUNCTION_ICONS.map(({ name, Icon }) => (
-                          <button
-                            key={name}
-                            type="button"
-                            onClick={() => setEditingFunction({ ...editingFunction, icon: name })}
-                            className={`p-2 rounded-lg border-2 transition-colors ${
-                              editingFunction.icon === name
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                            title={name}
-                          >
-                            <Icon className="w-5 h-5 mx-auto" style={{ color: editingFunction.color }} />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Color Picker */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={editingFunction.color || '#3B82F6'}
-                          onChange={(e) => setEditingFunction({ ...editingFunction, color: e.target.value })}
-                          className="h-10 w-20 border border-gray-300 rounded cursor-pointer"
-                        />
-                        <span className="text-sm text-gray-600">{editingFunction.color || '#3B82F6'}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={updateFunction.isPending}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {updateFunction.isPending ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingFunction(null)}
-                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
+              <EditFunctionModal
+                func={editingFunction}
+                onClose={() => setEditingFunction(null)}
+                onSave={handleUpdateFunction}
+                isLoading={updateFunction.isPending}
+              />
             )}
 
             {/* Delete Function Confirmation */}
@@ -638,6 +573,197 @@ export default function FunctionSettings({ onBack }: FunctionSettingsProps) {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Edit Function Modal Component with Owner Management
+interface EditFunctionModalProps {
+  func: ProjectFunction;
+  onClose: () => void;
+  onSave: (e: React.FormEvent, editedData?: any) => Promise<void>;
+  isLoading: boolean;
+}
+
+function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionModalProps) {
+  const [editedFunction, setEditedFunction] = useState(func);
+  const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([]);
+
+  const { data: owners, isLoading: ownersLoading } = useFunctionOwnersQuery(func.id);
+  const { users, loading: usersLoading } = useUsers();
+  const addOwner = useAddFunctionOwner();
+  const removeOwner = useRemoveFunctionOwner();
+
+  // Initialize selected owners from existing owners
+  useEffect(() => {
+    if (owners) {
+      setSelectedOwnerIds(owners.map(o => o.user_id));
+    }
+  }, [owners]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      // Save function details
+      await onSave(e, editedFunction);
+
+      // Update owners
+      if (owners && !ownersLoading) {
+        const currentOwnerIds = owners.map(o => o.user_id);
+
+        // Add new owners
+        const ownersToAdd = selectedOwnerIds.filter(id => !currentOwnerIds.includes(id));
+        for (const userId of ownersToAdd) {
+          await addOwner.mutateAsync({ functionId: func.id, userId });
+        }
+
+        // Remove old owners
+        const ownersToRemove = owners.filter(o => !selectedOwnerIds.includes(o.user_id));
+        for (const owner of ownersToRemove) {
+          await removeOwner.mutateAsync({ id: owner.id, functionId: func.id });
+        }
+      }
+
+      onClose();
+    } catch (error) {
+      console.error('Failed to save function:', error);
+    }
+  };
+
+  const toggleOwner = (userId: string) => {
+    setSelectedOwnerIds(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-4">Edit Function</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input
+              type="text"
+              value={editedFunction.name}
+              onChange={(e) => setEditedFunction({ ...editedFunction, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={editedFunction.description || ''}
+              onChange={(e) => setEditedFunction({ ...editedFunction, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              rows={3}
+            />
+          </div>
+
+          {/* Icon Picker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
+            <div className="grid grid-cols-7 gap-2">
+              {FUNCTION_ICONS.map(({ name, Icon }) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setEditedFunction({ ...editedFunction, icon: name })}
+                  className={`p-2 rounded-lg border-2 transition-colors ${
+                    editedFunction.icon === name
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                  title={name}
+                >
+                  <Icon className="w-5 h-5 mx-auto" style={{ color: editedFunction.color }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color Picker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={editedFunction.color || '#3B82F6'}
+                onChange={(e) => setEditedFunction({ ...editedFunction, color: e.target.value })}
+                className="h-10 w-20 border border-gray-300 rounded cursor-pointer"
+              />
+              <span className="text-sm text-gray-600">{editedFunction.color || '#3B82F6'}</span>
+            </div>
+          </div>
+
+          {/* Function Owners */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                <span>Function Owners</span>
+              </div>
+              <span className="text-xs text-gray-500 font-normal mt-1 block">
+                Owners can edit the function and receive weekly email summaries
+              </span>
+            </label>
+            {usersLoading || ownersLoading ? (
+              <div className="text-sm text-gray-500">Loading users...</div>
+            ) : (
+              <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                {users.length === 0 ? (
+                  <div className="p-3 text-sm text-gray-500">No users available</div>
+                ) : (
+                  users.map((user) => (
+                    <label
+                      key={user.id}
+                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedOwnerIds.includes(user.id)}
+                        onChange={() => toggleOwner(user.id)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        <div className="text-xs text-gray-500">{user.email}</div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+            {selectedOwnerIds.length > 0 && (
+              <div className="mt-2 text-xs text-gray-600">
+                {selectedOwnerIds.length} owner{selectedOwnerIds.length !== 1 ? 's' : ''} selected
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

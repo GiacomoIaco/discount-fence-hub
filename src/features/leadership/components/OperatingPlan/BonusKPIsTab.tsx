@@ -36,7 +36,11 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
   const { data: owners } = useFunctionOwnersQuery(functionId);
 
   // Get up to 3 owners for column headers
-  const displayOwners = useMemo(() => owners?.slice(0, 3) || [], [owners]);
+  const displayOwners = useMemo(() => {
+    console.log('[BonusKPIsTab] Owners data:', owners);
+    console.log('[BonusKPIsTab] Display owners:', owners?.slice(0, 3) || []);
+    return owners?.slice(0, 3) || [];
+  }, [owners]);
 
   const handleCancelCreate = () => {
     setIsCreatingNew(false);
