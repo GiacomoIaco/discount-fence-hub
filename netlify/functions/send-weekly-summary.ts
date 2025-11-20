@@ -82,15 +82,40 @@ const handler = schedule('0 19 * * 5', async () => {
     // 4. Generate HTML email
     const emailHtml = generateSummaryHTML(groupedUpdates, currentWeek);
 
-    // 5. Get recipients from settings (for now using default)
-    // TODO: Fetch from project_settings table
+    // 5. Get recipients from settings
     const { data: settings } = await supabase
       .from('project_settings')
       .select('setting_value')
       .eq('setting_key', 'email_schedule')
       .single();
 
-    const recipients = getRecipients(settings?.setting_value);
+    // If emails are disabled, skip sending
+    if (!settings?.setting_value?.isEnabled) {
+      console.log('Email notifications are disabled, skipping summary email');
+      // Still mark as "sent" so we don't keep trying
+      await supabase.rpc('mark_summary_email_sent', {
+        p_week_start_date: currentWeek,
+      });
+      return { statusCode: 200, body: 'Emails disabled' };
+    }
+
+    // Get all users for recipient resolution
+    const { data: allUsers } = await supabase
+      .from('user_profiles')
+      .select('email, full_name')
+      .not('email', 'is', null);
+
+    const recipients = getRecipients(settings?.setting_value, allUsers);
+
+    if (recipients.length === 0) {
+      console.log('No recipients configured, skipping summary email');
+      // Mark as sent to prevent retry
+      await supabase.rpc('mark_summary_email_sent', {
+        p_week_start_date: currentWeek,
+      });
+      return { statusCode: 200, body: 'No recipients' };
+    }
+
     console.log(`Sending summary to ${recipients.length} recipients`);
 
     // 6. Send email via SendGrid

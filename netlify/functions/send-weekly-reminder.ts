@@ -20,6 +20,19 @@ const handler = schedule('0 22 * * 4', async () => {
     const currentWeek = getMondayOfCurrentWeek();
     console.log('Current week:', currentWeek);
 
+    // Check email settings
+    const { data: settingsData } = await supabase
+      .from('project_settings')
+      .select('setting_value')
+      .eq('setting_key', 'email_schedule')
+      .single();
+
+    // If emails are disabled, skip
+    if (!settingsData?.setting_value?.isEnabled) {
+      console.log('Email notifications are disabled');
+      return { statusCode: 200, body: 'Emails disabled' };
+    }
+
     // Check if reminder already sent
     const { data: lock } = await supabase
       .from('initiative_week_locks')
@@ -32,7 +45,7 @@ const handler = schedule('0 22 * * 4', async () => {
       return { statusCode: 200, body: 'Reminder already sent' };
     }
 
-    // Get all users with emails
+    // Get all users with emails (reminder always goes to all users)
     const { data: users, error: usersError } = await supabase
       .from('user_profiles')
       .select('email, full_name')

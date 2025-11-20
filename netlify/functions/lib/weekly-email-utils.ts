@@ -42,12 +42,37 @@ export function formatWeekRange(mondayDateStr: string): string {
 
 /**
  * Get email recipients based on settings
- * For now returns a default list - can be enhanced with settings query
  */
-export function getRecipients(settingsValue?: any): string[] {
-  // TODO: Parse settings to get actual recipient list
-  // For now, return default leadership email
-  return ['giacomo@discountfenceusa.com'];
+export function getRecipients(settingsValue?: any, allUsers?: any[]): string[] {
+  if (!settingsValue || !settingsValue.isEnabled) {
+    // If disabled, return empty array
+    return [];
+  }
+
+  const { recipientType, customEmails } = settingsValue;
+
+  switch (recipientType) {
+    case 'all_leadership':
+      // Return all users with email addresses
+      return allUsers?.map(u => u.email).filter(Boolean) || [];
+
+    case 'custom':
+      // Parse custom email list (one per line)
+      if (!customEmails) return [];
+      return customEmails
+        .split('\n')
+        .map((email: string) => email.trim())
+        .filter((email: string) => email.length > 0 && email.includes('@'));
+
+    case 'per_function':
+      // TODO: Implement per-function logic
+      // For now, fall back to all leadership
+      return allUsers?.map(u => u.email).filter(Boolean) || [];
+
+    default:
+      // Default to admin email
+      return ['giacomo@discountfenceusa.com'];
+  }
 }
 
 /**

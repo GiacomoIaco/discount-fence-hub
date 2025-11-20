@@ -3,12 +3,6 @@ import { ArrowLeft, Mail, Save, Clock, Users } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import { useAuth } from '../../../../contexts/AuthContext';
 
-interface EmailSchedule {
-  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday';
-  time: string;
-  timezone: string;
-}
-
 interface EmailSettingsProps {
   onBack: () => void;
 }
@@ -17,12 +11,6 @@ export default function EmailSettings({ onBack }: EmailSettingsProps) {
   const { profile } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  const [schedule, setSchedule] = useState<EmailSchedule>({
-    day: 'friday',
-    time: '12:00',
-    timezone: 'America/New_York',
-  });
 
   const [recipientType, setRecipientType] = useState<'all_leadership' | 'per_function' | 'custom'>('all_leadership');
   const [customEmails, setCustomEmails] = useState<string>('');
@@ -47,9 +35,6 @@ export default function EmailSettings({ onBack }: EmailSettingsProps) {
 
       if (data?.setting_value) {
         const settings = data.setting_value;
-        if (settings.schedule) {
-          setSchedule(settings.schedule);
-        }
         if (settings.recipientType) {
           setRecipientType(settings.recipientType);
         }
@@ -73,7 +58,6 @@ export default function EmailSettings({ onBack }: EmailSettingsProps) {
 
     try {
       const settingValue = {
-        schedule,
         recipientType,
         customEmails,
         isEnabled,
@@ -85,7 +69,7 @@ export default function EmailSettings({ onBack }: EmailSettingsProps) {
         .upsert({
           setting_key: 'email_schedule',
           setting_value: settingValue,
-          description: 'Weekly summary email configuration',
+          description: 'Weekly email automation configuration',
         }, {
           onConflict: 'setting_key',
         });
@@ -176,69 +160,54 @@ export default function EmailSettings({ onBack }: EmailSettingsProps) {
             </div>
           </div>
 
-          {/* Schedule Configuration */}
+          {/* Schedule Information (Read-Only) */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center gap-2 mb-4">
               <Clock className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Email Schedule</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Automated Email Schedule</h3>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Day of Week */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Day of Week
-                </label>
-                <select
-                  value={schedule.day}
-                  onChange={(e) => setSchedule({ ...schedule, day: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!isEnabled}
-                >
-                  <option value="monday">Monday</option>
-                  <option value="tuesday">Tuesday</option>
-                  <option value="wednesday">Wednesday</option>
-                  <option value="thursday">Thursday</option>
-                  <option value="friday">Friday</option>
-                </select>
+            <div className="space-y-4">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-yellow-900 mb-1">Thursday at 5:00 PM EST</h4>
+                    <p className="text-sm text-yellow-800">
+                      <strong>Reminder Email:</strong> All users receive a reminder to submit their initiative updates by Friday 2pm
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Time
-                </label>
-                <input
-                  type="time"
-                  value={schedule.time}
-                  onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!isEnabled}
-                />
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-1">Friday at 2:00 PM EST</h4>
+                    <p className="text-sm text-blue-800">
+                      <strong>Weekly Summary + Lock:</strong> The week is locked (with grace period) and a summary email is sent to configured recipients
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Timezone */}
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Timezone
-                </label>
-                <select
-                  value={schedule.timezone}
-                  onChange={(e) => setSchedule({ ...schedule, timezone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!isEnabled}
-                >
-                  <option value="America/New_York">Eastern Time (ET)</option>
-                  <option value="America/Chicago">Central Time (CT)</option>
-                  <option value="America/Denver">Mountain Time (MT)</option>
-                  <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                </select>
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-red-900 mb-1">Monday at 12:00 PM EST</h4>
+                    <p className="text-sm text-red-800">
+                      <strong>Grace Period Ends:</strong> Previous week becomes permanently read-only (unless CEO overrides)
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Preview:</strong> Emails will be sent every {schedule.day.charAt(0).toUpperCase() + schedule.day.slice(1)} at {schedule.time} ({schedule.timezone})
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-700">
+                <strong>Note:</strong> The email schedule is automated and cannot be changed. Use the toggle above to enable/disable all automated emails, and configure recipients below.
               </p>
             </div>
           </div>
