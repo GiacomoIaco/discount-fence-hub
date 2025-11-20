@@ -574,15 +574,22 @@ export const useFunctionOwnersQuery = (functionId?: string) => {
     queryFn: async (): Promise<FunctionOwner[]> => {
       if (!functionId) throw new Error('Function ID is required');
 
+      console.log('[useFunctionOwnersQuery] Fetching owners for function:', functionId);
+
       const { data, error } = await supabase
         .from('project_function_owners')
         .select(`
           *,
-          user_profile:user_profiles!user_id(id, first_name, last_name, email)
+          user_profile:user_profiles(id, first_name, last_name, email)
         `)
         .eq('function_id', functionId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useFunctionOwnersQuery] Error fetching owners:', error);
+        throw error;
+      }
+
+      console.log('[useFunctionOwnersQuery] Owners data:', data);
       return data || [];
     },
     enabled: !!functionId,

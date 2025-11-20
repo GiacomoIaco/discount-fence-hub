@@ -590,14 +590,20 @@ function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionMod
   const [editedFunction, setEditedFunction] = useState(func);
   const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([]);
 
-  const { data: owners, isLoading: ownersLoading } = useFunctionOwnersQuery(func.id);
+  const { data: owners, isLoading: ownersLoading, error: ownersError } = useFunctionOwnersQuery(func.id);
   const { users, loading: usersLoading } = useUsers();
   const addOwner = useAddFunctionOwner();
   const removeOwner = useRemoveFunctionOwner();
 
+  // Log query state
+  useEffect(() => {
+    console.log('[EditFunctionModal] Owners query state:', { owners, ownersLoading, ownersError });
+  }, [owners, ownersLoading, ownersError]);
+
   // Initialize selected owners from existing owners
   useEffect(() => {
     if (owners) {
+      console.log('[EditFunctionModal] Initializing selected owners:', owners);
       setSelectedOwnerIds(owners.map(o => o.user_id));
     }
   }, [owners]);
@@ -615,29 +621,29 @@ function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionMod
       console.log('[EditFunctionModal] Function details saved');
 
       // Update owners
-      if (owners && !ownersLoading) {
-        const currentOwnerIds = owners.map(o => o.user_id);
-        console.log('[EditFunctionModal] Current owner IDs:', currentOwnerIds);
+      // Use empty array if owners is undefined (no existing owners)
+      const currentOwners = owners || [];
+      const currentOwnerIds = currentOwners.map(o => o.user_id);
+      console.log('[EditFunctionModal] Current owner IDs:', currentOwnerIds);
 
-        // Add new owners
-        const ownersToAdd = selectedOwnerIds.filter(id => !currentOwnerIds.includes(id));
-        console.log('[EditFunctionModal] Owners to add:', ownersToAdd);
+      // Add new owners
+      const ownersToAdd = selectedOwnerIds.filter(id => !currentOwnerIds.includes(id));
+      console.log('[EditFunctionModal] Owners to add:', ownersToAdd);
 
-        for (const userId of ownersToAdd) {
-          console.log('[EditFunctionModal] Adding owner:', userId);
-          await addOwner.mutateAsync({ functionId: func.id, userId });
-          console.log('[EditFunctionModal] Owner added successfully');
-        }
+      for (const userId of ownersToAdd) {
+        console.log('[EditFunctionModal] Adding owner:', userId);
+        await addOwner.mutateAsync({ functionId: func.id, userId });
+        console.log('[EditFunctionModal] Owner added successfully');
+      }
 
-        // Remove old owners
-        const ownersToRemove = owners.filter(o => !selectedOwnerIds.includes(o.user_id));
-        console.log('[EditFunctionModal] Owners to remove:', ownersToRemove);
+      // Remove old owners
+      const ownersToRemove = currentOwners.filter(o => !selectedOwnerIds.includes(o.user_id));
+      console.log('[EditFunctionModal] Owners to remove:', ownersToRemove);
 
-        for (const owner of ownersToRemove) {
-          console.log('[EditFunctionModal] Removing owner:', owner.id);
-          await removeOwner.mutateAsync({ id: owner.id, functionId: func.id });
-          console.log('[EditFunctionModal] Owner removed successfully');
-        }
+      for (const owner of ownersToRemove) {
+        console.log('[EditFunctionModal] Removing owner:', owner.id);
+        await removeOwner.mutateAsync({ id: owner.id, functionId: func.id });
+        console.log('[EditFunctionModal] Owner removed successfully');
       }
 
       console.log('[EditFunctionModal] All operations complete, closing modal');
