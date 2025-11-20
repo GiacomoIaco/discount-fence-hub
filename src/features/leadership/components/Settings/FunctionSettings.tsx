@@ -606,29 +606,45 @@ function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionMod
     e.preventDefault();
 
     try {
+      console.log('[EditFunctionModal] Starting save...');
+      console.log('[EditFunctionModal] Current owners:', owners);
+      console.log('[EditFunctionModal] Selected owner IDs:', selectedOwnerIds);
+
       // Save function details
       await onSave(e, editedFunction);
+      console.log('[EditFunctionModal] Function details saved');
 
       // Update owners
       if (owners && !ownersLoading) {
         const currentOwnerIds = owners.map(o => o.user_id);
+        console.log('[EditFunctionModal] Current owner IDs:', currentOwnerIds);
 
         // Add new owners
         const ownersToAdd = selectedOwnerIds.filter(id => !currentOwnerIds.includes(id));
+        console.log('[EditFunctionModal] Owners to add:', ownersToAdd);
+
         for (const userId of ownersToAdd) {
+          console.log('[EditFunctionModal] Adding owner:', userId);
           await addOwner.mutateAsync({ functionId: func.id, userId });
+          console.log('[EditFunctionModal] Owner added successfully');
         }
 
         // Remove old owners
         const ownersToRemove = owners.filter(o => !selectedOwnerIds.includes(o.user_id));
+        console.log('[EditFunctionModal] Owners to remove:', ownersToRemove);
+
         for (const owner of ownersToRemove) {
+          console.log('[EditFunctionModal] Removing owner:', owner.id);
           await removeOwner.mutateAsync({ id: owner.id, functionId: func.id });
+          console.log('[EditFunctionModal] Owner removed successfully');
         }
       }
 
+      console.log('[EditFunctionModal] All operations complete, closing modal');
       onClose();
     } catch (error) {
-      console.error('Failed to save function:', error);
+      console.error('[EditFunctionModal] Failed to save:', error);
+      alert(`Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
