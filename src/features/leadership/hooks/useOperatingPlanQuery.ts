@@ -350,6 +350,37 @@ export const useDeleteBonusKPIWeight = () => {
   });
 };
 
+/**
+ * Upsert bonus KPI weight (insert or update)
+ */
+export const useUpsertBonusKPIWeight = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { bonus_kpi_id: string; user_id: string; weight: number }) => {
+      const { data, error } = await supabase
+        .from('bonus_kpi_weights')
+        .upsert({
+          bonus_kpi_id: input.bonus_kpi_id,
+          user_id: input.user_id,
+          weight: input.weight,
+        }, {
+          onConflict: 'bonus_kpi_id,user_id'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['bonus-kpi-weights', data.bonus_kpi_id] });
+      queryClient.invalidateQueries({ queryKey: ['user-bonus-weights', data.user_id] });
+      queryClient.invalidateQueries({ queryKey: ['bonus-kpis'] });
+    },
+  });
+};
+
 // ============================================
 // Bonus Calculations
 // ============================================

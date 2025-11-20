@@ -13,9 +13,11 @@ import {
   ShoppingCart,
   Megaphone,
   Award,
-  Zap
+  Zap,
+  UserPlus
 } from 'lucide-react';
-import { useCreateFunction } from '../hooks/useLeadershipQuery';
+import { useCreateFunction, useAddFunctionOwner } from '../hooks/useLeadershipQuery';
+import { useUsers } from '../../requests/hooks/useRequests';
 
 // Available icons for functions
 const FUNCTION_ICONS = [
@@ -41,11 +43,15 @@ interface NewFunctionModalProps {
 
 export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModalProps) {
   const createFunction = useCreateFunction();
+  const addFunctionOwner = useAddFunctionOwner();
+  const { users, loading: usersLoading } = useUsers();
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     color: '#3B82F6',
     icon: 'Briefcase',
+    ownerIds: [] as string[],
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,12 +63,25 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
     }
 
     try {
-      await createFunction.mutateAsync({
+      // Create the function
+      const newFunction = await createFunction.mutateAsync({
         name: formData.name,
         description: formData.description || undefined,
         color: formData.color,
         icon: formData.icon,
       });
+
+      // Add owners
+      if (formData.ownerIds.length > 0) {
+        await Promise.all(
+          formData.ownerIds.map((userId) =>
+            addFunctionOwner.mutateAsync({
+              functionId: newFunction.id,
+              userId,
+            })
+          )
+        );
+      }
 
       onSuccess?.();
       onClose();
@@ -70,6 +89,15 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
       console.error('Failed to create function:', error);
       alert('Failed to create function. Please try again.');
     }
+  };
+
+  const toggleOwner = (userId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      ownerIds: prev.ownerIds.includes(userId)
+        ? prev.ownerIds.filter((id) => id !== userId)
+        : [...prev.ownerIds, userId],
+    }));
   };
 
   return (
@@ -155,6 +183,51 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
               />
               <span className="text-sm text-gray-600">{formData.color}</span>
             </div>
+          </div>
+
+          {/* Function Owners */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                <span>Function Owners</span>
+              </div>
+              <span className="text-xs text-gray-500 font-normal mt-1 block">
+                Owners can edit the function and receive weekly email summaries
+              </span>
+            </label>
+            {usersLoading ? (
+              <div className="text-sm text-gray-500">Loading users...</div>
+            ) : (
+              <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                {users.length === 0 ? (
+                  <div className="p-3 text-sm text-gray-500">No users available</div>
+                ) : (
+                  users.map((user) => (
+                    <label
+                      key={user.id}
+                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.ownerIds.includes(user.id)}
+                        onChange={() => toggleOwner(user.id)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        <div className="text-xs text-gray-500">{user.email}</div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+            {formData.ownerIds.length > 0 && (
+              <div className="mt-2 text-xs text-gray-600">
+                {formData.ownerIds.length} owner{formData.ownerIds.length !== 1 ? 's' : ''} selected
+              </div>
+            )}
           </div>
 
           {/* Actions */}

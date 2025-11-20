@@ -548,6 +548,100 @@ export const useUpdateFunction = () => {
 };
 
 // ============================================
+// FUNCTION OWNERS QUERIES
+// ============================================
+
+export interface FunctionOwner {
+  id: string;
+  function_id: string;
+  user_id: string;
+  added_by: string | null;
+  created_at: string;
+  user_profile?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+}
+
+/**
+ * Fetch owners for a specific function
+ */
+export const useFunctionOwnersQuery = (functionId?: string) => {
+  return useQuery({
+    queryKey: [...leadershipKeys.function(functionId!), 'owners'],
+    queryFn: async (): Promise<FunctionOwner[]> => {
+      if (!functionId) throw new Error('Function ID is required');
+
+      const { data, error } = await supabase
+        .from('project_function_owners')
+        .select(`
+          *,
+          user_profile:user_profiles!user_id(id, first_name, last_name, email)
+        `)
+        .eq('function_id', functionId);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!functionId,
+  });
+};
+
+/**
+ * Add an owner to a function
+ */
+export const useAddFunctionOwner = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ functionId, userId }: { functionId: string; userId: string }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('project_function_owners')
+        .insert({
+          function_id: functionId,
+          user_id: userId,
+          added_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.function(variables.functionId) });
+    },
+  });
+};
+
+/**
+ * Remove an owner from a function
+ */
+export const useRemoveFunctionOwner = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, functionId }: { id: string; functionId: string }) => {
+      const { error } = await supabase
+        .from('project_function_owners')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { id, functionId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.function(data.functionId) });
+    },
+  });
+};
+
+// ============================================
 // MUTATIONS - AREAS
 // ============================================
 
