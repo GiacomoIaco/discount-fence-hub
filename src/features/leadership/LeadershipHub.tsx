@@ -6,7 +6,7 @@ import LeadershipLayout from './LeadershipLayout';
 import FunctionWorkspace from './components/FunctionWorkspace';
 import ProgressDashboard from './components/ProgressDashboard';
 import NewFunctionModal from './components/NewFunctionModal';
-import FunctionSettings from './components/Settings/FunctionSettings';
+import SettingsHub from './components/Settings/SettingsHub';
 
 interface LeadershipHubProps {
   onBack?: () => void;
@@ -78,7 +78,7 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
       onBack={onBack}
     >
       {showingSettings ? (
-        <FunctionSettings onBack={() => setShowingSettings(false)} />
+        <SettingsHub onBack={() => setShowingSettings(false)} />
       ) : showingReports ? (
         <div className="p-6">
           <ProgressDashboard onBack={() => setShowingReports(false)} />
