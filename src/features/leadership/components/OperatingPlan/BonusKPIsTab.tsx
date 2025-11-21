@@ -389,7 +389,7 @@ function KPIDisplayRow({ kpi, owners, onEdit, showAchieved }: KPIDisplayRowProps
 
   const handleAchievedChange = async (value: string) => {
     try {
-      const numValue = value ? parseFloat(value) : null;
+      const numValue = value ? parseFloat(value) : undefined;
       await updateKPI.mutateAsync({
         id: kpi.id,
         current_value: numValue,
