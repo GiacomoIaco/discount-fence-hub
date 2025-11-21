@@ -28,7 +28,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx netlify:*)",
       "mcp__chrome-devtools__list_console_messages",
-      "mcp__chrome-devtools__get_console_message"
+      "mcp__chrome-devtools__get_console_message",
+      "Bash(timeout /t 120 /nobreak)"
     ],
     "deny": [],
     "ask": []

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Award, Save, X, Trash2, Edit2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Award, Save, X, Trash2, Edit2, Check, AlertCircle } from 'lucide-react';
 import {
   useBonusKPIsQuery,
   useCreateBonusKPI,
@@ -8,6 +8,7 @@ import {
   useUpsertBonusKPIWeight,
 } from '../../hooks/useOperatingPlanQuery';
 import { useFunctionOwnersQuery } from '../../hooks/useLeadershipQuery';
+import { useAuth } from '../../../../contexts/AuthContext';
 import type { BonusKPI, BonusKPIUnit } from '../../lib/operating-plan.types';
 
 interface BonusKPIsTabProps {
@@ -30,17 +31,61 @@ interface KPIFormData {
 export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [expandedKpiId, setExpandedKpiId] = useState<string | null>(null);
+  const [showAchieved, setShowAchieved] = useState(false);
+
+  const { profile } = useAuth();
+  const isCEO = profile?.role === 'admin'; // Assuming admin = CEO
 
   const { data: kpis } = useBonusKPIsQuery(functionId, year);
   const { data: owners } = useFunctionOwnersQuery(functionId);
 
   // Get up to 3 owners for column headers
   const displayOwners = useMemo(() => {
-    console.log('[BonusKPIsTab] Owners data:', owners);
-    console.log('[BonusKPIsTab] Display owners:', owners?.slice(0, 3) || []);
     return owners?.slice(0, 3) || [];
   }, [owners]);
+
+  // Calculate weight totals per owner across all KPIs
+  const ownerWeightTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+
+    displayOwners.forEach(owner => {
+      let total = 0;
+      kpis?.forEach(kpi => {
+        const weight = (kpi as any).weights?.find((w: any) => w.user_id === owner.user_id);
+        total += weight?.weight || 0;
+      });
+      totals[owner.user_id] = total;
+    });
+
+    return totals;
+  }, [kpis, displayOwners]);
+
+  // Calculate weighted multiplier per owner (CEO only)
+  const ownerWeightedMultipliers = useMemo(() => {
+    if (!isCEO) return {};
+
+    const multipliers: Record<string, number> = {};
+
+    displayOwners.forEach(owner => {
+      let weightedSum = 0;
+      let totalWeight = 0;
+
+      kpis?.forEach(kpi => {
+        const weight = (kpi as any).weights?.find((w: any) => w.user_id === owner.user_id);
+        const weightValue = weight?.weight || 0;
+
+        if (weightValue > 0 && kpi.current_value !== null) {
+          const multiplier = calculateMultiplier(kpi);
+          weightedSum += multiplier * (weightValue / 100);
+          totalWeight += (weightValue / 100);
+        }
+      });
+
+      multipliers[owner.user_id] = totalWeight > 0 ? weightedSum : 0;
+    });
+
+    return multipliers;
+  }, [kpis, displayOwners, isCEO]);
 
   const handleCancelCreate = () => {
     setIsCreatingNew(false);
@@ -48,21 +93,31 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
 
   const handleStartEdit = (kpiId: string) => {
     setEditingKpiId(kpiId);
-    setExpandedKpiId(kpiId);
   };
 
   const handleCancelEdit = () => {
     setEditingKpiId(null);
-    setExpandedKpiId(null);
   };
 
   return (
     <div className="max-w-full mx-auto space-y-6 p-6">
       {/* Header */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-center gap-2 text-blue-900">
-          <Award className="w-5 h-5" />
-          <span className="font-medium">Annual Bonus KPIs for {year}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-blue-900">
+            <Award className="w-5 h-5" />
+            <span className="font-medium">Annual Bonus KPIs for {year}</span>
+          </div>
+          <button
+            onClick={() => setShowAchieved(!showAchieved)}
+            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+              showAchieved
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-blue-700 border border-blue-300'
+            }`}
+          >
+            {showAchieved ? 'Hide' : 'Show'} Achieved Values
+          </button>
         </div>
         <p className="text-sm text-blue-700 mt-1">
           Define KPIs, set targets and incentive curves, and assign weights to function owners
@@ -87,36 +142,85 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
 
       {/* KPIs Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full table-fixed">
+          <colgroup>
+            <col style={{ width: '25%' }} /> {/* KPI Name */}
+            <col style={{ width: '6%' }} />  {/* Unit */}
+            <col style={{ width: '8%' }} />  {/* Target */}
+            {showAchieved && <col style={{ width: '8%' }} />}  {/* Achieved */}
+            <col style={{ width: '22%' }} /> {/* Incentive Curve */}
+            <col style={{ width: '5%' }} />  {/* Mult */}
+            {displayOwners.map(() => <col key={Math.random()} style={{ width: '12%' }} />)} {/* Owners */}
+            <col style={{ width: `${8}%` }} /> {/* Actions */}
+          </colgroup>
           <thead className="bg-gray-50 border-b border-gray-200">
+            {/* Header Row 1: Weight % label */}
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-8"></th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="px-3 py-2"></th>
+              <th className="px-3 py-2"></th>
+              <th className="px-3 py-2"></th>
+              {showAchieved && <th className="px-3 py-2"></th>}
+              <th className="px-3 py-2"></th>
+              <th className="px-3 py-2"></th>
+              {displayOwners.length > 0 && (
+                <th
+                  colSpan={displayOwners.length}
+                  className="px-3 py-1 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-l border-gray-300"
+                >
+                  Weight %
+                </th>
+              )}
+              <th className="px-3 py-2"></th>
+            </tr>
+            {/* Header Row 2: Column labels */}
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 KPI Name
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Unit
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Target
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Current
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Progress
-              </th>
-              {displayOwners.map((owner) => (
-                <th
-                  key={owner.id}
-                  className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                  title={owner.user_profile?.email}
-                >
-                  {owner.user_profile?.full_name}
-                  <div className="text-xs font-normal text-gray-500 normal-case">Weight %</div>
+              {showAchieved && (
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Achieved
                 </th>
-              ))}
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              )}
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Incentive Curve
+              </th>
+              <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Mult
+              </th>
+              {displayOwners.map((owner) => {
+                const total = ownerWeightTotals[owner.user_id] || 0;
+                const isValid = total === 100;
+
+                return (
+                  <th
+                    key={owner.id}
+                    className="px-3 py-2 text-center text-xs font-semibold text-gray-600 border-l border-gray-300"
+                    title={owner.user_profile?.email}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="text-xs leading-tight break-words">
+                        {owner.user_profile?.full_name?.split(' ').map((part, i) => (
+                          <div key={i}>{part}</div>
+                        ))}
+                      </div>
+                      <div className={`text-xs font-bold flex items-center gap-1 ${
+                        isValid ? 'text-green-600' : 'text-orange-600'
+                      }`}>
+                        {isValid ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                        {total}%
+                      </div>
+                    </div>
+                  </th>
+                );
+              })}
+              <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -131,7 +235,7 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
                 owners={displayOwners}
                 onSave={handleCancelCreate}
                 onCancel={handleCancelCreate}
-                isExpanded={true}
+                showAchieved={showAchieved}
               />
             )}
 
@@ -147,7 +251,7 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
                     owners={displayOwners}
                     onSave={handleCancelEdit}
                     onCancel={handleCancelEdit}
-                    isExpanded={expandedKpiId === kpi.id}
+                    showAchieved={showAchieved}
                   />
                 ) : (
                   <KPIDisplayRow
@@ -155,14 +259,13 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
                     kpi={kpi}
                     owners={displayOwners}
                     onEdit={() => handleStartEdit(kpi.id)}
-                    isExpanded={expandedKpiId === kpi.id}
-                    onToggleExpand={() => setExpandedKpiId(expandedKpiId === kpi.id ? null : kpi.id)}
+                    showAchieved={showAchieved}
                   />
                 )
               ))
             ) : !isCreatingNew ? (
               <tr>
-                <td colSpan={7 + displayOwners.length} className="px-4 py-12 text-center">
+                <td colSpan={6 + displayOwners.length + (showAchieved ? 1 : 0)} className="px-4 py-12 text-center">
                   <Award className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-600 mb-4">No Bonus KPIs defined yet</p>
                   <button
@@ -176,10 +279,64 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
               </tr>
             ) : null}
           </tbody>
+          {/* CEO Footer: Weighted Multipliers */}
+          {isCEO && kpis && kpis.length > 0 && (
+            <tfoot className="bg-blue-50 border-t-2 border-blue-200">
+              <tr>
+                <td colSpan={5 + (showAchieved ? 1 : 0)} className="px-3 py-2 text-right text-xs font-semibold text-gray-700">
+                  Weighted Bonus Multiplier (CEO View):
+                </td>
+                <td className="px-3 py-2"></td>
+                {displayOwners.map((owner) => (
+                  <td key={owner.id} className="px-3 py-2 text-center border-l border-blue-300">
+                    <span className="text-sm font-bold text-blue-700">
+                      {ownerWeightedMultipliers[owner.user_id]?.toFixed(2) || '0.00'}x
+                    </span>
+                  </td>
+                ))}
+                <td className="px-3 py-2"></td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
   );
+}
+
+// Helper function to calculate multiplier
+function calculateMultiplier(kpi: BonusKPI): number {
+  if (kpi.current_value === null || kpi.target_value === null) return 0;
+
+  const current = kpi.current_value;
+  const target = kpi.target_value;
+  const min = kpi.min_threshold || 0;
+  const max = kpi.max_threshold || target;
+  const minMult = kpi.min_multiplier;
+  const maxMult = kpi.max_multiplier;
+
+  // Below min threshold = 0x
+  if (current < min) {
+    return 0;
+  }
+  // At or above max threshold = max multiplier (capped)
+  else if (current >= max) {
+    return maxMult;
+  }
+  // Between min and target
+  else if (current < target) {
+    const range = target - min;
+    const position = current - min;
+    const multiplierRange = 1.0 - minMult;
+    return minMult + (position / range) * multiplierRange;
+  }
+  // Between target and max
+  else {
+    const range = max - target;
+    const position = current - target;
+    const multiplierRange = maxMult - 1.0;
+    return 1.0 + (position / range) * multiplierRange;
+  }
 }
 
 // Display Row Component
@@ -187,13 +344,13 @@ interface KPIDisplayRowProps {
   kpi: BonusKPI;
   owners: any[];
   onEdit: () => void;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
+  showAchieved: boolean;
 }
 
-function KPIDisplayRow({ kpi, owners, onEdit, isExpanded, onToggleExpand }: KPIDisplayRowProps) {
+function KPIDisplayRow({ kpi, owners, onEdit, showAchieved }: KPIDisplayRowProps) {
   const deleteKPI = useDeleteBonusKPI();
   const upsertWeight = useUpsertBonusKPIWeight();
+  const updateKPI = useUpdateBonusKPI();
 
   const formatValue = (value: number | null, unit: BonusKPIUnit) => {
     if (value === null) return '-';
@@ -204,40 +361,13 @@ function KPIDisplayRow({ kpi, owners, onEdit, isExpanded, onToggleExpand }: KPID
     }
   };
 
-  const getProgress = () => {
-    if (kpi.current_value === null || kpi.target_value === null) return null;
-
-    const current = kpi.current_value;
-    const target = kpi.target_value;
-    const min = kpi.min_threshold || 0;
-    const max = kpi.max_threshold || target;
-
-    let multiplier = 1.0;
-    let status: 'below' | 'on-track' | 'exceeding' = 'on-track';
-
-    if (current <= min) {
-      multiplier = kpi.min_multiplier;
-      status = 'below';
-    } else if (current >= max) {
-      multiplier = kpi.max_multiplier;
-      status = 'exceeding';
-    } else if (current < target) {
-      const range = target - min;
-      const position = current - min;
-      const multiplierRange = 1.0 - kpi.min_multiplier;
-      multiplier = kpi.min_multiplier + (position / range) * multiplierRange;
-    } else {
-      const range = max - target;
-      const position = current - target;
-      const multiplierRange = kpi.max_multiplier - 1.0;
-      multiplier = 1.0 + (position / range) * multiplierRange;
-      status = 'exceeding';
-    }
-
-    return { multiplier, status };
+  const formatCurve = () => {
+    const min = formatValue(kpi.min_threshold, kpi.unit);
+    const max = formatValue(kpi.max_threshold, kpi.unit);
+    return `${min}(${kpi.min_multiplier}x) → ${max}(${kpi.max_multiplier}x)`;
   };
 
-  const progress = getProgress();
+  const multiplier = calculateMultiplier(kpi);
 
   // Get weight for each owner
   const getWeight = (ownerId: string) => {
@@ -257,93 +387,93 @@ function KPIDisplayRow({ kpi, owners, onEdit, isExpanded, onToggleExpand }: KPID
     }
   };
 
+  const handleAchievedChange = async (value: string) => {
+    try {
+      const numValue = value ? parseFloat(value) : null;
+      await updateKPI.mutateAsync({
+        id: kpi.id,
+        current_value: numValue,
+      });
+    } catch (error) {
+      console.error('Failed to update achieved value:', error);
+    }
+  };
+
   return (
-    <>
-      <tr className="hover:bg-gray-50">
-        <td className="px-4 py-3">
-          <button
-            onClick={onToggleExpand}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
+    <tr className="hover:bg-gray-50">
+      <td className="px-3 py-3">
+        <div className="font-medium text-gray-900 text-sm">{kpi.name}</div>
+        {kpi.description && (
+          <div className="text-xs text-gray-600 mt-0.5">{kpi.description}</div>
+        )}
+      </td>
+      <td className="px-3 py-3 text-xs text-gray-700 capitalize">{kpi.unit}</td>
+      <td className="px-3 py-3 text-sm text-gray-700">
+        {formatValue(kpi.target_value, kpi.unit)}
+      </td>
+      {showAchieved && (
+        <td className="px-3 py-3">
+          <input
+            type="number"
+            step="any"
+            value={kpi.current_value || ''}
+            onChange={(e) => handleAchievedChange(e.target.value)}
+            placeholder="-"
+            className="w-full px-2 py-1 text-sm text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
         </td>
-        <td className="px-4 py-3">
-          <div className="font-medium text-gray-900">{kpi.name}</div>
-          {kpi.description && (
-            <div className="text-sm text-gray-600">{kpi.description}</div>
-          )}
-        </td>
-        <td className="px-4 py-3 text-sm text-gray-700 capitalize">{kpi.unit}</td>
-        <td className="px-4 py-3 text-sm text-gray-700">
-          {formatValue(kpi.target_value, kpi.unit)}
-        </td>
-        <td className="px-4 py-3 text-sm text-gray-700">
-          {formatValue(kpi.current_value, kpi.unit)}
-        </td>
-        <td className="px-4 py-3">
-          {progress ? (
-            <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-              progress.status === 'below' ? 'bg-red-100 text-red-700' :
-              progress.status === 'exceeding' ? 'bg-green-100 text-green-700' :
-              'bg-blue-100 text-blue-700'
-            }`}>
-              {progress.multiplier.toFixed(2)}x
-            </div>
-          ) : (
-            <span className="text-sm text-gray-400">-</span>
-          )}
-        </td>
-        {owners.map((owner) => (
-          <td key={owner.id} className="px-4 py-3">
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={getWeight(owner.user_id)}
-              onChange={(e) => handleWeightChange(owner.user_id, parseInt(e.target.value) || 0)}
-              className="w-16 px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </td>
-        ))}
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={onEdit}
-              className="text-blue-600 hover:text-blue-700"
-              title="Edit KPI"
-            >
-              <Edit2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                if (confirm('Delete this KPI?')) {
-                  deleteKPI.mutate(kpi.id);
-                }
-              }}
-              className="text-red-600 hover:text-red-700"
-              title="Delete KPI"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr className="bg-gray-50">
-          <td colSpan={7 + owners.length} className="px-4 py-3">
-            <div className="text-xs text-gray-600">
-              <strong>Incentive Curve:</strong>
-              <div className="mt-1 space-y-1">
-                <div>• Min: {formatValue(kpi.min_threshold, kpi.unit)} → {kpi.min_multiplier}x multiplier</div>
-                <div>• Target: {formatValue(kpi.target_value, kpi.unit)} → 1.0x multiplier</div>
-                <div>• Max: {formatValue(kpi.max_threshold, kpi.unit)} → {kpi.max_multiplier}x multiplier</div>
-              </div>
-            </div>
-          </td>
-        </tr>
       )}
-    </>
+      <td className="px-3 py-3 text-xs text-gray-700">
+        {formatCurve()}
+      </td>
+      <td className="px-3 py-3">
+        {multiplier > 0 ? (
+          <div className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold ${
+            multiplier < 1 ? 'bg-red-100 text-red-700' :
+            multiplier === 1 ? 'bg-blue-100 text-blue-700' :
+            'bg-green-100 text-green-700'
+          }`}>
+            {multiplier.toFixed(2)}x
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">-</span>
+        )}
+      </td>
+      {owners.map((owner) => (
+        <td key={owner.id} className="px-3 py-3 border-l border-gray-200">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={getWeight(owner.user_id)}
+            onChange={(e) => handleWeightChange(owner.user_id, parseInt(e.target.value) || 0)}
+            className="w-full px-2 py-1 text-sm text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </td>
+      ))}
+      <td className="px-3 py-3">
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={onEdit}
+            className="text-blue-600 hover:text-blue-700"
+            title="Edit KPI"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('Delete this KPI?')) {
+                deleteKPI.mutate(kpi.id);
+              }
+            }}
+            className="text-red-600 hover:text-red-700"
+            title="Delete KPI"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -355,10 +485,10 @@ interface KPIEditRowProps {
   owners: any[];
   onSave: () => void;
   onCancel: () => void;
-  isExpanded: boolean;
+  showAchieved: boolean;
 }
 
-function KPIEditRow({ functionId, year, kpi, owners, onSave, onCancel, isExpanded }: KPIEditRowProps) {
+function KPIEditRow({ functionId, year, kpi, owners, onSave, onCancel, showAchieved }: KPIEditRowProps) {
   const createKPI = useCreateBonusKPI();
   const updateKPI = useUpdateBonusKPI();
   const upsertWeight = useUpsertBonusKPIWeight();
@@ -433,148 +563,132 @@ function KPIEditRow({ functionId, year, kpi, owners, onSave, onCancel, isExpande
   };
 
   return (
-    <>
-      <tr className="bg-yellow-50">
-        <td className="px-4 py-3"></td>
-        <td className="px-4 py-3">
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="KPI Name"
-            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-          />
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Description (optional)"
-            rows={2}
-            className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <select
-            value={formData.unit}
-            onChange={(e) => setFormData({ ...formData, unit: e.target.value as BonusKPIUnit })}
-            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="dollars">Dollars</option>
-            <option value="percent">Percent</option>
-            <option value="score">Score</option>
-            <option value="count">Count</option>
-          </select>
-        </td>
-        <td className="px-4 py-3">
-          <input
-            type="number"
-            step="any"
-            value={formData.target_value}
-            onChange={(e) => setFormData({ ...formData, target_value: e.target.value })}
-            placeholder="Target"
-            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-          />
-        </td>
-        <td className="px-4 py-3">
+    <tr className="bg-yellow-50">
+      <td className="px-3 py-3">
+        <input
+          type="text"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          placeholder="KPI Name"
+          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+        />
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Description (optional)"
+          rows={2}
+          className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <select
+          value={formData.unit}
+          onChange={(e) => setFormData({ ...formData, unit: e.target.value as BonusKPIUnit })}
+          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="dollars">$</option>
+          <option value="percent">%</option>
+          <option value="score">Score</option>
+          <option value="count">Count</option>
+        </select>
+      </td>
+      <td className="px-3 py-3">
+        <input
+          type="number"
+          step="any"
+          value={formData.target_value}
+          onChange={(e) => setFormData({ ...formData, target_value: e.target.value })}
+          placeholder="Target"
+          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+        />
+      </td>
+      {showAchieved && (
+        <td className="px-3 py-3">
           <input
             type="number"
             step="any"
             value={formData.current_value}
             onChange={(e) => setFormData({ ...formData, current_value: e.target.value })}
-            placeholder="Current"
-            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+            placeholder="Achieved"
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
           />
         </td>
-        <td className="px-4 py-3 text-sm text-gray-500">-</td>
-        {owners.map((owner) => (
-          <td key={owner.id} className="px-4 py-3">
+      )}
+      <td className="px-3 py-3">
+        <div className="space-y-1">
+          <div className="flex gap-1 items-center">
             <input
               type="number"
-              min="0"
-              max="100"
-              value={weights[owner.user_id] || 0}
-              onChange={(e) => setWeights({ ...weights, [owner.user_id]: parseInt(e.target.value) || 0 })}
-              className="w-16 px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+              step="any"
+              value={formData.min_threshold}
+              onChange={(e) => setFormData({ ...formData, min_threshold: e.target.value })}
+              placeholder="Min"
+              className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded"
             />
-          </td>
-        ))}
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={handleSave}
-              className="text-green-600 hover:text-green-700"
-              title="Save"
-            >
-              <Save className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onCancel}
-              className="text-red-600 hover:text-red-700"
-              title="Cancel"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <span className="text-xs">(</span>
+            <input
+              type="number"
+              step="0.1"
+              value={formData.min_multiplier}
+              onChange={(e) => setFormData({ ...formData, min_multiplier: e.target.value })}
+              placeholder="0.5"
+              className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded"
+            />
+            <span className="text-xs">x)</span>
           </div>
+          <div className="flex gap-1 items-center">
+            <input
+              type="number"
+              step="any"
+              value={formData.max_threshold}
+              onChange={(e) => setFormData({ ...formData, max_threshold: e.target.value })}
+              placeholder="Max"
+              className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded"
+            />
+            <span className="text-xs">(</span>
+            <input
+              type="number"
+              step="0.1"
+              value={formData.max_multiplier}
+              onChange={(e) => setFormData({ ...formData, max_multiplier: e.target.value })}
+              placeholder="2.0"
+              className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded"
+            />
+            <span className="text-xs">x)</span>
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-3 text-xs text-gray-500">-</td>
+      {owners.map((owner) => (
+        <td key={owner.id} className="px-3 py-3 border-l border-gray-200">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={weights[owner.user_id] || 0}
+            onChange={(e) => setWeights({ ...weights, [owner.user_id]: parseInt(e.target.value) || 0 })}
+            className="w-full px-2 py-1 text-sm text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+          />
         </td>
-      </tr>
-      {isExpanded && (
-        <tr className="bg-yellow-50">
-          <td colSpan={7 + owners.length} className="px-4 py-3">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Min Threshold
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={formData.min_threshold}
-                  onChange={(e) => setFormData({ ...formData, min_threshold: e.target.value })}
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Min Multiplier
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.min_multiplier}
-                  onChange={(e) => setFormData({ ...formData, min_multiplier: e.target.value })}
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Max Threshold
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={formData.max_threshold}
-                  onChange={(e) => setFormData({ ...formData, max_threshold: e.target.value })}
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Max Multiplier
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.max_multiplier}
-                  onChange={(e) => setFormData({ ...formData, max_multiplier: e.target.value })}
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-gray-500">
-              Incentive curve: At min threshold get {formData.min_multiplier || 0.5}x, at target get 1.0x, at max threshold get {formData.max_multiplier || 2.0}x
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+      ))}
+      <td className="px-3 py-3">
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={handleSave}
+            className="text-green-600 hover:text-green-700"
+            title="Save"
+          >
+            <Save className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onCancel}
+            className="text-red-600 hover:text-red-700"
+            title="Cancel"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
