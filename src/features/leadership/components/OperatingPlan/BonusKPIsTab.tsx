@@ -112,7 +112,7 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
                   className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider"
                   title={owner.user_profile?.email}
                 >
-                  {owner.user_profile?.first_name} {owner.user_profile?.last_name}
+                  {owner.user_profile?.full_name}
                   <div className="text-xs font-normal text-gray-500 normal-case">Weight %</div>
                 </th>
               ))}

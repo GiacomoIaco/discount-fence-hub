@@ -559,8 +559,7 @@ export interface FunctionOwner {
   created_at: string;
   user_profile?: {
     id: string;
-    first_name: string;
-    last_name: string;
+    full_name: string;
     email: string;
   };
 }
@@ -580,7 +579,7 @@ export const useFunctionOwnersQuery = (functionId?: string) => {
         .from('project_function_owners')
         .select(`
           *,
-          user_profile:user_profiles(id, first_name, last_name, email)
+          user_profile:user_profiles(id, full_name, email)
         `)
         .eq('function_id', functionId);
 
