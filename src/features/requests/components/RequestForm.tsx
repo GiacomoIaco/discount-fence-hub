@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2 } from 'lucide-react';
 import type { RequestType, Urgency, CreateRequestInput } from '../lib/requests';
 import { useCreateRequestMutation } from '../hooks/useRequestsQuery';
@@ -202,27 +202,24 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     }
   };
 
-  // Audio playback progress
-  useEffect(() => {
-    if (audioUrl) {
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-
-      audio.addEventListener('timeupdate', () => {
-        setPlaybackProgress((audio.currentTime / audio.duration) * 100);
-      });
-
-      audio.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setPlaybackProgress(0);
-      });
-
-      return () => {
-        audio.pause();
-        audio.remove();
-      };
+  // Handle audio element events
+  const handleAudioTimeUpdate = () => {
+    if (audioRef.current && audioRef.current.duration) {
+      setPlaybackProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
     }
-  }, [audioUrl]);
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    setPlaybackProgress(0);
+  };
+
+  const handleAudioCanPlay = () => {
+    // Audio is ready to play - update duration if we have it
+    if (audioRef.current && audioRef.current.duration) {
+      setAudioDuration(Math.ceil(audioRef.current.duration));
+    }
+  };
 
   // Photo handling functions
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -512,6 +509,18 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
                 <p className="text-xs font-semibold text-gray-700 mb-1">Transcript:</p>
                 <p className="text-sm text-gray-600">{transcript}</p>
               </div>
+            )}
+
+            {/* Hidden audio element for playback */}
+            {audioUrl && (
+              <audio
+                ref={audioRef}
+                src={audioUrl}
+                onTimeUpdate={handleAudioTimeUpdate}
+                onEnded={handleAudioEnded}
+                onCanPlay={handleAudioCanPlay}
+                preload="metadata"
+              />
             )}
           </div>
 

@@ -3,7 +3,7 @@ import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, 
 import type { Request, RequestStage, RequestType, SLAStatus } from '../lib/requests';
 import { useMyRequestsQuery, useAllRequestsQuery } from '../hooks/useRequestsQuery';
 import { useUsers, useRequestAge } from '../hooks/useRequests';
-import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin } from '../lib/requests';
+import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin, getWatchedRequestIds } from '../lib/requests';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface RequestListProps {
@@ -122,6 +122,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [viewedRequestIds, setViewedRequestIds] = useState<Set<string>>(new Set());
   const [pinnedRequestIds, setPinnedRequestIds] = useState<Set<string>>(new Set());
+  const [watchedRequestIds, setWatchedRequestIds] = useState<Set<string>>(new Set());
 
   // Quick filter states
   const [quickFilters, setQuickFilters] = useState({
@@ -177,20 +178,22 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
     }
   };
 
-  // Fetch unread counts, view status, and pinned status when requests change
+  // Fetch unread counts, view status, pinned status, and watched requests when requests change
   useEffect(() => {
     const fetchRequestMetadata = async () => {
       if (!profile?.id || requests.length === 0) return;
 
       const requestIds = requests.map(r => r.id);
-      const [counts, viewedIds, pinnedIds] = await Promise.all([
+      const [counts, viewedIds, pinnedIds, watchedIds] = await Promise.all([
         getUnreadCounts(requestIds, profile.id),
         getRequestViewStatus(requestIds, profile.id),
-        getPinnedRequestIds(profile.id)
+        getPinnedRequestIds(profile.id),
+        getWatchedRequestIds(profile.id)
       ]);
       setUnreadCounts(counts);
       setViewedRequestIds(viewedIds);
       setPinnedRequestIds(pinnedIds);
+      setWatchedRequestIds(watchedIds);
     };
 
     fetchRequestMetadata();
@@ -226,7 +229,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
       if (hours < 48) return false;
     }
 
-    if (quickFilters.mine && req.submitter_id !== profile?.id && req.assigned_to !== profile?.id) {
+    if (quickFilters.mine && req.submitter_id !== profile?.id && req.assigned_to !== profile?.id && !watchedRequestIds.has(req.id)) {
       return false;
     }
 

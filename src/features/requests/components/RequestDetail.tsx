@@ -71,6 +71,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const [, setLoadingWatchers] = useState(true);
   const [isAddingWatcher, setIsAddingWatcher] = useState(false);
   const [selectedWatcherId, setSelectedWatcherId] = useState<string>('');
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Check if user can edit (admin or operations)
   const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
@@ -903,19 +904,17 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {request.photo_urls.map((url, index) => (
-                <a
+                <button
                   key={index}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                  onClick={() => setLightboxImage(url)}
+                  className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
                 >
                   <img
                     src={url}
                     alt={`Photo ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
-                </a>
+                </button>
               ))}
             </div>
           </div>
@@ -938,12 +937,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                 {attachments.filter(a => a.file_type === 'image').length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {attachments.filter(a => a.file_type === 'image').map((attachment) => (
-                      <a
+                      <button
                         key={attachment.id}
-                        href={attachment.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                        onClick={() => setLightboxImage(attachment.file_url)}
+                        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
                       >
                         <img
                           src={attachment.file_url}
@@ -955,7 +952,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                             e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100"><span class="text-gray-400 text-xs">Image unavailable</span></div>';
                           }}
                         />
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1220,19 +1217,17 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 {request.photo_urls.map((url, index) => (
-                  <a
+                  <button
                     key={index}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                    onClick={() => setLightboxImage(url)}
+                    className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
                   >
                     <img
                       src={url}
                       alt={`Photo ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -1255,12 +1250,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                   {attachments.filter(a => a.file_type === 'image').length > 0 && (
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       {attachments.filter(a => a.file_type === 'image').map((attachment) => (
-                        <a
+                        <button
                           key={attachment.id}
-                          href={attachment.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                          onClick={() => setLightboxImage(attachment.file_url)}
+                          className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
                         >
                           <img
                             src={attachment.file_url}
@@ -1271,7 +1264,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                               e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100"><span class="text-gray-400 text-xs">Image unavailable</span></div>';
                             }}
                           />
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -1542,6 +1535,27 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Image Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60] p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Full size image"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
