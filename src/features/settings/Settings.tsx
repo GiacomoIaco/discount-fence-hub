@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Settings as SettingsIcon, Menu, RefreshCw, Smartphone } from 'lucide-react';
+import { ArrowLeft, Users, Settings as SettingsIcon, Menu, RefreshCw, Smartphone, Bell } from 'lucide-react';
 import TeamManagement from './components/TeamManagement';
 import AssignmentRules from './components/AssignmentRules';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
+import NotificationSettings from './components/NotificationSettings';
 import type { UserRole } from '../../types';
 
 // Declare build time from vite config
@@ -14,7 +15,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules' | 'menu-visibility' | 'app'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules' | 'menu-visibility' | 'notifications' | 'app'>('team');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   return (
@@ -42,6 +43,18 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
           >
             <Smartphone className="w-5 h-5" />
             <span className="font-medium">App</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
+              activeTab === 'notifications'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Bell className="w-5 h-5" />
+            <span className="font-medium">Notifications</span>
           </button>
 
           <button
@@ -137,6 +150,7 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
             </div>
           </div>
         )}
+        {activeTab === 'notifications' && <NotificationSettings />}
         {activeTab === 'team' && <TeamManagement userRole={userRole} />}
         {activeTab === 'assignment-rules' && userRole === 'admin' && (
           <AssignmentRules onBack={onBack} />

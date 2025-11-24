@@ -36,6 +36,15 @@ interface Recipient {
   full_name: string | null;
 }
 
+interface UserNotificationPreference {
+  user_id: string;
+  category: string;
+  notification_type: string;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  is_admin_forced: boolean;
+}
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
@@ -86,9 +95,17 @@ export const handler: Handler = async (event) => {
       details
     );
 
-    // Send notifications to all recipients
+    // Get notification preferences for all recipients
+    const { data: preferences } = await supabase
+      .from('user_notification_preferences')
+      .select('*')
+      .in('user_id', recipients.map(r => r.id))
+      .eq('category', 'requests')
+      .eq('notification_type', type);
+
+    // Send notifications to all recipients (respecting their preferences)
     const results = await Promise.allSettled(
-      recipients.map(recipient => sendToRecipient(recipient, subject, emailHtml, smsText))
+      recipients.map(recipient => sendToRecipient(recipient, subject, emailHtml, smsText, type, preferences || []))
     );
 
     const successCount = results.filter(r => r.status === 'fulfilled').length;
@@ -150,6 +167,11 @@ async function getRecipients(
     // Add current assignee (for all other notification types)
     if (request?.assigned_to && request.assigned_to !== excludeUserId) {
       recipientIds.add(request.assigned_to);
+    }
+
+    // Add submitter (they should always be notified of changes to their request)
+    if (request?.submitter_id && request.submitter_id !== excludeUserId) {
+      recipientIds.add(request.submitter_id);
     }
 
     // Get watchers with their notification preferences
@@ -274,18 +296,31 @@ async function sendToRecipient(
   recipient: Recipient,
   subject: string,
   emailHtml: string,
-  smsText: string
+  smsText: string,
+  notificationType: NotificationType,
+  preferences: UserNotificationPreference[]
 ): Promise<void> {
   const promises: Promise<void>[] = [];
 
-  // Send email
-  if (recipient.email) {
+  // Find user's preference for this notification type
+  const userPref = preferences.find(p => p.user_id === recipient.id);
+
+  // Default to enabled if no preference exists (opt-out model)
+  const emailEnabled = userPref ? userPref.email_enabled : true;
+  const smsEnabled = userPref ? userPref.sms_enabled : true;
+
+  // Send email if enabled and recipient has email
+  if (recipient.email && emailEnabled) {
     promises.push(sendEmail(recipient.email, subject, emailHtml));
+  } else if (recipient.email && !emailEnabled) {
+    console.log(`Email disabled by preference for ${recipient.email}`);
   }
 
-  // Send SMS if phone number exists and Twilio is configured
-  if (recipient.phone && twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+  // Send SMS if enabled, phone exists, and Twilio is configured
+  if (recipient.phone && smsEnabled && twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
     promises.push(sendSms(recipient.phone, smsText));
+  } else if (recipient.phone && !smsEnabled) {
+    console.log(`SMS disabled by preference for ${recipient.id}`);
   }
 
   await Promise.all(promises);
