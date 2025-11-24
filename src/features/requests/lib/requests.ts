@@ -1,5 +1,13 @@
 import { supabase } from '../../../lib/supabase';
 import { CreateRequestSchema, RequestNoteSchema, validateOrThrow } from '../../../lib/validation';
+import {
+  sendRequestNotification,
+  buildAssignmentNotification,
+  buildWatcherAddedNotification,
+  buildCommentNotification,
+  buildStatusChangeNotification,
+  buildAttachmentNotification
+} from './notifications';
 
 // ============================================
 // TYPES
@@ -359,6 +367,8 @@ export async function updateRequest(id: string, updates: Partial<Request>) {
  * Sets stage to 'new' until assignee views the request
  */
 export async function assignRequest(requestId: string, assigneeId: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+
   const request = await updateRequest(requestId, {
     assigned_to: assigneeId,
     assigned_at: new Date().toISOString(),
@@ -367,6 +377,25 @@ export async function assignRequest(requestId: string, assigneeId: string) {
 
   await logActivity(requestId, 'assigned', { assignee_id: assigneeId });
 
+  // Send notification to assignee (fire-and-forget)
+  if (user && assigneeId !== user.id) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
+    sendRequestNotification(buildAssignmentNotification(
+      requestId,
+      request.title,
+      request.request_type,
+      request.urgency || 'medium',
+      user.id,
+      profile?.full_name || 'Someone',
+      assigneeId
+    ));
+  }
+
   return request;
 }
 
@@ -374,6 +403,17 @@ export async function assignRequest(requestId: string, assigneeId: string) {
  * Update request stage
  */
 export async function updateRequestStage(requestId: string, stage: RequestStage, quoteStatus?: QuoteStatus) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Get current request to know old stage
+  const { data: currentRequest } = await supabase
+    .from('requests')
+    .select('stage, title, request_type')
+    .eq('id', requestId)
+    .single();
+
+  const oldStage = currentRequest?.stage || 'unknown';
+
   const updates: Partial<Request> = { stage };
 
   if (stage === 'completed') {
@@ -387,6 +427,25 @@ export async function updateRequestStage(requestId: string, stage: RequestStage,
   const request = await updateRequest(requestId, updates);
 
   await logActivity(requestId, 'status_changed', { to: stage, quote_status: quoteStatus });
+
+  // Send notification for status change (fire-and-forget)
+  if (user) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
+    sendRequestNotification(buildStatusChangeNotification(
+      requestId,
+      request.title,
+      request.request_type,
+      user.id,
+      profile?.full_name || 'Someone',
+      oldStage,
+      stage
+    ));
+  }
 
   return request;
 }
@@ -473,6 +532,32 @@ export async function addRequestNote(
     .eq('id', requestId);
 
   await logActivity(requestId, 'note_added', { note_type: noteType });
+
+  // Send notification for comments only (not internal notes)
+  if (noteType === 'comment') {
+    const { data: request } = await supabase
+      .from('requests')
+      .select('title, request_type')
+      .eq('id', requestId)
+      .single();
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
+    if (request) {
+      sendRequestNotification(buildCommentNotification(
+        requestId,
+        request.title,
+        request.request_type,
+        user.id,
+        profile?.full_name || 'Someone',
+        content
+      ));
+    }
+  }
 
   return data as RequestNote;
 }
@@ -987,6 +1072,30 @@ export async function addRequestAttachment(
     file_type: getFileType(file.type)
   });
 
+  // Send notification for new attachment (fire-and-forget)
+  const { data: request } = await supabase
+    .from('requests')
+    .select('title, request_type')
+    .eq('id', requestId)
+    .single();
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .single();
+
+  if (request) {
+    sendRequestNotification(buildAttachmentNotification(
+      requestId,
+      request.title,
+      request.request_type,
+      user.id,
+      profile?.full_name || 'Someone',
+      file.name
+    ));
+  }
+
   return data as RequestAttachment;
 }
 
@@ -1066,6 +1175,8 @@ export async function getRequestWatchers(requestId: string): Promise<RequestWatc
  * Add a watcher to a request
  */
 export async function addRequestWatcher(requestId: string, userId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+
   const { data, error } = await supabase.rpc('add_request_watcher', {
     req_id: requestId,
     watcher_id: userId
@@ -1078,6 +1189,32 @@ export async function addRequestWatcher(requestId: string, userId: string): Prom
 
   // Log activity
   await logActivity(requestId, 'watcher_added', { user_id: userId });
+
+  // Send notification to new watcher (if not adding self)
+  if (user && userId !== user.id) {
+    const { data: request } = await supabase
+      .from('requests')
+      .select('title, request_type')
+      .eq('id', requestId)
+      .single();
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
+    if (request) {
+      sendRequestNotification(buildWatcherAddedNotification(
+        requestId,
+        request.title,
+        request.request_type,
+        user.id,
+        profile?.full_name || 'Someone',
+        userId
+      ));
+    }
+  }
 
   return data as boolean;
 }
