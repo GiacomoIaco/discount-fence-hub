@@ -15,6 +15,14 @@ interface InitiativeTimelineTabProps {
 
 type ActiveFilter = 'all' | 'active' | 'inactive';
 
+// Helper to format date as local YYYY-MM-DD (avoiding timezone issues with toISOString)
+const formatDateOnly = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function InitiativeTimelineTab({ functionId }: InitiativeTimelineTabProps) {
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
@@ -26,8 +34,8 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
   const deactivateInitiative = useDeactivateInitiative();
   const activateInitiative = useActivateInitiative();
 
-  // Week lock status
-  const weekStartDate = selectedWeek.toISOString().split('T')[0];
+  // Week lock status - use local date format to avoid timezone issues
+  const weekStartDate = formatDateOnly(selectedWeek);
   const { data: weekLock } = useWeekLockQuery(weekStartDate);
   const unlockWeek = useUnlockWeek();
 
@@ -129,7 +137,8 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
     }
   };
 
-  const isCurrentWeek = selectedWeek.getTime() === getMondayOfWeek().getTime();
+  // Compare dates only (not timestamps) to determine if viewing current week
+  const isCurrentWeek = formatDateOnly(selectedWeek) === formatDateOnly(getMondayOfWeek());
 
   if (!areas || areas.length === 0) {
     return (
@@ -400,15 +409,17 @@ function InitiativeTableRow({
   const lastWeek = new Date(selectedWeek);
   lastWeek.setDate(lastWeek.getDate() - 7);
 
-  // Find updates for last week and this week
+  // Find updates for last week and this week using string comparison to avoid timezone issues
+  const selectedWeekStr = formatDateOnly(selectedWeek);
+  const lastWeekStr = formatDateOnly(lastWeek);
+
   const lastWeekUpdate = allUpdates?.find(update => {
-    const updateDate = new Date(update.week_start_date);
-    return updateDate.getTime() === lastWeek.getTime();
+    // week_start_date from DB is already in YYYY-MM-DD format
+    return update.week_start_date === lastWeekStr;
   });
 
   const thisWeekUpdate = allUpdates?.find(update => {
-    const updateDate = new Date(update.week_start_date);
-    return updateDate.getTime() === selectedWeek.getTime();
+    return update.week_start_date === selectedWeekStr;
   });
 
   // Filter tasks by completion date
@@ -428,10 +439,18 @@ function InitiativeTableRow({
     return completedDate < oneWeekAgo;
   }) || [];
 
-  const handleSaveUpdate = async () => {
-    if (!thisWeekText.trim()) {
+  const handleSaveUpdate = async (textToSave?: string) => {
+    const text = textToSave !== undefined ? textToSave : thisWeekText;
+
+    if (!text.trim()) {
       setIsEditingThisWeek(false);
       setThisWeekText('');
+      return;
+    }
+
+    // Don't save if text hasn't changed
+    if (thisWeekUpdate && text.trim() === thisWeekUpdate.update_text) {
+      setIsEditingThisWeek(false);
       return;
     }
 
@@ -441,15 +460,15 @@ function InitiativeTableRow({
         await updateUpdate.mutateAsync({
           id: thisWeekUpdate.id,
           initiative_id: initiative.id,
-          update_text: thisWeekText,
+          update_text: text.trim(),
         });
         toast.success('Update saved');
       } else {
-        // Create new
+        // Create new - use local date format to avoid timezone issues
         await createUpdate.mutateAsync({
           initiative_id: initiative.id,
-          update_text: thisWeekText,
-          week_start_date: selectedWeek.toISOString().split('T')[0],
+          update_text: text.trim(),
+          week_start_date: formatDateOnly(selectedWeek),
         });
         toast.success('Update added');
       }
@@ -613,31 +632,22 @@ function InitiativeTableRow({
                 placeholder="What progress was made this week?"
                 className="w-full text-sm px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
+                onBlur={(e) => handleSaveUpdate(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     handleCancelEdit();
                   }
                   if (e.key === 'Enter' && e.ctrlKey) {
-                    handleSaveUpdate();
+                    e.currentTarget.blur(); // Trigger save via onBlur
                   }
                 }}
               />
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSaveUpdate}
-                  disabled={createUpdate.isPending || updateUpdate.isPending}
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {createUpdate.isPending || updateUpdate.isPending ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <span className="text-xs text-gray-500 self-center ml-2">
-                  Ctrl+Enter to save, Esc to cancel
+              <div className="flex gap-2 items-center">
+                {(createUpdate.isPending || updateUpdate.isPending) && (
+                  <span className="text-xs text-blue-600">Saving...</span>
+                )}
+                <span className="text-xs text-gray-500">
+                  Auto-saves on blur | Esc to cancel
                 </span>
               </div>
             </div>

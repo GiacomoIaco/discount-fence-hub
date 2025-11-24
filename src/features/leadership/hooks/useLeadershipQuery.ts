@@ -1392,17 +1392,31 @@ export const useInitiativeUpdatesQuery = (initiativeId: string) => {
   return useQuery({
     queryKey: leadershipKeys.initiativeUpdates(initiativeId),
     queryFn: async (): Promise<InitiativeUpdate[]> => {
-      const { data, error } = await supabase
+      // First get the updates
+      const { data: updates, error } = await supabase
         .from('initiative_updates')
-        .select(`
-          *,
-          author:user_profiles!initiative_updates_created_by_fkey(id, full_name, avatar_url)
-        `)
+        .select('*')
         .eq('initiative_id', initiativeId)
         .order('week_start_date', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      if (!updates || updates.length === 0) return [];
+
+      // Then fetch author info separately
+      const authorIds = [...new Set(updates.map(u => u.created_by).filter(Boolean))];
+      if (authorIds.length === 0) return updates;
+
+      const { data: authors } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', authorIds);
+
+      const authorsMap = new Map(authors?.map(a => [a.id, a]) || []);
+
+      return updates.map(update => ({
+        ...update,
+        author: update.created_by ? authorsMap.get(update.created_by) || null : null,
+      }));
     },
     enabled: !!initiativeId,
   });
@@ -1419,10 +1433,7 @@ export const useCreateInitiativeUpdate = () => {
       const { data, error } = await supabase
         .from('initiative_updates')
         .insert(input)
-        .select(`
-          *,
-          author:user_profiles!initiative_updates_created_by_fkey(id, full_name, avatar_url)
-        `)
+        .select('*')
         .single();
 
       if (error) throw error;
@@ -1446,10 +1457,7 @@ export const useUpdateInitiativeUpdate = () => {
         .from('initiative_updates')
         .update(input)
         .eq('id', id)
-        .select(`
-          *,
-          author:user_profiles!initiative_updates_created_by_fkey(id, full_name, avatar_url)
-        `)
+        .select('*')
         .single();
 
       if (error) throw error;
