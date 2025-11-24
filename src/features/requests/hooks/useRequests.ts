@@ -423,6 +423,8 @@ export function useRequestActivity(requestId: string | null) {
 
 /**
  * Hook to get calculated request age
+ * For completed/archived requests, shows the time until completion (frozen)
+ * For active requests, shows time since creation (updates every minute)
  */
 export function useRequestAge(request: Request | null) {
   const [age, setAge] = useState({ hours: 0, days: 0, color: 'green' });
@@ -432,8 +434,15 @@ export function useRequestAge(request: Request | null) {
 
     const calculateAge = () => {
       const created = new Date(request.created_at).getTime();
-      const now = Date.now();
-      const ageMs = now - created;
+
+      // For completed/archived requests, use completed_at as the end time
+      // This freezes the timer at the completion time
+      const isCompleted = request.stage === 'completed' || request.stage === 'archived';
+      const endTime = isCompleted && request.completed_at
+        ? new Date(request.completed_at).getTime()
+        : Date.now();
+
+      const ageMs = endTime - created;
       const hours = Math.floor(ageMs / (1000 * 60 * 60));
       const days = Math.floor(hours / 24);
 
@@ -449,9 +458,13 @@ export function useRequestAge(request: Request | null) {
     };
 
     calculateAge();
-    const interval = setInterval(calculateAge, 60000); // Update every minute
 
-    return () => clearInterval(interval);
+    // Only update periodically for active requests
+    const isCompleted = request.stage === 'completed' || request.stage === 'archived';
+    if (!isCompleted) {
+      const interval = setInterval(calculateAge, 60000); // Update every minute
+      return () => clearInterval(interval);
+    }
   }, [request]);
 
   return age;

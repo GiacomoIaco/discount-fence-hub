@@ -25,7 +25,7 @@ export const handler: Handler = async (event) => {
       filename: 'audio.webm',
       contentType: 'audio/webm',
     });
-    formData.append('model', 'gpt-4o-transcribe');
+    formData.append('model', 'whisper-1');
     // Limit language to English and Spanish to improve accuracy
     formData.append('language', 'en');
 

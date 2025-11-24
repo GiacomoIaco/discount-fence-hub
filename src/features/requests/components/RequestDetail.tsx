@@ -1,8 +1,8 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText, UserPlus, X, Eye } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import { useRequestAge, useUsers } from '../hooks/useRequests';
 import { useRequestQuery, useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation, useAssignRequestMutation } from '../hooks/useRequestsQuery';
-import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, type RequestAttachment } from '../lib/requests';
+import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, getRequestWatchers, addRequestWatcher, removeRequestWatcher, type RequestAttachment, type RequestWatcher } from '../lib/requests';
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
@@ -67,6 +67,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const [attachments, setAttachments] = useState<RequestAttachment[]>([]);
   const [loadingAttachments, setLoadingAttachments] = useState(true);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [watchers, setWatchers] = useState<RequestWatcher[]>([]);
+  const [, setLoadingWatchers] = useState(true);
+  const [isAddingWatcher, setIsAddingWatcher] = useState(false);
+  const [selectedWatcherId, setSelectedWatcherId] = useState<string>('');
 
   // Check if user can edit (admin or operations)
   const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
@@ -145,6 +149,22 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
       }
     };
     fetchAttachments();
+  }, [requestId]);
+
+  // Fetch watchers
+  useEffect(() => {
+    if (!requestId) return;
+    const fetchWatchers = async () => {
+      try {
+        const data = await getRequestWatchers(requestId);
+        setWatchers(data);
+      } catch (error) {
+        console.error('Failed to fetch watchers:', error);
+      } finally {
+        setLoadingWatchers(false);
+      }
+    };
+    fetchWatchers();
   }, [requestId]);
 
   // Show loading state while request is being fetched
@@ -313,6 +333,39 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
     }
   };
 
+  const handleAddWatcher = async () => {
+    if (!selectedWatcherId) return;
+
+    try {
+      await addRequestWatcher(requestId, selectedWatcherId);
+      // Refresh watchers list
+      const data = await getRequestWatchers(requestId);
+      setWatchers(data);
+      setSelectedWatcherId('');
+      setIsAddingWatcher(false);
+    } catch (error) {
+      console.error('Failed to add watcher:', error);
+      showError('Failed to add watcher. Please try again.');
+    }
+  };
+
+  const handleRemoveWatcher = async (watcherId: string) => {
+    try {
+      await removeRequestWatcher(requestId, watcherId);
+      setWatchers(prev => prev.filter(w => w.user_id !== watcherId));
+    } catch (error) {
+      console.error('Failed to remove watcher:', error);
+      showError('Failed to remove watcher. Please try again.');
+    }
+  };
+
+  // Get users that can be added as watchers (not already watching, not submitter, not assignee)
+  const availableWatchers = users.filter(user =>
+    user.id !== request?.submitter_id &&
+    user.id !== request?.assigned_to &&
+    !watchers.some(w => w.user_id === user.id)
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -425,6 +478,42 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
               }`}>
                 {request.urgency}
               </span>
+            </div>
+            {/* Watchers */}
+            <div className="flex items-center gap-2 text-sm">
+              <Eye className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-600">Watchers:</span>
+              <div className="flex items-center gap-1">
+                {watchers.length > 0 ? (
+                  watchers.slice(0, 3).map(watcher => (
+                    <span key={watcher.user_id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs">
+                      {watcher.user?.full_name || watcher.user?.email || 'Unknown'}
+                      {canEdit && (
+                        <button
+                          onClick={() => handleRemoveWatcher(watcher.user_id)}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-gray-400 text-xs">None</span>
+                )}
+                {watchers.length > 3 && (
+                  <span className="text-xs text-gray-500">+{watchers.length - 3} more</span>
+                )}
+                {canEdit && (
+                  <button
+                    onClick={() => setIsAddingWatcher(true)}
+                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                    title="Add watcher"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="w-4 h-4 text-gray-400" />
@@ -845,7 +934,33 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
               <p className="text-sm text-gray-600">No attachments yet</p>
             ) : (
               <div className="space-y-2">
-                {attachments.map((attachment) => (
+                {/* Image attachments as grid */}
+                {attachments.filter(a => a.file_type === 'image').length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {attachments.filter(a => a.file_type === 'image').map((attachment) => (
+                      <a
+                        key={attachment.id}
+                        href={attachment.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                      >
+                        <img
+                          src={attachment.file_url}
+                          alt={attachment.file_name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // If image fails to load, show placeholder
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100"><span class="text-gray-400 text-xs">Image unavailable</span></div>';
+                          }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {/* Non-image attachments as list */}
+                {attachments.filter(a => a.file_type !== 'image').map((attachment) => (
                   <a
                     key={attachment.id}
                     href={attachment.file_url}
@@ -854,7 +969,6 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                     className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     <div className="flex-shrink-0">
-                      {attachment.file_type === 'image' && <Image className="w-5 h-5 text-blue-600" />}
                       {attachment.file_type === 'document' && <FileText className="w-5 h-5 text-green-600" />}
                       {attachment.file_type === 'audio' && <Volume2 className="w-5 h-5 text-purple-600" />}
                       {attachment.file_type === 'video' && <PlayCircle className="w-5 h-5 text-red-600" />}
@@ -933,8 +1047,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                   onChange={(e) => setInternalNote(e.target.value)}
                   placeholder="Add internal note..."
                   className="flex-1 px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                  onKeyPress={async (e) => {
-                    if (e.key === 'Enter' && internalNote.trim()) {
+                  onKeyDown={async (e) => {
+                    // Only trigger on Enter, not during IME composition
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing && internalNote.trim()) {
+                      e.preventDefault();
                       setAddingInternalNote(true);
                       try {
                         await addNote({ requestId, content: internalNote, noteType: 'internal' });
@@ -1135,7 +1251,32 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                 <p className="text-sm text-gray-600">No attachments yet</p>
               ) : (
                 <div className="space-y-2">
-                  {attachments.map((attachment) => (
+                  {/* Image attachments as grid */}
+                  {attachments.filter(a => a.file_type === 'image').length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      {attachments.filter(a => a.file_type === 'image').map((attachment) => (
+                        <a
+                          key={attachment.id}
+                          href={attachment.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                        >
+                          <img
+                            src={attachment.file_url}
+                            alt={attachment.file_name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100"><span class="text-gray-400 text-xs">Image unavailable</span></div>';
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {/* Non-image attachments as list */}
+                  {attachments.filter(a => a.file_type !== 'image').map((attachment) => (
                     <a
                       key={attachment.id}
                       href={attachment.file_url}
@@ -1144,7 +1285,6 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                       className="flex items-center gap-3 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                     >
                       <div className="flex-shrink-0">
-                        {attachment.file_type === 'image' && <Image className="w-4 h-4 text-blue-600" />}
                         {attachment.file_type === 'document' && <FileText className="w-4 h-4 text-green-600" />}
                         {attachment.file_type === 'audio' && <Volume2 className="w-4 h-4 text-purple-600" />}
                         {attachment.file_type === 'video' && <PlayCircle className="w-4 h-4 text-red-600" />}
@@ -1234,8 +1374,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
             onChange={(e) => setNewNote(e.target.value)}
             placeholder="Type a message..."
             className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && newNote.trim()) {
+            onKeyDown={(e) => {
+              // Only trigger on Enter, not during IME composition
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && newNote.trim()) {
+                e.preventDefault();
                 handleAddNote();
               }
             }}
@@ -1298,8 +1440,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
               onChange={(e) => setNewNote(e.target.value)}
               placeholder="Type your message..."
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && newNote.trim()) {
+              onKeyDown={(e) => {
+                // Only trigger on Enter, not during IME composition
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && newNote.trim()) {
+                  e.preventDefault();
                   handleAddNote();
                 }
               }}
@@ -1321,6 +1465,85 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
           )}
         </div>
       </div>
+
+      {/* Add Watcher Modal */}
+      {isAddingWatcher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Add Watcher</h3>
+              <button
+                onClick={() => {
+                  setIsAddingWatcher(false);
+                  setSelectedWatcherId('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Watchers can see this request and will be notified of updates.
+            </p>
+            {availableWatchers.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No more users available to add as watchers.
+              </p>
+            ) : (
+              <>
+                <select
+                  value={selectedWatcherId}
+                  onChange={(e) => setSelectedWatcherId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+                >
+                  <option value="">Select a user...</option>
+                  {availableWatchers.map(user => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setIsAddingWatcher(false);
+                      setSelectedWatcherId('');
+                    }}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddWatcher}
+                    disabled={!selectedWatcherId}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    Add Watcher
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Current watchers list */}
+            {watchers.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Current Watchers</h4>
+                <div className="space-y-2">
+                  {watchers.map(watcher => (
+                    <div key={watcher.user_id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                      <span className="text-sm">{watcher.user?.full_name || watcher.user?.email || 'Unknown'}</span>
+                      <button
+                        onClick={() => handleRemoveWatcher(watcher.user_id)}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

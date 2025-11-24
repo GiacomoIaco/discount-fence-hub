@@ -1008,6 +1008,125 @@ export async function getRequestAttachments(requestId: string): Promise<RequestA
   return data as RequestAttachment[];
 }
 
+// ============================================
+// REQUEST WATCHERS
+// ============================================
+
+export interface RequestWatcher {
+  id: string;
+  request_id: string;
+  user_id: string;
+  added_by: string | null;
+  added_at: string;
+  notify_on_comments: boolean;
+  notify_on_status_change: boolean;
+  notify_on_assignment: boolean;
+  // Joined fields
+  user?: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url?: string | null;
+  };
+}
+
+/**
+ * Get watchers for a request
+ */
+export async function getRequestWatchers(requestId: string): Promise<RequestWatcher[]> {
+  const { data, error } = await supabase
+    .from('request_watchers')
+    .select('*')
+    .eq('request_id', requestId)
+    .order('added_at', { ascending: true });
+
+  if (error) {
+    console.error('Failed to get watchers:', error);
+    throw error;
+  }
+
+  if (!data || data.length === 0) return [];
+
+  // Fetch user profiles separately
+  const userIds = [...new Set(data.map(w => w.user_id))];
+  const { data: profiles } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, email, avatar_url')
+    .in('id', userIds);
+
+  const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+  return data.map(watcher => ({
+    ...watcher,
+    user: profileMap.get(watcher.user_id) || undefined
+  })) as RequestWatcher[];
+}
+
+/**
+ * Add a watcher to a request
+ */
+export async function addRequestWatcher(requestId: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('add_request_watcher', {
+    req_id: requestId,
+    watcher_id: userId
+  });
+
+  if (error) {
+    console.error('Failed to add watcher:', error);
+    throw error;
+  }
+
+  // Log activity
+  await logActivity(requestId, 'watcher_added', { user_id: userId });
+
+  return data as boolean;
+}
+
+/**
+ * Remove a watcher from a request
+ */
+export async function removeRequestWatcher(requestId: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('remove_request_watcher', {
+    req_id: requestId,
+    watcher_id: userId
+  });
+
+  if (error) {
+    console.error('Failed to remove watcher:', error);
+    throw error;
+  }
+
+  // Log activity
+  await logActivity(requestId, 'watcher_removed', { user_id: userId });
+
+  return data as boolean;
+}
+
+/**
+ * Get request IDs that the current user is watching
+ */
+export async function getWatchedRequestIds(userId: string): Promise<Set<string>> {
+  const watchedIds = new Set<string>();
+
+  const { data, error } = await supabase
+    .from('request_watchers')
+    .select('request_id')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Failed to get watched requests:', error);
+    return watchedIds;
+  }
+
+  data?.forEach(w => watchedIds.add(w.request_id));
+
+  return watchedIds;
+}
+
+// ============================================
+// REQUEST ATTACHMENTS
+// ============================================
+
 /**
  * Delete attachment
  */
