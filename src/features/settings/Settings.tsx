@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Settings as SettingsIcon, Menu } from 'lucide-react';
+import { ArrowLeft, Users, Settings as SettingsIcon, Menu, RefreshCw, Smartphone } from 'lucide-react';
 import TeamManagement from './components/TeamManagement';
 import AssignmentRules from './components/AssignmentRules';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
 import type { UserRole } from '../../types';
+
+// Declare build time from vite config
+declare const __BUILD_TIME__: string;
 
 interface SettingsProps {
   onBack: () => void;
@@ -11,7 +14,8 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules' | 'menu-visibility'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules' | 'menu-visibility' | 'app'>('team');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -28,6 +32,18 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <div className="flex gap-8">
+          <button
+            onClick={() => setActiveTab('app')}
+            className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
+              activeTab === 'app'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Smartphone className="w-5 h-5" />
+            <span className="font-medium">App</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('team')}
             className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
@@ -72,6 +88,55 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
 
       {/* Content */}
       <div>
+        {activeTab === 'app' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">App Version</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Last Updated</p>
+                    <p className="text-gray-900">
+                      {typeof __BUILD_TIME__ !== 'undefined'
+                        ? new Date(__BUILD_TIME__).toLocaleString()
+                        : 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">Check for Updates</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    If you're experiencing issues or want to ensure you have the latest version,
+                    use the button below to refresh the app and clear the cache.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      setIsRefreshing(true);
+                      // Clear all caches
+                      if ('caches' in window) {
+                        const names = await caches.keys();
+                        await Promise.all(names.map(name => caches.delete(name)));
+                      }
+                      // Unregister service worker
+                      if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(registrations.map(r => r.unregister()));
+                      }
+                      // Hard reload
+                      window.location.reload();
+                    }}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh App & Clear Cache'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'team' && <TeamManagement userRole={userRole} />}
         {activeTab === 'assignment-rules' && userRole === 'admin' && (
           <AssignmentRules onBack={onBack} />

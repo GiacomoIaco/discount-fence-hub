@@ -465,6 +465,9 @@ function App() {
         {/* Install App Banner */}
         <InstallAppBanner />
 
+        {/* PWA Update Prompt */}
+        <PWAUpdatePrompt />
+
         {/* Floating Action Button for Composing Messages (Admin/Manager only) */}
         {(userRole === 'admin' || userRole === 'sales-manager') && activeSection === 'team-communication' && (
           <button
