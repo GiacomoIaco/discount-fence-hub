@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Settings as SettingsIcon, Menu, RefreshCw, Smartphone, Bell } from 'lucide-react';
+import { ArrowLeft, Users, Settings as SettingsIcon, Menu, RefreshCw, Smartphone, Bell, FileText } from 'lucide-react';
 import TeamManagement from './components/TeamManagement';
-import AssignmentRules from './components/AssignmentRules';
+import RequestSettings from './components/RequestSettings';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
 import NotificationSettings from './components/NotificationSettings';
 import type { UserRole } from '../../types';
@@ -15,7 +15,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'assignment-rules' | 'menu-visibility' | 'notifications' | 'app'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'request-settings' | 'menu-visibility' | 'notifications' | 'app'>('team');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   return (
@@ -72,15 +72,15 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
           {userRole === 'admin' && (
             <>
               <button
-                onClick={() => setActiveTab('assignment-rules')}
+                onClick={() => setActiveTab('request-settings')}
                 className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'assignment-rules'
+                  activeTab === 'request-settings'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <SettingsIcon className="w-5 h-5" />
-                <span className="font-medium">Assignment Rules</span>
+                <FileText className="w-5 h-5" />
+                <span className="font-medium">Request Settings</span>
               </button>
 
               <button
@@ -152,8 +152,8 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
         )}
         {activeTab === 'notifications' && <NotificationSettings />}
         {activeTab === 'team' && <TeamManagement userRole={userRole} />}
-        {activeTab === 'assignment-rules' && userRole === 'admin' && (
-          <AssignmentRules onBack={onBack} />
+        {activeTab === 'request-settings' && userRole === 'admin' && (
+          <RequestSettings />
         )}
         {activeTab === 'menu-visibility' && userRole === 'admin' && (
           <MenuVisibilitySettings />
