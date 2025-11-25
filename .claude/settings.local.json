@@ -29,7 +29,12 @@
       "Bash(npx netlify:*)",
       "mcp__chrome-devtools__list_console_messages",
       "mcp__chrome-devtools__get_console_message",
-      "Bash(timeout /t 120 /nobreak)"
+      "Bash(timeout /t 120 /nobreak)",
+      "Bash(npx tsx:*)",
+      "mcp__chrome-devtools__select_page",
+      "Bash(curl:*)",
+      "Bash(start \"https://supabase.com/dashboard/project/mravqfoypwyutjqtoxet/sql/new\")",
+      "Bash(clip)"
     ],
     "deny": [],
     "ask": []

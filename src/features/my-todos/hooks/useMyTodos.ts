@@ -175,3 +175,34 @@ export function useUpdateTaskStatus() {
     },
   });
 }
+
+/**
+ * Update task order (user_display_order) for drag-drop reordering
+ */
+export function useUpdateTaskOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tasks: { id: string; order: number }[]) => {
+      // Update each task's order
+      const updates = tasks.map(({ id, order }) =>
+        supabase
+          .from('project_initiatives')
+          .update({ user_display_order: order })
+          .eq('id', id)
+      );
+
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+
+      if (errors.length > 0) {
+        throw new Error(`Failed to update ${errors.length} task(s)`);
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
+  });
+}

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronRight } from 'lucide-react';
 import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus } from '../hooks/useMyTodos';
+import TaskDetailModal from './TaskDetailModal';
+import SortableTaskList from './SortableTaskList';
 import type { InitiativeWithDetails } from '../../leadership/lib/leadership';
 
 interface MyTodosProps {
   onBack: () => void;
-  onOpenInitiative: (initiativeId: string) => void;
 }
 
 type TabId = 'assigned-to-me' | 'created-by-me' | 'assigned-by-me';
@@ -149,14 +150,19 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-export default function MyTodos({ onBack, onOpenInitiative }: MyTodosProps) {
+export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeTab, setActiveTab] = useState<TabId>('assigned-to-me');
+  const [selectedTask, setSelectedTask] = useState<InitiativeWithDetails | null>(null);
   const { data, isLoading, error } = useMyTodosQuery();
   const stats = useMyTodosStats();
   const updateStatus = useUpdateTaskStatus();
 
   const handleStatusChange = async (taskId: string, status: string) => {
     await updateStatus.mutateAsync({ id: taskId, status });
+  };
+
+  const handleOpenTask = (task: InitiativeWithDetails) => {
+    setSelectedTask(task);
   };
 
   const tabs = [
@@ -303,47 +309,37 @@ export default function MyTodos({ onBack, onOpenInitiative }: MyTodosProps) {
 
       {/* Task Lists */}
       <div className="space-y-6">
-        {/* Active / In Progress */}
+        {/* Active / In Progress - Sortable */}
         {groupedTasks.active.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
               In Progress ({groupedTasks.active.length})
             </h2>
-            <div className="space-y-3">
-              {groupedTasks.active.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  showAssignee={activeTab !== 'assigned-to-me'}
-                  onOpen={() => onOpenInitiative(task.id)}
-                  onStatusChange={(status) => handleStatusChange(task.id, status)}
-                />
-              ))}
-            </div>
+            <SortableTaskList
+              tasks={groupedTasks.active}
+              showAssignee={activeTab !== 'assigned-to-me'}
+              onOpenTask={handleOpenTask}
+              onStatusChange={handleStatusChange}
+            />
           </div>
         )}
 
-        {/* Pending / Not Started */}
+        {/* Pending / Not Started - Sortable */}
         {groupedTasks.pending.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
               Pending ({groupedTasks.pending.length})
             </h2>
-            <div className="space-y-3">
-              {groupedTasks.pending.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  showAssignee={activeTab !== 'assigned-to-me'}
-                  onOpen={() => onOpenInitiative(task.id)}
-                  onStatusChange={(status) => handleStatusChange(task.id, status)}
-                />
-              ))}
-            </div>
+            <SortableTaskList
+              tasks={groupedTasks.pending}
+              showAssignee={activeTab !== 'assigned-to-me'}
+              onOpenTask={handleOpenTask}
+              onStatusChange={handleStatusChange}
+            />
           </div>
         )}
 
-        {/* Completed */}
+        {/* Completed - Not sortable, just display */}
         {groupedTasks.completed.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
@@ -355,7 +351,7 @@ export default function MyTodos({ onBack, onOpenInitiative }: MyTodosProps) {
                   key={task.id}
                   task={task}
                   showAssignee={activeTab !== 'assigned-to-me'}
-                  onOpen={() => onOpenInitiative(task.id)}
+                  onOpen={() => handleOpenTask(task)}
                   onStatusChange={(status) => handleStatusChange(task.id, status)}
                 />
               ))}
@@ -381,6 +377,14 @@ export default function MyTodos({ onBack, onOpenInitiative }: MyTodosProps) {
           />
         )}
       </div>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
     </div>
   );
 }

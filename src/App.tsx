@@ -345,13 +345,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <MyTodos
-              onBack={() => setActiveSection('home')}
-              onOpenInitiative={(_id) => {
-                // Navigate to leadership hub with the initiative
-                setActiveSection('leadership');
-              }}
-            />
+            <MyTodos onBack={() => setActiveSection('home')} />
           </Suspense>
         </ErrorBoundary>
       );
