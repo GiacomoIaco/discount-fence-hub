@@ -26,10 +26,10 @@ export function useInitiativeCommentsQuery(initiativeId: string | undefined) {
       if (!initiativeId) return [];
 
       const { data, error } = await supabase
-        .from('project_comments')
+        .from('initiative_comments')
         .select(`
           *,
-          user:user_profiles!project_comments_user_id_fkey(id, full_name, avatar_url)
+          user:user_profiles!initiative_comments_user_id_fkey(id, full_name, avatar_url)
         `)
         .eq('initiative_id', initiativeId)
         .order('created_at', { ascending: true });
@@ -53,7 +53,7 @@ export function useAddComment() {
       if (!user) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
-        .from('project_comments')
+        .from('initiative_comments')
         .insert({
           initiative_id: initiativeId,
           user_id: user.id,
@@ -61,7 +61,7 @@ export function useAddComment() {
         })
         .select(`
           *,
-          user:user_profiles!project_comments_user_id_fkey(id, full_name, avatar_url)
+          user:user_profiles!initiative_comments_user_id_fkey(id, full_name, avatar_url)
         `)
         .single();
 
@@ -91,7 +91,7 @@ export function useDeleteComment() {
   return useMutation({
     mutationFn: async ({ commentId, initiativeId }: { commentId: string; initiativeId: string }) => {
       const { error } = await supabase
-        .from('project_comments')
+        .from('initiative_comments')
         .delete()
         .eq('id', commentId);
 
