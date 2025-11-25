@@ -244,7 +244,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
       });
 
       // Calculate time-series data (last 12 weeks)
-      const now = new Date();
+      // Note: 'now' already defined above for message stats
       const timeSeries = [];
 
       for (let i = 11; i >= 0; i--) {
