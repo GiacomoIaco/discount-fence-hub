@@ -227,30 +227,43 @@ function generateNotificationContent(
   requestUrl: string,
   details?: NotificationRequest['details']
 ): { subject: string; emailHtml: string; smsText: string } {
-  const templates: Record<NotificationType, { subject: string; message: string }> = {
+  // Build detailed descriptions
+  const descriptions: Record<NotificationType, { subject: string; action: string; hasContent: boolean }> = {
     assignment: {
-      subject: `You've been assigned: ${requestTitle}`,
-      message: `${triggeredByName} has assigned you to the ${requestType} request "${requestTitle}" (${urgency} priority).`,
+      subject: `${triggeredByName} assigned you to: ${requestTitle}`,
+      action: `${triggeredByName} has assigned you to the ${requestType} request "${requestTitle}" (${urgency} priority).`,
+      hasContent: false,
     },
     watcher_added: {
-      subject: `You've been added to: ${requestTitle}`,
-      message: `${triggeredByName} added you as a watcher on the ${requestType} request "${requestTitle}". You'll receive updates when changes are made.`,
+      subject: `${triggeredByName} added you to: ${requestTitle}`,
+      action: `${triggeredByName} added you as a watcher on the ${requestType} request "${requestTitle}". You'll receive updates when changes are made.`,
+      hasContent: false,
     },
     comment: {
-      subject: `New comment on: ${requestTitle}`,
-      message: `${triggeredByName} commented on "${requestTitle}": "${details?.commentPreview || ''}"`,
+      subject: `${triggeredByName} commented on: ${requestTitle}`,
+      action: `${triggeredByName} added a comment:`,
+      hasContent: true,
     },
     status_change: {
-      subject: `Status changed: ${requestTitle}`,
-      message: `${triggeredByName} changed the status of "${requestTitle}" from "${details?.oldStatus || 'unknown'}" to "${details?.newStatus || 'unknown'}".`,
+      subject: `${triggeredByName} updated: ${requestTitle}`,
+      action: `${triggeredByName} changed the status from "${details?.oldStatus || 'unknown'}" to "${details?.newStatus || 'unknown'}".`,
+      hasContent: false,
     },
     attachment: {
-      subject: `New attachment on: ${requestTitle}`,
-      message: `${triggeredByName} added a new file "${details?.attachmentName || 'attachment'}" to request "${requestTitle}".`,
+      subject: `${triggeredByName} added file to: ${requestTitle}`,
+      action: `${triggeredByName} added a new file: "${details?.attachmentName || 'attachment'}"`,
+      hasContent: false,
     },
   };
 
-  const template = templates[type];
+  const desc = descriptions[type];
+  const commentContent = details?.commentPreview || '';
+
+  // Build email with highlighted content box for comments
+  const contentBlock = desc.hasContent && commentContent ? `
+        <div style="background: #f3f4f6; border-left: 4px solid #2563eb; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${commentContent}</p>
+        </div>` : '';
 
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -258,8 +271,10 @@ function generateNotificationContent(
         <h1 style="color: white; margin: 0; font-size: 24px;">Discount Fence Hub</h1>
       </div>
       <div style="padding: 30px; background: #ffffff;">
-        <h2 style="color: #1f2937; margin-top: 0;">${template.subject}</h2>
-        <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">${template.message}</p>
+        <h2 style="color: #1f2937; margin-top: 0;">${requestTitle}</h2>
+        <p style="color: #6b7280; font-size: 14px; margin-bottom: 16px;">${requestType} Request • ${urgency} priority</p>
+        <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">${desc.action}</p>
+        ${contentBlock}
         <div style="margin: 30px 0; text-align: center;">
           <a href="${requestUrl}"
              style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
@@ -275,18 +290,20 @@ function generateNotificationContent(
     </div>
   `;
 
-  // SMS - keep it short (160 char limit for single SMS)
-  const shortTitle = requestTitle.length > 30 ? requestTitle.substring(0, 27) + '...' : requestTitle;
+  // SMS - include sender name and content where applicable
+  const shortTitle = requestTitle.length > 25 ? requestTitle.substring(0, 22) + '...' : requestTitle;
+  const shortComment = commentContent.length > 60 ? commentContent.substring(0, 57) + '...' : commentContent;
+
   const smsTemplates: Record<NotificationType, string> = {
-    assignment: `DFH: You've been assigned to "${shortTitle}". View: ${requestUrl}`,
-    watcher_added: `DFH: Added to request "${shortTitle}". View: ${requestUrl}`,
-    comment: `DFH: New comment on "${shortTitle}". View: ${requestUrl}`,
-    status_change: `DFH: "${shortTitle}" moved to ${details?.newStatus || 'new status'}. View: ${requestUrl}`,
-    attachment: `DFH: New file on "${shortTitle}". View: ${requestUrl}`,
+    assignment: `DFH: ${triggeredByName} assigned you to "${shortTitle}". ${requestUrl}`,
+    watcher_added: `DFH: ${triggeredByName} added you to "${shortTitle}". ${requestUrl}`,
+    comment: `DFH: ${triggeredByName} on "${shortTitle}": "${shortComment}" ${requestUrl}`,
+    status_change: `DFH: ${triggeredByName} moved "${shortTitle}" to ${details?.newStatus || 'new status'}. ${requestUrl}`,
+    attachment: `DFH: ${triggeredByName} added file to "${shortTitle}". ${requestUrl}`,
   };
 
   return {
-    subject: template.subject,
+    subject: desc.subject,
     emailHtml,
     smsText: smsTemplates[type],
   };

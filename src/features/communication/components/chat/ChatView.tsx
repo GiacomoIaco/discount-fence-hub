@@ -41,7 +41,7 @@ interface MessageWithSenderInfo extends DirectMessage {
 }
 
 export default function ChatView({ conversation, onBack }: ChatViewProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [messages, setMessages] = useState<MessageWithSenderInfo[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -191,7 +191,7 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
           conversationId: conversation.conversation_id,
           conversationName: conversation.conversation_name || undefined,
           senderId: user.id,
-          senderName: user.user_metadata?.full_name || 'Someone',
+          senderName: profile?.full_name || 'Someone',
           messageContent,
           isGroup: conversation.is_group || false,
         });
@@ -255,7 +255,7 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
           conversationId: conversation.conversation_id,
           conversationName: conversation.conversation_name || undefined,
           senderId: user.id,
-          senderName: user.user_metadata?.full_name || 'Someone',
+          senderName: profile?.full_name || 'Someone',
           messageContent: fileMessageContent,
           isGroup: conversation.is_group || false,
         });

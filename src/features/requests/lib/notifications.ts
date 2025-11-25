@@ -105,8 +105,10 @@ export function buildCommentNotification(
   requestType: string,
   triggeredByUserId: string,
   triggeredByName: string,
-  commentPreview: string
+  commentContent: string
 ): NotificationPayload {
+  // Send more content - truncation happens server-side for different channels
+  const preview = commentContent.substring(0, 500) + (commentContent.length > 500 ? '...' : '');
   return {
     type: 'comment',
     requestId,
@@ -114,7 +116,7 @@ export function buildCommentNotification(
     requestType,
     triggeredByUserId,
     triggeredByName,
-    details: { commentPreview: commentPreview.substring(0, 100) + (commentPreview.length > 100 ? '...' : '') },
+    details: { commentPreview: preview },
   };
 }
 
