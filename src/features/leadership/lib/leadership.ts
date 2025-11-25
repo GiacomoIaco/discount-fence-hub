@@ -111,8 +111,12 @@ export interface ProjectInitiative {
 
   // Ownership and status
   assigned_to?: string;
+  assigned_by?: string; // Who assigned this task
   status: InitiativeStatus;
   priority: InitiativePriority;
+
+  // Privacy
+  is_private?: boolean; // Only visible to creator, assignee, and assigner
 
   // Target date (flexible format)
   target_type?: TargetType;
@@ -135,6 +139,7 @@ export interface ProjectInitiative {
   is_active: boolean;
   deactivated_at?: string;
   sort_order: number;
+  user_display_order?: number; // Personal ordering for My To-Dos view
 
   created_at: string;
   updated_at: string;
@@ -308,6 +313,16 @@ export interface InitiativeWithDetails extends ProjectInitiative {
     full_name: string;
     avatar_url?: string;
   };
+  assigned_by_user?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
+  created_by_user?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
   recent_updates?: ProjectWeeklyUpdate[];
   comment_count?: number;
 }
@@ -432,6 +447,8 @@ export interface CreateInitiativeInput {
   description?: string;
   success_criteria?: string;
   assigned_to?: string;
+  assigned_by?: string;
+  is_private?: boolean;
   status?: InitiativeStatus;
   priority?: InitiativePriority;
   target_type?: TargetType;
@@ -448,6 +465,7 @@ export interface UpdateInitiativeInput extends Partial<CreateInitiativeInput> {
   id: string;
   archived_at?: string;
   sort_order?: number;
+  user_display_order?: number;
 }
 
 export interface CreateWeeklyUpdateInput {

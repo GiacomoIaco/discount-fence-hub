@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -44,6 +44,7 @@ const RequestDetail = lazy(() => import('./features/requests').then(module => ({
 const Login = lazy(() => import('./components/auth/Login'));
 const BOMCalculator = lazy(() => import('./features/bom_calculator/BOMCalculator').then(m => ({ default: m.BOMCalculator })));
 const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
+const MyTodos = lazy(() => import('./features/my-todos').then(m => ({ default: m.MyTodos })));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -56,7 +57,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -156,6 +157,7 @@ function App() {
       { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, name: 'Sales Resources', icon: BookOpen },
       { id: 'leadership' as Section, name: 'Leadership', icon: Target },
+      { id: 'my-todos' as Section, name: 'My To-Dos', icon: ListTodo },
       { id: 'team' as Section, name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
@@ -335,6 +337,21 @@ function App() {
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             <LeadershipHub onBack={() => setActiveSection('home')} />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'my-todos') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <MyTodos
+              onBack={() => setActiveSection('home')}
+              onOpenInitiative={(_id) => {
+                // Navigate to leadership hub with the initiative
+                setActiveSection('leadership');
+              }}
+            />
           </Suspense>
         </ErrorBoundary>
       );

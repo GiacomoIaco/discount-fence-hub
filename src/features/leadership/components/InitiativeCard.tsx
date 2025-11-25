@@ -1,11 +1,21 @@
-import { Calendar, User, TrendingUp, AlertCircle, CheckCircle2, Clock, Pause, XCircle, Flag, Target } from 'lucide-react';
+import { Calendar, TrendingUp, AlertCircle, CheckCircle2, Clock, Pause, XCircle, Flag, Target } from 'lucide-react';
 import { useInitiativeGoalLinksQuery } from '../hooks/useGoalsQuery';
-import type { ProjectInitiative } from '../lib/leadership';
+import type { InitiativeWithDetails } from '../lib/leadership';
 
 interface InitiativeCardProps {
-  initiative: ProjectInitiative;
+  initiative: InitiativeWithDetails;
   onClick: () => void;
 }
+
+// Helper to get initials from a full name
+const getInitials = (fullName: string): string => {
+  return fullName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
 
 export default function InitiativeCard({ initiative, onClick }: InitiativeCardProps) {
   const { data: goalLinks } = useInitiativeGoalLinksQuery(initiative.id);
@@ -137,10 +147,12 @@ export default function InitiativeCard({ initiative, onClick }: InitiativeCardPr
           <Calendar className="w-3 h-3" />
           <span>{formatTarget()}</span>
         </div>
-        {initiative.assigned_to && (
-          <div className="flex items-center gap-1">
-            <User className="w-3 h-3" />
-            <span>Assigned</span>
+        {initiative.assigned_user && (
+          <div
+            className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-medium text-xs"
+            title={initiative.assigned_user.full_name}
+          >
+            {getInitials(initiative.assigned_user.full_name)}
           </div>
         )}
       </div>
