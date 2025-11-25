@@ -1,4 +1,5 @@
-import { useAnalytics } from './hooks/useAnalytics';
+import { useState } from 'react';
+import { useAnalytics, type DateRange } from './hooks/useAnalytics';
 import { AnalyticsTabs } from './components/AnalyticsTabs';
 import type { UserRole } from '../../types';
 
@@ -7,7 +8,8 @@ interface AnalyticsProps {
 }
 
 export default function Analytics({ userRole }: AnalyticsProps) {
-  const { data, loading, error } = useAnalytics();
+  const [dateRange, setDateRange] = useState<DateRange>('30days');
+  const { data, loading, error } = useAnalytics(dateRange);
 
   if (loading) {
     return (
@@ -30,5 +32,12 @@ export default function Analytics({ userRole }: AnalyticsProps) {
     );
   }
 
-  return <AnalyticsTabs data={data} userRole={userRole} />;
+  return (
+    <AnalyticsTabs
+      data={data}
+      userRole={userRole}
+      dateRange={dateRange}
+      onDateRangeChange={setDateRange}
+    />
+  );
 }

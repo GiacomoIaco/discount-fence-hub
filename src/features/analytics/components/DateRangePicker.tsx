@@ -1,6 +1,5 @@
 import { Calendar } from 'lucide-react';
-
-export type DateRange = '7days' | '30days' | '90days' | 'all';
+import type { DateRange } from '../hooks/useAnalytics';
 
 interface DateRangePickerProps {
   value: DateRange;

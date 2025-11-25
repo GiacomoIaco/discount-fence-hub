@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 
+export type DateRange = '7days' | '30days' | '90days' | 'all';
+
 export interface AnalyticsData {
   overview: {
     totalRequests: number;
@@ -70,7 +72,15 @@ export interface AnalyticsData {
   };
 }
 
-export function useAnalytics() {
+// Helper to get date filter from range
+function getDateCutoff(range: DateRange): Date | null {
+  if (range === 'all') return null;
+  const now = new Date();
+  const days = range === '7days' ? 7 : range === '30days' ? 30 : 90;
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+}
+
+export function useAnalytics(dateRange: DateRange = '30days') {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -79,10 +89,14 @@ export function useAnalytics() {
     try {
       setLoading(true);
 
-      // Get all requests
-      const { data: requests, error: reqError } = await supabase
-        .from('requests')
-        .select('*');
+      const dateCutoff = getDateCutoff(dateRange);
+
+      // Get requests (filtered by date if applicable)
+      let requestsQuery = supabase.from('requests').select('*');
+      if (dateCutoff) {
+        requestsQuery = requestsQuery.gte('created_at', dateCutoff.toISOString());
+      }
+      const { data: requests, error: reqError } = await requestsQuery;
 
       if (reqError) throw reqError;
 
@@ -93,11 +107,15 @@ export function useAnalytics() {
 
       if (profileError) throw profileError;
 
-      // Get message analytics
-      const { data: messages, error: msgError } = await supabase
+      // Get message analytics (filtered by date if applicable)
+      let messagesQuery = supabase
         .from('direct_messages')
         .select('id, created_at, conversation_id')
         .eq('is_deleted', false);
+      if (dateCutoff) {
+        messagesQuery = messagesQuery.gte('created_at', dateCutoff.toISOString());
+      }
+      const { data: messages, error: msgError } = await messagesQuery;
 
       if (msgError) {
         console.error('Error fetching messages:', msgError);
@@ -364,7 +382,7 @@ export function useAnalytics() {
 
   useEffect(() => {
     loadAnalytics();
-  }, []);
+  }, [dateRange]);
 
   return {
     data,

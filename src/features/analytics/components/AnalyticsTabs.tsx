@@ -3,20 +3,21 @@ import { BarChart, TrendingUp, Camera } from 'lucide-react';
 import { OverviewTab } from './OverviewTab';
 import { RequestsTab } from './RequestsTab';
 import PhotoAnalytics from '../../photos/components/PhotoAnalytics';
-import { DateRangePicker, type DateRange } from './DateRangePicker';
-import type { AnalyticsData } from '../hooks/useAnalytics';
+import { DateRangePicker } from './DateRangePicker';
+import type { AnalyticsData, DateRange } from '../hooks/useAnalytics';
 import type { UserRole } from '../../../types';
 
 interface AnalyticsTabsProps {
   data: AnalyticsData;
   userRole: UserRole;
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
 }
 
 type TabId = 'overview' | 'requests' | 'photos';
 
-export function AnalyticsTabs({ data, userRole }: AnalyticsTabsProps) {
+export function AnalyticsTabs({ data, userRole, dateRange, onDateRangeChange }: AnalyticsTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [dateRange, setDateRange] = useState<DateRange>('30days');
 
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview', icon: TrendingUp },
@@ -32,7 +33,7 @@ export function AnalyticsTabs({ data, userRole }: AnalyticsTabsProps) {
 
         {/* Date Range Picker - Hide for Photos tab since it has its own */}
         {activeTab !== 'photos' && (
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
         )}
       </div>
 
