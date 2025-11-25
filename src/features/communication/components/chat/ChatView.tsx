@@ -5,6 +5,31 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { showError, showSuccess } from '../../../../lib/toast';
 import type { DirectMessage, ConversationWithDetails, ParticipantWithDetails } from '../../../../types/chat';
 
+// Fire-and-forget chat notification
+function sendChatNotification(payload: {
+  type: 'direct_message' | 'group_message';
+  conversationId: string;
+  conversationName?: string;
+  senderId: string;
+  senderName: string;
+  messageContent: string;
+  isGroup: boolean;
+}): void {
+  fetch('/.netlify/functions/send-chat-notification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(response => {
+      if (!response.ok) {
+        console.warn('Chat notification request failed:', response.status);
+      }
+    })
+    .catch(error => {
+      console.error('Failed to send chat notification:', error);
+    });
+}
+
 interface ChatViewProps {
   conversation: ConversationWithDetails;
   onBack: () => void;
@@ -144,6 +169,8 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
 
     if (!newMessage.trim() || sending) return;
 
+    const messageContent = newMessage.trim();
+
     try {
       setSending(true);
 
@@ -152,10 +179,23 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
         .insert({
           conversation_id: conversation.conversation_id,
           sender_id: user?.id,
-          content: newMessage.trim()
+          content: messageContent
         });
 
       if (error) throw error;
+
+      // Send notification (fire-and-forget)
+      if (user) {
+        sendChatNotification({
+          type: conversation.is_group ? 'group_message' : 'direct_message',
+          conversationId: conversation.conversation_id,
+          conversationName: conversation.conversation_name || undefined,
+          senderId: user.id,
+          senderName: user.user_metadata?.full_name || 'Someone',
+          messageContent,
+          isGroup: conversation.is_group || false,
+        });
+      }
 
       setNewMessage('');
     } catch (error) {
@@ -193,12 +233,13 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
         .getPublicUrl(filePath);
 
       // Send message with file attachment
+      const fileMessageContent = `Sent a file: ${file.name}`;
       const { error: messageError } = await supabase
         .from('direct_messages')
         .insert({
           conversation_id: conversation.conversation_id,
           sender_id: user?.id,
-          content: `Sent a file: ${file.name}`,
+          content: fileMessageContent,
           file_url: publicUrl,
           file_name: file.name,
           file_type: file.type,
@@ -206,6 +247,19 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
         });
 
       if (messageError) throw messageError;
+
+      // Send notification (fire-and-forget)
+      if (user) {
+        sendChatNotification({
+          type: conversation.is_group ? 'group_message' : 'direct_message',
+          conversationId: conversation.conversation_id,
+          conversationName: conversation.conversation_name || undefined,
+          senderId: user.id,
+          senderName: user.user_metadata?.full_name || 'Someone',
+          messageContent: fileMessageContent,
+          isGroup: conversation.is_group || false,
+        });
+      }
 
       showSuccess('File uploaded');
 
