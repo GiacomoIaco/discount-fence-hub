@@ -1,8 +1,7 @@
-import { useState } from 'react';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronRight } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, MessageSquare } from 'lucide-react';
 import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus } from '../hooks/useMyTodos';
 import TaskDetailModal from './TaskDetailModal';
-import SortableTaskList from './SortableTaskList';
 import type { InitiativeWithDetails } from '../../leadership/lib/leadership';
 
 interface MyTodosProps {
@@ -22,7 +21,7 @@ const getInitials = (fullName: string): string => {
 };
 
 // Status badge component
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, onClick }: { status: string; onClick?: () => void }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     not_started: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Not Started' },
     active: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Active' },
@@ -35,109 +34,22 @@ function StatusBadge({ status }: { status: string }) {
   const { bg, text, label } = config[status] || config.not_started;
 
   return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>
+    <button
+      onClick={onClick}
+      className={`px-2 py-1 text-xs font-medium rounded-full ${bg} ${text} hover:opacity-80 transition-opacity flex items-center gap-1`}
+    >
       {label}
-    </span>
+      {onClick && <ChevronDown className="w-3 h-3" />}
+    </button>
   );
 }
 
 // Priority indicator
 function PriorityIndicator({ priority }: { priority: string }) {
   if (priority === 'high') {
-    return <span className="text-orange-500 text-sm" title="High Priority">!!!</span>;
+    return <span className="text-orange-500 text-sm font-bold" title="High Priority">!!!</span>;
   }
   return null;
-}
-
-// Task card component
-function TaskCard({
-  task,
-  showAssignee = false,
-  onOpen,
-  onStatusChange,
-}: {
-  task: InitiativeWithDetails;
-  showAssignee?: boolean;
-  onOpen: () => void;
-  onStatusChange: (status: string) => void;
-}) {
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  const handleQuickComplete = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsUpdating(true);
-    try {
-      await onStatusChange('completed');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const isOverdue = task.target_date && new Date(task.target_date) < new Date() &&
-    task.status !== 'completed' && task.status !== 'cancelled';
-
-  return (
-    <div
-      onClick={onOpen}
-      className={`bg-white rounded-lg border p-4 hover:shadow-md transition-all cursor-pointer ${
-        isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <PriorityIndicator priority={task.priority} />
-            <h3 className="font-medium text-gray-900 truncate">{task.title}</h3>
-          </div>
-
-          {/* Function / Area path */}
-          <p className="text-sm text-gray-500 truncate mb-2">
-            {(task.area as any)?.function?.name ? `${(task.area as any).function.name} / ` : ''}{task.area?.name || 'No Area'}
-          </p>
-
-          {/* Meta info row */}
-          <div className="flex items-center gap-3 text-sm">
-            <StatusBadge status={task.status} />
-
-            {task.target_date && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                <Clock className="w-3 h-3" />
-                {new Date(task.target_date).toLocaleDateString()}
-              </span>
-            )}
-
-            {/* Show assignee if requested */}
-            {showAssignee && task.assigned_user && (
-              <div
-                className="flex items-center gap-1 text-gray-600"
-                title={`Assigned to ${task.assigned_user.full_name}`}
-              >
-                <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
-                  {getInitials(task.assigned_user.full_name)}
-                </div>
-                <span className="text-xs">{task.assigned_user.full_name.split(' ')[0]}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="flex items-center gap-2">
-          {task.status !== 'completed' && task.status !== 'cancelled' && (
-            <button
-              onClick={handleQuickComplete}
-              disabled={isUpdating}
-              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-              title="Mark as completed"
-            >
-              <CheckCircle2 className={`w-5 h-5 ${isUpdating ? 'animate-pulse' : ''}`} />
-            </button>
-          )}
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // Empty state component
@@ -150,9 +62,26 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
+// Format date for display
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleDateString();
+}
+
+// Check if task is overdue
+function isOverdue(task: InitiativeWithDetails): boolean {
+  if (!task.target_date) return false;
+  if (task.status === 'completed' || task.status === 'cancelled') return false;
+  return new Date(task.target_date) < new Date();
+}
+
 export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeTab, setActiveTab] = useState<TabId>('assigned-to-me');
   const [selectedTask, setSelectedTask] = useState<InitiativeWithDetails | null>(null);
+  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showCompleted, setShowCompleted] = useState(false);
   const { data, isLoading, error } = useMyTodosQuery();
   const stats = useMyTodosStats();
   const updateStatus = useUpdateTaskStatus();
@@ -163,6 +92,23 @@ export default function MyTodos({ onBack }: MyTodosProps) {
 
   const handleOpenTask = (task: InitiativeWithDetails) => {
     setSelectedTask(task);
+  };
+
+  const handleQuickComplete = async (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation();
+    await handleStatusChange(taskId, 'completed');
+  };
+
+  const toggleAreaCollapse = (areaId: string) => {
+    setCollapsedAreas(prev => {
+      const next = new Set(prev);
+      if (next.has(areaId)) {
+        next.delete(areaId);
+      } else {
+        next.add(areaId);
+      }
+      return next;
+    });
   };
 
   const tabs = [
@@ -201,14 +147,68 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     }
   };
 
-  const currentTasks = getCurrentTasks();
+  // Filter tasks
+  const filteredTasks = useMemo(() => {
+    let tasks = getCurrentTasks();
 
-  // Group tasks by status
-  const groupedTasks = {
-    active: currentTasks.filter(t => t.status === 'active' || t.status === 'at_risk'),
-    pending: currentTasks.filter(t => t.status === 'not_started' || t.status === 'on_hold'),
-    completed: currentTasks.filter(t => t.status === 'completed'),
-  };
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      tasks = tasks.filter(t =>
+        t.title.toLowerCase().includes(query) ||
+        t.description?.toLowerCase().includes(query) ||
+        t.area?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    // Filter by status
+    if (filterStatus !== 'all') {
+      tasks = tasks.filter(t => t.status === filterStatus);
+    }
+
+    // Hide completed unless toggled
+    if (!showCompleted) {
+      tasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
+    }
+
+    return tasks;
+  }, [data, activeTab, searchQuery, filterStatus, showCompleted]);
+
+  // Group tasks by area with function info
+  const tasksByArea = useMemo(() => {
+    const grouped = new Map<string, {
+      areaId: string;
+      areaName: string;
+      functionName: string;
+      tasks: InitiativeWithDetails[];
+    }>();
+
+    filteredTasks.forEach(task => {
+      const areaId = task.area?.id || 'no-area';
+      const areaName = task.area?.name || 'No Area';
+      const functionName = (task.area as any)?.function?.name || 'Uncategorized';
+
+      if (!grouped.has(areaId)) {
+        grouped.set(areaId, {
+          areaId,
+          areaName,
+          functionName,
+          tasks: [],
+        });
+      }
+      grouped.get(areaId)!.tasks.push(task);
+    });
+
+    // Sort by function name then area name
+    return Array.from(grouped.values()).sort((a, b) => {
+      const funcCompare = a.functionName.localeCompare(b.functionName);
+      if (funcCompare !== 0) return funcCompare;
+      return a.areaName.localeCompare(b.areaName);
+    });
+  }, [filteredTasks]);
+
+  // Count active filters
+  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted;
 
   if (isLoading) {
     return (
@@ -228,7 +228,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -307,76 +307,267 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         </div>
       </div>
 
-      {/* Task Lists */}
-      <div className="space-y-6">
-        {/* Active / In Progress - Sortable */}
-        {groupedTasks.active.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              In Progress ({groupedTasks.active.length})
-            </h2>
-            <SortableTaskList
-              tasks={groupedTasks.active}
-              showAssignee={activeTab !== 'assigned-to-me'}
-              onOpenTask={handleOpenTask}
-              onStatusChange={handleStatusChange}
+      {/* Filter Bar */}
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-9 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
-        )}
 
-        {/* Pending / Not Started - Sortable */}
-        {groupedTasks.pending.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              Pending ({groupedTasks.pending.length})
-            </h2>
-            <SortableTaskList
-              tasks={groupedTasks.pending}
-              showAssignee={activeTab !== 'assigned-to-me'}
-              onOpenTask={handleOpenTask}
-              onStatusChange={handleStatusChange}
-            />
+          {/* Status Filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">All Statuses</option>
+            <option value="not_started">Not Started</option>
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="at_risk">At Risk</option>
+          </select>
+
+          {/* Show Completed Toggle */}
+          <button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              showCompleted
+                ? 'bg-green-100 text-green-800 border border-green-300'
+                : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+            }`}
+          >
+            {showCompleted ? 'Showing Completed' : 'Show Completed'}
+          </button>
+
+          {/* Clear Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterStatus('all');
+                setShowCompleted(false);
+              }}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Clear Filters
+            </button>
+          )}
+
+          {/* Results Count */}
+          <div className="text-sm text-gray-600 ml-auto">
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
           </div>
-        )}
-
-        {/* Completed - Not sortable, just display */}
-        {groupedTasks.completed.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              Completed ({groupedTasks.completed.length})
-            </h2>
-            <div className="space-y-3 opacity-60">
-              {groupedTasks.completed.slice(0, 5).map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  showAssignee={activeTab !== 'assigned-to-me'}
-                  onOpen={() => handleOpenTask(task)}
-                  onStatusChange={(status) => handleStatusChange(task.id, status)}
-                />
-              ))}
-              {groupedTasks.completed.length > 5 && (
-                <p className="text-sm text-gray-500 text-center py-2">
-                  + {groupedTasks.completed.length - 5} more completed tasks
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {currentTasks.length === 0 && (
-          <EmptyState
-            message={
-              activeTab === 'assigned-to-me'
-                ? "No tasks assigned to you"
-                : activeTab === 'created-by-me'
-                ? "You haven't created any tasks yet"
-                : "You haven't assigned any tasks to others"
-            }
-          />
-        )}
+        </div>
       </div>
+
+      {/* Table View */}
+      {filteredTasks.length === 0 ? (
+        <EmptyState
+          message={
+            hasActiveFilters
+              ? "No tasks match your filters"
+              : activeTab === 'assigned-to-me'
+              ? "No tasks assigned to you"
+              : activeTab === 'created-by-me'
+              ? "You haven't created any tasks yet"
+              : "You haven't assigned any tasks to others"
+          }
+        />
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b-2 border-gray-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[250px]">
+                    Initiative / Task
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[200px]">
+                    Description
+                  </th>
+                  {activeTab !== 'assigned-to-me' && (
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[120px]">
+                      Assignee
+                    </th>
+                  )}
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
+                    Target Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[110px]">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[200px]">
+                    Notes / Progress
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[80px]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasksByArea.map(({ areaId, areaName, functionName, tasks }) => {
+                  const isCollapsed = collapsedAreas.has(areaId);
+
+                  return (
+                    <>
+                      {/* Area Header Row */}
+                      <tr
+                        key={`area-${areaId}`}
+                        className="bg-blue-900 border-t-2 border-blue-700 cursor-pointer hover:bg-blue-800 transition-colors"
+                        onClick={() => toggleAreaCollapse(areaId)}
+                      >
+                        <td colSpan={activeTab !== 'assigned-to-me' ? 7 : 6} className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            {isCollapsed ? (
+                              <ChevronRight className="w-4 h-4 text-white" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-white" />
+                            )}
+                            <span className="font-semibold text-white">{functionName}</span>
+                            <span className="text-blue-200">/</span>
+                            <span className="font-medium text-blue-100">{areaName}</span>
+                            <span className="text-sm text-blue-200 ml-2">
+                              ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Task Rows */}
+                      {!isCollapsed && tasks.map((task, idx) => {
+                        const taskOverdue = isOverdue(task);
+
+                        return (
+                          <tr
+                            key={task.id}
+                            className={`border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer ${
+                              idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                            } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''}`}
+                            onClick={() => handleOpenTask(task)}
+                          >
+                            {/* Initiative / Task */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <PriorityIndicator priority={task.priority} />
+                                <span className="font-medium text-gray-900">{task.title}</span>
+                              </div>
+                            </td>
+
+                            {/* Description */}
+                            <td className="px-4 py-3">
+                              <p className="text-sm text-gray-600 line-clamp-2">
+                                {task.description || <span className="text-gray-400 italic">No description</span>}
+                              </p>
+                            </td>
+
+                            {/* Assignee (only show if not "assigned to me" tab) */}
+                            {activeTab !== 'assigned-to-me' && (
+                              <td className="px-4 py-3">
+                                {task.assigned_user ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
+                                      {getInitials(task.assigned_user.full_name)}
+                                    </div>
+                                    <span className="text-sm text-gray-700">
+                                      {task.assigned_user.full_name.split(' ')[0]}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-400 italic">Unassigned</span>
+                                )}
+                              </td>
+                            )}
+
+                            {/* Target Date */}
+                            <td className="px-4 py-3">
+                              <span className={`text-sm ${taskOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                                {task.target_date ? (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {formatDate(task.target_date)}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                              <StatusBadge status={task.status} />
+                            </td>
+
+                            {/* Notes / Progress */}
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                                {task.this_week && (
+                                  <p className="text-sm text-gray-600 line-clamp-2">{task.this_week}</p>
+                                )}
+                                {task.progress_percent !== undefined && task.progress_percent > 0 && (
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[100px]">
+                                      <div
+                                        className="bg-blue-600 h-1.5 rounded-full"
+                                        style={{ width: `${Math.min(task.progress_percent, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs text-gray-500">{task.progress_percent}%</span>
+                                  </div>
+                                )}
+                                {!task.this_week && (!task.progress_percent || task.progress_percent === 0) && (
+                                  <span className="text-sm text-gray-400 italic">No updates</span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                {task.status !== 'completed' && task.status !== 'cancelled' && (
+                                  <button
+                                    onClick={(e) => handleQuickComplete(e, task.id)}
+                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Mark as completed"
+                                  >
+                                    <CheckCircle2 className="w-5 h-5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleOpenTask(task)}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="View details & comments"
+                                >
+                                  <MessageSquare className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Task Detail Modal */}
       {selectedTask && (

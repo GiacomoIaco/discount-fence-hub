@@ -34,7 +34,8 @@
       "mcp__chrome-devtools__select_page",
       "Bash(curl:*)",
       "Bash(start \"https://supabase.com/dashboard/project/mravqfoypwyutjqtoxet/sql/new\")",
-      "Bash(clip)"
+      "Bash(clip)",
+      "Bash(timeout /t 30 /nobreak)"
     ],
     "deny": [],
     "ask": []
