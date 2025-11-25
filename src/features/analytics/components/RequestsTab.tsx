@@ -18,14 +18,14 @@ export function RequestsTab({ data }: RequestsTabProps) {
   };
 
   const exportToCSV = () => {
-    const headers = ['Type', 'Created', 'Closed', 'Avg Close Time (hrs)', '% >24h', '% >48h'];
+    const headers = ['Type', 'Created', 'Closed', 'Avg Close Time (hrs)', '% <24h', '% <48h'];
     const rows = data.requestMetricsByType.map(item => [
       getTypeLabel(item.type),
       item.created,
       item.closed,
       item.averageCloseTime.toFixed(1),
-      item.percentOver24h.toFixed(1) + '%',
-      item.percentOver48h.toFixed(1) + '%'
+      item.percentUnder24h.toFixed(1) + '%',
+      item.percentUnder48h.toFixed(1) + '%'
     ]);
 
     const csv = [
@@ -119,8 +119,8 @@ export function RequestsTab({ data }: RequestsTabProps) {
                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Created</th>
                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Closed</th>
                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Avg Close Time</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &gt;24h</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &gt;48h</th>
+                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &lt;24h</th>
+                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &lt;48h</th>
               </tr>
             </thead>
             <tbody>
@@ -137,20 +137,20 @@ export function RequestsTab({ data }: RequestsTabProps) {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <span className={`font-medium ${
-                      item.percentOver24h < 20 ? 'text-green-600' :
-                      item.percentOver24h < 50 ? 'text-yellow-600' :
+                      item.percentUnder24h >= 80 ? 'text-green-600' :
+                      item.percentUnder24h >= 50 ? 'text-yellow-600' :
                       'text-red-600'
                     }`}>
-                      {item.percentOver24h.toFixed(1)}%
+                      {item.percentUnder24h.toFixed(1)}%
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
                     <span className={`font-medium ${
-                      item.percentOver48h < 10 ? 'text-green-600' :
-                      item.percentOver48h < 30 ? 'text-yellow-600' :
+                      item.percentUnder48h >= 90 ? 'text-green-600' :
+                      item.percentUnder48h >= 70 ? 'text-yellow-600' :
                       'text-red-600'
                     }`}>
-                      {item.percentOver48h.toFixed(1)}%
+                      {item.percentUnder48h.toFixed(1)}%
                     </span>
                   </td>
                 </tr>
@@ -174,8 +174,8 @@ export function RequestsTab({ data }: RequestsTabProps) {
                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Created</th>
                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Closed</th>
                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Avg Close Time</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &gt;24h</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &gt;48h</th>
+                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &lt;24h</th>
+                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% &lt;48h</th>
               </tr>
             </thead>
             <tbody>
@@ -192,20 +192,20 @@ export function RequestsTab({ data }: RequestsTabProps) {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <span className={`font-medium ${
-                      item.percentOver24h < 20 ? 'text-green-600' :
-                      item.percentOver24h < 50 ? 'text-yellow-600' :
+                      item.percentUnder24h >= 80 ? 'text-green-600' :
+                      item.percentUnder24h >= 50 ? 'text-yellow-600' :
                       'text-red-600'
                     }`}>
-                      {item.percentOver24h.toFixed(1)}%
+                      {item.percentUnder24h.toFixed(1)}%
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
                     <span className={`font-medium ${
-                      item.percentOver48h < 10 ? 'text-green-600' :
-                      item.percentOver48h < 30 ? 'text-yellow-600' :
+                      item.percentUnder48h >= 90 ? 'text-green-600' :
+                      item.percentUnder48h >= 70 ? 'text-yellow-600' :
                       'text-red-600'
                     }`}>
-                      {item.percentOver48h.toFixed(1)}%
+                      {item.percentUnder48h.toFixed(1)}%
                     </span>
                   </td>
                 </tr>
@@ -296,9 +296,9 @@ export function RequestsTab({ data }: RequestsTabProps) {
           </div>
         </div>
 
-        {/* SLA Breaches by Week */}
+        {/* SLA Compliance by Week */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-4">% Requests &gt;24h by Week</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-4">% Requests Resolved &lt;24h by Week (SLA Compliance)</h4>
           <div className="relative h-48">
             <svg className="w-full h-full" viewBox="0 0 1000 200">
               {/* Grid lines */}
@@ -313,11 +313,11 @@ export function RequestsTab({ data }: RequestsTabProps) {
                 <polyline
                   points={data.timeSeries.map((week, index) => {
                     const x = (index / (data.timeSeries.length - 1)) * 1000;
-                    const y = 200 - ((week.percentOver24h / 100) * 200);
+                    const y = 200 - ((week.percentUnder24h / 100) * 200);
                     return `${x},${y}`;
                   }).join(' ')}
                   fill="none"
-                  stroke="#ef4444"
+                  stroke="#10b981"
                   strokeWidth="3"
                 />
               )}
@@ -325,17 +325,17 @@ export function RequestsTab({ data }: RequestsTabProps) {
               {/* Data points */}
               {data.timeSeries.map((week, index) => {
                 const x = (index / (data.timeSeries.length - 1)) * 1000;
-                const y = 200 - ((week.percentOver24h / 100) * 200);
+                const y = 200 - ((week.percentUnder24h / 100) * 200);
                 return (
                   <circle
                     key={index}
                     cx={x}
                     cy={y}
                     r="5"
-                    fill="#ef4444"
+                    fill="#10b981"
                     className="cursor-pointer"
                   >
-                    <title>{week.weekLabel}: {week.percentOver24h.toFixed(1)}%</title>
+                    <title>{week.weekLabel}: {week.percentUnder24h.toFixed(1)}%</title>
                   </circle>
                 );
               })}

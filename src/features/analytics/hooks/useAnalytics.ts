@@ -40,8 +40,8 @@ export interface AnalyticsData {
     created: number;
     closed: number;
     averageCloseTime: number; // in hours
-    percentOver24h: number;
-    percentOver48h: number;
+    percentUnder24h: number; // % resolved within 24h (SLA compliant)
+    percentUnder48h: number; // % resolved within 48h
   }[];
   // Request metrics by assignee
   requestMetricsByAssignee: {
@@ -50,8 +50,8 @@ export interface AnalyticsData {
     created: number;
     closed: number;
     averageCloseTime: number;
-    percentOver24h: number;
-    percentOver48h: number;
+    percentUnder24h: number;
+    percentUnder48h: number;
   }[];
   // Time-series data (last 12 weeks)
   timeSeries: {
@@ -59,9 +59,15 @@ export interface AnalyticsData {
     weekStart: string;
     requestsCreated: number;
     averageCloseTime: number;
-    percentOver24h: number;
+    percentUnder24h: number;
     requestsByType: { type: string; count: number }[];
   }[];
+  // Message analytics
+  messageAnalytics: {
+    totalMessages: number;
+    messagesThisWeek: number;
+    activeConversations: number;
+  };
 }
 
 export function useAnalytics() {
@@ -86,6 +92,23 @@ export function useAnalytics() {
         .select('id, full_name');
 
       if (profileError) throw profileError;
+
+      // Get message analytics
+      const { data: messages, error: msgError } = await supabase
+        .from('direct_messages')
+        .select('id, created_at, conversation_id')
+        .eq('is_deleted', false);
+
+      if (msgError) {
+        console.error('Error fetching messages:', msgError);
+      }
+
+      // Calculate message stats
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const totalMessages = messages?.length || 0;
+      const messagesThisWeek = messages?.filter(m => new Date(m.created_at) >= weekAgo).length || 0;
+      const activeConversations = new Set(messages?.map(m => m.conversation_id) || []).size;
 
       // Calculate overview stats
       const totalRequests = requests?.length || 0;
@@ -162,16 +185,16 @@ export function useAnalytics() {
           ? closeTimes.reduce((acc, t) => acc + t, 0) / closeTimes.length
           : 0;
 
-        const over24h = closeTimes.filter(t => t > 24).length;
-        const over48h = closeTimes.filter(t => t > 48).length;
+        const under24h = closeTimes.filter(t => t <= 24).length;
+        const under48h = closeTimes.filter(t => t <= 48).length;
 
         return {
           type,
           created: count,
           closed: closedRequests.length,
           averageCloseTime: avgCloseTime,
-          percentOver24h: closeTimes.length > 0 ? (over24h / closeTimes.length) * 100 : 0,
-          percentOver48h: closeTimes.length > 0 ? (over48h / closeTimes.length) * 100 : 0
+          percentUnder24h: closeTimes.length > 0 ? (under24h / closeTimes.length) * 100 : 100,
+          percentUnder48h: closeTimes.length > 0 ? (under48h / closeTimes.length) * 100 : 100
         };
       });
 
@@ -188,8 +211,8 @@ export function useAnalytics() {
           ? closeTimes.reduce((acc, t) => acc + t, 0) / closeTimes.length
           : 0;
 
-        const over24h = closeTimes.filter(t => t > 24).length;
-        const over48h = closeTimes.filter(t => t > 48).length;
+        const under24h = closeTimes.filter(t => t <= 24).length;
+        const under48h = closeTimes.filter(t => t <= 48).length;
 
         return {
           userId,
@@ -197,8 +220,8 @@ export function useAnalytics() {
           created: userRequests.length,
           closed: closedRequests.length,
           averageCloseTime: avgCloseTime,
-          percentOver24h: closeTimes.length > 0 ? (over24h / closeTimes.length) * 100 : 0,
-          percentOver48h: closeTimes.length > 0 ? (over48h / closeTimes.length) * 100 : 0
+          percentUnder24h: closeTimes.length > 0 ? (under24h / closeTimes.length) * 100 : 100,
+          percentUnder48h: closeTimes.length > 0 ? (under48h / closeTimes.length) * 100 : 100
         };
       });
 
@@ -231,10 +254,10 @@ export function useAnalytics() {
           ? weekCloseTimes.reduce((acc, t) => acc + t, 0) / weekCloseTimes.length
           : 0;
 
-        const over24h = weekCloseTimes.filter(t => t > 24).length;
-        const percentOver24h = weekCloseTimes.length > 0
-          ? (over24h / weekCloseTimes.length) * 100
-          : 0;
+        const under24h = weekCloseTimes.filter(t => t <= 24).length;
+        const percentUnder24h = weekCloseTimes.length > 0
+          ? (under24h / weekCloseTimes.length) * 100
+          : 100;
 
         // Group by type for this week
         const typeCountMap = new Map<string, number>();
@@ -251,7 +274,7 @@ export function useAnalytics() {
           weekStart: weekStart.toISOString(),
           requestsCreated: weekRequests.length,
           averageCloseTime: avgCloseTime,
-          percentOver24h,
+          percentUnder24h,
           requestsByType
         });
       }
@@ -323,7 +346,12 @@ export function useAnalytics() {
         teamPerformance,
         requestMetricsByType,
         requestMetricsByAssignee,
-        timeSeries
+        timeSeries,
+        messageAnalytics: {
+          totalMessages,
+          messagesThisWeek,
+          activeConversations
+        }
       });
 
       setError(null);

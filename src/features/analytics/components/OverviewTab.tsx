@@ -16,9 +16,9 @@ export function OverviewTab({ data, userRole }: OverviewTabProps) {
     ? ((recentWeek.requestsCreated - previousWeek.requestsCreated) / (previousWeek.requestsCreated || 1)) * 100
     : 0;
 
-  // Identify critical items
+  // Identify critical items (requests with low SLA compliance)
   const criticalRequests = data.requestMetricsByType.filter(
-    r => r.percentOver48h > 30 || r.percentOver24h > 50
+    r => r.percentUnder48h < 70 || r.percentUnder24h < 50
   );
 
   return (
@@ -43,8 +43,8 @@ export function OverviewTab({ data, userRole }: OverviewTabProps) {
         <SummaryCard
           icon={MessageSquare}
           label="Messages"
-          value="--"
-          subtitle="Coming soon"
+          value={data.messageAnalytics.totalMessages.toString()}
+          subtitle={`${data.messageAnalytics.messagesThisWeek} this week`}
           color="green"
         />
         <SummaryCard
@@ -162,11 +162,11 @@ export function OverviewTab({ data, userRole }: OverviewTabProps) {
               </div>
             </div>
 
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <div className="text-sm text-orange-600 mb-1">SLA Breaches</div>
-              <div className="text-2xl font-bold text-orange-700">{recentWeek.percentOver24h.toFixed(1)}%</div>
-              <div className="text-xs text-orange-600 mt-1">
-                Requests over 24h
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="text-sm text-green-600 mb-1">SLA Compliance</div>
+              <div className="text-2xl font-bold text-green-700">{recentWeek.percentUnder24h.toFixed(1)}%</div>
+              <div className="text-xs text-green-600 mt-1">
+                Resolved within 24h
               </div>
             </div>
 
@@ -200,9 +200,9 @@ export function OverviewTab({ data, userRole }: OverviewTabProps) {
                 <div>
                   <span className="font-medium text-gray-900">{req.type}</span>
                   <span className="text-sm text-gray-600 ml-2">
-                    {req.percentOver48h > 30
-                      ? `${req.percentOver48h.toFixed(1)}% of requests taking >48h`
-                      : `${req.percentOver24h.toFixed(1)}% of requests taking >24h`}
+                    {req.percentUnder48h < 70
+                      ? `Only ${req.percentUnder48h.toFixed(1)}% resolved within 48h`
+                      : `Only ${req.percentUnder24h.toFixed(1)}% resolved within 24h`}
                   </span>
                 </div>
                 <span className="text-red-600 font-semibold">
