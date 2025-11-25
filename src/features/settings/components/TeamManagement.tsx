@@ -276,6 +276,21 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
     }
   };
 
+  const formatPhoneNumber = (phone: string): string => {
+    // Remove all non-digit characters
+    const digits = phone.replace(/\D/g, '');
+
+    // Handle different lengths
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+
+    // Return original if can't format
+    return phone;
+  };
+
   const filteredMembers = members.filter(member => {
     const matchesSearch =
       member.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -440,7 +455,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                       {member.phone ? (
                         <span className="flex items-center gap-1">
                           <Phone className="w-3 h-3" />
-                          {member.phone}
+                          {formatPhoneNumber(member.phone)}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
