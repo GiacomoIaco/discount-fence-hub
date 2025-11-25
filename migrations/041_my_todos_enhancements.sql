@@ -74,9 +74,9 @@ CREATE POLICY "Users can view initiatives in their functions" ON project_initiat
     (
       (is_private IS NULL OR is_private = false)
       AND EXISTS (
-        SELECT 1 FROM project_buckets
-        JOIN project_function_access ON project_function_access.function_id = project_buckets.function_id
-        WHERE project_buckets.id = project_initiatives.bucket_id
+        SELECT 1 FROM project_areas
+        JOIN project_function_access ON project_function_access.function_id = project_areas.function_id
+        WHERE project_areas.id = project_initiatives.area_id
         AND project_function_access.user_id = auth.uid()
       )
     )
