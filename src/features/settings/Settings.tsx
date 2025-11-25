@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Settings as SettingsIcon, Menu, RefreshCw, Smartphone, Bell, FileText } from 'lucide-react';
+import { ArrowLeft, Users, Menu, RefreshCw, Smartphone, Bell, FileText } from 'lucide-react';
 import TeamManagement from './components/TeamManagement';
 import RequestSettings from './components/RequestSettings';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
