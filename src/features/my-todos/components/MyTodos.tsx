@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock } from 'lucide-react';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, type TaskWithDetails } from '../hooks/useMyTodos';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil } from 'lucide-react';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface MyTodosProps {
@@ -604,6 +604,214 @@ function NewInitiativeModal({
   );
 }
 
+// Initiative settings menu (edit, color, archive) - using portal for proper positioning
+function InitiativeSettingsMenu({
+  onEdit,
+  onArchive,
+}: {
+  initiativeId: string;
+  initiativeTitle: string;
+  isPrivate: boolean;
+  headerColor: string | null;
+  onEdit: () => void;
+  onArchive: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 4,
+        left: rect.right - 160, // Align right edge
+      });
+    }
+    setIsOpen(!isOpen);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={toggleMenu}
+        className="p-1 text-white/70 hover:text-white hover:bg-white/10 rounded transition-colors"
+        title="Initiative settings"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[9999] w-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+          style={{ top: position.top, left: position.left }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+              onEdit();
+            }}
+            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit Initiative
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+              onArchive();
+            }}
+            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+          >
+            <Archive className="w-4 h-4" />
+            Archive
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// Edit initiative modal
+function EditInitiativeModal({
+  initiative,
+  onClose,
+  onSuccess,
+}: {
+  initiative: { id: string; title: string; isPrivate: boolean; headerColor: string | null };
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [title, setTitle] = useState(initiative.title);
+  const [isPrivate, setIsPrivate] = useState(initiative.isPrivate);
+  const [headerColor, setHeaderColor] = useState(initiative.headerColor || 'blue-900');
+  const updateInitiative = useUpdatePersonalInitiative();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      await updateInitiative.mutateAsync({
+        id: initiative.id,
+        title: title.trim(),
+        is_private: isPrivate,
+        header_color: headerColor,
+      });
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to update initiative:', err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Edit Initiative</h2>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+
+          {/* Header Color */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Header Color</label>
+            <div className="flex flex-wrap gap-2">
+              {headerColorOptions.map((color) => (
+                <button
+                  key={color.value}
+                  type="button"
+                  onClick={() => setHeaderColor(color.value)}
+                  className={`w-8 h-8 rounded-lg ${color.bg} ${
+                    headerColor === color.value ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+                  }`}
+                  title={color.label}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Private Toggle */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsPrivate(!isPrivate)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isPrivate ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isPrivate ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <div className="flex items-center gap-2">
+              <Lock className={`w-4 h-4 ${isPrivate ? 'text-blue-600' : 'text-gray-400'}`} />
+              <span className="text-sm text-gray-700">Private initiative</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateInitiative.isPending || !title.trim()}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {updateInitiative.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeTab, setActiveTab] = useState<TabId>('assigned-to-me');
   const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(new Set());
@@ -612,9 +820,11 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const [showCompleted, setShowCompleted] = useState(false);
   const [addingTaskToInitiative, setAddingTaskToInitiative] = useState<string | null>(null);
   const [showNewInitiativeModal, setShowNewInitiativeModal] = useState(false);
+  const [editingInitiative, setEditingInitiative] = useState<{ id: string; title: string; isPrivate: boolean; headerColor: string | null } | null>(null);
 
   const { data, isLoading, error, refetch } = useMyTodosQuery();
   const { data: personalInitiatives = [], refetch: refetchPersonal } = usePersonalInitiativesQuery();
+  const archiveInitiative = useArchivePersonalInitiative();
   const stats = useMyTodosStats();
   const updateStatus = useUpdateTaskStatus();
   const updateField = useUpdateTaskField();
@@ -627,6 +837,16 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
     await deleteTask.mutateAsync(taskId);
+  };
+
+  const handleArchiveInitiative = async (initiativeId: string, title: string) => {
+    if (!confirm(`Are you sure you want to archive "${title}"? This will hide it from your To-Dos.`)) return;
+    try {
+      await archiveInitiative.mutateAsync(initiativeId);
+      refetchPersonal();
+    } catch (err) {
+      console.error('Failed to archive initiative:', err);
+    }
   };
 
   const toggleInitiativeCollapse = (initiativeId: string) => {
@@ -1014,19 +1234,31 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                 ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
                               </span>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAddingTaskToInitiative(initiativeId);
-                                if (isCollapsed) {
-                                  toggleInitiativeCollapse(initiativeId);
-                                }
-                              }}
-                              className="flex items-center gap-1 px-2 py-1 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Add Task
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAddingTaskToInitiative(initiativeId);
+                                  if (isCollapsed) {
+                                    toggleInitiativeCollapse(initiativeId);
+                                  }
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Add Task
+                              </button>
+                              {isPersonal && (
+                                <InitiativeSettingsMenu
+                                  initiativeId={initiativeId}
+                                  initiativeTitle={initiativeTitle}
+                                  isPrivate={isPrivate}
+                                  headerColor={headerColor}
+                                  onEdit={() => setEditingInitiative({ id: initiativeId, title: initiativeTitle, isPrivate, headerColor })}
+                                  onArchive={() => handleArchiveInitiative(initiativeId, initiativeTitle)}
+                                />
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -1168,6 +1400,18 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       {showNewInitiativeModal && (
         <NewInitiativeModal
           onClose={() => setShowNewInitiativeModal(false)}
+          onSuccess={() => {
+            refetch();
+            refetchPersonal();
+          }}
+        />
+      )}
+
+      {/* Edit Initiative Modal */}
+      {editingInitiative && (
+        <EditInitiativeModal
+          initiative={editingInitiative}
+          onClose={() => setEditingInitiative(null)}
           onSuccess={() => {
             refetch();
             refetchPersonal();

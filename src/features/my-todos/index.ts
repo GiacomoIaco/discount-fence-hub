@@ -14,6 +14,7 @@ export {
   useUpdatePersonalInitiative,
   useReorderPersonalInitiatives,
   useReorderTasks,
+  useArchivePersonalInitiative,
   type TaskWithDetails,
   type TaskAssignee,
   type MyTasksData,

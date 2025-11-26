@@ -675,3 +675,28 @@ export function useReorderTasks() {
     },
   });
 }
+
+/**
+ * Archive a personal initiative
+ */
+export function useArchivePersonalInitiative() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (initiativeId: string) => {
+      const { data, error } = await supabase
+        .from('project_initiatives')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', initiativeId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personal-initiatives'] });
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
+  });
+}
