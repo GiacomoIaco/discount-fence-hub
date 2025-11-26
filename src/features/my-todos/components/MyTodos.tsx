@@ -1,14 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye } from 'lucide-react';
 import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
+import TaskDetailModal from './TaskDetailModal';
 
 interface MyTodosProps {
   onBack: () => void;
 }
 
-type TabId = 'assigned-to-me' | 'created-by-me' | 'assigned-by-me';
+// Filter type for the single list view
+type FilterId = 'all' | 'i-own' | 'assigned-to-me' | 'my-functions';
 
 // Helper to get initials from a full name
 const getInitials = (fullName: string): string => {
@@ -338,6 +340,44 @@ function InlineStatusDropdown({
   );
 }
 
+// Owner display component
+function OwnerDisplay({ task }: { task: TaskWithDetails }) {
+  const owner = task.owner;
+
+  if (!owner) {
+    return (
+      <div className="flex items-center gap-2 text-gray-400 text-sm">
+        <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
+          <Crown className="w-3 h-3" />
+        </div>
+        <span className="text-xs">No owner</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className={`w-6 h-6 rounded-full ${getAvatarColor(owner.id)} text-white text-xs font-medium flex items-center justify-center`}
+        title={owner.full_name}
+      >
+        {owner.avatar_url ? (
+          <img
+            src={owner.avatar_url}
+            alt={owner.full_name}
+            className="w-full h-full rounded-full object-cover"
+          />
+        ) : (
+          getInitials(owner.full_name || 'U')
+        )}
+      </div>
+      <span className="text-sm text-gray-700 truncate max-w-[100px]" title={owner.full_name}>
+        {owner.full_name?.split(' ')[0]}
+      </span>
+    </div>
+  );
+}
+
 // Assignees display component
 function AssigneesDisplay({ task }: { task: TaskWithDetails }) {
   // Use assignees array if available, otherwise fall back to assigned_user
@@ -381,6 +421,54 @@ function AssigneesDisplay({ task }: { task: TaskWithDetails }) {
       )}
     </div>
   );
+}
+
+// Role badges component
+function RoleBadges({ task }: { task: TaskWithDetails }) {
+  const badges = [];
+
+  if (task.isOwner) {
+    badges.push(
+      <span
+        key="owner"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded"
+        title="You own this task"
+      >
+        <Crown className="w-3 h-3" />
+        Owner
+      </span>
+    );
+  }
+
+  if (task.isAssignee && !task.isOwner) {
+    badges.push(
+      <span
+        key="assignee"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded"
+        title="Assigned to you"
+      >
+        <UserCheck className="w-3 h-3" />
+        Assignee
+      </span>
+    );
+  }
+
+  if (task.isInMyFunction && !task.isOwner && !task.isAssignee) {
+    badges.push(
+      <span
+        key="function"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 rounded"
+        title="In your function"
+      >
+        <Building2 className="w-3 h-3" />
+        My Function
+      </span>
+    );
+  }
+
+  if (badges.length === 0) return null;
+
+  return <div className="flex items-center gap-1 mt-1">{badges}</div>;
 }
 
 // Empty state component
@@ -432,7 +520,7 @@ function QuickAddTask({
 
   return (
     <tr className="bg-blue-50 border-b border-blue-100">
-      <td className="px-4 py-2" colSpan={6}>
+      <td className="px-4 py-2" colSpan={7}>
         <div className="flex items-center gap-3 pl-6">
           <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
           <input
@@ -813,7 +901,7 @@ function EditInitiativeModal({
 }
 
 export default function MyTodos({ onBack }: MyTodosProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('assigned-to-me');
+  const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -821,6 +909,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const [addingTaskToInitiative, setAddingTaskToInitiative] = useState<string | null>(null);
   const [showNewInitiativeModal, setShowNewInitiativeModal] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<{ id: string; title: string; isPrivate: boolean; headerColor: string | null } | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useMyTodosQuery();
   const { data: personalInitiatives = [], refetch: refetchPersonal } = usePersonalInitiativesQuery();
@@ -861,26 +950,39 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     });
   };
 
-  const tabs = [
-    { id: 'assigned-to-me' as TabId, label: 'Assigned to Me', icon: User, count: stats.totalAssigned },
-    { id: 'created-by-me' as TabId, label: 'Created by Me', icon: Users, count: stats.totalCreated },
-    { id: 'assigned-by-me' as TabId, label: 'Assigned to Others', icon: Send, count: stats.totalAssignedByMe },
+  // Filter chips configuration
+  const filterChips = [
+    { id: 'all' as FilterId, label: 'All Tasks', icon: Eye, count: stats.totalTasks },
+    { id: 'i-own' as FilterId, label: 'I Own', icon: Crown, count: stats.totalOwned },
+    { id: 'assigned-to-me' as FilterId, label: 'Assigned to Me', icon: UserCheck, count: stats.totalAssigned },
+    { id: 'my-functions' as FilterId, label: 'My Functions', icon: Building2, count: stats.totalInMyFunctions },
   ];
 
-  // Get tasks for current tab
-  const getCurrentTasks = (): TaskWithDetails[] => {
-    if (!data) return [];
-    switch (activeTab) {
-      case 'assigned-to-me': return data.assignedToMe;
-      case 'created-by-me': return data.createdByMe;
-      case 'assigned-by-me': return data.assignedByMe;
-      default: return [];
+  // Get tasks based on active filter
+  const getFilteredByRole = (tasks: TaskWithDetails[]): TaskWithDetails[] => {
+    switch (activeFilter) {
+      case 'all':
+        return tasks;
+      case 'i-own':
+        return tasks.filter(t => t.isOwner);
+      case 'assigned-to-me':
+        return tasks.filter(t => t.isAssignee);
+      case 'my-functions':
+        return tasks.filter(t => t.isInMyFunction && !t.isOwner && !t.isAssignee);
+      default:
+        return tasks;
     }
   };
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
-    let tasks = getCurrentTasks();
+    if (!data?.tasks) return [];
+
+    // Start with all tasks from the unified array
+    let tasks = [...data.tasks];
+
+    // Apply role filter
+    tasks = getFilteredByRole(tasks);
 
     // Filter by search query
     if (searchQuery) {
@@ -888,7 +990,8 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       tasks = tasks.filter(t =>
         t.title.toLowerCase().includes(query) ||
         t.description?.toLowerCase().includes(query) ||
-        t.initiative?.title?.toLowerCase().includes(query)
+        t.initiative?.title?.toLowerCase().includes(query) ||
+        t.owner?.full_name?.toLowerCase().includes(query)
       );
     }
 
@@ -903,7 +1006,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     }
 
     return tasks;
-  }, [data, activeTab, searchQuery, filterStatus, showCompleted]);
+  }, [data, activeFilter, searchQuery, filterStatus, showCompleted]);
 
   // Group tasks by initiative, including personal initiatives with no tasks
   const tasksByInitiative = useMemo(() => {
@@ -976,7 +1079,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   }, [filteredTasks, personalInitiatives]);
 
   // Count active filters
-  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted;
+  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all';
 
   if (isLoading) {
     return (
@@ -1015,29 +1118,37 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-600 mb-1">
+            <Crown className="w-4 h-4 text-amber-500" />
+            <span className="text-sm">I Own</span>
+          </div>
+          <p className="text-2xl font-bold text-amber-600">{stats.totalOwned}</p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-600 mb-1">
+            <UserCheck className="w-4 h-4 text-blue-500" />
+            <span className="text-sm">Assigned to Me</span>
+          </div>
+          <p className="text-2xl font-bold text-blue-600">{stats.totalAssigned}</p>
+        </div>
+
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-2 text-gray-600 mb-1">
             <Clock className="w-4 h-4" />
             <span className="text-sm">In Progress</span>
           </div>
-          <p className="text-2xl font-bold text-blue-600">{stats.inProgressCount}</p>
+          <p className="text-2xl font-bold text-gray-700">{stats.inProgressCount}</p>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-2 text-gray-600 mb-1">
-            <CheckCircle2 className="w-4 h-4" />
-            <span className="text-sm">Completed This Week</span>
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <span className="text-sm">Done This Week</span>
           </div>
           <p className="text-2xl font-bold text-green-600">{stats.completedThisWeek}</p>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-600 mb-1">
-            <User className="w-4 h-4" />
-            <span className="text-sm">Assigned to Me</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.totalAssigned}</p>
         </div>
 
         {stats.overdueCount > 0 && (
@@ -1051,33 +1162,31 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-6">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  isActive
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{tab.label}</span>
-                <span className={`px-2 py-0.5 text-xs rounded-full ${
-                  isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Filter Chips */}
+      <div className="flex flex-wrap gap-2">
+        {filterChips.map((chip) => {
+          const Icon = chip.icon;
+          const isActive = activeFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setActiveFilter(chip.id)}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{chip.label}</span>
+              <span className={`px-2 py-0.5 text-xs rounded-full ${
+                isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {chip.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter Bar */}
@@ -1131,6 +1240,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           {hasActiveFilters && (
             <button
               onClick={() => {
+                setActiveFilter('all');
                 setSearchQuery('');
                 setFilterStatus('all');
                 setShowCompleted(false);
@@ -1154,11 +1264,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           message={
             hasActiveFilters
               ? "No tasks match your filters"
-              : activeTab === 'assigned-to-me'
-              ? "No tasks assigned to you"
-              : activeTab === 'created-by-me'
-              ? "You haven't created any tasks yet"
-              : "You haven't assigned any tasks to others"
+              : "No tasks yet. Create an initiative and add tasks!"
           }
         />
       ) : (
@@ -1170,6 +1276,9 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[250px]">
                     Task
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[120px]">
+                    Owner
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
                     Assignee(s)
                   </th>
@@ -1179,7 +1288,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
                     Due Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[200px]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[150px]">
                     Notes
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[80px]">
@@ -1204,7 +1313,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         className={`${bgClass} border-t-2 ${borderClass} cursor-pointer ${hoverClass} transition-colors`}
                         onClick={() => toggleInitiativeCollapse(initiativeId)}
                       >
-                        <td colSpan={6} className="px-4 py-2">
+                        <td colSpan={7} className="px-4 py-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               {isCollapsed ? (
@@ -1278,7 +1387,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                       {/* Empty Initiative Message */}
                       {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
                         <tr className="bg-gray-50">
-                          <td colSpan={6} className="px-4 py-6 text-center text-gray-500 text-sm">
+                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
                             <div className="flex flex-col items-center gap-2">
                               <span>No tasks yet. Click "+ Add Task" to create one.</span>
                             </div>
@@ -1293,46 +1402,59 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         return (
                           <tr
                             key={task.id}
-                            className={`border-b border-gray-200 hover:bg-gray-50 transition-colors group ${
+                            className={`border-b border-gray-200 hover:bg-blue-50 transition-colors group cursor-pointer ${
                               idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
                             } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''}`}
+                            onClick={() => setSelectedTaskId(task.id)}
                           >
-                            {/* Task Title with checkbox indicator */}
+                            {/* Task Title with checkbox indicator and role badges */}
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-3 pl-6">
-                                {/* Status circle */}
-                                <div
-                                  className={`w-4 h-4 rounded-full border-2 flex-shrink-0 cursor-pointer transition-colors ${
-                                    task.status === 'done'
-                                      ? 'bg-green-500 border-green-500'
-                                      : task.status === 'in_progress'
-                                      ? 'bg-blue-500 border-blue-500'
-                                      : task.status === 'blocked'
-                                      ? 'bg-red-500 border-red-500'
-                                      : 'border-gray-400 hover:border-green-500'
-                                  }`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (task.status !== 'done') {
-                                      handleStatusChange(task.id, 'done');
-                                    }
-                                  }}
-                                  title={task.status === 'done' ? 'Completed' : 'Click to complete'}
-                                >
-                                  {task.status === 'done' && (
-                                    <Check className="w-3 h-3 text-white m-auto" />
-                                  )}
-                                </div>
+                              <div className="pl-6">
+                                <div className="flex items-center gap-3">
+                                  {/* Status circle */}
+                                  <div
+                                    className={`w-4 h-4 rounded-full border-2 flex-shrink-0 cursor-pointer transition-colors ${
+                                      task.status === 'done'
+                                        ? 'bg-green-500 border-green-500'
+                                        : task.status === 'in_progress'
+                                        ? 'bg-blue-500 border-blue-500'
+                                        : task.status === 'blocked'
+                                        ? 'bg-red-500 border-red-500'
+                                        : 'border-gray-400 hover:border-green-500'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (task.status !== 'done') {
+                                        handleStatusChange(task.id, 'done');
+                                      }
+                                    }}
+                                    title={task.status === 'done' ? 'Completed' : 'Click to complete'}
+                                  >
+                                    {task.status === 'done' && (
+                                      <Check className="w-3 h-3 text-white m-auto" />
+                                    )}
+                                  </div>
 
-                                <InlineEditableText
-                                  value={task.title}
-                                  onSave={async (value) => {
-                                    await updateField.mutateAsync({ id: task.id, field: 'title', value });
-                                  }}
-                                  placeholder="Enter task..."
-                                  className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
-                                />
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <InlineEditableText
+                                      value={task.title}
+                                      onSave={async (value) => {
+                                        await updateField.mutateAsync({ id: task.id, field: 'title', value });
+                                      }}
+                                      placeholder="Enter task..."
+                                      className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="ml-7">
+                                  <RoleBadges task={task} />
+                                </div>
                               </div>
+                            </td>
+
+                            {/* Owner */}
+                            <td className="px-4 py-3">
+                              <OwnerDisplay task={task} />
                             </td>
 
                             {/* Assignees */}
@@ -1341,7 +1463,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                             </td>
 
                             {/* Status */}
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                               <InlineStatusDropdown
                                 status={task.status}
                                 onSave={async (value) => {
@@ -1351,7 +1473,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                             </td>
 
                             {/* Due Date */}
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                               <InlineDatePicker
                                 value={task.due_date}
                                 onSave={async (value) => {
@@ -1362,7 +1484,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                             </td>
 
                             {/* Notes */}
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                               <InlineEditableText
                                 value={task.notes || task.description}
                                 onSave={async (value) => {
@@ -1374,9 +1496,22 @@ export default function MyTodos({ onBack }: MyTodosProps) {
 
                             {/* Actions */}
                             <td className="px-4 py-3">
-                              <div className="flex items-center justify-center">
+                              <div className="flex items-center justify-center gap-1">
                                 <button
-                                  onClick={() => handleDeleteTask(task.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTaskId(task.id);
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                  title="View details"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTask(task.id);
+                                  }}
                                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                   title="Delete task"
                                 >
@@ -1416,6 +1551,14 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             refetch();
             refetchPersonal();
           }}
+        />
+      )}
+
+      {/* Task Detail Modal */}
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
         />
       )}
     </div>

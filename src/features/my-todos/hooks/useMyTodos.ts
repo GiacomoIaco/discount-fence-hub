@@ -27,6 +27,7 @@ export interface TaskWithDetails {
   notes: string | null;
   assigned_to: string | null;
   created_by: string | null;
+  owner_id: string | null;
   status: 'todo' | 'in_progress' | 'done' | 'blocked';
   due_date: string | null;
   sort_order: number;
@@ -38,6 +39,7 @@ export interface TaskWithDetails {
     id: string;
     title: string;
     area_id: string;
+    is_personal?: boolean;
     area?: {
       id: string;
       name: string;
@@ -48,38 +50,83 @@ export interface TaskWithDetails {
       };
     };
   };
+  owner?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
   assigned_user?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
   };
   assignees?: TaskAssignee[];
+  // Role indicators for current user
+  isOwner?: boolean;
+  isAssignee?: boolean;
+  isCreator?: boolean;
+  isInMyFunction?: boolean;
 }
 
 export interface MyTasksData {
+  tasks: TaskWithDetails[];
+  // Keep these for backwards compatibility during transition
   createdByMe: TaskWithDetails[];
   assignedToMe: TaskWithDetails[];
   assignedByMe: TaskWithDetails[];
 }
 
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
+
 export interface TaskStats {
-  totalCreated: number;
+  totalTasks: number;
+  totalOwned: number;
   totalAssigned: number;
-  totalAssignedByMe: number;
+  totalInMyFunctions: number;
   completedThisWeek: number;
   overdueCount: number;
   inProgressCount: number;
+  // Keep for backwards compatibility
+  totalCreated: number;
+  totalAssignedByMe: number;
 }
 
 // ============================================
 // QUERIES
 // ============================================
 
+// Task select query with all joined data
+const TASK_SELECT = `
+  *,
+  initiative:project_initiatives(
+    id, title, area_id, is_personal,
+    area:project_areas(
+      id, name,
+      function:project_functions(id, name, color)
+    )
+  ),
+  owner:user_profiles!project_tasks_owner_id_fkey(id, full_name, avatar_url),
+  assigned_user:user_profiles!project_tasks_assigned_to_fkey(id, full_name, avatar_url)
+`;
+
 /**
  * Fetch all tasks relevant to the current user:
- * - Tasks they created
+ * - Tasks they own (owner_id)
+ * - Tasks they created (created_by)
  * - Tasks assigned to them (via task_assignees or assigned_to)
- * - Tasks they assigned to others
+ * - Tasks in functions they own
  */
 export function useMyTodosQuery() {
   const { user } = useAuth();
@@ -89,42 +136,44 @@ export function useMyTodosQuery() {
     queryFn: async (): Promise<MyTasksData> => {
       if (!user) throw new Error('User not authenticated');
 
-      // Fetch tasks created by the user
+      // First, get functions the user owns
+      let myFunctionIds: string[] = [];
+      try {
+        const { data: functionOwnership } = await supabase
+          .from('project_function_owners')
+          .select('function_id')
+          .eq('user_id', user.id);
+        myFunctionIds = (functionOwnership || []).map(f => f.function_id);
+      } catch (e) {
+        console.warn('Failed to fetch function ownership:', e);
+      }
+
+      // Fetch tasks owned by the user
+      const { data: ownedByMe, error: ownedError } = await supabase
+        .from('project_tasks')
+        .select(TASK_SELECT)
+        .eq('owner_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (ownedError) {
+        console.warn('owner_id query failed:', ownedError);
+      }
+
+      // Fetch tasks created by the user (may overlap with owned)
       const { data: createdByMe, error: createdError } = await supabase
         .from('project_tasks')
-        .select(`
-          *,
-          initiative:project_initiatives(
-            id, title, area_id,
-            area:project_areas(
-              id, name,
-              function:project_functions(id, name, color)
-            )
-          ),
-          assigned_user:user_profiles!project_tasks_assigned_to_fkey(id, full_name, avatar_url)
-        `)
+        .select(TASK_SELECT)
         .eq('created_by', user.id)
         .order('updated_at', { ascending: false });
 
       if (createdError) {
-        // created_by column might not exist yet
         console.warn('created_by query failed:', createdError);
       }
 
       // Fetch tasks assigned to the user (via assigned_to)
       const { data: assignedToMe, error: assignedError } = await supabase
         .from('project_tasks')
-        .select(`
-          *,
-          initiative:project_initiatives(
-            id, title, area_id,
-            area:project_areas(
-              id, name,
-              function:project_functions(id, name, color)
-            )
-          ),
-          assigned_user:user_profiles!project_tasks_assigned_to_fkey(id, full_name, avatar_url)
-        `)
+        .select(TASK_SELECT)
         .eq('assigned_to', user.id)
         .order('updated_at', { ascending: false });
 
@@ -146,51 +195,30 @@ export function useMyTodosQuery() {
           if (additionalTaskIds.length > 0) {
             const { data: additionalTasks } = await supabase
               .from('project_tasks')
-              .select(`
-                *,
-                initiative:project_initiatives(
-                  id, title, area_id,
-                  area:project_areas(
-                    id, name,
-                    function:project_functions(id, name, color)
-                  )
-                ),
-                assigned_user:user_profiles!project_tasks_assigned_to_fkey(id, full_name, avatar_url)
-              `)
+              .select(TASK_SELECT)
               .in('id', additionalTaskIds);
 
             additionalAssignedTasks = additionalTasks || [];
           }
         }
       } catch (e) {
-        // task_assignees table might not exist yet
         console.warn('task_assignees query failed:', e);
       }
 
-      // Fetch tasks assigned by user to others (where user is in assigned_by of task_assignees)
+      // Fetch tasks assigned by user to others
       let assignedByMe: TaskWithDetails[] = [];
       try {
         const { data: assignedByMeLinks } = await supabase
           .from('task_assignees')
           .select('task_id')
           .eq('assigned_by', user.id)
-          .neq('user_id', user.id); // Not assigned to themselves
+          .neq('user_id', user.id);
 
         if (assignedByMeLinks && assignedByMeLinks.length > 0) {
           const taskIds = [...new Set(assignedByMeLinks.map(a => a.task_id))];
           const { data: tasks } = await supabase
             .from('project_tasks')
-            .select(`
-              *,
-              initiative:project_initiatives(
-                id, title, area_id,
-                area:project_areas(
-                  id, name,
-                  function:project_functions(id, name, color)
-                )
-              ),
-              assigned_user:user_profiles!project_tasks_assigned_to_fkey(id, full_name, avatar_url)
-            `)
+            .select(TASK_SELECT)
             .in('id', taskIds);
 
           assignedByMe = tasks || [];
@@ -199,7 +227,7 @@ export function useMyTodosQuery() {
         console.warn('assigned_by query failed:', e);
       }
 
-      // Merge assigned tasks (avoiding duplicates)
+      // Merge all assigned tasks
       const allAssignedToMe = [...(assignedToMe || [])];
       additionalAssignedTasks.forEach(task => {
         if (!allAssignedToMe.some(t => t.id === task.id)) {
@@ -207,15 +235,16 @@ export function useMyTodosQuery() {
         }
       });
 
-      // Fetch assignees for all tasks
-      const allTaskIds = [
-        ...(createdByMe || []).map(t => t.id),
-        ...allAssignedToMe.map(t => t.id),
-        ...assignedByMe.map(t => t.id),
-      ];
+      // Collect all unique task IDs
+      const allTaskIds = new Set<string>();
+      (ownedByMe || []).forEach(t => allTaskIds.add(t.id));
+      (createdByMe || []).forEach(t => allTaskIds.add(t.id));
+      allAssignedToMe.forEach(t => allTaskIds.add(t.id));
+      assignedByMe.forEach(t => allTaskIds.add(t.id));
 
+      // Fetch assignees for all tasks
       let assigneesMap: Record<string, TaskAssignee[]> = {};
-      if (allTaskIds.length > 0) {
+      if (allTaskIds.size > 0) {
         try {
           const { data: allAssignees } = await supabase
             .from('task_assignees')
@@ -223,7 +252,7 @@ export function useMyTodosQuery() {
               *,
               user:user_profiles!task_assignees_user_id_fkey(id, full_name, avatar_url)
             `)
-            .in('task_id', allTaskIds);
+            .in('task_id', Array.from(allTaskIds));
 
           if (allAssignees) {
             allAssignees.forEach(a => {
@@ -238,14 +267,55 @@ export function useMyTodosQuery() {
         }
       }
 
-      // Attach assignees to tasks
-      const attachAssignees = (tasks: TaskWithDetails[]) =>
-        tasks.map(task => ({
+      // Build task map with role indicators
+      const taskMap = new Map<string, TaskWithDetails>();
+
+      const processTask = (task: TaskWithDetails, roles: { isOwner?: boolean; isCreator?: boolean; isAssignee?: boolean }) => {
+        const existing = taskMap.get(task.id);
+        const functionId = task.initiative?.area?.function?.id;
+        const isInMyFunction = functionId ? myFunctionIds.includes(functionId) : false;
+
+        if (existing) {
+          // Merge role indicators
+          taskMap.set(task.id, {
+            ...existing,
+            isOwner: existing.isOwner || roles.isOwner || false,
+            isCreator: existing.isCreator || roles.isCreator || false,
+            isAssignee: existing.isAssignee || roles.isAssignee || false,
+            isInMyFunction: existing.isInMyFunction || isInMyFunction,
+          });
+        } else {
+          taskMap.set(task.id, {
+            ...task,
+            assignees: assigneesMap[task.id] || [],
+            isOwner: roles.isOwner || task.owner_id === user.id || false,
+            isCreator: roles.isCreator || task.created_by === user.id || false,
+            isAssignee: roles.isAssignee || false,
+            isInMyFunction,
+          });
+        }
+      };
+
+      // Process all task sources
+      (ownedByMe || []).forEach(t => processTask(t, { isOwner: true }));
+      (createdByMe || []).forEach(t => processTask(t, { isCreator: true }));
+      allAssignedToMe.forEach(t => processTask(t, { isAssignee: true }));
+      assignedByMe.forEach(t => processTask(t, {})); // Delegated tasks
+
+      // Convert to array sorted by updated_at
+      const tasks = Array.from(taskMap.values()).sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+
+      // Also build legacy arrays for backwards compatibility
+      const attachAssignees = (taskList: TaskWithDetails[]) =>
+        taskList.map(task => ({
           ...task,
           assignees: assigneesMap[task.id] || [],
         }));
 
       return {
+        tasks,
         createdByMe: attachAssignees(createdByMe || []),
         assignedToMe: attachAssignees(allAssignedToMe),
         assignedByMe: attachAssignees(assignedByMe),
@@ -258,55 +328,60 @@ export function useMyTodosQuery() {
 /**
  * Calculate stats for the user's tasks
  */
-export function useMyTodosStats() {
+export function useMyTodosStats(): TaskStats {
   const { data } = useMyTodosQuery();
 
   if (!data) {
     return {
-      totalCreated: 0,
+      totalTasks: 0,
+      totalOwned: 0,
       totalAssigned: 0,
-      totalAssignedByMe: 0,
+      totalInMyFunctions: 0,
       completedThisWeek: 0,
       overdueCount: 0,
       inProgressCount: 0,
+      // Legacy
+      totalCreated: 0,
+      totalAssignedByMe: 0,
     };
   }
 
-  // Calculate stats
+  const { tasks } = data;
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  // Combine all tasks (deduplicated by id)
-  const allTasksMap = new Map<string, TaskWithDetails>();
-  [...data.createdByMe, ...data.assignedToMe, ...data.assignedByMe].forEach(task => {
-    allTasksMap.set(task.id, task);
-  });
-  const allTasks = Array.from(allTasksMap.values());
+  // Count by role
+  const totalOwned = tasks.filter(t => t.isOwner).length;
+  const totalAssigned = tasks.filter(t => t.isAssignee).length;
+  const totalInMyFunctions = tasks.filter(t => t.isInMyFunction && !t.isOwner && !t.isAssignee).length;
 
-  const completedThisWeek = allTasks.filter(task => {
+  const completedThisWeek = tasks.filter(task => {
     if (task.status !== 'done') return false;
     const completedAt = task.completed_at ? new Date(task.completed_at) : new Date(task.updated_at);
     return completedAt >= weekAgo;
   }).length;
 
-  const inProgressCount = allTasks.filter(task =>
+  const inProgressCount = tasks.filter(task =>
     task.status === 'in_progress'
   ).length;
 
-  // Check for overdue tasks (past due_date and not done)
-  const overdueCount = allTasks.filter(task => {
+  const overdueCount = tasks.filter(task => {
     if (task.status === 'done') return false;
     if (!task.due_date) return false;
     return new Date(task.due_date) < now;
   }).length;
 
   return {
-    totalCreated: data.createdByMe.length,
-    totalAssigned: data.assignedToMe.length,
-    totalAssignedByMe: data.assignedByMe.length,
+    totalTasks: tasks.length,
+    totalOwned,
+    totalAssigned,
+    totalInMyFunctions,
     completedThisWeek,
     overdueCount,
     inProgressCount,
+    // Legacy
+    totalCreated: data.createdByMe.length,
+    totalAssignedByMe: data.assignedByMe.length,
   };
 }
 
@@ -429,7 +504,7 @@ export function useCreateTask() {
     }) => {
       if (!user) throw new Error('User not authenticated');
 
-      // Create the task
+      // Create the task (owner defaults to creator)
       const { data: task, error } = await supabase
         .from('project_tasks')
         .insert({
@@ -440,6 +515,7 @@ export function useCreateTask() {
           status: 'todo',
           sort_order: 0,
           created_by: user.id,
+          owner_id: user.id, // Owner defaults to creator
         })
         .select()
         .single();
@@ -697,6 +773,225 @@ export function useArchivePersonalInitiative() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personal-initiatives'] });
       queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
+  });
+}
+
+// ============================================
+// TASK COMMENTS
+// ============================================
+
+/**
+ * Fetch comments for a specific task
+ */
+export function useTaskCommentsQuery(taskId: string | null) {
+  return useQuery({
+    queryKey: ['task-comments', taskId],
+    queryFn: async (): Promise<TaskComment[]> => {
+      if (!taskId) return [];
+
+      const { data, error } = await supabase
+        .from('task_comments')
+        .select(`
+          *,
+          user:user_profiles!task_comments_user_id_fkey(id, full_name, avatar_url)
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('task_comments query failed:', error);
+        return [];
+      }
+
+      return data || [];
+    },
+    enabled: !!taskId,
+  });
+}
+
+/**
+ * Add a comment to a task
+ */
+export function useAddTaskComment() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ taskId, content }: { taskId: string; content: string }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('task_comments')
+        .insert({
+          task_id: taskId,
+          user_id: user.id,
+          content,
+        })
+        .select(`
+          *,
+          user:user_profiles!task_comments_user_id_fkey(id, full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
+  });
+}
+
+/**
+ * Delete a comment from a task
+ */
+export function useDeleteTaskComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ commentId, taskId }: { commentId: string; taskId: string }) => {
+      const { error } = await supabase
+        .from('task_comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) throw error;
+      return { commentId, taskId };
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
+    },
+  });
+}
+
+// ============================================
+// TASK OWNER AND ASSIGNEES
+// ============================================
+
+/**
+ * Transfer task ownership to another user
+ */
+export function useUpdateTaskOwner() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ taskId, newOwnerId }: { taskId: string; newOwnerId: string }) => {
+      const { data, error } = await supabase
+        .from('project_tasks')
+        .update({ owner_id: newOwnerId, updated_at: new Date().toISOString() })
+        .eq('id', taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+    },
+  });
+}
+
+/**
+ * Add an assignee to a task
+ */
+export function useAddTaskAssignee() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ taskId, userId }: { taskId: string; userId: string }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      // Check if already assigned
+      const { data: existing } = await supabase
+        .from('task_assignees')
+        .select('id')
+        .eq('task_id', taskId)
+        .eq('user_id', userId)
+        .single();
+
+      if (existing) {
+        return existing; // Already assigned
+      }
+
+      const { data, error } = await supabase
+        .from('task_assignees')
+        .insert({
+          task_id: taskId,
+          user_id: userId,
+          assigned_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Also update assigned_to for backward compatibility (if first assignee)
+      const { data: allAssignees } = await supabase
+        .from('task_assignees')
+        .select('id')
+        .eq('task_id', taskId);
+
+      if (allAssignees && allAssignees.length === 1) {
+        await supabase
+          .from('project_tasks')
+          .update({ assigned_to: userId })
+          .eq('id', taskId);
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+    },
+  });
+}
+
+/**
+ * Remove an assignee from a task
+ */
+export function useRemoveTaskAssignee() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ taskId, userId }: { taskId: string; userId: string }) => {
+      const { error } = await supabase
+        .from('task_assignees')
+        .delete()
+        .eq('task_id', taskId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      // Update assigned_to for backward compatibility
+      const { data: remainingAssignees } = await supabase
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', taskId)
+        .limit(1);
+
+      if (remainingAssignees && remainingAssignees.length > 0) {
+        await supabase
+          .from('project_tasks')
+          .update({ assigned_to: remainingAssignees[0].user_id })
+          .eq('id', taskId);
+      } else {
+        await supabase
+          .from('project_tasks')
+          .update({ assigned_to: null })
+          .eq('id', taskId);
+      }
+
+      return { taskId, userId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
     },
   });
 }
