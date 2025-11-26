@@ -615,3 +615,63 @@ export function useUpdatePersonalInitiative() {
     },
   });
 }
+
+/**
+ * Reorder personal initiatives
+ */
+export function useReorderPersonalInitiatives() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (initiatives: { id: string; sort_order: number }[]) => {
+      const updates = initiatives.map(({ id, sort_order }) =>
+        supabase
+          .from('project_initiatives')
+          .update({ sort_order })
+          .eq('id', id)
+      );
+
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+
+      if (errors.length > 0) {
+        throw new Error(`Failed to update ${errors.length} initiative(s)`);
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personal-initiatives'] });
+    },
+  });
+}
+
+/**
+ * Reorder tasks within an initiative
+ */
+export function useReorderTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tasks: { id: string; sort_order: number }[]) => {
+      const updates = tasks.map(({ id, sort_order }) =>
+        supabase
+          .from('project_tasks')
+          .update({ sort_order })
+          .eq('id', id)
+      );
+
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+
+      if (errors.length > 0) {
+        throw new Error(`Failed to update ${errors.length} task(s)`);
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
+  });
+}
