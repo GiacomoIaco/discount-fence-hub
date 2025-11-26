@@ -1,9 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, MessageSquare, Calendar, Edit3, Check, Loader2 } from 'lucide-react';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField } from '../hooks/useMyTodos';
-import { useInitiativeCommentsQuery, useAddComment } from '../hooks/useInitiativeComments';
-import TaskDetailModal from './TaskDetailModal';
-import type { InitiativeWithDetails } from '../../leadership/lib/leadership';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2 } from 'lucide-react';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, type TaskWithDetails } from '../hooks/useMyTodos';
 
 interface MyTodosProps {
   onBack: () => void;
@@ -21,56 +18,60 @@ const getInitials = (fullName: string): string => {
     .slice(0, 2);
 };
 
-
-// Priority indicator
-function PriorityIndicator({ priority }: { priority: string }) {
-  if (priority === 'high') {
-    return <span className="text-orange-500 text-sm font-bold" title="High Priority">!!!</span>;
-  }
-  return null;
-}
-
-// Empty state component
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="text-center py-12 text-gray-500">
-      <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-      <p>{message}</p>
-    </div>
-  );
-}
+// Generate consistent color from user ID
+const getAvatarColor = (userId: string): string => {
+  const colors = [
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-purple-500',
+    'bg-orange-500',
+    'bg-pink-500',
+    'bg-teal-500',
+    'bg-indigo-500',
+    'bg-red-500',
+  ];
+  const hash = userId.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
+  return colors[hash % colors.length];
+};
 
 // Format date for display
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString();
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // Check if task is overdue
-function isOverdue(task: InitiativeWithDetails): boolean {
-  if (!task.target_date) return false;
-  if (task.status === 'completed' || task.status === 'cancelled') return false;
-  return new Date(task.target_date) < new Date();
+function isOverdue(task: TaskWithDetails): boolean {
+  if (!task.due_date) return false;
+  if (task.status === 'done') return false;
+  return new Date(task.due_date) < new Date();
 }
+
+// Status options for tasks
+const statusOptions = [
+  { value: 'todo', label: 'To Do', bg: 'bg-gray-100', text: 'text-gray-700' },
+  { value: 'in_progress', label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700' },
+  { value: 'done', label: 'Done', bg: 'bg-green-100', text: 'text-green-700' },
+  { value: 'blocked', label: 'Blocked', bg: 'bg-red-100', text: 'text-red-700' },
+];
 
 // Inline editable text component
 function InlineEditableText({
   value,
   onSave,
-  placeholder = 'Click to edit...',
-  multiline = false,
+  placeholder = 'Click to add...',
   className = '',
 }: {
   value: string | null | undefined;
   onSave: (value: string) => Promise<void>;
   placeholder?: string;
-  multiline?: boolean;
   className?: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value || '');
   const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -95,7 +96,7 @@ function InlineEditableText({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !multiline) {
+    if (e.key === 'Enter') {
       e.preventDefault();
       handleSave();
     }
@@ -106,19 +107,15 @@ function InlineEditableText({
   };
 
   if (isEditing) {
-    const InputComponent = multiline ? 'textarea' : 'input';
     return (
       <div className="flex items-center gap-1">
-        <InputComponent
-          ref={inputRef as any}
+        <input
+          ref={inputRef}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className={`w-full px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-            multiline ? 'resize-none min-h-[60px]' : ''
-          } ${className}`}
-          rows={multiline ? 2 : undefined}
+          className={`w-full px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none ${className}`}
           disabled={isSaving}
         />
         {isSaving && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
@@ -132,7 +129,7 @@ function InlineEditableText({
         e.stopPropagation();
         setIsEditing(true);
       }}
-      className={`group cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 -mx-1 transition-colors ${className}`}
+      className={`group cursor-pointer hover:bg-blue-50 rounded px-2 py-1 -mx-1 transition-colors ${className}`}
     >
       {value ? (
         <span className="text-sm text-gray-700">{value}</span>
@@ -201,17 +198,16 @@ function InlineDatePicker({
         e.stopPropagation();
         setIsEditing(true);
       }}
-      className={`group cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 -mx-1 transition-colors flex items-center gap-1 ${
+      className={`group cursor-pointer hover:bg-blue-50 rounded px-2 py-1 -mx-1 transition-colors ${
         isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'
       }`}
     >
-      <Calendar className="w-3 h-3" />
       {value ? (
         <span className="text-sm">{formatDate(value)}</span>
       ) : (
-        <span className="text-sm text-gray-400">Set date</span>
+        <span className="text-sm text-gray-400">-</span>
       )}
-      <Edit3 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Edit3 className="w-3 h-3 text-gray-400 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
   );
 }
@@ -227,15 +223,6 @@ function InlineStatusDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const statusOptions = [
-    { value: 'not_started', label: 'Not Started', bg: 'bg-gray-100', text: 'text-gray-700' },
-    { value: 'active', label: 'Active', bg: 'bg-blue-100', text: 'text-blue-700' },
-    { value: 'on_hold', label: 'On Hold', bg: 'bg-yellow-100', text: 'text-yellow-700' },
-    { value: 'at_risk', label: 'At Risk', bg: 'bg-red-100', text: 'text-red-700' },
-    { value: 'completed', label: 'Completed', bg: 'bg-green-100', text: 'text-green-700' },
-    { value: 'cancelled', label: 'Cancelled', bg: 'bg-gray-100', text: 'text-gray-500' },
-  ];
 
   const currentOption = statusOptions.find(o => o.value === status) || statusOptions[0];
 
@@ -285,7 +272,7 @@ function InlineStatusDropdown({
         )}
       </button>
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+        <div className="absolute z-50 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
           {statusOptions.map((option) => (
             <button
               key={option.value}
@@ -308,182 +295,109 @@ function InlineStatusDropdown({
   );
 }
 
-// Inline comment preview with quick add
-function InlineCommentCell({
-  taskId,
-  onOpenComments,
-}: {
-  taskId: string;
-  onOpenComments: () => void;
-}) {
-  const { data: comments } = useInitiativeCommentsQuery(taskId);
-  const addComment = useAddComment();
-  const [isAdding, setIsAdding] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+// Assignees display component
+function AssigneesDisplay({ task }: { task: TaskWithDetails }) {
+  // Use assignees array if available, otherwise fall back to assigned_user
+  const assignees = task.assignees?.length
+    ? task.assignees
+    : task.assigned_user
+      ? [{ user_id: task.assigned_user.id, user: task.assigned_user }]
+      : [];
 
-  const latestComment = comments?.[comments.length - 1];
-
-  useEffect(() => {
-    if (isAdding && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isAdding]);
-
-  const handleSubmit = async () => {
-    if (!newComment.trim()) {
-      setIsAdding(false);
-      return;
-    }
-    try {
-      await addComment.mutateAsync({ initiativeId: taskId, content: newComment.trim() });
-      setNewComment('');
-      setIsAdding(false);
-    } catch (err) {
-      console.error('Failed to add comment:', err);
-    }
-  };
-
-  if (isAdding) {
+  if (assignees.length === 0) {
     return (
-      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmit();
-            if (e.key === 'Escape') {
-              setNewComment('');
-              setIsAdding(false);
-            }
-          }}
-          onBlur={() => {
-            if (!newComment.trim()) setIsAdding(false);
-          }}
-          placeholder="Type comment..."
-          className="flex-1 px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none min-w-[150px]"
-          disabled={addComment.isPending}
-        />
-        <button
-          onClick={handleSubmit}
-          disabled={addComment.isPending || !newComment.trim()}
-          className="p-1 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
-        >
-          {addComment.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Check className="w-4 h-4" />
-          )}
-        </button>
+      <div className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
+        <User className="w-3 h-3 text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-        setIsAdding(true);
-      }}
-      className="group cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 -mx-1 transition-colors"
-    >
-      {latestComment ? (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600 truncate max-w-[150px]" title={latestComment.content}>
-            {latestComment.content}
-          </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenComments();
-            }}
-            className="text-xs text-blue-600 hover:underline whitespace-nowrap"
-          >
-            {comments && comments.length > 1 ? `+${comments.length - 1} more` : 'View'}
-          </button>
+    <div className="flex -space-x-2">
+      {assignees.slice(0, 3).map((assignee, idx) => (
+        <div
+          key={assignee.user_id || idx}
+          className={`w-7 h-7 rounded-full ${getAvatarColor(assignee.user_id || '')} text-white text-xs font-medium flex items-center justify-center ring-2 ring-white`}
+          title={assignee.user?.full_name || 'Unknown'}
+        >
+          {assignee.user?.avatar_url ? (
+            <img
+              src={assignee.user.avatar_url}
+              alt={assignee.user.full_name}
+              className="w-full h-full rounded-full object-cover"
+            />
+          ) : (
+            getInitials(assignee.user?.full_name || 'U')
+          )}
         </div>
-      ) : (
-        <span className="text-sm text-gray-400 italic flex items-center gap-1">
-          <MessageSquare className="w-3 h-3" />
-          Add comment
-        </span>
+      ))}
+      {assignees.length > 3 && (
+        <div className="w-7 h-7 rounded-full bg-gray-400 text-white text-xs font-medium flex items-center justify-center ring-2 ring-white">
+          +{assignees.length - 3}
+        </div>
       )}
+    </div>
+  );
+}
+
+// Empty state component
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-12 text-gray-500">
+      <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+      <p>{message}</p>
     </div>
   );
 }
 
 export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeTab, setActiveTab] = useState<TabId>('assigned-to-me');
-  const [selectedTask, setSelectedTask] = useState<InitiativeWithDetails | null>(null);
-  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showCompleted, setShowCompleted] = useState(false);
+
   const { data, isLoading, error } = useMyTodosQuery();
   const stats = useMyTodosStats();
   const updateStatus = useUpdateTaskStatus();
   const updateField = useUpdateTaskField();
+  const deleteTask = useDeleteTask();
 
   const handleStatusChange = async (taskId: string, status: string) => {
     await updateStatus.mutateAsync({ id: taskId, status });
   };
 
-  const handleOpenTask = (task: InitiativeWithDetails) => {
-    setSelectedTask(task);
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+    await deleteTask.mutateAsync(taskId);
   };
 
-  const handleQuickComplete = async (e: React.MouseEvent, taskId: string) => {
-    e.stopPropagation();
-    await handleStatusChange(taskId, 'completed');
-  };
-
-  const toggleAreaCollapse = (areaId: string) => {
-    setCollapsedAreas(prev => {
+  const toggleInitiativeCollapse = (initiativeId: string) => {
+    setCollapsedInitiatives(prev => {
       const next = new Set(prev);
-      if (next.has(areaId)) {
-        next.delete(areaId);
+      if (next.has(initiativeId)) {
+        next.delete(initiativeId);
       } else {
-        next.add(areaId);
+        next.add(initiativeId);
       }
       return next;
     });
   };
 
   const tabs = [
-    {
-      id: 'assigned-to-me' as TabId,
-      label: 'Assigned to Me',
-      icon: User,
-      count: stats.totalAssigned,
-    },
-    {
-      id: 'created-by-me' as TabId,
-      label: 'Created by Me',
-      icon: Users,
-      count: stats.totalCreated,
-    },
-    {
-      id: 'assigned-by-me' as TabId,
-      label: 'Assigned to Others',
-      icon: Send,
-      count: stats.totalAssignedByMe,
-    },
+    { id: 'assigned-to-me' as TabId, label: 'Assigned to Me', icon: User, count: stats.totalAssigned },
+    { id: 'created-by-me' as TabId, label: 'Created by Me', icon: Users, count: stats.totalCreated },
+    { id: 'assigned-by-me' as TabId, label: 'Assigned to Others', icon: Send, count: stats.totalAssignedByMe },
   ];
 
   // Get tasks for current tab
-  const getCurrentTasks = (): InitiativeWithDetails[] => {
+  const getCurrentTasks = (): TaskWithDetails[] => {
     if (!data) return [];
     switch (activeTab) {
-      case 'assigned-to-me':
-        return data.assignedToMe;
-      case 'created-by-me':
-        return data.createdByMe;
-      case 'assigned-by-me':
-        return data.assignedByMe;
-      default:
-        return [];
+      case 'assigned-to-me': return data.assignedToMe;
+      case 'created-by-me': return data.createdByMe;
+      case 'assigned-by-me': return data.assignedByMe;
+      default: return [];
     }
   };
 
@@ -497,7 +411,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       tasks = tasks.filter(t =>
         t.title.toLowerCase().includes(query) ||
         t.description?.toLowerCase().includes(query) ||
-        t.area?.name?.toLowerCase().includes(query)
+        t.initiative?.title?.toLowerCase().includes(query)
       );
     }
 
@@ -508,42 +422,45 @@ export default function MyTodos({ onBack }: MyTodosProps) {
 
     // Hide completed unless toggled
     if (!showCompleted) {
-      tasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
+      tasks = tasks.filter(t => t.status !== 'done');
     }
 
     return tasks;
   }, [data, activeTab, searchQuery, filterStatus, showCompleted]);
 
-  // Group tasks by area with function info
-  const tasksByArea = useMemo(() => {
+  // Group tasks by initiative
+  const tasksByInitiative = useMemo(() => {
     const grouped = new Map<string, {
-      areaId: string;
-      areaName: string;
+      initiativeId: string;
+      initiativeTitle: string;
       functionName: string;
-      tasks: InitiativeWithDetails[];
+      areaName: string;
+      tasks: TaskWithDetails[];
     }>();
 
     filteredTasks.forEach(task => {
-      const areaId = task.area?.id || 'no-area';
-      const areaName = task.area?.name || 'No Area';
-      const functionName = (task.area as any)?.function?.name || 'Uncategorized';
+      const initiativeId = task.initiative_id || 'no-initiative';
+      const initiativeTitle = task.initiative?.title || 'No Initiative';
+      const areaName = task.initiative?.area?.name || '';
+      const functionName = task.initiative?.area?.function?.name || 'Uncategorized';
 
-      if (!grouped.has(areaId)) {
-        grouped.set(areaId, {
-          areaId,
-          areaName,
+      if (!grouped.has(initiativeId)) {
+        grouped.set(initiativeId, {
+          initiativeId,
+          initiativeTitle,
           functionName,
+          areaName,
           tasks: [],
         });
       }
-      grouped.get(areaId)!.tasks.push(task);
+      grouped.get(initiativeId)!.tasks.push(task);
     });
 
-    // Sort by function name then area name
+    // Sort by function name then initiative title
     return Array.from(grouped.values()).sort((a, b) => {
       const funcCompare = a.functionName.localeCompare(b.functionName);
       if (funcCompare !== 0) return funcCompare;
-      return a.areaName.localeCompare(b.areaName);
+      return a.initiativeTitle.localeCompare(b.initiativeTitle);
     });
   }, [filteredTasks]);
 
@@ -571,10 +488,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
+        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-3xl font-bold text-gray-900">My To-Dos</h1>
@@ -623,7 +537,6 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-
             return (
               <button
                 key={tab.id}
@@ -677,10 +590,9 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">All Statuses</option>
-            <option value="not_started">Not Started</option>
-            <option value="active">Active</option>
-            <option value="on_hold">On Hold</option>
-            <option value="at_risk">At Risk</option>
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="blocked">Blocked</option>
           </select>
 
           {/* Show Completed Toggle */}
@@ -735,28 +647,20 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b-2 border-gray-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[200px]">
-                    Initiative / Task
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[180px]">
-                    Description
-                  </th>
-                  {activeTab !== 'assigned-to-me' && (
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
-                      Assignee
-                    </th>
-                  )}
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
-                    Target Date
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[250px]">
+                    Task
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
+                    Assignee(s)
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[110px]">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[180px]">
-                    Notes / Progress
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
+                    Due Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[180px]">
-                    Latest Comment
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[200px]">
+                    Notes
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[80px]">
                     Actions
@@ -764,27 +668,31 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                 </tr>
               </thead>
               <tbody>
-                {tasksByArea.map(({ areaId, areaName, functionName, tasks }) => {
-                  const isCollapsed = collapsedAreas.has(areaId);
+                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks }) => {
+                  const isCollapsed = collapsedInitiatives.has(initiativeId);
 
                   return (
                     <>
-                      {/* Area Header Row */}
+                      {/* Initiative Header Row (like Area header in Initiatives tab) */}
                       <tr
-                        key={`area-${areaId}`}
+                        key={`initiative-${initiativeId}`}
                         className="bg-blue-900 border-t-2 border-blue-700 cursor-pointer hover:bg-blue-800 transition-colors"
-                        onClick={() => toggleAreaCollapse(areaId)}
+                        onClick={() => toggleInitiativeCollapse(initiativeId)}
                       >
-                        <td colSpan={activeTab !== 'assigned-to-me' ? 8 : 7} className="px-4 py-2">
+                        <td colSpan={6} className="px-4 py-2">
                           <div className="flex items-center gap-2">
                             {isCollapsed ? (
                               <ChevronRight className="w-4 h-4 text-white" />
                             ) : (
                               <ChevronDown className="w-4 h-4 text-white" />
                             )}
-                            <span className="font-semibold text-white">{functionName}</span>
-                            <span className="text-blue-200">/</span>
-                            <span className="font-medium text-blue-100">{areaName}</span>
+                            <span className="font-semibold text-white">{initiativeTitle}</span>
+                            {areaName && (
+                              <>
+                                <span className="text-blue-300">•</span>
+                                <span className="text-blue-200 text-sm">{functionName} / {areaName}</span>
+                              </>
+                            )}
                             <span className="text-sm text-blue-200 ml-2">
                               ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
                             </span>
@@ -799,64 +707,51 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         return (
                           <tr
                             key={task.id}
-                            className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
+                            className={`border-b border-gray-200 hover:bg-gray-50 transition-colors group ${
                               idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
                             } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''}`}
                           >
-                            {/* Initiative / Task */}
+                            {/* Task Title with checkbox indicator */}
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <PriorityIndicator priority={task.priority} />
+                              <div className="flex items-center gap-3 pl-6">
+                                {/* Status circle */}
+                                <div
+                                  className={`w-4 h-4 rounded-full border-2 flex-shrink-0 cursor-pointer transition-colors ${
+                                    task.status === 'done'
+                                      ? 'bg-green-500 border-green-500'
+                                      : task.status === 'in_progress'
+                                      ? 'bg-blue-500 border-blue-500'
+                                      : task.status === 'blocked'
+                                      ? 'bg-red-500 border-red-500'
+                                      : 'border-gray-400 hover:border-green-500'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (task.status !== 'done') {
+                                      handleStatusChange(task.id, 'done');
+                                    }
+                                  }}
+                                  title={task.status === 'done' ? 'Completed' : 'Click to complete'}
+                                >
+                                  {task.status === 'done' && (
+                                    <Check className="w-3 h-3 text-white m-auto" />
+                                  )}
+                                </div>
+
                                 <InlineEditableText
                                   value={task.title}
                                   onSave={async (value) => {
                                     await updateField.mutateAsync({ id: task.id, field: 'title', value });
                                   }}
-                                  placeholder="Enter title..."
-                                  className="font-medium text-gray-900"
+                                  placeholder="Enter task..."
+                                  className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
                                 />
                               </div>
                             </td>
 
-                            {/* Description */}
+                            {/* Assignees */}
                             <td className="px-4 py-3">
-                              <InlineEditableText
-                                value={task.description}
-                                onSave={async (value) => {
-                                  await updateField.mutateAsync({ id: task.id, field: 'description', value });
-                                }}
-                                placeholder="Add description..."
-                                multiline
-                              />
-                            </td>
-
-                            {/* Assignee (only show if not "assigned to me" tab) */}
-                            {activeTab !== 'assigned-to-me' && (
-                              <td className="px-4 py-3">
-                                {task.assigned_user ? (
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
-                                      {getInitials(task.assigned_user.full_name)}
-                                    </div>
-                                    <span className="text-sm text-gray-700">
-                                      {task.assigned_user.full_name.split(' ')[0]}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className="text-sm text-gray-400 italic">Unassigned</span>
-                                )}
-                              </td>
-                            )}
-
-                            {/* Target Date */}
-                            <td className="px-4 py-3">
-                              <InlineDatePicker
-                                value={task.target_date}
-                                onSave={async (value) => {
-                                  await updateField.mutateAsync({ id: task.id, field: 'target_date', value });
-                                }}
-                                isOverdue={taskOverdue}
-                              />
+                              <AssigneesDisplay task={task} />
                             </td>
 
                             {/* Status */}
@@ -869,57 +764,37 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                               />
                             </td>
 
-                            {/* Notes / Progress */}
+                            {/* Due Date */}
                             <td className="px-4 py-3">
-                              <div className="space-y-1">
-                                <InlineEditableText
-                                  value={task.this_week}
-                                  onSave={async (value) => {
-                                    await updateField.mutateAsync({ id: task.id, field: 'this_week', value });
-                                  }}
-                                  placeholder="Add progress update..."
-                                  multiline
-                                />
-                                {task.progress_percent !== undefined && task.progress_percent > 0 && (
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[100px]">
-                                      <div
-                                        className="bg-blue-600 h-1.5 rounded-full"
-                                        style={{ width: `${Math.min(task.progress_percent, 100)}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-xs text-gray-500">{task.progress_percent}%</span>
-                                  </div>
-                                )}
-                              </div>
+                              <InlineDatePicker
+                                value={task.due_date}
+                                onSave={async (value) => {
+                                  await updateField.mutateAsync({ id: task.id, field: 'due_date', value });
+                                }}
+                                isOverdue={taskOverdue}
+                              />
                             </td>
 
-                            {/* Comments */}
+                            {/* Notes */}
                             <td className="px-4 py-3">
-                              <InlineCommentCell
-                                taskId={task.id}
-                                onOpenComments={() => handleOpenTask(task)}
+                              <InlineEditableText
+                                value={task.notes || task.description}
+                                onSave={async (value) => {
+                                  await updateField.mutateAsync({ id: task.id, field: 'notes', value });
+                                }}
+                                placeholder="Add notes..."
                               />
                             </td>
 
                             {/* Actions */}
                             <td className="px-4 py-3">
-                              <div className="flex items-center justify-center gap-1">
-                                {task.status !== 'completed' && task.status !== 'cancelled' && (
-                                  <button
-                                    onClick={(e) => handleQuickComplete(e, task.id)}
-                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                    title="Mark as completed"
-                                  >
-                                    <CheckCircle2 className="w-5 h-5" />
-                                  </button>
-                                )}
+                              <div className="flex items-center justify-center">
                                 <button
-                                  onClick={() => handleOpenTask(task)}
-                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                  title="View all details"
+                                  onClick={() => handleDeleteTask(task.id)}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                  title="Delete task"
                                 >
-                                  <ChevronRight className="w-5 h-5" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </td>
@@ -933,14 +808,6 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             </table>
           </div>
         </div>
-      )}
-
-      {/* Task Detail Modal */}
-      {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-        />
       )}
     </div>
   );
