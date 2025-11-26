@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2 } from 'lucide-react';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, type TaskWithDetails } from '../hooks/useMyTodos';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus } from 'lucide-react';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, type TaskWithDetails } from '../hooks/useMyTodos';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface MyTodosProps {
   onBack: () => void;
@@ -350,14 +351,180 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
+// Quick add task row component
+function QuickAddTask({
+  initiativeId,
+  onCancel,
+  onSuccess,
+}: {
+  initiativeId: string;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const createTask = useCreateTask();
+  const { user } = useAuth();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!title.trim()) {
+      onCancel();
+      return;
+    }
+    try {
+      await createTask.mutateAsync({
+        initiative_id: initiativeId,
+        title: title.trim(),
+        assignees: user ? [user.id] : [], // Auto-assign to self
+      });
+      setTitle('');
+      onSuccess();
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    }
+  };
+
+  return (
+    <tr className="bg-blue-50 border-b border-blue-100">
+      <td className="px-4 py-2" colSpan={6}>
+        <div className="flex items-center gap-3 pl-6">
+          <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+              if (e.key === 'Escape') onCancel();
+            }}
+            onBlur={() => {
+              if (!title.trim()) onCancel();
+            }}
+            placeholder="Enter task title and press Enter..."
+            className="flex-1 px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            disabled={createTask.isPending}
+          />
+          {createTask.isPending && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+          <button
+            onClick={handleSubmit}
+            disabled={createTask.isPending || !title.trim()}
+            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            Add
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+          >
+            Cancel
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// New initiative modal
+function NewInitiativeModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const createInitiative = useCreatePersonalInitiative();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      await createInitiative.mutateAsync({
+        title: title.trim(),
+        description: description.trim() || undefined,
+      });
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to create initiative:', err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">New Personal Initiative</h2>
+          <p className="text-sm text-gray-500 mt-1">Create an initiative for your personal to-dos</p>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g., Q4 Personal Goals"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createInitiative.isPending || !title.trim()}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {createInitiative.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Create Initiative
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeTab, setActiveTab] = useState<TabId>('assigned-to-me');
   const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showCompleted, setShowCompleted] = useState(false);
+  const [addingTaskToInitiative, setAddingTaskToInitiative] = useState<string | null>(null);
+  const [showNewInitiativeModal, setShowNewInitiativeModal] = useState(false);
 
-  const { data, isLoading, error } = useMyTodosQuery();
+  const { data, isLoading, error, refetch } = useMyTodosQuery();
   const stats = useMyTodosStats();
   const updateStatus = useUpdateTaskStatus();
   const updateField = useUpdateTaskField();
@@ -487,11 +654,20 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-3xl font-bold text-gray-900">My To-Dos</h1>
+        </div>
+        <button
+          onClick={() => setShowNewInitiativeModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New Initiative
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">My To-Dos</h1>
       </div>
 
       {/* Stats Cards */}
@@ -680,25 +856,52 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         onClick={() => toggleInitiativeCollapse(initiativeId)}
                       >
                         <td colSpan={6} className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            {isCollapsed ? (
-                              <ChevronRight className="w-4 h-4 text-white" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 text-white" />
-                            )}
-                            <span className="font-semibold text-white">{initiativeTitle}</span>
-                            {areaName && (
-                              <>
-                                <span className="text-blue-300">•</span>
-                                <span className="text-blue-200 text-sm">{functionName} / {areaName}</span>
-                              </>
-                            )}
-                            <span className="text-sm text-blue-200 ml-2">
-                              ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {isCollapsed ? (
+                                <ChevronRight className="w-4 h-4 text-white" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-white" />
+                              )}
+                              <span className="font-semibold text-white">{initiativeTitle}</span>
+                              {areaName && (
+                                <>
+                                  <span className="text-blue-300">•</span>
+                                  <span className="text-blue-200 text-sm">{functionName} / {areaName}</span>
+                                </>
+                              )}
+                              <span className="text-sm text-blue-200 ml-2">
+                                ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
+                              </span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAddingTaskToInitiative(initiativeId);
+                                if (isCollapsed) {
+                                  toggleInitiativeCollapse(initiativeId);
+                                }
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-100 hover:text-white hover:bg-blue-700 rounded transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Add Task
+                            </button>
                           </div>
                         </td>
                       </tr>
+
+                      {/* Quick Add Task Row */}
+                      {!isCollapsed && addingTaskToInitiative === initiativeId && (
+                        <QuickAddTask
+                          initiativeId={initiativeId}
+                          onCancel={() => setAddingTaskToInitiative(null)}
+                          onSuccess={() => {
+                            setAddingTaskToInitiative(null);
+                            refetch();
+                          }}
+                        />
+                      )}
 
                       {/* Task Rows */}
                       {!isCollapsed && tasks.map((task, idx) => {
@@ -808,6 +1011,14 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* New Initiative Modal */}
+      {showNewInitiativeModal && (
+        <NewInitiativeModal
+          onClose={() => setShowNewInitiativeModal(false)}
+          onSuccess={() => refetch()}
+        />
       )}
     </div>
   );

@@ -494,3 +494,76 @@ export function useDeleteTask() {
     },
   });
 }
+
+/**
+ * Create a personal initiative (no area required, only visible in My To-Dos)
+ */
+export function useCreatePersonalInitiative() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({
+      title,
+      description,
+    }: {
+      title: string;
+      description?: string;
+    }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('project_initiatives')
+        .insert({
+          title,
+          description,
+          is_personal: true,
+          status: 'active',
+          priority: 'medium',
+          progress_percent: 0,
+          color_status: 'green',
+          is_active: true,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
+  });
+}
+
+/**
+ * Fetch personal initiatives created by the user
+ */
+export function usePersonalInitiativesQuery() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['personal-initiatives', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('project_initiatives')
+        .select('id, title, description')
+        .eq('created_by', user.id)
+        .eq('is_personal', true)
+        .is('archived_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // is_personal column might not exist yet
+        console.warn('personal initiatives query failed:', error);
+        return [];
+      }
+
+      return data || [];
+    },
+    enabled: !!user,
+  });
+}

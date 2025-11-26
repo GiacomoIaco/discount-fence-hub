@@ -9,6 +9,8 @@ export {
   useUpdateTaskField,
   useCreateTask,
   useDeleteTask,
+  useCreatePersonalInitiative,
+  usePersonalInitiativesQuery,
   type TaskWithDetails,
   type TaskAssignee,
   type MyTasksData,
