@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus } from 'lucide-react';
 import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -213,7 +214,7 @@ function InlineDatePicker({
   );
 }
 
-// Inline status dropdown component
+// Inline status dropdown component with portal for proper positioning
 function InlineStatusDropdown({
   status,
   onSave,
@@ -223,15 +224,19 @@ function InlineStatusDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, openUpward: false });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentOption = statusOptions.find(o => o.value === status) || statusOptions[0];
 
+  // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -241,15 +246,22 @@ function InlineStatusDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // Check if dropdown should open upward
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
+  // Calculate dropdown position when opening
+  const toggleDropdown = () => {
+    if (!isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 160; // Approximate height of dropdown
-      setOpenUpward(spaceBelow < dropdownHeight);
+      const dropdownHeight = 180; // Approximate height of dropdown
+      const openUpward = spaceBelow < dropdownHeight;
+
+      setDropdownPosition({
+        top: openUpward ? rect.top - dropdownHeight : rect.bottom + 4,
+        left: rect.left,
+        openUpward,
+      });
     }
-  }, [isOpen]);
+    setIsOpen(!isOpen);
+  };
 
   const handleSelect = async (value: string) => {
     if (value !== status) {
@@ -266,12 +278,12 @@ function InlineStatusDropdown({
   };
 
   return (
-    <div ref={dropdownRef} className="relative">
+    <div className="relative">
       <button
         ref={buttonRef}
         onClick={(e) => {
           e.stopPropagation();
-          setIsOpen(!isOpen);
+          toggleDropdown();
         }}
         disabled={isSaving}
         className={`px-2 py-1 text-xs font-medium rounded-full ${currentOption.bg} ${currentOption.text} hover:opacity-80 transition-opacity flex items-center gap-1`}
@@ -285,10 +297,12 @@ function InlineStatusDropdown({
           </>
         )}
       </button>
-      {isOpen && (
-        <div className={`absolute z-50 w-32 bg-white border border-gray-200 rounded-lg shadow-lg py-1 ${
-          openUpward ? 'bottom-full mb-1' : 'top-full mt-1'
-        }`}>
+      {isOpen && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] w-32 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+          style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+        >
           {statusOptions.map((option) => (
             <button
               key={option.value}
@@ -305,7 +319,8 @@ function InlineStatusDropdown({
               {option.value === status && <Check className="w-3 h-3 ml-auto text-blue-600" />}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
