@@ -206,3 +206,28 @@ export function useUpdateTaskOrder() {
     },
   });
 }
+
+/**
+ * Update any field on a task (for inline editing)
+ */
+export function useUpdateTaskField() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: unknown }) => {
+      const { data, error } = await supabase
+        .from('project_initiatives')
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+      queryClient.invalidateQueries({ queryKey: ['leadership'] });
+    },
+  });
+}
