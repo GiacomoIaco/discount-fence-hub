@@ -506,9 +506,13 @@ export function useCreatePersonalInitiative() {
     mutationFn: async ({
       title,
       description,
+      is_private = false,
+      header_color,
     }: {
       title: string;
       description?: string;
+      is_private?: boolean;
+      header_color?: string;
     }) => {
       if (!user) throw new Error('User not authenticated');
 
@@ -518,12 +522,15 @@ export function useCreatePersonalInitiative() {
           title,
           description,
           is_personal: true,
+          is_private,
+          header_color,
           status: 'active',
           priority: 'medium',
           progress_percent: 0,
           color_status: 'green',
           is_active: true,
           created_by: user.id,
+          sort_order: 0,
         })
         .select()
         .single();
@@ -533,8 +540,18 @@ export function useCreatePersonalInitiative() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+      queryClient.invalidateQueries({ queryKey: ['personal-initiatives'] });
     },
   });
+}
+
+export interface PersonalInitiative {
+  id: string;
+  title: string;
+  description: string | null;
+  is_private: boolean;
+  header_color: string | null;
+  sort_order: number;
 }
 
 /**
@@ -545,15 +562,16 @@ export function usePersonalInitiativesQuery() {
 
   return useQuery({
     queryKey: ['personal-initiatives', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<PersonalInitiative[]> => {
       if (!user) return [];
 
       const { data, error } = await supabase
         .from('project_initiatives')
-        .select('id, title, description')
+        .select('id, title, description, is_private, header_color, sort_order')
         .eq('created_by', user.id)
         .eq('is_personal', true)
         .is('archived_at', null)
+        .order('sort_order', { ascending: true })
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -562,8 +580,38 @@ export function usePersonalInitiativesQuery() {
         return [];
       }
 
-      return data || [];
+      return (data || []).map(d => ({
+        ...d,
+        is_private: d.is_private ?? false,
+        header_color: d.header_color ?? null,
+        sort_order: d.sort_order ?? 0,
+      }));
     },
     enabled: !!user,
+  });
+}
+
+/**
+ * Update a personal initiative
+ */
+export function useUpdatePersonalInitiative() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; title?: string; description?: string; is_private?: boolean; header_color?: string; sort_order?: number }) => {
+      const { data, error } = await supabase
+        .from('project_initiatives')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personal-initiatives'] });
+      queryClient.invalidateQueries({ queryKey: ['my-todos'] });
+    },
   });
 }

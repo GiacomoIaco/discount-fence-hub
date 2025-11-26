@@ -11,9 +11,11 @@ export {
   useDeleteTask,
   useCreatePersonalInitiative,
   usePersonalInitiativesQuery,
+  useUpdatePersonalInitiative,
   type TaskWithDetails,
   type TaskAssignee,
   type MyTasksData,
   type TaskStats,
+  type PersonalInitiative,
 } from './hooks/useMyTodos';
 export { useInitiativeCommentsQuery, useAddComment, useDeleteComment } from './hooks/useInitiativeComments';

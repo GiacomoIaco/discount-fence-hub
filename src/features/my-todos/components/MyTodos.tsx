@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus } from 'lucide-react';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, type TaskWithDetails } from '../hooks/useMyTodos';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Users, Send, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock } from 'lucide-react';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface MyTodosProps {
@@ -56,6 +56,18 @@ const statusOptions = [
   { value: 'in_progress', label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700' },
   { value: 'done', label: 'Done', bg: 'bg-green-100', text: 'text-green-700' },
   { value: 'blocked', label: 'Blocked', bg: 'bg-red-100', text: 'text-red-700' },
+];
+
+// Header color options for initiatives
+const headerColorOptions = [
+  { value: 'blue-900', label: 'Blue', bg: 'bg-blue-900', hover: 'hover:bg-blue-800' },
+  { value: 'green-800', label: 'Green', bg: 'bg-green-800', hover: 'hover:bg-green-700' },
+  { value: 'purple-800', label: 'Purple', bg: 'bg-purple-800', hover: 'hover:bg-purple-700' },
+  { value: 'orange-700', label: 'Orange', bg: 'bg-orange-700', hover: 'hover:bg-orange-600' },
+  { value: 'red-800', label: 'Red', bg: 'bg-red-800', hover: 'hover:bg-red-700' },
+  { value: 'teal-800', label: 'Teal', bg: 'bg-teal-800', hover: 'hover:bg-teal-700' },
+  { value: 'indigo-800', label: 'Indigo', bg: 'bg-indigo-800', hover: 'hover:bg-indigo-700' },
+  { value: 'gray-700', label: 'Gray', bg: 'bg-gray-700', hover: 'hover:bg-gray-600' },
 ];
 
 // Inline editable text component
@@ -469,6 +481,8 @@ function NewInitiativeModal({
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [headerColor, setHeaderColor] = useState('blue-900');
   const createInitiative = useCreatePersonalInitiative();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -484,6 +498,8 @@ function NewInitiativeModal({
       await createInitiative.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
+        is_private: isPrivate,
+        header_color: headerColor,
       });
       onSuccess();
       onClose();
@@ -518,10 +534,53 @@ function NewInitiativeModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description..."
-              rows={3}
+              rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
             />
           </div>
+
+          {/* Header Color */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Header Color</label>
+            <div className="flex flex-wrap gap-2">
+              {headerColorOptions.map((color) => (
+                <button
+                  key={color.value}
+                  type="button"
+                  onClick={() => setHeaderColor(color.value)}
+                  className={`w-8 h-8 rounded-lg ${color.bg} ${
+                    headerColor === color.value ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+                  }`}
+                  title={color.label}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Private Toggle */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsPrivate(!isPrivate)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isPrivate ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isPrivate ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <div className="flex items-center gap-2">
+              <Lock className={`w-4 h-4 ${isPrivate ? 'text-blue-600' : 'text-gray-400'}`} />
+              <span className="text-sm text-gray-700">Private initiative</span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 -mt-2 ml-14">
+            Private initiatives are only visible to you
+          </p>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -555,6 +614,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const [showNewInitiativeModal, setShowNewInitiativeModal] = useState(false);
 
   const { data, isLoading, error, refetch } = useMyTodosQuery();
+  const { data: personalInitiatives = [], refetch: refetchPersonal } = usePersonalInitiativesQuery();
   const stats = useMyTodosStats();
   const updateStatus = useUpdateTaskStatus();
   const updateField = useUpdateTaskField();
@@ -625,7 +685,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     return tasks;
   }, [data, activeTab, searchQuery, filterStatus, showCompleted]);
 
-  // Group tasks by initiative
+  // Group tasks by initiative, including personal initiatives with no tasks
   const tasksByInitiative = useMemo(() => {
     const grouped = new Map<string, {
       initiativeId: string;
@@ -633,8 +693,28 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       functionName: string;
       areaName: string;
       tasks: TaskWithDetails[];
+      isPersonal: boolean;
+      isPrivate: boolean;
+      headerColor: string | null;
+      sortOrder: number;
     }>();
 
+    // Add personal initiatives first (even if they have no tasks)
+    personalInitiatives.forEach(initiative => {
+      grouped.set(initiative.id, {
+        initiativeId: initiative.id,
+        initiativeTitle: initiative.title,
+        functionName: 'Personal',
+        areaName: '',
+        tasks: [],
+        isPersonal: true,
+        isPrivate: initiative.is_private,
+        headerColor: initiative.header_color,
+        sortOrder: initiative.sort_order,
+      });
+    });
+
+    // Add tasks to their initiatives
     filteredTasks.forEach(task => {
       const initiativeId = task.initiative_id || 'no-initiative';
       const initiativeTitle = task.initiative?.title || 'No Initiative';
@@ -648,18 +728,32 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           functionName,
           areaName,
           tasks: [],
+          isPersonal: false,
+          isPrivate: false,
+          headerColor: null,
+          sortOrder: 999, // Non-personal at the end
         });
       }
       grouped.get(initiativeId)!.tasks.push(task);
     });
 
-    // Sort by function name then initiative title
+    // Sort: personal initiatives first (by sortOrder), then others by function/title
     return Array.from(grouped.values()).sort((a, b) => {
+      // Personal initiatives first
+      if (a.isPersonal && !b.isPersonal) return -1;
+      if (!a.isPersonal && b.isPersonal) return 1;
+
+      // Within personal, sort by sortOrder
+      if (a.isPersonal && b.isPersonal) {
+        return a.sortOrder - b.sortOrder;
+      }
+
+      // Non-personal: sort by function name then title
       const funcCompare = a.functionName.localeCompare(b.functionName);
       if (funcCompare !== 0) return funcCompare;
       return a.initiativeTitle.localeCompare(b.initiativeTitle);
     });
-  }, [filteredTasks]);
+  }, [filteredTasks, personalInitiatives]);
 
   // Count active filters
   const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted;
@@ -835,7 +929,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       </div>
 
       {/* Table View */}
-      {filteredTasks.length === 0 ? (
+      {filteredTasks.length === 0 && tasksByInitiative.length === 0 ? (
         <EmptyState
           message={
             hasActiveFilters
@@ -874,15 +968,20 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                 </tr>
               </thead>
               <tbody>
-                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks }) => {
+                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
                   const isCollapsed = collapsedInitiatives.has(initiativeId);
+                  // Get color classes based on headerColor or default to blue
+                  const colorOption = headerColorOptions.find(c => c.value === headerColor) || headerColorOptions[0];
+                  const bgClass = headerColor ? `bg-${headerColor}` : 'bg-blue-900';
+                  const hoverClass = headerColor ? colorOption.hover : 'hover:bg-blue-800';
+                  const borderClass = headerColor ? `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}` : 'border-blue-700';
 
                   return (
                     <>
                       {/* Initiative Header Row (like Area header in Initiatives tab) */}
                       <tr
                         key={`initiative-${initiativeId}`}
-                        className="bg-blue-900 border-t-2 border-blue-700 cursor-pointer hover:bg-blue-800 transition-colors"
+                        className={`${bgClass} border-t-2 ${borderClass} cursor-pointer ${hoverClass} transition-colors`}
                         onClick={() => toggleInitiativeCollapse(initiativeId)}
                       >
                         <td colSpan={6} className="px-4 py-2">
@@ -894,13 +993,24 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                 <ChevronDown className="w-4 h-4 text-white" />
                               )}
                               <span className="font-semibold text-white">{initiativeTitle}</span>
+                              {isPrivate && (
+                                <span title="Private initiative">
+                                  <Lock className="w-3.5 h-3.5 text-white/70" />
+                                </span>
+                              )}
                               {areaName && (
                                 <>
-                                  <span className="text-blue-300">•</span>
-                                  <span className="text-blue-200 text-sm">{functionName} / {areaName}</span>
+                                  <span className="text-white/50">•</span>
+                                  <span className="text-white/70 text-sm">{functionName} / {areaName}</span>
                                 </>
                               )}
-                              <span className="text-sm text-blue-200 ml-2">
+                              {isPersonal && !areaName && (
+                                <>
+                                  <span className="text-white/50">•</span>
+                                  <span className="text-white/70 text-sm">Personal</span>
+                                </>
+                              )}
+                              <span className="text-sm text-white/70 ml-2">
                                 ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
                               </span>
                             </div>
@@ -912,7 +1022,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                   toggleInitiativeCollapse(initiativeId);
                                 }
                               }}
-                              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-100 hover:text-white hover:bg-blue-700 rounded transition-colors"
+                              className="flex items-center gap-1 px-2 py-1 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded transition-colors"
                             >
                               <Plus className="w-3 h-3" />
                               Add Task
@@ -931,6 +1041,17 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                             refetch();
                           }}
                         />
+                      )}
+
+                      {/* Empty Initiative Message */}
+                      {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
+                        <tr className="bg-gray-50">
+                          <td colSpan={6} className="px-4 py-6 text-center text-gray-500 text-sm">
+                            <div className="flex flex-col items-center gap-2">
+                              <span>No tasks yet. Click "+ Add Task" to create one.</span>
+                            </div>
+                          </td>
+                        </tr>
                       )}
 
                       {/* Task Rows */}
@@ -1047,7 +1168,10 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       {showNewInitiativeModal && (
         <NewInitiativeModal
           onClose={() => setShowNewInitiativeModal(false)}
-          onSuccess={() => refetch()}
+          onSuccess={() => {
+            refetch();
+            refetchPersonal();
+          }}
         />
       )}
     </div>
