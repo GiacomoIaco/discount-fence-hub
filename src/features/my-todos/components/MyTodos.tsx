@@ -223,7 +223,9 @@ function InlineStatusDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const currentOption = statusOptions.find(o => o.value === status) || statusOptions[0];
 
@@ -237,6 +239,16 @@ function InlineStatusDropdown({
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  // Check if dropdown should open upward
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 160; // Approximate height of dropdown
+      setOpenUpward(spaceBelow < dropdownHeight);
+    }
   }, [isOpen]);
 
   const handleSelect = async (value: string) => {
@@ -256,6 +268,7 @@ function InlineStatusDropdown({
   return (
     <div ref={dropdownRef} className="relative">
       <button
+        ref={buttonRef}
         onClick={(e) => {
           e.stopPropagation();
           setIsOpen(!isOpen);
@@ -273,7 +286,9 @@ function InlineStatusDropdown({
         )}
       </button>
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+        <div className={`absolute z-50 w-32 bg-white border border-gray-200 rounded-lg shadow-lg py-1 ${
+          openUpward ? 'bottom-full mb-1' : 'top-full mt-1'
+        }`}>
           {statusOptions.map((option) => (
             <button
               key={option.value}
