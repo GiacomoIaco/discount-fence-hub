@@ -341,36 +341,186 @@ function InlineStatusDropdown({
   );
 }
 
-// Owner display component - shows avatar only, name on hover
-function OwnerDisplay({ task }: { task: TaskWithDetails }) {
+// Inline owner picker component - click to change owner (only if user can edit)
+function InlineOwnerPicker({ task }: { task: TaskWithDetails }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const { users, loading: usersLoading } = useUsers();
+  const updateField = useUpdateTaskField();
+
+  const canEdit = task.isOwner || task.isCreator;
   const owner = task.owner;
 
-  if (!owner) {
-    return (
-      <div
-        className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center cursor-help"
-        title="No owner assigned"
-      >
-        <Crown className="w-3 h-3 text-gray-400" />
-      </div>
+  // Filter users by search query
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!searchQuery) return users;
+    const query = searchQuery.toLowerCase();
+    return users.filter(u =>
+      u.name.toLowerCase().includes(query) ||
+      u.email.toLowerCase().includes(query)
     );
-  }
+  }, [users, searchQuery]);
+
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const toggleDropdown = () => {
+    if (!canEdit) return;
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 280;
+      const openUpward = spaceBelow < dropdownHeight;
+
+      setPosition({
+        top: openUpward ? rect.top - dropdownHeight : rect.bottom + 4,
+        left: Math.max(8, rect.left - 100),
+      });
+    }
+    setIsOpen(!isOpen);
+    if (!isOpen) setSearchQuery('');
+  };
+
+  const handleSelectOwner = async (userId: string) => {
+    await updateField.mutateAsync({ id: task.id, field: 'owner_id', value: userId });
+    setIsOpen(false);
+    setSearchQuery('');
+  };
+
+  const ownerName = owner?.full_name || 'Unknown';
 
   return (
-    <div
-      className={`w-7 h-7 rounded-full ${getAvatarColor(owner.id)} text-white text-xs font-medium flex items-center justify-center cursor-help`}
-      title={owner.full_name}
-    >
-      {owner.avatar_url ? (
-        <img
-          src={owner.avatar_url}
-          alt={owner.full_name}
-          className="w-full h-full rounded-full object-cover"
-        />
-      ) : (
-        getInitials(owner.full_name || 'U')
+    <>
+      <div
+        ref={buttonRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleDropdown();
+        }}
+        className={`flex items-center gap-1 ${canEdit ? 'cursor-pointer group' : 'cursor-help'}`}
+      >
+        {owner ? (
+          <div
+            className={`w-7 h-7 rounded-full ${getAvatarColor(owner.id)} text-white text-xs font-medium flex items-center justify-center`}
+            title={ownerName}
+          >
+            {owner.avatar_url ? (
+              <img
+                src={owner.avatar_url}
+                alt={ownerName}
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              getInitials(ownerName)
+            )}
+          </div>
+        ) : (
+          <div
+            className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center"
+            title="No owner - click to assign"
+          >
+            <Crown className="w-3 h-3 text-gray-400" />
+          </div>
+        )}
+        {/* Edit indicator on hover */}
+        {canEdit && (
+          <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100">
+            <Pencil className="w-2.5 h-2.5 text-gray-500" />
+          </div>
+        )}
+      </div>
+
+      {/* Dropdown Portal */}
+      {isOpen && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] w-64 bg-white border border-gray-200 rounded-lg shadow-xl"
+          style={{ top: position.top, left: position.left }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-medium text-gray-700">Change Owner</span>
+          </div>
+
+          {/* Search Input */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search people..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* User List */}
+          <div className="max-h-52 overflow-y-auto">
+            {usersLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-4 text-sm text-gray-500">
+                No users found
+              </div>
+            ) : (
+              filteredUsers.map(user => {
+                const isCurrentOwner = owner?.id === user.id;
+                return (
+                  <button
+                    key={user.id}
+                    onClick={() => handleSelectOwner(user.id)}
+                    disabled={updateField.isPending}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors ${
+                      isCurrentOwner ? 'bg-amber-50' : ''
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full ${getAvatarColor(user.id)} text-white text-xs font-medium flex items-center justify-center flex-shrink-0`}>
+                      {getInitials(user.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{user.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{user.email}</div>
+                    </div>
+                    {isCurrentOwner && (
+                      <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
@@ -1757,9 +1907,9 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                               </div>
                             </td>
 
-                            {/* Owner */}
-                            <td className="px-4 py-3">
-                              <OwnerDisplay task={task} />
+                            {/* Owner - inline picker */}
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                              <InlineOwnerPicker task={task} />
                             </td>
 
                             {/* Assignees - inline picker */}
