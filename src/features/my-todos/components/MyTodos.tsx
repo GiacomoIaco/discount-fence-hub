@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye } from 'lucide-react';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, type TaskWithDetails } from '../hooks/useMyTodos';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus } from 'lucide-react';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
 
 interface MyTodosProps {
@@ -340,86 +341,240 @@ function InlineStatusDropdown({
   );
 }
 
-// Owner display component
+// Owner display component - shows avatar only, name on hover
 function OwnerDisplay({ task }: { task: TaskWithDetails }) {
   const owner = task.owner;
 
   if (!owner) {
     return (
-      <div className="flex items-center gap-2 text-gray-400 text-sm">
-        <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
-          <Crown className="w-3 h-3" />
-        </div>
-        <span className="text-xs">No owner</span>
+      <div
+        className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center cursor-help"
+        title="No owner assigned"
+      >
+        <Crown className="w-3 h-3 text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div
-        className={`w-6 h-6 rounded-full ${getAvatarColor(owner.id)} text-white text-xs font-medium flex items-center justify-center`}
-        title={owner.full_name}
-      >
-        {owner.avatar_url ? (
-          <img
-            src={owner.avatar_url}
-            alt={owner.full_name}
-            className="w-full h-full rounded-full object-cover"
-          />
-        ) : (
-          getInitials(owner.full_name || 'U')
-        )}
-      </div>
-      <span className="text-sm text-gray-700 truncate max-w-[100px]" title={owner.full_name}>
-        {owner.full_name?.split(' ')[0]}
-      </span>
+    <div
+      className={`w-7 h-7 rounded-full ${getAvatarColor(owner.id)} text-white text-xs font-medium flex items-center justify-center cursor-help`}
+      title={owner.full_name}
+    >
+      {owner.avatar_url ? (
+        <img
+          src={owner.avatar_url}
+          alt={owner.full_name}
+          className="w-full h-full rounded-full object-cover"
+        />
+      ) : (
+        getInitials(owner.full_name || 'U')
+      )}
     </div>
   );
 }
 
-// Assignees display component
-function AssigneesDisplay({ task }: { task: TaskWithDetails }) {
-  // Use assignees array if available, otherwise fall back to assigned_user
+// Inline assignee picker component - click to add/remove assignees
+function InlineAssigneePicker({ task }: { task: TaskWithDetails }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const { users, loading: usersLoading } = useUsers();
+  const addAssignee = useAddTaskAssignee();
+  const removeAssignee = useRemoveTaskAssignee();
+
+  // Get current assignee IDs
+  const currentAssigneeIds = useMemo(() => {
+    const ids = new Set<string>();
+    task.assignees?.forEach(a => ids.add(a.user_id));
+    if (task.assigned_user) ids.add(task.assigned_user.id);
+    return ids;
+  }, [task.assignees, task.assigned_user]);
+
+  // Filter users by search query
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!searchQuery) return users;
+    const query = searchQuery.toLowerCase();
+    return users.filter(u =>
+      u.name.toLowerCase().includes(query) ||
+      u.email.toLowerCase().includes(query)
+    );
+  }, [users, searchQuery]);
+
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const toggleDropdown = () => {
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 280;
+      const openUpward = spaceBelow < dropdownHeight;
+
+      setPosition({
+        top: openUpward ? rect.top - dropdownHeight : rect.bottom + 4,
+        left: Math.max(8, rect.left - 100), // Offset left to give more room
+      });
+    }
+    setIsOpen(!isOpen);
+    if (!isOpen) setSearchQuery('');
+  };
+
+  const handleToggleAssignee = async (userId: string) => {
+    if (currentAssigneeIds.has(userId)) {
+      await removeAssignee.mutateAsync({ taskId: task.id, userId });
+    } else {
+      await addAssignee.mutateAsync({ taskId: task.id, userId });
+    }
+  };
+
+  // Current assignees for display
   const assignees = task.assignees?.length
     ? task.assignees
     : task.assigned_user
       ? [{ user_id: task.assigned_user.id, user: task.assigned_user }]
       : [];
 
-  if (assignees.length === 0) {
-    return (
-      <div className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
-        <User className="w-3 h-3 text-gray-400" />
-      </div>
-    );
-  }
+  const allNames = assignees.map(a => a.user?.full_name || 'Unknown').join(', ');
 
   return (
-    <div className="flex -space-x-2">
-      {assignees.slice(0, 3).map((assignee, idx) => (
+    <>
+      <div
+        ref={buttonRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleDropdown();
+        }}
+        className="flex items-center gap-1 cursor-pointer group"
+      >
+        {/* Show existing assignees */}
+        {assignees.length > 0 ? (
+          <div className="flex -space-x-2" title={allNames}>
+            {assignees.slice(0, 3).map((assignee, idx) => (
+              <div
+                key={assignee.user_id || idx}
+                className={`w-7 h-7 rounded-full ${getAvatarColor(assignee.user_id || '')} text-white text-xs font-medium flex items-center justify-center ring-2 ring-white`}
+              >
+                {assignee.user?.avatar_url ? (
+                  <img
+                    src={assignee.user.avatar_url}
+                    alt={assignee.user?.full_name || 'User'}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  getInitials(assignee.user?.full_name || 'U')
+                )}
+              </div>
+            ))}
+            {assignees.length > 3 && (
+              <div className="w-7 h-7 rounded-full bg-gray-400 text-white text-xs font-medium flex items-center justify-center ring-2 ring-white">
+                +{assignees.length - 3}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center"
+            title="Click to assign"
+          >
+            <User className="w-3 h-3 text-gray-400" />
+          </div>
+        )}
+        {/* Add button - visible on hover */}
+        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100">
+          <UserPlus className="w-3 h-3 text-gray-500" />
+        </div>
+      </div>
+
+      {/* Dropdown Portal */}
+      {isOpen && createPortal(
         <div
-          key={assignee.user_id || idx}
-          className={`w-7 h-7 rounded-full ${getAvatarColor(assignee.user_id || '')} text-white text-xs font-medium flex items-center justify-center ring-2 ring-white`}
-          title={assignee.user?.full_name || 'Unknown'}
+          ref={dropdownRef}
+          className="fixed z-[9999] w-64 bg-white border border-gray-200 rounded-lg shadow-xl"
+          style={{ top: position.top, left: position.left }}
+          onClick={(e) => e.stopPropagation()}
         >
-          {assignee.user?.avatar_url ? (
-            <img
-              src={assignee.user.avatar_url}
-              alt={assignee.user.full_name}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : (
-            getInitials(assignee.user?.full_name || 'U')
-          )}
-        </div>
-      ))}
-      {assignees.length > 3 && (
-        <div className="w-7 h-7 rounded-full bg-gray-400 text-white text-xs font-medium flex items-center justify-center ring-2 ring-white">
-          +{assignees.length - 3}
-        </div>
+          {/* Search Input */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search people..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* User List */}
+          <div className="max-h-52 overflow-y-auto">
+            {usersLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-4 text-sm text-gray-500">
+                No users found
+              </div>
+            ) : (
+              filteredUsers.map(user => {
+                const isAssigned = currentAssigneeIds.has(user.id);
+                return (
+                  <button
+                    key={user.id}
+                    onClick={() => handleToggleAssignee(user.id)}
+                    disabled={addAssignee.isPending || removeAssignee.isPending}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors ${
+                      isAssigned ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full ${getAvatarColor(user.id)} text-white text-xs font-medium flex items-center justify-center flex-shrink-0`}>
+                      {getInitials(user.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{user.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{user.email}</div>
+                    </div>
+                    {isAssigned && (
+                      <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-3 py-2 border-t border-gray-100 text-xs text-gray-500">
+            Click to assign/unassign
+          </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
@@ -900,11 +1055,19 @@ function EditInitiativeModal({
   );
 }
 
+// Due date filter type
+type DueDateFilter = 'all' | 'overdue' | 'due-today' | 'due-this-week' | 'high-priority';
+
+// Sort option type
+type SortOption = 'default' | 'due-date-asc' | 'due-date-desc' | 'updated-desc' | 'created-desc';
+
 export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [dueDateFilter, setDueDateFilter] = useState<DueDateFilter>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('default');
   const [showCompleted, setShowCompleted] = useState(false);
   const [addingTaskToInitiative, setAddingTaskToInitiative] = useState<string | null>(null);
   const [showNewInitiativeModal, setShowNewInitiativeModal] = useState(false);
@@ -974,6 +1137,27 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     }
   };
 
+  // Helper functions for date comparisons
+  const isToday = (dateString: string | null) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isThisWeek = (dateString: string | null) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+    return date >= startOfWeek && date <= endOfWeek;
+  };
+
   // Filter tasks
   const filteredTasks = useMemo(() => {
     if (!data?.tasks) return [];
@@ -1005,8 +1189,51 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       tasks = tasks.filter(t => t.status !== 'done');
     }
 
+    // Apply due date filter
+    if (dueDateFilter !== 'all') {
+      const now = new Date();
+      tasks = tasks.filter(t => {
+        switch (dueDateFilter) {
+          case 'overdue':
+            return t.due_date && new Date(t.due_date) < now && t.status !== 'done';
+          case 'due-today':
+            return isToday(t.due_date);
+          case 'due-this-week':
+            return isThisWeek(t.due_date);
+          case 'high-priority':
+            return t.is_high_priority;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply sorting
+    if (sortOption !== 'default') {
+      tasks.sort((a, b) => {
+        switch (sortOption) {
+          case 'due-date-asc':
+            if (!a.due_date && !b.due_date) return 0;
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+          case 'due-date-desc':
+            if (!a.due_date && !b.due_date) return 0;
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+          case 'updated-desc':
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          case 'created-desc':
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          default:
+            return 0;
+        }
+      });
+    }
+
     return tasks;
-  }, [data, activeFilter, searchQuery, filterStatus, showCompleted]);
+  }, [data, activeFilter, searchQuery, filterStatus, showCompleted, dueDateFilter, sortOption]);
 
   // Group tasks by initiative, including personal initiatives with no tasks
   const tasksByInitiative = useMemo(() => {
@@ -1079,7 +1306,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   }, [filteredTasks, personalInitiatives]);
 
   // Count active filters
-  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all';
+  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all' || dueDateFilter !== 'all' || sortOption !== 'default';
 
   if (isLoading) {
     return (
@@ -1236,6 +1463,64 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             {showCompleted ? 'Showing Completed' : 'Show Completed'}
           </button>
 
+          {/* Due Date Quick Filters */}
+          <div className="flex items-center gap-1 border-l border-gray-300 pl-4 ml-2">
+            <button
+              onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                dueDateFilter === 'overdue'
+                  ? 'bg-red-100 text-red-800 border border-red-300'
+                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+              }`}
+            >
+              Overdue
+            </button>
+            <button
+              onClick={() => setDueDateFilter(dueDateFilter === 'due-today' ? 'all' : 'due-today')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                dueDateFilter === 'due-today'
+                  ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+              }`}
+            >
+              Due Today
+            </button>
+            <button
+              onClick={() => setDueDateFilter(dueDateFilter === 'due-this-week' ? 'all' : 'due-this-week')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                dueDateFilter === 'due-this-week'
+                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+              }`}
+            >
+              This Week
+            </button>
+            <button
+              onClick={() => setDueDateFilter(dueDateFilter === 'high-priority' ? 'all' : 'high-priority')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                dueDateFilter === 'high-priority'
+                  ? 'bg-red-100 text-red-800 border border-red-300'
+                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+              }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              High Priority
+            </button>
+          </div>
+
+          {/* Sort Dropdown */}
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="default">Default Order</option>
+            <option value="due-date-asc">Due Date (Earliest First)</option>
+            <option value="due-date-desc">Due Date (Latest First)</option>
+            <option value="updated-desc">Recently Updated</option>
+            <option value="created-desc">Recently Created</option>
+          </select>
+
           {/* Clear Filters */}
           {hasActiveFilters && (
             <button
@@ -1244,6 +1529,8 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                 setSearchQuery('');
                 setFilterStatus('all');
                 setShowCompleted(false);
+                setDueDateFilter('all');
+                setSortOption('default');
               }}
               className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
@@ -1407,7 +1694,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                             } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''}`}
                             onClick={() => setSelectedTaskId(task.id)}
                           >
-                            {/* Task Title with checkbox indicator and role badges */}
+                            {/* Task Title with checkbox indicator, description tooltip, and role badges */}
                             <td className="px-4 py-3">
                               <div className="pl-6">
                                 <div className="flex items-center gap-3">
@@ -1435,7 +1722,16 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                     )}
                                   </div>
 
-                                  <div onClick={(e) => e.stopPropagation()}>
+                                  {/* High priority indicator */}
+                                  {task.is_high_priority && (
+                                    <div
+                                      className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
+                                      title="High Priority"
+                                    />
+                                  )}
+
+                                  {/* Title with description tooltip on hover */}
+                                  <div className="relative group/title flex-1" onClick={(e) => e.stopPropagation()}>
                                     <InlineEditableText
                                       value={task.title}
                                       onSave={async (value) => {
@@ -1444,6 +1740,15 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                       placeholder="Enter task..."
                                       className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
                                     />
+                                    {/* Description tooltip - shows on hover if description exists */}
+                                    {task.description && (
+                                      <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/title:block">
+                                        <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-xs shadow-lg">
+                                          <div className="font-medium text-gray-300 mb-1">Description:</div>
+                                          <div className="whitespace-pre-wrap">{task.description}</div>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="ml-7">
@@ -1457,9 +1762,9 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                               <OwnerDisplay task={task} />
                             </td>
 
-                            {/* Assignees */}
-                            <td className="px-4 py-3">
-                              <AssigneesDisplay task={task} />
+                            {/* Assignees - inline picker */}
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                              <InlineAssigneePicker task={task} />
                             </td>
 
                             {/* Status */}

@@ -49,8 +49,10 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
 
   const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
   // Find the task from the data
@@ -59,7 +61,8 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
   useEffect(() => {
     if (task) {
       setEditTitle(task.title);
-      setEditNotes(task.notes || task.description || '');
+      setEditDescription(task.description || '');
+      setEditNotes(task.notes || '');
     }
   }, [task]);
 
@@ -88,10 +91,16 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
     setIsEditingTitle(false);
   };
 
+  const handleSaveDescription = async () => {
+    if (editDescription !== (task.description || '')) {
+      await updateField.mutateAsync({ id: task.id, field: 'description', value: editDescription || null });
+    }
+    setIsEditingDescription(false);
+  };
+
   const handleSaveNotes = async () => {
-    const currentNotes = task.notes || task.description || '';
-    if (editNotes !== currentNotes) {
-      await updateField.mutateAsync({ id: task.id, field: 'notes', value: editNotes });
+    if (editNotes !== (task.notes || '')) {
+      await updateField.mutateAsync({ id: task.id, field: 'notes', value: editNotes || null });
     }
     setIsEditingNotes(false);
   };
@@ -211,8 +220,8 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'details' ? (
             <div className="space-y-6">
-              {/* Status & Due Date Row */}
-              <div className="flex flex-wrap gap-4">
+              {/* Status, Due Date & Priority Row */}
+              <div className="flex flex-wrap gap-4 items-start">
                 {/* Status Selector */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Status</label>
@@ -246,6 +255,33 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                   {isOverdue && (
                     <p className="text-xs text-red-600 mt-1">This task is overdue!</p>
                   )}
+                </div>
+
+                {/* High Priority Toggle */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Priority</label>
+                  <button
+                    onClick={async () => {
+                      if (canEdit) {
+                        await updateField.mutateAsync({
+                          id: task.id,
+                          field: 'is_high_priority',
+                          value: !task.is_high_priority,
+                        });
+                      }
+                    }}
+                    disabled={!canEdit || updateField.isPending}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                      task.is_high_priority
+                        ? 'bg-red-50 border-red-300 text-red-700'
+                        : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
+                    } ${!canEdit ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${task.is_high_priority ? 'bg-red-500' : 'bg-gray-400'}`} />
+                    <span className="text-sm font-medium">
+                      {task.is_high_priority ? 'High Priority' : 'Normal'}
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -325,7 +361,57 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                 )}
               </div>
 
-              {/* Notes/Description */}
+              {/* Description */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-medium text-gray-500 uppercase">Description</label>
+                  {canEdit && !isEditingDescription && (
+                    <button
+                      onClick={() => setIsEditingDescription(true)}
+                      className="text-xs text-blue-600 hover:text-blue-700"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+                {isEditingDescription && canEdit ? (
+                  <div>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      rows={3}
+                      placeholder="Add a description for this task..."
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button
+                        onClick={() => {
+                          setEditDescription(task.description || '');
+                          setIsEditingDescription(false);
+                        }}
+                        className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveDescription}
+                        disabled={updateField.isPending}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {updateField.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`text-sm whitespace-pre-wrap ${task.description ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                    {task.description || 'No description'}
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-medium text-gray-500 uppercase">Notes</label>
@@ -344,14 +430,14 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                      rows={4}
+                      rows={3}
                       placeholder="Add notes about this task..."
                       autoFocus
                     />
                     <div className="flex justify-end gap-2 mt-2">
                       <button
                         onClick={() => {
-                          setEditNotes(task.notes || task.description || '');
+                          setEditNotes(task.notes || '');
                           setIsEditingNotes(false);
                         }}
                         className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
@@ -369,8 +455,8 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                     </div>
                   </div>
                 ) : (
-                  <div className={`text-sm whitespace-pre-wrap ${task.notes || task.description ? 'text-gray-700' : 'text-gray-400 italic'}`}>
-                    {task.notes || task.description || 'No notes yet'}
+                  <div className={`text-sm whitespace-pre-wrap ${task.notes ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                    {task.notes || 'No notes yet'}
                   </div>
                 )}
               </div>

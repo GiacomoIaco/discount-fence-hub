@@ -32,6 +32,7 @@ export interface TaskWithDetails {
   due_date: string | null;
   sort_order: number;
   completed_at: string | null;
+  is_high_priority: boolean;
   created_at: string;
   updated_at: string;
   // Joined data
