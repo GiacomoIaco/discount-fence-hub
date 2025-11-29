@@ -124,21 +124,30 @@ export const RecordingStatusSchema = z.enum(['uploaded', 'transcribing', 'analyz
 
 /**
  * Schema for transcription data
+ * Note: Accepts both number (seconds) and string ("M:SS") for duration
+ * to support both API response and display formats
  */
 export const TranscriptionSchema = z.object({
   text: z.string().min(1, 'Transcript cannot be empty'),
-  duration: z.number().positive('Duration must be positive'),
+  duration: z.union([
+    z.number().positive('Duration must be positive'),
+    z.string().regex(/^\d+:\d{2}$/, 'Duration must be in M:SS format')
+  ]),
   confidence: z.number().min(0).max(100, 'Confidence must be between 0-100'),
   speakers: z.array(z.object({
     id: z.string(),
     label: z.string(),
-    segments: z.array(z.object({
-      start: z.number().min(0),
-      end: z.number().min(0),
-      text: z.string(),
-    })).optional(),
+    // Accept either segment count (number) or segment array
+    segments: z.union([
+      z.number().min(0),
+      z.array(z.object({
+        start: z.number().min(0),
+        end: z.number().min(0),
+        text: z.string(),
+      }))
+    ]).optional(),
   })).optional(),
-}).strict();
+}); // Removed .strict() to allow additional fields
 
 /**
  * Schema for AI analysis data

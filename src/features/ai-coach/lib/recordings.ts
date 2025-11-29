@@ -241,7 +241,13 @@ export async function uploadRecording(
       const recordings = getRecordingsSync(userId);
       const updated = recordings.map(r =>
         r.id === recording.recordingId
-          ? { ...r, status: 'analyzing' as const, transcription }
+          ? {
+              ...r,
+              status: 'analyzing' as const,
+              transcription,
+              // Update root duration from transcription
+              duration: transcription.duration || r.duration
+            }
           : r
       );
       localStorage.setItem(`recordings_${userId}`, JSON.stringify(updated));
@@ -378,7 +384,9 @@ async function transcribeRecording(_recordingId: string, base64Audio: string) {
     debugLog(`⏳ Status check ${attempts + 1}: ${result.status}`);
 
     if (result.status === 'completed') {
-      return result;
+      // Extract transcription fields (exclude 'status' which is for polling)
+      const { status: _status, ...transcription } = result;
+      return transcription;
     }
 
     attempts++;

@@ -55,28 +55,34 @@ export const handler: Handler = async (event) => {
         return `${speaker}: ${utterance.text}`;
       }).join('\n\n') || transcript.text;
 
-      const durationMs = transcript.audio_duration * 1000;
-      const minutes = Math.floor(durationMs / 60000);
-      const seconds = Math.floor((durationMs % 60000) / 1000);
+      // Duration as string "M:SS" for display
+      const durationSeconds = Math.round(transcript.audio_duration || 0);
+      const minutes = Math.floor(durationSeconds / 60);
+      const seconds = durationSeconds % 60;
       const duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
+      // Count speaker segments
+      const speakerACount = transcript.utterances?.filter((u: any) => u.speaker === 'A').length || 0;
+      const speakerBCount = transcript.utterances?.filter((u: any) => u.speaker === 'B').length || 0;
+
+      // Return flat structure matching Recording.transcription interface
       return {
         statusCode: 200,
         body: JSON.stringify({
           status: 'completed',
           text: formattedText,
-          duration: duration,
-          confidence: transcript.confidence,
+          duration: duration, // String format "M:SS"
+          confidence: Math.round((transcript.confidence || 0) * 100),
           speakers: [
             {
               id: 'A',
               label: 'Sales Rep',
-              segments: transcript.utterances?.filter((u: any) => u.speaker === 'A').length || 0
+              segments: speakerACount
             },
             {
               id: 'B',
               label: 'Client',
-              segments: transcript.utterances?.filter((u: any) => u.speaker === 'B').length || 0
+              segments: speakerBCount
             }
           ]
         }),
