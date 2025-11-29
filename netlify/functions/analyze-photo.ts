@@ -128,7 +128,7 @@ Respond ONLY with valid JSON in this exact format:
 
     // Call GPT-5.1 Vision API (latest multimodal model)
     const response = await openai.chat.completions.create({
-      model: 'gpt-5.1',
+      model: 'gpt-5-1',
       max_completion_tokens: 1024,
       messages: [
         {

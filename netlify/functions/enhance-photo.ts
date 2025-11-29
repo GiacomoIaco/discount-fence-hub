@@ -42,9 +42,9 @@ export const handler: Handler = async (event) => {
       throw new Error('GOOGLE_API_KEY not configured in Netlify environment variables');
     }
 
-    // Call Gemini 3 with image generation capabilities
+    // Call Gemini 3 Pro with image generation capabilities
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
