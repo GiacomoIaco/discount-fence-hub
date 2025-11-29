@@ -7,37 +7,25 @@ interface AnalyticsProps {
   userRole: UserRole;
 }
 
+type TabId = 'overview' | 'requests' | 'photos';
+
 export default function Analytics({ userRole }: AnalyticsProps) {
   const [dateRange, setDateRange] = useState<DateRange>('30days');
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   const { data, loading, error } = useAnalytics(dateRange);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading analytics...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600">Failed to load analytics</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Keep AnalyticsTabs mounted to preserve tab state
+  // Pass loading state down so it can show inline loading
   return (
     <AnalyticsTabs
       data={data}
+      loading={loading}
+      error={error}
       userRole={userRole}
       dateRange={dateRange}
       onDateRangeChange={setDateRange}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
     />
   );
 }

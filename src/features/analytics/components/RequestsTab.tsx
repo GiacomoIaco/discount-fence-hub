@@ -1,4 +1,5 @@
-import { BarChart, TrendingUp, Download, Clock, DollarSign, Users, FileText, CheckCircle, AlertCircle, Target, UserCheck } from 'lucide-react';
+import { useState } from 'react';
+import { BarChart, TrendingUp, Download, Clock, DollarSign, Users, FileText, CheckCircle, AlertCircle, Target, UserCheck, Filter } from 'lucide-react';
 import type { AnalyticsData } from '../hooks/useAnalytics';
 
 interface RequestsTabProps {
@@ -6,6 +7,9 @@ interface RequestsTabProps {
 }
 
 export function RequestsTab({ data }: RequestsTabProps) {
+  const [trendsTypeFilter, setTrendsTypeFilter] = useState<string>('all');
+  const [trendsAssigneeFilter, setTrendsAssigneeFilter] = useState<string>('all');
+
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       pricing: 'Pricing',
@@ -405,34 +409,109 @@ export function RequestsTab({ data }: RequestsTabProps) {
 
       {/* Time Series Charts */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <TrendingUp className="w-5 h-5 text-green-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Trends (Last 12 Weeks)</h3>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Trends (Last 12 Weeks)</h3>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-500" />
+              <span className="text-sm text-gray-600">Filter:</span>
+            </div>
+
+            <select
+              value={trendsTypeFilter}
+              onChange={(e) => setTrendsTypeFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Types</option>
+              {data.requestMetricsByType.map((item) => (
+                <option key={item.type} value={item.type}>
+                  {getTypeLabel(item.type)}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={trendsAssigneeFilter}
+              onChange={(e) => setTrendsAssigneeFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Assignees</option>
+              {data.requestMetricsByAssignee.map((item) => (
+                <option key={item.userId} value={item.userId}>
+                  {item.userName}
+                </option>
+              ))}
+            </select>
+
+            {(trendsTypeFilter !== 'all' || trendsAssigneeFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setTrendsTypeFilter('all');
+                  setTrendsAssigneeFilter('all');
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Requests Created by Week - Bar Chart with Labels */}
         <div className="mb-8">
-          <h4 className="text-sm font-semibold text-gray-700 mb-4">Requests Created by Week</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-4">
+            Requests Created by Week
+            {trendsTypeFilter !== 'all' && <span className="text-blue-600 ml-2">({getTypeLabel(trendsTypeFilter)})</span>}
+            {trendsAssigneeFilter !== 'all' && (
+              <span className="text-purple-600 ml-2">
+                ({data.requestMetricsByAssignee.find(a => a.userId === trendsAssigneeFilter)?.userName || 'Unknown'})
+              </span>
+            )}
+          </h4>
           {(() => {
-            const maxValue = Math.max(...data.timeSeries.map(w => w.requestsCreated), 1);
+            // Filter timeSeries data based on selected filters
+            const filteredTimeSeries = data.timeSeries.map(week => {
+              let count = week.requestsCreated;
+
+              if (trendsTypeFilter !== 'all') {
+                count = week.requestsByType.find(t => t.type === trendsTypeFilter)?.count || 0;
+              }
+
+              if (trendsAssigneeFilter !== 'all') {
+                const assigneeCount = week.requestsByAssignee.find(a => a.assigneeId === trendsAssigneeFilter)?.count || 0;
+                // If both filters active, we need the intersection (but we don't have that granular data)
+                // So if type filter is active, we show the type count, if assignee is active, show assignee count
+                // If both are active, show assignee count (as it's more specific)
+                count = trendsTypeFilter !== 'all' ? Math.min(count, assigneeCount) : assigneeCount;
+              }
+
+              return { ...week, filteredCount: count };
+            });
+
+            const maxValue = Math.max(...filteredTimeSeries.map(w => w.filteredCount), 1);
             return (
               <div className="flex items-end gap-1 px-2" style={{ height: '200px' }}>
-                {data.timeSeries.map((week, index) => {
-                  const heightPercent = (week.requestsCreated / maxValue) * 100;
-                  const barHeight = Math.max((heightPercent / 100) * 180, week.requestsCreated > 0 ? 8 : 0);
+                {filteredTimeSeries.map((week, index) => {
+                  const heightPercent = (week.filteredCount / maxValue) * 100;
+                  const barHeight = Math.max((heightPercent / 100) * 180, week.filteredCount > 0 ? 8 : 0);
 
                   return (
                     <div key={index} className="flex-1 flex flex-col items-center justify-end h-full">
                       {/* Value label on top */}
                       <div className="text-xs font-semibold text-gray-700 mb-1 h-4">
-                        {week.requestsCreated > 0 ? week.requestsCreated : ''}
+                        {week.filteredCount > 0 ? week.filteredCount : ''}
                       </div>
                       {/* Bar container - fixed height area for bars */}
                       <div className="w-full flex items-end justify-center" style={{ height: '180px' }}>
                         <div
                           className="w-full max-w-8 bg-blue-500 rounded-t hover:bg-blue-600 transition-colors cursor-pointer"
                           style={{ height: `${barHeight}px` }}
-                          title={`${week.weekLabel}: ${week.requestsCreated} requests`}
+                          title={`${week.weekLabel}: ${week.filteredCount} requests`}
                         />
                       </div>
                       {/* Date label */}

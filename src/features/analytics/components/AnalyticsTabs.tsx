@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { BarChart, TrendingUp, Camera } from 'lucide-react';
 import { OverviewTab } from './OverviewTab';
 import { RequestsTab } from './RequestsTab';
@@ -7,18 +6,20 @@ import { DateRangePicker } from './DateRangePicker';
 import type { AnalyticsData, DateRange } from '../hooks/useAnalytics';
 import type { UserRole } from '../../../types';
 
+type TabId = 'overview' | 'requests' | 'photos';
+
 interface AnalyticsTabsProps {
-  data: AnalyticsData;
+  data: AnalyticsData | null;
+  loading: boolean;
+  error: Error | null;
   userRole: UserRole;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
 }
 
-type TabId = 'overview' | 'requests' | 'photos';
-
-export function AnalyticsTabs({ data, userRole, dateRange, onDateRangeChange }: AnalyticsTabsProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
-
+export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDateRangeChange, activeTab, onTabChange }: AnalyticsTabsProps) {
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview', icon: TrendingUp },
     { id: 'requests' as TabId, label: 'Requests', icon: BarChart },
@@ -47,7 +48,7 @@ export function AnalyticsTabs({ data, userRole, dateRange, onDateRangeChange }: 
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => onTabChange(tab.id)}
                 className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium transition-colors ${
                   isActive
                     ? 'border-blue-600 text-blue-600'
@@ -64,16 +65,33 @@ export function AnalyticsTabs({ data, userRole, dateRange, onDateRangeChange }: 
 
       {/* Tab Content */}
       <div className="min-h-[600px]">
-        {activeTab === 'overview' && (
-          <OverviewTab data={data} userRole={userRole} />
-        )}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading analytics...</p>
+            </div>
+          </div>
+        ) : error || !data ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <p className="text-red-600">Failed to load analytics</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <OverviewTab data={data} userRole={userRole} />
+            )}
 
-        {activeTab === 'requests' && (
-          <RequestsTab data={data} />
-        )}
+            {activeTab === 'requests' && (
+              <RequestsTab data={data} />
+            )}
 
-        {activeTab === 'photos' && (
-          <PhotoAnalytics onBack={() => setActiveTab('overview')} />
+            {activeTab === 'photos' && (
+              <PhotoAnalytics onBack={() => onTabChange('overview')} />
+            )}
+          </>
         )}
       </div>
     </div>

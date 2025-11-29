@@ -78,6 +78,7 @@ export interface AnalyticsData {
     averageCloseTime: number;
     percentUnder24h: number;
     requestsByType: { type: string; count: number }[];
+    requestsByAssignee: { assigneeId: string; count: number }[];
   }[];
   // Message analytics
   messageAnalytics: {
@@ -181,8 +182,10 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         ? quotedRequests.reduce((acc, r) => acc + getQuoteValue(r), 0) / quotedRequests.length
         : 0;
 
-      const totalQuoteValue = wonRequests.reduce((acc, r) => acc + getQuoteValue(r), 0);
-      const totalValueWon = totalQuoteValue; // Same as totalQuoteValue for clarity
+      // Total of ALL quoted requests
+      const totalQuoteValue = quotedRequests.reduce((acc, r) => acc + getQuoteValue(r), 0);
+      // Total only from WON requests
+      const totalValueWon = wonRequests.reduce((acc, r) => acc + getQuoteValue(r), 0);
 
       // Calculate requests by type
       const typeMap = new Map<string, number>();
@@ -349,13 +352,26 @@ export function useAnalytics(dateRange: DateRange = '30days') {
           count
         }));
 
+        // Group by assignee for this week
+        const assigneeCountMap = new Map<string, number>();
+        weekRequests.forEach(r => {
+          if (r.assigned_to) {
+            assigneeCountMap.set(r.assigned_to, (assigneeCountMap.get(r.assigned_to) || 0) + 1);
+          }
+        });
+        const requestsByAssignee = Array.from(assigneeCountMap.entries()).map(([assigneeId, count]) => ({
+          assigneeId,
+          count
+        }));
+
         timeSeries.push({
           weekLabel: `Week of ${weekStart.getMonth() + 1}/${weekStart.getDate()}`,
           weekStart: weekStart.toISOString(),
           requestsCreated: weekRequests.length,
           averageCloseTime: avgCloseTime,
           percentUnder24h,
-          requestsByType
+          requestsByType,
+          requestsByAssignee
         });
       }
 
