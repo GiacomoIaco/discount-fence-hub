@@ -152,19 +152,38 @@ npm install
 
 ### 2. Environment Setup
 
-The `.env` file is already configured with:
+⚠️ **SECURITY NOTICE:** Never commit API keys to version control!
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and fill in your actual API keys
+```
+
+Your `.env` file should contain:
 
 ```env
-# Supabase (✅ Connected)
-VITE_SUPABASE_URL=https://mravqfoypwyutjqtoxet.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_...
+# ============================================
+# CLIENT-SIDE (safe to expose - VITE_ prefix)
+# ============================================
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
-# OpenAI (✅ Connected)
-VITE_OPENAI_API_KEY=sk-proj-...
-
-# Anthropic Claude (✅ Connected)
-VITE_ANTHROPIC_API_KEY=sk-ant-...
+# ============================================
+# SERVER-SIDE (keep secret - NO VITE_ prefix)
+# ============================================
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+ASSEMBLYAI_API_KEY=your_assemblyai_api_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 ```
+
+**Where to get your keys:**
+- **Supabase:** [Project Settings → API](https://supabase.com/dashboard/project/_/settings/api)
+- **OpenAI:** [API Keys](https://platform.openai.com/api-keys)
+- **Anthropic:** [API Keys](https://console.anthropic.com/settings/keys)
+- **AssemblyAI:** [Dashboard](https://www.assemblyai.com/app)
 
 ### 3. Database Setup (Already Done ✅)
 
@@ -379,6 +398,78 @@ npm run check:buckets  # Verify storage buckets
 2. Test photo upload end-to-end
 3. Add Supabase Auth (email/password)
 4. Configure custom domain (optional)
+
+---
+
+## 🔒 Security & Best Practices
+
+### Environment Variables
+
+**CRITICAL:** This project uses two types of environment variables:
+
+#### ✅ Client-Side (Public) - Use `VITE_` prefix
+- **Safe to expose** in browser JavaScript
+- Examples: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- Automatically included in client bundle by Vite
+- Only use for public values like API endpoints, Supabase URL
+
+#### 🔐 Server-Side (Secret) - NO `VITE_` prefix
+- **Must stay secret** - only available on server
+- Examples: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- Only accessible in Netlify Functions (serverless)
+- **Never import these in client-side code!**
+
+### Key Security Rules
+
+1. ⛔ **Never commit `.env` file to Git**
+   - Verify `.env` is in `.gitignore`
+   - Use `.env.example` for documentation
+
+2. ⛔ **Never use `VITE_` prefix for API keys**
+   - Bad: `VITE_ANTHROPIC_API_KEY` (exposed to client!)
+   - Good: `ANTHROPIC_API_KEY` (server-only)
+
+3. ⛔ **Never call AI APIs directly from client code**
+   - Bad: `fetch('https://api.anthropic.com')` with API key
+   - Good: `fetch('/.netlify/functions/your-function')`
+
+4. ✅ **Always use serverless functions for sensitive operations**
+   - API calls to OpenAI, Anthropic, AssemblyAI
+   - Database writes with Service Role Key
+   - Any operation requiring secrets
+
+### Netlify Environment Variables
+
+For production, add these to **Netlify Dashboard → Site settings → Environment variables**:
+
+```
+# Public (client-side)
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+
+# Secret (server-side only)
+ANTHROPIC_API_KEY
+OPENAI_API_KEY
+ASSEMBLYAI_API_KEY
+GOOGLE_API_KEY
+SUPABASE_SERVICE_ROLE_KEY
+SENDGRID_API_KEY
+```
+
+### Supabase Keys Explained
+
+**Two different keys for different purposes:**
+
+1. **Anon Key** (`VITE_SUPABASE_ANON_KEY`)
+   - ✅ Safe for client-side use
+   - Limited by Row Level Security (RLS) policies
+   - Users can only access their own data
+
+2. **Service Role Key** (`SUPABASE_SERVICE_ROLE_KEY`)
+   - 🔐 **KEEP SECRET** - full database access!
+   - Bypasses all RLS policies
+   - Only use in serverless functions
+   - Never expose to client
 
 ---
 

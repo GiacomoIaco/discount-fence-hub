@@ -92,7 +92,7 @@ export default function SalesRepView({
   if (activeSection === 'sales-coach') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />
+        <SalesCoach userId={userId || 'unknown'} onOpenAdmin={() => setActiveSection('sales-coach-admin')} />
       </Suspense>
     );
   }

@@ -6,7 +6,9 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const apiKey = process.env.VITE_ANTHROPIC_API_KEY;
+    // ✅ Use correct env var name (ANTHROPIC_API_KEY without VITE_ prefix)
+    // Fallback to VITE_ version for backward compatibility during migration
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error('Anthropic API key not configured');
     }
