@@ -203,7 +203,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <SalesCoach userId="user123" onOpenAdmin={() => setActiveSection('sales-coach-admin')} />
+            <SalesCoach userId={user?.id || 'unknown'} onOpenAdmin={() => setActiveSection('sales-coach-admin')} />
           </Suspense>
         </ErrorBoundary>
       );
