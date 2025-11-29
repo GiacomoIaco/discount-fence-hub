@@ -126,9 +126,9 @@ Respond ONLY with valid JSON in this exact format:
   "analysisNotes": "Brief description of what you see and quality assessment"
 }`;
 
-    // Call GPT-4o Vision API (latest multimodal model)
+    // Call GPT-5.1 Vision API (latest multimodal model)
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-5.1',
       max_completion_tokens: 1024,
       messages: [
         {
