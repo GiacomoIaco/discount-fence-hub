@@ -1,7 +1,9 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
+// ✅ VITE_SUPABASE_URL is OK to use - URL is public, access is controlled by keys
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+// ✅ SUPABASE_SERVICE_ROLE_KEY is correct (NO VITE_ prefix) - this is a secret!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // Create Supabase client with service role for admin operations

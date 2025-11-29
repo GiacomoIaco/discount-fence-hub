@@ -10,7 +10,9 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const apiKey = process.env.VITE_ASSEMBLYAI_API_KEY;
+    // ✅ Use correct env var name (ASSEMBLYAI_API_KEY without VITE_ prefix)
+    // Fallback to VITE_ version for backward compatibility during migration
+    const apiKey = process.env.ASSEMBLYAI_API_KEY || process.env.VITE_ASSEMBLYAI_API_KEY;
     console.log('API Key present:', !!apiKey);
     console.log('API Key prefix:', apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING');
 
