@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import FormData from 'form-data';
+import { randomUUID } from 'crypto';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -16,8 +17,8 @@ export const handler: Handler = async (event) => {
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audioData, 'base64');
 
-    // Generate unique recording ID
-    const recordingId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate unique recording ID (UUID format for database compatibility)
+    const recordingId = randomUUID();
 
     // Store recording metadata in localStorage (will be handled by client)
     // In production, this would save to Supabase or S3
@@ -29,6 +30,7 @@ export const handler: Handler = async (event) => {
         userId,
         clientName,
         meetingDate,
+        duration: '0:00', // Placeholder - actual duration will come from transcription
         processType: processType || 'standard',
         status: 'uploaded',
         uploadedAt: new Date().toISOString(),
