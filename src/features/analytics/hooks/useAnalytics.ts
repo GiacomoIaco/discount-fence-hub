@@ -6,7 +6,9 @@ export type DateRange = '7days' | '30days' | '90days' | 'all';
 export interface AnalyticsData {
   overview: {
     totalRequests: number;
+    activeRequests: number; // new + pending
     completedRequests: number;
+    completionRate: number; // percentage
     averageResponseTime: number; // in hours
     slaComplianceRate: number; // percentage
   };
@@ -40,6 +42,7 @@ export interface AnalyticsData {
   requestMetricsByType: {
     type: string;
     created: number;
+    active: number;
     closed: number;
     averageCloseTime: number; // in hours
     percentUnder24h: number; // % resolved within 24h (SLA compliant)
@@ -50,6 +53,18 @@ export interface AnalyticsData {
     userId: string;
     userName: string;
     created: number;
+    active: number;
+    closed: number;
+    averageCloseTime: number;
+    percentUnder24h: number;
+    percentUnder48h: number;
+  }[];
+  // Request metrics by submitter
+  requestMetricsBySubmitter: {
+    userId: string;
+    userName: string;
+    created: number;
+    active: number;
     closed: number;
     averageCloseTime: number;
     percentUnder24h: number;
@@ -130,7 +145,9 @@ export function useAnalytics(dateRange: DateRange = '30days') {
 
       // Calculate overview stats
       const totalRequests = requests?.length || 0;
+      const activeRequests = requests?.filter(r => ['new', 'pending'].includes(r.stage)).length || 0;
       const completedRequests = requests?.filter(r => r.stage === 'completed').length || 0;
+      const completionRate = totalRequests > 0 ? (completedRequests / totalRequests) * 100 : 0;
 
       const completedWithTimes = requests?.filter(r => r.stage === 'completed' && r.created_at && r.completed_at) || [];
       const avgResponseTime = completedWithTimes.length > 0
@@ -193,6 +210,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
       // Calculate enhanced request metrics by type
       const requestMetricsByType = Array.from(typeMap.entries()).map(([type, count]) => {
         const typeRequests = requests?.filter(r => r.request_type === type) || [];
+        const activeTypeRequests = typeRequests.filter(r => ['new', 'pending'].includes(r.stage));
         const closedRequests = typeRequests.filter(r => r.stage === 'completed');
 
         const closeTimes = closedRequests
@@ -209,6 +227,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         return {
           type,
           created: count,
+          active: activeTypeRequests.length,
           closed: closedRequests.length,
           averageCloseTime: avgCloseTime,
           percentUnder24h: closeTimes.length > 0 ? (under24h / closeTimes.length) * 100 : 100,
@@ -219,6 +238,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
       // Calculate request metrics by assignee
       const requestMetricsByAssignee = Array.from(userMap.entries()).map(([userId, userRequests]) => {
         const profile = profiles?.find(p => p.id === userId);
+        const activeUserRequests = userRequests.filter(r => ['new', 'pending'].includes(r.stage));
         const closedRequests = userRequests.filter(r => r.stage === 'completed');
 
         const closeTimes = closedRequests
@@ -236,6 +256,46 @@ export function useAnalytics(dateRange: DateRange = '30days') {
           userId,
           userName: profile?.full_name || 'Unknown User',
           created: userRequests.length,
+          active: activeUserRequests.length,
+          closed: closedRequests.length,
+          averageCloseTime: avgCloseTime,
+          percentUnder24h: closeTimes.length > 0 ? (under24h / closeTimes.length) * 100 : 100,
+          percentUnder48h: closeTimes.length > 0 ? (under48h / closeTimes.length) * 100 : 100
+        };
+      });
+
+      // Calculate request metrics by submitter
+      const submitterMap = new Map<string, any[]>();
+      requests?.forEach(r => {
+        if (r.submitter_id) {
+          if (!submitterMap.has(r.submitter_id)) {
+            submitterMap.set(r.submitter_id, []);
+          }
+          submitterMap.get(r.submitter_id)?.push(r);
+        }
+      });
+
+      const requestMetricsBySubmitter = Array.from(submitterMap.entries()).map(([userId, userRequests]) => {
+        const profile = profiles?.find(p => p.id === userId);
+        const activeUserRequests = userRequests.filter(r => ['new', 'pending'].includes(r.stage));
+        const closedRequests = userRequests.filter(r => r.stage === 'completed');
+
+        const closeTimes = closedRequests
+          .map(getCloseTime)
+          .filter((t): t is number => t !== null);
+
+        const avgCloseTime = closeTimes.length > 0
+          ? closeTimes.reduce((acc, t) => acc + t, 0) / closeTimes.length
+          : 0;
+
+        const under24h = closeTimes.filter(t => t <= 24).length;
+        const under48h = closeTimes.filter(t => t <= 48).length;
+
+        return {
+          userId,
+          userName: profile?.full_name || 'Unknown User',
+          created: userRequests.length,
+          active: activeUserRequests.length,
           closed: closedRequests.length,
           averageCloseTime: avgCloseTime,
           percentUnder24h: closeTimes.length > 0 ? (under24h / closeTimes.length) * 100 : 100,
@@ -346,7 +406,9 @@ export function useAnalytics(dateRange: DateRange = '30days') {
       setData({
         overview: {
           totalRequests,
+          activeRequests,
           completedRequests,
+          completionRate,
           averageResponseTime: avgResponseTime,
           slaComplianceRate
         },
@@ -364,6 +426,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         teamPerformance,
         requestMetricsByType,
         requestMetricsByAssignee,
+        requestMetricsBySubmitter,
         timeSeries,
         messageAnalytics: {
           totalMessages,
