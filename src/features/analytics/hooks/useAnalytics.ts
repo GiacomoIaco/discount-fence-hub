@@ -107,14 +107,17 @@ export function useAnalytics(dateRange: DateRange = '30days') {
 
       const dateCutoff = getDateCutoff(dateRange);
 
-      // Get requests (filtered by date if applicable)
-      let requestsQuery = supabase.from('requests').select('*');
-      if (dateCutoff) {
-        requestsQuery = requestsQuery.gte('created_at', dateCutoff.toISOString());
-      }
-      const { data: requests, error: reqError } = await requestsQuery;
+      // Get ALL requests (for timeSeries which always shows last 12 weeks)
+      const { data: allRequests, error: allReqError } = await supabase
+        .from('requests')
+        .select('*');
 
-      if (reqError) throw reqError;
+      if (allReqError) throw allReqError;
+
+      // Filter requests by date range for other metrics
+      const requests = dateCutoff
+        ? allRequests?.filter(r => new Date(r.created_at) >= dateCutoff)
+        : allRequests;
 
       // Get user profiles for team performance
       const { data: profiles, error: profileError } = await supabase
@@ -309,7 +312,8 @@ export function useAnalytics(dateRange: DateRange = '30days') {
       });
 
       // Calculate time-series data (last 12 weeks)
-      // Note: 'now' already defined above for message stats
+      // IMPORTANT: Use allRequests here, NOT the date-filtered requests
+      // The Trends section always shows last 12 weeks regardless of date filter
       const timeSeries = [];
 
       for (let i = 11; i >= 0; i--) {
@@ -320,7 +324,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 7);
 
-        const weekRequests = requests?.filter(r => {
+        const weekRequests = allRequests?.filter(r => {
           const createdAt = new Date(r.created_at);
           return createdAt >= weekStart && createdAt < weekEnd;
         }) || [];
