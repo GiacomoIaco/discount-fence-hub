@@ -87,7 +87,7 @@ export const handler: Handler = async (event) => {
 
     const openai = new OpenAI({ apiKey });
 
-    // Create prompt for GPT-5 Vision
+    // Create prompt for GPT-4o Vision
     const prompt = `You are analyzing a photo for Discount Fence USA's photo gallery. Your task is to:
 
 1. **Identify the fence/structure type** from these options:
@@ -126,9 +126,9 @@ Respond ONLY with valid JSON in this exact format:
   "analysisNotes": "Brief description of what you see and quality assessment"
 }`;
 
-    // Call GPT-5 Vision API
+    // Call GPT-4o Vision API (latest multimodal model)
     const response = await openai.chat.completions.create({
-      model: 'gpt-5-2025-08-07',
+      model: 'gpt-4o',
       max_completion_tokens: 1024,
       messages: [
         {

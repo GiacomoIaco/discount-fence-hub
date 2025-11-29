@@ -42,9 +42,9 @@ export const handler: Handler = async (event) => {
       throw new Error('GOOGLE_API_KEY not configured in Netlify environment variables');
     }
 
-    // Call Gemini 2.5 Flash Image API (Nano Banana) for enhancement
+    // Call Gemini 2.0 Flash with image generation capabilities
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
