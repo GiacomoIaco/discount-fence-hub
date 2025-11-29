@@ -845,14 +845,17 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
-export function getTeamLeaderboard(timeframe: 'week' | 'month' | 'all' = 'all'): LeaderboardEntry[] {
-  // Get all users from localStorage (in a real app, this would come from a database)
-  const users = [
-    { id: 'user123', name: 'Sales Rep 1' },
-    { id: 'user456', name: 'Sales Rep 2' },
-    { id: 'user789', name: 'Sales Rep 3' },
-    // In production, fetch actual user list from Supabase
-  ];
+// Cache for leaderboard data
+let leaderboardCache: { data: LeaderboardEntry[]; timeframe: string; timestamp: number } | null = null;
+const CACHE_TTL = 30000; // 30 seconds
+
+export async function getTeamLeaderboardAsync(timeframe: 'week' | 'month' | 'all' = 'all'): Promise<LeaderboardEntry[]> {
+  // Check cache
+  if (leaderboardCache &&
+      leaderboardCache.timeframe === timeframe &&
+      Date.now() - leaderboardCache.timestamp < CACHE_TTL) {
+    return leaderboardCache.data;
+  }
 
   const now = new Date();
   const cutoffDate = new Date();
@@ -862,79 +865,205 @@ export function getTeamLeaderboard(timeframe: 'week' | 'month' | 'all' = 'all'):
     cutoffDate.setMonth(now.getMonth() - 1);
   }
 
-  const leaderboard: LeaderboardEntry[] = users.map(user => {
-    const allRecordings = getRecordingsSync(user.id).filter(r => r.status === 'completed');
+  try {
+    // Fetch all recordings with user info from Supabase
+    let query = supabase
+      .from('recordings')
+      .select(`
+        id,
+        user_id,
+        status,
+        duration,
+        uploaded_at,
+        analysis
+      `)
+      .eq('status', 'completed');
 
-    // Filter by timeframe
-    const recordings = timeframe === 'all'
-      ? allRecordings
-      : allRecordings.filter(r => new Date(r.uploadedAt) >= cutoffDate);
+    // Add timeframe filter
+    if (timeframe !== 'all') {
+      query = query.gte('uploaded_at', cutoffDate.toISOString());
+    }
 
-    if (recordings.length === 0) {
-      return {
-        userId: user.id,
-        userName: user.name,
-        totalRecordings: 0,
-        averageScore: 0,
-        completionRate: 0,
-        improvement: 0,
-        totalCallTime: 0,
+    const { data: recordings, error: recordingsError } = await query;
+
+    if (recordingsError) {
+      console.error('Error fetching recordings for leaderboard:', recordingsError);
+      return [];
+    }
+
+    // Get unique user IDs
+    const userIds = [...new Set(recordings?.map(r => r.user_id) || [])];
+
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    // Fetch user profiles
+    const { data: profiles, error: profilesError } = await supabase
+      .from('user_profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+
+    if (profilesError) {
+      console.error('Error fetching profiles for leaderboard:', profilesError);
+      return [];
+    }
+
+    // Create a map of user profiles
+    const profileMap = new Map(profiles?.map(p => [p.id, p.full_name]) || []);
+
+    // Group recordings by user
+    const userRecordings = new Map<string, any[]>();
+    recordings?.forEach(r => {
+      const existing = userRecordings.get(r.user_id) || [];
+      existing.push(r);
+      userRecordings.set(r.user_id, existing);
+    });
+
+    // Build leaderboard
+    const leaderboard: LeaderboardEntry[] = [];
+
+    userRecordings.forEach((userRecs, usrId) => {
+      const userName = profileMap.get(usrId) || 'Unknown User';
+
+      const scores = userRecs.map(r => r.analysis?.overallScore || 0);
+      const averageScore = scores.length > 0
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0;
+
+      // Calculate improvement (recent vs previous)
+      const recent = scores.slice(0, Math.ceil(scores.length / 2));
+      const previous = scores.slice(Math.ceil(scores.length / 2));
+      const recentAvg = recent.length > 0 ? recent.reduce((a, b) => a + b, 0) / recent.length : 0;
+      const previousAvg = previous.length > 0 ? previous.reduce((a, b) => a + b, 0) / previous.length : recentAvg;
+      const improvement = Math.round(recentAvg - previousAvg);
+
+      // Calculate completion rate
+      const completedAll = userRecs.filter(r =>
+        r.analysis?.processSteps?.every((step: any) => step.completed)
+      ).length;
+      const completionRate = userRecs.length > 0
+        ? Math.round((completedAll / userRecs.length) * 100)
+        : 0;
+
+      // Calculate total call time
+      const totalCallTime = userRecs.reduce((total, r) => {
+        if (!r.duration) return total;
+        const parts = r.duration.split(':').map(Number);
+        if (parts.length === 2) {
+          return total + parts[0] + (parts[1] / 60);
+        }
+        return total;
+      }, 0);
+
+      leaderboard.push({
+        userId: usrId,
+        userName,
+        totalRecordings: userRecs.length,
+        averageScore,
+        completionRate,
+        improvement,
+        totalCallTime: Math.round(totalCallTime),
         rank: 0,
-      };
-    }
+      });
+    });
 
-    const scores = recordings.map(r => r.analysis?.overallScore || 0);
-    const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    // Sort by average score, then by total recordings
+    leaderboard.sort((a, b) => {
+      if (b.averageScore !== a.averageScore) {
+        return b.averageScore - a.averageScore;
+      }
+      return b.totalRecordings - a.totalRecordings;
+    });
 
-    // Calculate improvement (recent vs previous)
-    const recent = scores.slice(0, Math.ceil(scores.length / 2));
-    const previous = scores.slice(Math.ceil(scores.length / 2));
-    const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
-    const previousAvg = previous.length > 0 ? previous.reduce((a, b) => a + b, 0) / previous.length : recentAvg;
-    const improvement = Math.round(recentAvg - previousAvg);
+    // Assign ranks
+    leaderboard.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
 
-    // Calculate completion rate
-    const completedAll = recordings.filter(r =>
-      r.analysis?.processSteps.every(step => step.completed)
-    ).length;
-    const completionRate = Math.round((completedAll / recordings.length) * 100);
+    // Update cache
+    leaderboardCache = { data: leaderboard, timeframe, timestamp: Date.now() };
 
-    // Calculate total call time
-    const totalCallTime = recordings.reduce((total, r) => {
-      const [mins, secs] = r.duration.split(':').map(Number);
-      return total + mins + (secs / 60);
-    }, 0);
+    return leaderboard;
+  } catch (error) {
+    console.error('Exception fetching leaderboard:', error);
+    return [];
+  }
+}
 
-    return {
-      userId: user.id,
-      userName: user.name,
-      totalRecordings: recordings.length,
-      averageScore,
-      completionRate,
-      improvement,
-      totalCallTime: Math.round(totalCallTime),
-      rank: 0, // Will be set after sorting
-    };
-  });
+// Synchronous wrapper for backward compatibility (returns empty initially, use async version for real data)
+export function getTeamLeaderboard(timeframe: 'week' | 'month' | 'all' = 'all'): LeaderboardEntry[] {
+  // Return cached data if available
+  if (leaderboardCache && leaderboardCache.timeframe === timeframe) {
+    return leaderboardCache.data;
+  }
+  return [];
+}
 
-  // Sort by average score, then by total recordings
-  leaderboard.sort((a, b) => {
-    if (b.averageScore !== a.averageScore) {
-      return b.averageScore - a.averageScore;
-    }
-    return b.totalRecordings - a.totalRecordings;
-  });
-
-  // Assign ranks
-  leaderboard.forEach((entry, index) => {
-    entry.rank = index + 1;
-  });
-
-  return leaderboard;
+export async function getUserRankAsync(userId: string, timeframe: 'week' | 'month' | 'all' = 'all'): Promise<number> {
+  const leaderboard = await getTeamLeaderboardAsync(timeframe);
+  const entry = leaderboard.find(e => e.userId === userId);
+  return entry?.rank || 0;
 }
 
 export function getUserRank(userId: string, timeframe: 'week' | 'month' | 'all' = 'all'): number {
   const leaderboard = getTeamLeaderboard(timeframe);
   const entry = leaderboard.find(e => e.userId === userId);
   return entry?.rank || 0;
+}
+
+// Get ALL recordings from all users (for admin view)
+export async function getAllRecordingsForAdmin(): Promise<Recording[]> {
+  try {
+    const { data, error } = await supabase
+      .from('recordings')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all recordings:', error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    // Map Supabase data to Recording format
+    return data.map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      clientName: row.client_name,
+      meetingDate: row.meeting_date,
+      duration: row.duration,
+      status: row.status,
+      uploadedAt: row.uploaded_at,
+      completedAt: row.completed_at,
+      processType: row.process_type,
+      transcription: row.transcription,
+      analysis: row.analysis,
+      error: row.error_message,
+    }));
+  } catch (error) {
+    console.error('Exception fetching all recordings:', error);
+    return [];
+  }
+}
+
+// Delete recording by ID (admin function - doesn't require userId match)
+export async function deleteRecordingAdmin(recordingId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('recordings')
+      .delete()
+      .eq('id', recordingId);
+
+    if (error) {
+      console.error('Error deleting recording:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Exception deleting recording:', error);
+    return false;
+  }
 }

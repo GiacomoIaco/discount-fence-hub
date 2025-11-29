@@ -1,7 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic } from 'lucide-react';
-import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getRecordings, deleteRecording, type SalesProcess, type KnowledgeBase, type Recording } from '../lib/recordings';
-import { showSuccess } from '../../../lib/toast';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic, Upload, FileText, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getAllRecordingsForAdmin, deleteRecordingAdmin, type SalesProcess, type KnowledgeBase, type Recording } from '../lib/recordings';
+import { supabase } from '../../../lib/supabase';
+import { showSuccess, showError } from '../../../lib/toast';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface SalesCoachAdminProps {
   onBack: () => void;
@@ -20,12 +27,19 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
     industryContext: ''
   });
   const [allRecordings, setAllRecordings] = useState<Recording[]>([]);
+  const [userProfiles, setUserProfiles] = useState<Map<string, string>>(new Map());
 
   // For editing
   const [editingProcess, setEditingProcess] = useState(false);
   const [newProduct, setNewProduct] = useState('');
   const [newObjection, setNewObjection] = useState('');
   const [newBestPractice, setNewBestPractice] = useState('');
+
+  // For file upload
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [parsedSuggestions, setParsedSuggestions] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProcesses();
@@ -34,9 +48,24 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
   }, []);
 
   const loadAllRecordings = async () => {
-    // Load recordings from all users (in production, this would be from a database)
-    const recordings = await getRecordings('user123'); // For now, just user123
+    // Load ALL recordings from ALL users in the database
+    const recordings = await getAllRecordingsForAdmin();
     setAllRecordings(recordings);
+
+    // Fetch user profiles for all unique user IDs
+    const userIds = [...new Set(recordings.map(r => r.userId).filter(Boolean))];
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      if (profiles) {
+        const profileMap = new Map<string, string>();
+        profiles.forEach(p => profileMap.set(p.id, p.full_name));
+        setUserProfiles(profileMap);
+      }
+    }
   };
 
   const loadProcesses = async () => {
@@ -172,6 +201,165 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
       ...knowledgeBase,
       [field]: newArray
     });
+  };
+
+  // File upload handlers for Knowledge Base
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
+    }
+
+    return fullText;
+  };
+
+  const extractTextFromWord = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  };
+
+  const extractTextFromExcel = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    let fullText = '';
+
+    workbook.SheetNames.forEach((sheetName, index) => {
+      const worksheet = workbook.Sheets[sheetName];
+      fullText += `\n\n=== Sheet ${index + 1}: ${sheetName} ===\n\n`;
+      const sheetText = XLSX.utils.sheet_to_csv(worksheet, { FS: '\t' });
+      fullText += sheetText;
+    });
+
+    return fullText;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/plain',
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+    ];
+
+    if (!validTypes.includes(file.type)) {
+      setUploadError('Please select a PDF, Word, Excel, text file, or image');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File must be less than 10MB');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      let documentText = '';
+      let documentType = '';
+      let isImage = false;
+      let imageData = '';
+
+      // Extract text based on file type
+      if (file.type === 'application/pdf') {
+        documentType = 'PDF document';
+        documentText = await extractTextFromPDF(file);
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.type === 'application/msword'
+      ) {
+        documentType = 'Word document';
+        documentText = await extractTextFromWord(file);
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel'
+      ) {
+        documentType = 'Excel spreadsheet';
+        documentText = await extractTextFromExcel(file);
+      } else if (file.type === 'text/plain') {
+        documentType = 'text file';
+        documentText = await file.text();
+      } else if (file.type.startsWith('image/')) {
+        documentType = 'image';
+        isImage = true;
+        const reader = new FileReader();
+        imageData = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // Send to AI for parsing
+      const response = await fetch('/.netlify/functions/parse-knowledge-base', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentText,
+          documentType,
+          isImage,
+          imageData,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to parse document');
+      }
+
+      const parsed = await response.json();
+
+      // Merge parsed content with existing knowledge base
+      setKnowledgeBase(prev => ({
+        companyInfo: prev.companyInfo
+          ? `${prev.companyInfo}\n\n--- Imported from ${file.name} ---\n${parsed.companyInfo || ''}`
+          : parsed.companyInfo || '',
+        products: [...prev.products, ...(parsed.products || [])],
+        commonObjections: [...prev.commonObjections, ...(parsed.commonObjections || [])],
+        bestPractices: [...prev.bestPractices, ...(parsed.bestPractices || [])],
+        industryContext: prev.industryContext
+          ? `${prev.industryContext}\n\n--- Imported from ${file.name} ---\n${parsed.industryContext || ''}`
+          : parsed.industryContext || '',
+        lastUpdated: prev.lastUpdated,
+        updatedBy: prev.updatedBy,
+      }));
+
+      // Store suggestions
+      if (parsed.suggestions) {
+        setParsedSuggestions(parsed.suggestions);
+      }
+
+      showSuccess(`Successfully imported knowledge from ${file.name}`);
+    } catch (error) {
+      console.error('File upload error:', error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to process file');
+      showError('Failed to import document');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -454,6 +642,83 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
               </button>
             </div>
 
+            {/* AI Document Import */}
+            <div className="mb-8 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Sparkles className="w-6 h-6 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-purple-900 mb-1">AI-Powered Document Import</h3>
+                  <p className="text-sm text-purple-700 mb-3">
+                    Upload a company handbook, sales guide, or any document and AI will automatically extract relevant knowledge base information.
+                  </p>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className={`px-4 py-2 rounded-lg font-semibold flex items-center gap-2 ${
+                      isUploading
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Upload Document
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-xs text-purple-600 mt-2">
+                    Supports PDF, Word, Excel, text files, and images (max 10MB)
+                  </p>
+
+                  {uploadError && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-red-700">{uploadError}</p>
+                    </div>
+                  )}
+
+                  {parsedSuggestions.length > 0 && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm font-medium text-blue-900 mb-2">AI Suggestions for improvement:</p>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        {parsedSuggestions.map((suggestion, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-blue-400">•</span>
+                            {suggestion}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => setParsedSuggestions([])}
+                        className="mt-2 text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        Dismiss suggestions
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-6">
               {/* Company Info */}
               <div>
@@ -623,6 +888,9 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
                           </span>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span className="text-blue-600 font-medium">
+                            {userProfiles.get(recording.userId) || 'Unknown User'}
+                          </span>
                           <span>{recording.meetingDate}</span>
                           {recording.duration && <span>{recording.duration}</span>}
                           {recording.analysis && (
@@ -638,10 +906,13 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
                         )}
                       </div>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm(`Delete recording for ${recording.clientName}?`)) {
-                            deleteRecording('user123', recording.id);
-                            loadAllRecordings();
+                            const success = await deleteRecordingAdmin(recording.id);
+                            if (success) {
+                              showSuccess('Recording deleted');
+                              loadAllRecordings();
+                            }
                           }
                         }}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
