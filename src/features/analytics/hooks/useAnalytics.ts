@@ -174,12 +174,14 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         ? (wonRequests.length / pricingWithStatus.length) * 100
         : 0;
 
-      const quotedRequests = pricingRequests.filter(r => r.pricing_quote);
+      // Use pricing_quote if available, fallback to expected_value for older requests
+      const getQuoteValue = (r: any) => r.pricing_quote || r.expected_value || 0;
+      const quotedRequests = pricingRequests.filter(r => r.pricing_quote || r.expected_value);
       const avgQuoteValue = quotedRequests.length > 0
-        ? quotedRequests.reduce((acc, r) => acc + (r.pricing_quote || 0), 0) / quotedRequests.length
+        ? quotedRequests.reduce((acc, r) => acc + getQuoteValue(r), 0) / quotedRequests.length
         : 0;
 
-      const totalQuoteValue = wonRequests.reduce((acc, r) => acc + (r.pricing_quote || 0), 0);
+      const totalQuoteValue = wonRequests.reduce((acc, r) => acc + getQuoteValue(r), 0);
       const totalValueWon = totalQuoteValue; // Same as totalQuoteValue for clarity
 
       // Calculate requests by type
