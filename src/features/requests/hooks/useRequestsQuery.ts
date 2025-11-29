@@ -43,7 +43,8 @@ export function useMyRequestsQuery(filters?: {
   const query = useQuery({
     queryKey: queryKeys.requests.myRequests(filters),
     queryFn: () => getMyRequests(filters),
-    staleTime: 1000 * 30, // 30 seconds - requests data is fairly dynamic
+    staleTime: 1000 * 5, // 5 seconds - requests need to be fresh
+    refetchOnMount: 'always', // Always refetch when component mounts (tab changes)
   });
 
   // Subscribe to realtime updates
@@ -75,7 +76,8 @@ export function useAllRequestsQuery(filters?: {
   const query = useQuery({
     queryKey: queryKeys.requests.allRequests(filters),
     queryFn: () => getAllRequests(filters),
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 1000 * 5, // 5 seconds - requests need to be fresh
+    refetchOnMount: 'always', // Always refetch when component mounts (tab changes)
   });
 
   // Subscribe to realtime updates
