@@ -151,6 +151,7 @@ export const TranscriptionSchema = z.object({
 
 /**
  * Schema for AI analysis data
+ * Flexible to accept various response formats from Claude
  */
 export const AnalysisSchema = z.object({
   overallScore: z.number().min(0).max(100, 'Score must be 0-100'),
@@ -158,7 +159,10 @@ export const AnalysisSchema = z.object({
     name: z.string(),
     completed: z.boolean(),
     score: z.number().min(0).max(100).optional(),
+    quality: z.number().min(0).max(100).optional(),
     feedback: z.string().optional(),
+    examples: z.array(z.string()).optional(),
+    missedOpportunities: z.array(z.string()).optional(),
   })).optional(),
   metrics: z.object({
     engagementScore: z.number().min(0).max(100).optional(),
@@ -167,18 +171,49 @@ export const AnalysisSchema = z.object({
     closingScore: z.number().min(0).max(100).optional(),
     paceScore: z.number().min(0).max(100).optional(),
     confidenceScore: z.number().min(0).max(100).optional(),
+    // Additional metrics from prompt
+    talkListenRatio: z.string().optional(),
+    questionsAsked: z.number().optional(),
+    objections: z.number().optional(),
+    callToActions: z.number().optional(),
+    rapportMoments: z.number().optional(),
+    valueStatements: z.number().optional(),
   }).optional(),
   strengths: z.array(z.string()).optional(),
   improvements: z.array(z.string()).optional(),
   keyMoments: z.array(z.object({
-    timestamp: z.number().min(0),
+    // Accept both number and string for timestamp (e.g., "early", "middle", "late")
+    timestamp: z.union([z.number().min(0), z.string()]),
     type: z.string(),
     description: z.string(),
+    impact: z.string().optional(),
+    quote: z.string().optional(),
   })).optional(),
   coachingPriorities: z.array(z.string()).optional(),
-  predictedOutcome: z.string().optional(),
-  sentiment: z.enum(['positive', 'neutral', 'negative', 'mixed']).optional(),
-}).strict();
+  // Accept both string and object for predictedOutcome
+  predictedOutcome: z.union([
+    z.string(),
+    z.object({
+      likelihood: z.string(),
+      reasoning: z.string(),
+      nextSteps: z.string().optional(),
+    })
+  ]).optional(),
+  // Accept both simple enum and complex sentiment object
+  sentiment: z.union([
+    z.enum(['positive', 'neutral', 'negative', 'mixed']),
+    z.object({
+      overall: z.enum(['positive', 'neutral', 'negative', 'mixed']).optional(),
+      overallScore: z.number().optional(),
+      clientSentiment: z.string().optional(),
+      repSentiment: z.string().optional(),
+      sentimentShift: z.string().optional(),
+      emotionalHighs: z.array(z.any()).optional(),
+      emotionalLows: z.array(z.any()).optional(),
+      empathyMoments: z.array(z.any()).optional(),
+    })
+  ]).optional(),
+}); // Removed .strict() to allow additional fields from AI
 
 /**
  * Schema for creating/updating a recording
