@@ -353,7 +353,8 @@ function InlineOwnerPicker({ task }: { task: TaskWithDetails }) {
   const { users, loading: usersLoading } = useUsers();
   const updateField = useUpdateTaskField();
 
-  const canEdit = task.isOwner || task.isCreator;
+  // Allow editing if user is owner, creator, assignee, or has function access
+  const canEdit = task.isOwner || task.isCreator || task.isAssignee || task.isInMyFunction;
   const owner = task.owner;
 
   // Filter users by search query
@@ -403,9 +404,14 @@ function InlineOwnerPicker({ task }: { task: TaskWithDetails }) {
   };
 
   const handleSelectOwner = async (userId: string) => {
-    await updateField.mutateAsync({ id: task.id, field: 'owner_id', value: userId });
-    setIsOpen(false);
-    setSearchQuery('');
+    try {
+      await updateField.mutateAsync({ id: task.id, field: 'owner_id', value: userId });
+      setIsOpen(false);
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Failed to update owner:', error);
+      alert(`Failed to update owner: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const ownerName = owner?.full_name || 'Unknown';
@@ -591,10 +597,16 @@ function InlineAssigneePicker({ task }: { task: TaskWithDetails }) {
   };
 
   const handleToggleAssignee = async (userId: string) => {
-    if (currentAssigneeIds.has(userId)) {
-      await removeAssignee.mutateAsync({ taskId: task.id, userId });
-    } else {
-      await addAssignee.mutateAsync({ taskId: task.id, userId });
+    try {
+      if (currentAssigneeIds.has(userId)) {
+        await removeAssignee.mutateAsync({ taskId: task.id, userId });
+      } else {
+        await addAssignee.mutateAsync({ taskId: task.id, userId });
+      }
+    } catch (error) {
+      console.error('Failed to toggle assignee:', error);
+      // Alert user of the error
+      alert(`Failed to update assignee: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
