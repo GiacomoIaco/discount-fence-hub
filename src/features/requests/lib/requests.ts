@@ -190,52 +190,14 @@ export async function createRequest(data: unknown) {
   // Log creation activity
   await logActivity(request.id, 'created', { request_type: validatedData.request_type });
 
-  // Auto-assign based on rules
-  await applyAssignmentRules(request);
+  // Note: Auto-assignment is now handled by database trigger (trigger_auto_assign_on_insert)
+  // The request returned already has assigned_to set if a matching rule exists
 
   return request as Request;
 }
 
-/**
- * Apply assignment rules to a request
- */
-async function applyAssignmentRules(request: Request) {
-  try {
-    // Find active assignment rules for this request type, ordered by priority
-    const { data: rules, error } = await supabase
-      .from('request_assignment_rules')
-      .select('*')
-      .eq('request_type', request.request_type)
-      .eq('is_active', true)
-      .order('priority', { ascending: true })
-      .limit(1);
-
-    if (error) throw error;
-
-    // If a rule exists, auto-assign (keep in 'new' stage until assignee views it)
-    if (rules && rules.length > 0) {
-      const rule = rules[0];
-      await supabase
-        .from('requests')
-        .update({
-          assigned_to: rule.assignee_id,
-          assigned_at: new Date().toISOString(),
-          stage: 'new'  // Stay in 'new' until assignee views it
-        })
-        .eq('id', request.id);
-
-      // Log auto-assignment
-      await logActivity(request.id, 'auto_assigned', {
-        assignee_id: rule.assignee_id,
-        rule_id: rule.id,
-        rule_priority: rule.priority
-      });
-    }
-  } catch (err) {
-    // Log error but don't fail request creation
-    console.error('Auto-assignment failed:', err);
-  }
-}
+// Note: applyAssignmentRules is now handled by database trigger (trigger_auto_assign_on_insert)
+// The trigger automatically sets assigned_to based on request_assignment_rules on INSERT
 
 /**
  * Get all requests for current user

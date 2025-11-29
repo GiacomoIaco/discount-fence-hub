@@ -37,7 +37,8 @@
       "Bash(clip)",
       "Bash(timeout /t 30 /nobreak)",
       "Bash(git fetch:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

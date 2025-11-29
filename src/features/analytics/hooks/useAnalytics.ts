@@ -132,10 +132,10 @@ export function useAnalytics(dateRange: DateRange = '30days') {
       const totalRequests = requests?.length || 0;
       const completedRequests = requests?.filter(r => r.stage === 'completed').length || 0;
 
-      const completedWithTimes = requests?.filter(r => r.stage === 'completed' && r.submitted_at && r.completed_at) || [];
+      const completedWithTimes = requests?.filter(r => r.stage === 'completed' && r.created_at && r.completed_at) || [];
       const avgResponseTime = completedWithTimes.length > 0
         ? completedWithTimes.reduce((acc, r) => {
-            const start = new Date(r.submitted_at).getTime();
+            const start = new Date(r.created_at).getTime();
             const end = new Date(r.completed_at).getTime();
             return acc + (end - start) / (1000 * 60 * 60); // convert to hours
           }, 0) / completedWithTimes.length
@@ -184,8 +184,8 @@ export function useAnalytics(dateRange: DateRange = '30days') {
 
       // Helper function to calculate close time in hours
       const getCloseTime = (request: any) => {
-        if (!request.submitted_at || !request.completed_at) return null;
-        const start = new Date(request.submitted_at).getTime();
+        if (!request.created_at || !request.completed_at) return null;
+        const start = new Date(request.created_at).getTime();
         const end = new Date(request.completed_at).getTime();
         return (end - start) / (1000 * 60 * 60);
       };
@@ -256,7 +256,7 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         weekEnd.setDate(weekEnd.getDate() + 7);
 
         const weekRequests = requests?.filter(r => {
-          const createdAt = new Date(r.submitted_at);
+          const createdAt = new Date(r.created_at);
           return createdAt >= weekStart && createdAt < weekEnd;
         }) || [];
 
@@ -318,10 +318,10 @@ export function useAnalytics(dateRange: DateRange = '30days') {
         const profile = profiles?.find(p => p.id === userId);
         const completed = userRequests.filter(r => r.stage === 'completed');
 
-        const completedWithTimes = completed.filter(r => r.submitted_at && r.completed_at);
+        const completedWithTimes = completed.filter(r => r.created_at && r.completed_at);
         const avgTime = completedWithTimes.length > 0
           ? completedWithTimes.reduce((acc, r) => {
-              const start = new Date(r.submitted_at).getTime();
+              const start = new Date(r.created_at).getTime();
               const end = new Date(r.completed_at).getTime();
               return acc + (end - start) / (1000 * 60 * 60);
             }, 0) / completedWithTimes.length
