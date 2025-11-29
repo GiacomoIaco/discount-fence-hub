@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic, Upload, FileText, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic, Upload, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getAllRecordingsForAdmin, deleteRecordingAdmin, type SalesProcess, type KnowledgeBase, type Recording } from '../lib/recordings';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
