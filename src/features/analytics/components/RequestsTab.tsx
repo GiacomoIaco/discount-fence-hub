@@ -413,31 +413,38 @@ export function RequestsTab({ data }: RequestsTabProps) {
         {/* Requests Created by Week - Bar Chart with Labels */}
         <div className="mb-8">
           <h4 className="text-sm font-semibold text-gray-700 mb-4">Requests Created by Week</h4>
-          <div className="flex items-end justify-between h-56 gap-1 px-2">
-            {data.timeSeries.map((week, index) => {
-              const maxValue = Math.max(...data.timeSeries.map(w => w.requestsCreated), 1);
-              const heightPercent = (week.requestsCreated / maxValue) * 100;
+          {(() => {
+            const maxValue = Math.max(...data.timeSeries.map(w => w.requestsCreated), 1);
+            return (
+              <div className="flex items-end gap-1 px-2" style={{ height: '200px' }}>
+                {data.timeSeries.map((week, index) => {
+                  const heightPercent = (week.requestsCreated / maxValue) * 100;
+                  const barHeight = Math.max((heightPercent / 100) * 180, week.requestsCreated > 0 ? 8 : 0);
 
-              return (
-                <div key={index} className="flex-1 flex flex-col items-center">
-                  {/* Value label on top */}
-                  <div className="text-xs font-semibold text-gray-700 mb-1">
-                    {week.requestsCreated > 0 ? week.requestsCreated : ''}
-                  </div>
-                  {/* Bar */}
-                  <div
-                    className="w-full bg-blue-500 rounded-t hover:bg-blue-600 transition-colors cursor-pointer"
-                    style={{ height: `${Math.max(heightPercent, week.requestsCreated > 0 ? 5 : 0)}%`, minHeight: week.requestsCreated > 0 ? '4px' : '0' }}
-                    title={`${week.weekLabel}: ${week.requestsCreated} requests`}
-                  />
-                  {/* Date label */}
-                  <div className="text-[10px] text-gray-500 mt-2 text-center leading-tight">
-                    {week.weekLabel.split('of ')[1]}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  return (
+                    <div key={index} className="flex-1 flex flex-col items-center justify-end h-full">
+                      {/* Value label on top */}
+                      <div className="text-xs font-semibold text-gray-700 mb-1 h-4">
+                        {week.requestsCreated > 0 ? week.requestsCreated : ''}
+                      </div>
+                      {/* Bar container - fixed height area for bars */}
+                      <div className="w-full flex items-end justify-center" style={{ height: '180px' }}>
+                        <div
+                          className="w-full max-w-8 bg-blue-500 rounded-t hover:bg-blue-600 transition-colors cursor-pointer"
+                          style={{ height: `${barHeight}px` }}
+                          title={`${week.weekLabel}: ${week.requestsCreated} requests`}
+                        />
+                      </div>
+                      {/* Date label */}
+                      <div className="text-[10px] text-gray-500 mt-1 text-center leading-tight whitespace-nowrap">
+                        {week.weekLabel.split('of ')[1]}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Average Close Time by Week - Line Chart with Labels */}
