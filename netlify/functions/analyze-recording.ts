@@ -234,8 +234,8 @@ Be specific, reference actual quotes, and provide actionable coaching advice.`;
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        // Use Haiku for faster response (avoids Netlify 10s timeout)
-        model: 'claude-3-5-haiku-latest',
+        // Use Sonnet 4.5 for high-quality analysis (requires 26s timeout in netlify.toml)
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4096,
         messages: [
           {
