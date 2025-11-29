@@ -204,7 +204,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
 
   // Handle audio element events
   const handleAudioTimeUpdate = () => {
-    if (audioRef.current && audioRef.current.duration) {
+    if (audioRef.current && audioRef.current.duration && isFinite(audioRef.current.duration)) {
       setPlaybackProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
     }
   };
@@ -215,8 +215,8 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   };
 
   const handleAudioCanPlay = () => {
-    // Audio is ready to play - update duration if we have it
-    if (audioRef.current && audioRef.current.duration) {
+    // Audio is ready to play - update duration if we have it (and it's a valid finite number)
+    if (audioRef.current && audioRef.current.duration && isFinite(audioRef.current.duration)) {
       setAudioDuration(Math.ceil(audioRef.current.duration));
     }
   };
@@ -381,7 +381,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         deadline: deadline || undefined,
         special_requirements: specialRequirements || undefined,
         voice_recording_url: uploadedAudioUrl,
-        voice_duration: audioDuration || undefined,
+        voice_duration: audioDuration && isFinite(audioDuration) && audioDuration > 0 ? audioDuration : undefined,
         transcript: transcript || undefined,
         photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined
       };
@@ -484,7 +484,11 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
                         style={{ width: `${playbackProgress}%` }}
                       ></div>
                     </div>
-                    <p className="text-xs text-gray-600 mt-1">{audioDuration}s</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {audioDuration && isFinite(audioDuration)
+                        ? `${Math.floor(audioDuration / 60)}:${String(audioDuration % 60).padStart(2, '0')}`
+                        : '0:00'}
+                    </p>
                   </div>
                 </div>
                 <button
