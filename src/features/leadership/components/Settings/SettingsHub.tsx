@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ArrowLeft, Folder, Settings as SettingsIcon, Mail, Users, Shield } from 'lucide-react';
+import { ArrowLeft, Folder, Settings as SettingsIcon, Mail, Users, Shield, Crown } from 'lucide-react';
 import FunctionSettings from './FunctionSettings';
 import EmailSettings from './EmailSettings';
 import AccessManagement from './AccessManagement';
+import SuperAdminSettings from './SuperAdminSettings';
 import { useAuth } from '../../../../contexts/AuthContext';
 
-type SettingsView = 'menu' | 'functions' | 'email' | 'access';
+type SettingsView = 'menu' | 'functions' | 'email' | 'access' | 'super-admin';
 
 interface SettingsHubProps {
   onBack: () => void;
@@ -101,6 +102,26 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
               </div>
             </button>
 
+            {/* Super Admin Management - Only visible to super admins */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => setView('super-admin')}
+                className="bg-white p-6 rounded-xl shadow-sm border-2 border-gray-200 hover:shadow-md hover:border-amber-400 transition-all text-left group"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="bg-amber-100 p-3 rounded-lg group-hover:bg-amber-200 transition-colors">
+                    <Crown className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">Super Admin Management</h3>
+                    <p className="text-sm text-gray-600">
+                      Grant or revoke super admin privileges
+                    </p>
+                  </div>
+                </div>
+              </button>
+            )}
+
             {/* System Settings */}
             <button
               disabled
@@ -140,6 +161,11 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
   // Access Management View
   if (view === 'access') {
     return <AccessManagement onBack={() => setView('menu')} />;
+  }
+
+  // Super Admin Management View
+  if (view === 'super-admin') {
+    return <SuperAdminSettings onBack={() => setView('menu')} />;
   }
 
   return null;
