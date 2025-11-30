@@ -86,7 +86,7 @@ export const useFunctionsQuery = () => {
     queryFn: async (): Promise<FunctionWithAccess[]> => {
       if (!user) throw new Error('User not authenticated');
 
-      const isAdmin = profile?.role === 'admin';
+      const isAdmin = profile?.is_super_admin === true;
 
       // Admins see all functions, others see only functions they have access to
       let query = supabase
@@ -155,7 +155,7 @@ export const useFunctionQuery = (functionId?: string) => {
     queryFn: async (): Promise<FunctionWithAccess> => {
       if (!user || !functionId) throw new Error('Missing required parameters');
 
-      const isAdmin = profile?.role === 'admin';
+      const isAdmin = profile?.is_super_admin === true;
 
       const { data, error } = await supabase
         .from('project_functions')

@@ -8,6 +8,7 @@ import BonusKPIsTab from './OperatingPlan/BonusKPIsTab';
 import OperatingPlanUploadModal from './OperatingPlan/OperatingPlanUploadModal';
 import StrategyAndPlanning from './Strategy/StrategyAndPlanning';
 import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
+import { useLeadershipPermissions } from '../hooks/useLeadershipPermissions';
 import InitiativeDetailModal from './InitiativeDetailModal';
 import AreaManagementModal from './AreaManagementModal';
 
@@ -26,6 +27,7 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
   const [showAreaManagement, setShowAreaManagement] = useState(false);
 
   const { data: functions } = useFunctionsQuery();
+  const { canEditFunction, canSeeBonusKPIs } = useLeadershipPermissions(functionId);
 
   const selectedFunction = functions?.find(f => f.id === functionId);
 
@@ -37,6 +39,8 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
         onTabChange={setActiveTab}
         functionName={selectedFunction?.name}
         selectedYear={selectedYear}
+        canEdit={canEditFunction}
+        canSeeBonusKPIs={canSeeBonusKPIs}
       />
 
       {/* Tab Content */}
@@ -54,13 +58,15 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
             {/* Year Selector Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-4">
               <div className="flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <Upload className="w-4 h-4" />
-                  Import Plan
-                </button>
+                {canEditFunction && (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import Plan
+                  </button>
+                )}
 
                 <label className="text-sm font-medium text-gray-700">Year:</label>
                 <select
@@ -90,13 +96,15 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
             {/* Year Selector Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-4">
               <div className="flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <Upload className="w-4 h-4" />
-                  Import Plan
-                </button>
+                {canEditFunction && (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import Plan
+                  </button>
+                )}
 
                 <label className="text-sm font-medium text-gray-700">Year:</label>
                 <select
@@ -133,13 +141,15 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
             {/* Year Selector Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-4">
               <div className="flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <Upload className="w-4 h-4" />
-                  Import Plan
-                </button>
+                {canEditFunction && (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import Plan
+                  </button>
+                )}
 
                 <label className="text-sm font-medium text-gray-700">Year:</label>
                 <select
@@ -169,17 +179,19 @@ export default function FunctionWorkspace({ functionId }: FunctionWorkspaceProps
         <InitiativeDetailModal
           initiativeId={selectedInitiativeId}
           onClose={() => setSelectedInitiativeId(null)}
+          canEdit={canEditFunction}
         />
       )}
 
-      {/* Initiative Detail Modal - Create */}
-      {isCreatingInitiative && selectedAreaIdForCreate && (
+      {/* Initiative Detail Modal - Create (only if can edit) */}
+      {isCreatingInitiative && selectedAreaIdForCreate && canEditFunction && (
         <InitiativeDetailModal
           areaId={selectedAreaIdForCreate}
           onClose={() => {
             setIsCreatingInitiative(false);
             setSelectedAreaIdForCreate(null);
           }}
+          canEdit={true}
         />
       )}
 

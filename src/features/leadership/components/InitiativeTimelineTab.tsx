@@ -41,7 +41,7 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
 
   const isWeekLocked = (weekLock?.locked && !weekLock?.in_grace_period) || false;
   const isInGracePeriod = weekLock?.in_grace_period || false;
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.is_super_admin === true;
 
   // Filter initiatives by active status
   const initiatives = allInitiatives?.filter(initiative => {

@@ -78,7 +78,7 @@ export default function ProgressDashboard({ onBack }: ProgressDashboardProps) {
     red: atRiskInitiatives,
   };
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.is_super_admin === true;
 
   const handleExportPDF = () => {
     exportProgressDashboardPDF({

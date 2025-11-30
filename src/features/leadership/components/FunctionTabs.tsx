@@ -1,4 +1,4 @@
-import { ListTodo, Target, Lightbulb, Calendar, TrendingUp } from 'lucide-react';
+import { ListTodo, Target, Lightbulb, Calendar, TrendingUp, Lock } from 'lucide-react';
 
 export type TabType = 'strategy' | 'annual-plan' | 'quarterly-plan' | 'initiatives' | 'bonus-kpis';
 
@@ -7,13 +7,22 @@ interface FunctionTabsProps {
   onTabChange: (tab: TabType) => void;
   functionName?: string;
   selectedYear?: number;
+  canEdit?: boolean;
+  canSeeBonusKPIs?: boolean;
 }
 
-export default function FunctionTabs({ activeTab, onTabChange, functionName, selectedYear }: FunctionTabsProps) {
+export default function FunctionTabs({
+  activeTab,
+  onTabChange,
+  functionName,
+  selectedYear,
+  canEdit = true,
+  canSeeBonusKPIs = true
+}: FunctionTabsProps) {
   // Tabs that are year-specific
   const yearSpecificTabs = ['annual-plan', 'quarterly-plan', 'bonus-kpis'];
 
-  const tabs = [
+  const allTabs = [
     {
       id: 'strategy' as TabType,
       label: 'Strategy and Planning',
@@ -42,16 +51,31 @@ export default function FunctionTabs({ activeTab, onTabChange, functionName, sel
       id: 'bonus-kpis' as TabType,
       label: 'Annual Bonus KPIs',
       icon: TrendingUp,
-      description: 'Annual bonus key performance indicators'
+      description: 'Annual bonus key performance indicators',
+      requiresBonusAccess: true
     }
   ];
+
+  // Filter tabs based on permissions
+  const tabs = allTabs.filter(tab => {
+    if (tab.requiresBonusAccess && !canSeeBonusKPIs) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="bg-white border-b border-gray-200">
       {/* Function Name / Breadcrumb */}
       {functionName && (
-        <div className="px-6 pt-4 pb-2">
+        <div className="px-6 pt-4 pb-2 flex items-center gap-3">
           <h2 className="text-lg font-semibold text-gray-900">{functionName}</h2>
+          {!canEdit && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+              <Lock className="w-3 h-3" />
+              View Only
+            </span>
+          )}
         </div>
       )}
 

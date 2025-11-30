@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, Folder, Settings as SettingsIcon, Mail, Users } from 'lucide-react';
+import { ArrowLeft, Folder, Settings as SettingsIcon, Mail, Users, Shield } from 'lucide-react';
 import FunctionSettings from './FunctionSettings';
 import EmailSettings from './EmailSettings';
 import AccessManagement from './AccessManagement';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 type SettingsView = 'menu' | 'functions' | 'email' | 'access';
 
@@ -12,6 +13,8 @@ interface SettingsHubProps {
 
 export default function SettingsHub({ onBack }: SettingsHubProps) {
   const [view, setView] = useState<SettingsView>('menu');
+  const { profile } = useAuth();
+  const isSuperAdmin = profile?.is_super_admin === true;
 
   // Settings Menu
   if (view === 'menu') {
@@ -26,8 +29,16 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Leadership Settings</h1>
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-gray-900">Leadership Settings</h1>
+                  {isSuperAdmin && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                      <Shield className="w-3 h-3" />
+                      Super Admin
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600">Manage functions, areas, and system configuration</p>
               </div>
             </div>

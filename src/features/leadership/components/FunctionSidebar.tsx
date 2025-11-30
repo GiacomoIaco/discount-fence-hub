@@ -17,9 +17,11 @@ import {
   ShoppingCart,
   Megaphone,
   Award,
-  Zap
+  Zap,
+  Pencil,
+  Eye
 } from 'lucide-react';
-import { useFunctionsQuery } from '../hooks/useLeadershipQuery';
+import { useFunctionsQuery, useUserFunctionAccess } from '../hooks/useLeadershipQuery';
 import { useInitiativesQuery } from '../hooks/useLeadershipQuery';
 
 // Icon mapping for function icons
@@ -61,6 +63,13 @@ export default function FunctionSidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const { data: functions, isLoading } = useFunctionsQuery();
   const { data: allInitiatives } = useInitiativesQuery();
+  const { data: access } = useUserFunctionAccess();
+
+  // Check if user can edit a specific function
+  const canEditFunction = (functionId: string) => {
+    if (access?.isSuperAdmin) return true;
+    return access?.ownedFunctions.some(f => f.id === functionId) || false;
+  };
 
   // Filter functions by search
   const filteredFunctions = functions?.filter(func =>
@@ -132,6 +141,7 @@ export default function FunctionSidebar({
               const onTrackPercent = getOnTrackPercent(func.id);
               const isSelected = selectedFunctionId === func.id;
               const IconComponent = func.icon ? ICON_MAP[func.icon] : null;
+              const canEdit = canEditFunction(func.id);
 
               return (
                 <button
@@ -141,25 +151,40 @@ export default function FunctionSidebar({
                     isSelected
                       ? 'bg-blue-50 border border-blue-200'
                       : 'hover:bg-gray-50 border border-transparent'
-                  }`}
+                  } ${!canEdit ? 'opacity-75' : ''}`}
                 >
                   {/* Function Icon/Color */}
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold flex-shrink-0"
-                    style={{ backgroundColor: func.color || '#6B7280' }}
-                  >
-                    {IconComponent ? (
-                      <IconComponent className="w-5 h-5" />
-                    ) : (
-                      func.name.charAt(0).toUpperCase()
-                    )}
+                  <div className="relative">
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold flex-shrink-0"
+                      style={{ backgroundColor: func.color || '#6B7280' }}
+                    >
+                      {IconComponent ? (
+                        <IconComponent className="w-5 h-5" />
+                      ) : (
+                        func.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    {/* Owned/View-only indicator badge */}
+                    <div
+                      className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white ${
+                        canEdit ? 'bg-green-500' : 'bg-gray-400'
+                      }`}
+                      title={canEdit ? 'You can edit this function' : 'View only'}
+                    >
+                      {canEdit ? (
+                        <Pencil className="w-2.5 h-2.5 text-white" />
+                      ) : (
+                        <Eye className="w-2.5 h-2.5 text-white" />
+                      )}
+                    </div>
                   </div>
 
                   {/* Function Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className={`text-sm font-medium truncate ${
-                        isSelected ? 'text-blue-900' : 'text-gray-900'
+                        isSelected ? 'text-blue-900' : canEdit ? 'text-gray-900' : 'text-gray-600'
                       }`}>
                         {func.name}
                       </span>
@@ -184,6 +209,12 @@ export default function FunctionSidebar({
                               {onTrackPercent}%
                             </span>
                           </div>
+                        </>
+                      )}
+                      {!canEdit && (
+                        <>
+                          <span className="text-xs text-gray-300">•</span>
+                          <span className="text-xs text-gray-400 italic">view only</span>
                         </>
                       )}
                     </div>

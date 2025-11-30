@@ -17,7 +17,7 @@ export default function HighPriorityView({ onBack }: HighPriorityViewProps) {
   const { data: initiatives, isLoading } = useHighPriorityInitiativesQuery();
 
   // Check admin permission
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.is_super_admin === true;
 
   // Apply color status filter
   const filteredInitiatives = initiatives?.filter((initiative) => {

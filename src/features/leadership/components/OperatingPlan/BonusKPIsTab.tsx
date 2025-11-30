@@ -34,7 +34,7 @@ export default function BonusKPIsTab({ functionId, year }: BonusKPIsTabProps) {
   const [showAchieved, setShowAchieved] = useState(false);
 
   const { profile } = useAuth();
-  const isCEO = profile?.role === 'admin'; // Assuming admin = CEO
+  const isCEO = profile?.is_super_admin === true;
 
   const { data: kpis } = useBonusKPIsQuery(functionId, year);
   const { data: owners } = useFunctionOwnersQuery(functionId);

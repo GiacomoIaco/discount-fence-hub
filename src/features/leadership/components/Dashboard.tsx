@@ -24,7 +24,7 @@ export default function Dashboard({
   const { profile } = useAuth();
   const { data: functions, isLoading } = useFunctionsQuery();
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.is_super_admin === true;
 
   if (isLoading) {
     return (

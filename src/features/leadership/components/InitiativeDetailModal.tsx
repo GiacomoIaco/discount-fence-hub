@@ -14,11 +14,13 @@ interface InitiativeDetailModalProps {
   initiativeId?: string;
   areaId?: string;
   onClose: () => void;
+  canEdit?: boolean;
 }
 
-export default function InitiativeDetailModal({ initiativeId, areaId, onClose }: InitiativeDetailModalProps) {
+export default function InitiativeDetailModal({ initiativeId, areaId, onClose, canEdit = true }: InitiativeDetailModalProps) {
   const { user } = useAuth();
   const isCreating = !initiativeId;
+  const allowEdit = canEdit || isCreating; // Creating is always allowed if the modal is open
 
   const { data: initiative, isLoading } = useInitiativeQuery(initiativeId);
   const createInitiative = useCreateInitiative();
@@ -176,19 +178,23 @@ export default function InitiativeDetailModal({ initiativeId, areaId, onClose }:
                   <FileDown className="w-4 h-4" />
                   <span className="text-sm">Export</span>
                 </button>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={handleArchive}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Archive initiative"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                {allowEdit && (
+                  <>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={handleArchive}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Archive initiative"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
               </>
             )}
             <button

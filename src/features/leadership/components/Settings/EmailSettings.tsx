@@ -17,7 +17,7 @@ export default function EmailSettings({ onBack }: EmailSettingsProps) {
   const [isEnabled, setIsEnabled] = useState(true);
 
   // Check admin permission
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.is_super_admin === true;
 
   useEffect(() => {
     loadSettings();
