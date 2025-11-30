@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Folder, Settings as SettingsIcon, Mail, Users } from 'lucide-react';
 import FunctionSettings from './FunctionSettings';
 import EmailSettings from './EmailSettings';
+import AccessManagement from './AccessManagement';
 
 type SettingsView = 'menu' | 'functions' | 'email' | 'access';
 
@@ -83,11 +84,8 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Access Management</h3>
                   <p className="text-sm text-gray-600">
-                    Grant users access to functions and assign roles
+                    Manage function owners and team members
                   </p>
-                  <div className="mt-2 inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded">
-                    Coming in Sprint 1
-                  </div>
                 </div>
               </div>
             </button>
@@ -130,17 +128,7 @@ export default function SettingsHub({ onBack }: SettingsHubProps) {
 
   // Access Management View
   if (view === 'access') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <button onClick={() => setView('menu')} className="mb-4 text-blue-600 hover:text-blue-700">
-            ← Back to Settings
-          </button>
-          <h1 className="text-2xl font-bold">Access Management</h1>
-          <p className="text-gray-600 mt-2">Coming in Sprint 1</p>
-        </div>
-      </div>
-    );
+    return <AccessManagement onBack={() => setView('menu')} />;
   }
 
   return null;
