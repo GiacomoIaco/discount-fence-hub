@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder } from 'lucide-react';
 import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
@@ -1223,9 +1223,36 @@ type DueDateFilter = 'all' | 'overdue' | 'due-today' | 'due-this-week' | 'high-p
 // Sort option type
 type SortOption = 'default' | 'due-date-asc' | 'due-date-desc' | 'updated-desc' | 'created-desc';
 
+// LocalStorage key for collapse state
+const COLLAPSE_STATE_KEY = 'my-todos-collapse-state';
+
 export default function MyTodos({ onBack }: MyTodosProps) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
-  const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(new Set());
+  // Initialize collapsed state from localStorage
+  const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSE_STATE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return new Set(parsed.collapsed || []);
+      }
+    } catch (e) {
+      console.warn('Failed to load collapse state:', e);
+    }
+    return new Set();
+  });
+  const [allCollapsed, setAllCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSE_STATE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.allCollapsed || false;
+      }
+    } catch (e) {
+      console.warn('Failed to load collapse state:', e);
+    }
+    return false;
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [dueDateFilter, setDueDateFilter] = useState<DueDateFilter>('all');
@@ -1235,6 +1262,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const [showNewInitiativeModal, setShowNewInitiativeModal] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<{ id: string; title: string; isPrivate: boolean; headerColor: string | null } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [functionFilter, setFunctionFilter] = useState<string>('all');
 
   const { data, isLoading, error, refetch } = useMyTodosQuery();
   const { data: personalInitiatives = [], refetch: refetchPersonal } = usePersonalInitiativesQuery();
@@ -1263,6 +1291,18 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     }
   };
 
+  // Save collapse state to localStorage
+  const saveCollapseState = (collapsed: Set<string>, allCollapsedState: boolean) => {
+    try {
+      localStorage.setItem(COLLAPSE_STATE_KEY, JSON.stringify({
+        collapsed: Array.from(collapsed),
+        allCollapsed: allCollapsedState,
+      }));
+    } catch (e) {
+      console.warn('Failed to save collapse state:', e);
+    }
+  };
+
   const toggleInitiativeCollapse = (initiativeId: string) => {
     setCollapsedInitiatives(prev => {
       const next = new Set(prev);
@@ -1271,9 +1311,47 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       } else {
         next.add(initiativeId);
       }
+      saveCollapseState(next, false);
+      setAllCollapsed(false);
       return next;
     });
   };
+
+  // Expand/collapse all initiatives
+  const toggleAllCollapse = () => {
+    const allInitiativeIds = tasksByInitiative.map(g => g.initiativeId);
+    if (allCollapsed) {
+      // Expand all
+      setCollapsedInitiatives(new Set());
+      setAllCollapsed(false);
+      saveCollapseState(new Set(), false);
+    } else {
+      // Collapse all
+      const newCollapsed = new Set(allInitiativeIds);
+      setCollapsedInitiatives(newCollapsed);
+      setAllCollapsed(true);
+      saveCollapseState(newCollapsed, true);
+    }
+  };
+
+  // Get unique functions for the filter dropdown
+  const availableFunctions = useMemo(() => {
+    if (!data?.tasks) return [];
+    const functionsMap = new Map<string, string>();
+    data.tasks.forEach(task => {
+      const funcName = task.initiative?.area?.function?.name;
+      const funcId = task.initiative?.area?.function?.id;
+      if (funcName && funcId) {
+        functionsMap.set(funcId, funcName);
+      }
+    });
+    // Add "Personal" option if there are personal initiatives
+    if (personalInitiatives.length > 0) {
+      functionsMap.set('personal', 'Personal');
+    }
+    return Array.from(functionsMap.entries()).map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data?.tasks, personalInitiatives]);
 
   // Filter chips configuration
   const filterChips = [
@@ -1403,6 +1481,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       initiativeId: string;
       initiativeTitle: string;
       functionName: string;
+      functionId: string | null;
       areaName: string;
       tasks: TaskWithDetails[];
       isPersonal: boolean;
@@ -1412,19 +1491,23 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     }>();
 
     // Add personal initiatives first (even if they have no tasks)
-    personalInitiatives.forEach(initiative => {
-      grouped.set(initiative.id, {
-        initiativeId: initiative.id,
-        initiativeTitle: initiative.title,
-        functionName: 'Personal',
-        areaName: '',
-        tasks: [],
-        isPersonal: true,
-        isPrivate: initiative.is_private,
-        headerColor: initiative.header_color,
-        sortOrder: initiative.sort_order,
+    // Only if function filter is 'all' or 'personal'
+    if (functionFilter === 'all' || functionFilter === 'personal') {
+      personalInitiatives.forEach(initiative => {
+        grouped.set(initiative.id, {
+          initiativeId: initiative.id,
+          initiativeTitle: initiative.title,
+          functionName: 'Personal',
+          functionId: 'personal',
+          areaName: '',
+          tasks: [],
+          isPersonal: true,
+          isPrivate: initiative.is_private,
+          headerColor: initiative.header_color,
+          sortOrder: initiative.sort_order,
+        });
       });
-    });
+    }
 
     // Add tasks to their initiatives
     filteredTasks.forEach(task => {
@@ -1432,12 +1515,26 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       const initiativeTitle = task.initiative?.title || 'No Initiative';
       const areaName = task.initiative?.area?.name || '';
       const functionName = task.initiative?.area?.function?.name || 'Uncategorized';
+      const taskFunctionId = task.initiative?.area?.function?.id || null;
+
+      // Apply function filter
+      if (functionFilter !== 'all') {
+        // For personal filter, skip non-personal tasks
+        if (functionFilter === 'personal') {
+          // Skip tasks that have a function (they're not personal)
+          if (taskFunctionId) return;
+        } else {
+          // Skip tasks that don't match the selected function
+          if (taskFunctionId !== functionFilter) return;
+        }
+      }
 
       if (!grouped.has(initiativeId)) {
         grouped.set(initiativeId, {
           initiativeId,
           initiativeTitle,
           functionName,
+          functionId: taskFunctionId,
           areaName,
           tasks: [],
           isPersonal: false,
@@ -1465,10 +1562,10 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       if (funcCompare !== 0) return funcCompare;
       return a.initiativeTitle.localeCompare(b.initiativeTitle);
     });
-  }, [filteredTasks, personalInitiatives]);
+  }, [filteredTasks, personalInitiatives, functionFilter]);
 
   // Count active filters
-  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all' || dueDateFilter !== 'all' || sortOption !== 'default';
+  const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all' || dueDateFilter !== 'all' || sortOption !== 'default' || functionFilter !== 'all';
 
   if (isLoading) {
     return (
@@ -1683,6 +1780,33 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             <option value="created-desc">Recently Created</option>
           </select>
 
+          {/* Function Filter - only show if multiple functions */}
+          {availableFunctions.length > 1 && (
+            <div className="flex items-center gap-1 border-l border-gray-300 pl-4 ml-2">
+              <Folder className="w-4 h-4 text-gray-400" />
+              <select
+                value={functionFilter}
+                onChange={(e) => setFunctionFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Functions</option>
+                {availableFunctions.map(func => (
+                  <option key={func.id} value={func.id}>{func.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Expand/Collapse All Toggle */}
+          <button
+            onClick={toggleAllCollapse}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
+            title={allCollapsed ? 'Expand all initiatives' : 'Collapse all initiatives'}
+          >
+            <ChevronsUpDown className="w-4 h-4" />
+            {allCollapsed ? 'Expand All' : 'Collapse All'}
+          </button>
+
           {/* Clear Filters */}
           {hasActiveFilters && (
             <button
@@ -1693,6 +1817,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                 setShowCompleted(false);
                 setDueDateFilter('all');
                 setSortOption('default');
+                setFunctionFilter('all');
               }}
               className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
