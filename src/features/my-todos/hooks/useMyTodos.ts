@@ -228,6 +228,44 @@ export function useMyTodosQuery() {
         console.warn('assigned_by query failed:', e);
       }
 
+      // Fetch tasks from functions the user owns
+      let tasksInMyFunctions: TaskWithDetails[] = [];
+      if (myFunctionIds.length > 0) {
+        try {
+          // First get all areas in these functions
+          const { data: areas } = await supabase
+            .from('project_areas')
+            .select('id')
+            .in('function_id', myFunctionIds);
+
+          if (areas && areas.length > 0) {
+            const areaIds = areas.map(a => a.id);
+
+            // Get all initiatives in those areas
+            const { data: initiatives } = await supabase
+              .from('project_initiatives')
+              .select('id')
+              .in('area_id', areaIds)
+              .is('archived_at', null);
+
+            if (initiatives && initiatives.length > 0) {
+              const initiativeIds = initiatives.map(i => i.id);
+
+              // Get all tasks in those initiatives
+              const { data: tasks } = await supabase
+                .from('project_tasks')
+                .select(TASK_SELECT)
+                .in('initiative_id', initiativeIds)
+                .order('updated_at', { ascending: false });
+
+              tasksInMyFunctions = tasks || [];
+            }
+          }
+        } catch (e) {
+          console.warn('tasks in my functions query failed:', e);
+        }
+      }
+
       // Merge all assigned tasks
       const allAssignedToMe = [...(assignedToMe || [])];
       additionalAssignedTasks.forEach(task => {
@@ -242,6 +280,7 @@ export function useMyTodosQuery() {
       (createdByMe || []).forEach(t => allTaskIds.add(t.id));
       allAssignedToMe.forEach(t => allTaskIds.add(t.id));
       assignedByMe.forEach(t => allTaskIds.add(t.id));
+      tasksInMyFunctions.forEach(t => allTaskIds.add(t.id));
 
       // Fetch assignees for all tasks
       let assigneesMap: Record<string, TaskAssignee[]> = {};
@@ -302,6 +341,7 @@ export function useMyTodosQuery() {
       (createdByMe || []).forEach(t => processTask(t, { isCreator: true }));
       allAssignedToMe.forEach(t => processTask(t, { isAssignee: true }));
       assignedByMe.forEach(t => processTask(t, {})); // Delegated tasks
+      tasksInMyFunctions.forEach(t => processTask(t, {})); // Tasks in functions I own
 
       // Convert to array sorted by updated_at
       const tasks = Array.from(taskMap.values()).sort(
