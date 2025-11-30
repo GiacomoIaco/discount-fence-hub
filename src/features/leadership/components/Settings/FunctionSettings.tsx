@@ -18,7 +18,9 @@ import {
   Megaphone,
   Award,
   Zap,
-  UserPlus
+  UserPlus,
+  Search,
+  X
 } from 'lucide-react';
 import { useFunctionsQuery, useCreateFunction, useUpdateFunction, useAreasQuery, useCreateArea, useUpdateArea, useFunctionOwnersQuery, useAddFunctionOwner, useRemoveFunctionOwner } from '../../hooks/useLeadershipQuery';
 import { useUsers } from '../../../requests/hooks/useRequests';
@@ -589,6 +591,7 @@ interface EditFunctionModalProps {
 function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionModalProps) {
   const [editedFunction, setEditedFunction] = useState(func);
   const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([]);
+  const [ownerSearch, setOwnerSearch] = useState('');
 
   const { data: owners, isLoading: ownersLoading, error: ownersError } = useFunctionOwnersQuery(func.id);
   const { users, loading: usersLoading } = useUsers();
@@ -607,6 +610,15 @@ function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionMod
       setSelectedOwnerIds(owners.map(o => o.user_id));
     }
   }, [owners]);
+
+  // Filter users based on search
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(ownerSearch.toLowerCase()) ||
+    user.email.toLowerCase().includes(ownerSearch.toLowerCase())
+  );
+
+  // Get selected owner details
+  const selectedOwners = users.filter(user => selectedOwnerIds.includes(user.id));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -735,37 +747,92 @@ function EditFunctionModal({ func, onClose, onSave, isLoading }: EditFunctionMod
                 Owners can edit the function and receive weekly email summaries
               </span>
             </label>
+
+            {/* Selected Owners Display */}
+            {selectedOwners.length > 0 && (
+              <div className="mb-3">
+                <div className="text-xs font-medium text-gray-600 mb-2">Current Owners:</div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedOwners.map(owner => (
+                    <div
+                      key={owner.id}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm"
+                    >
+                      <span className="font-medium text-blue-900">{owner.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleOwner(owner.id)}
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full p-0.5"
+                        title="Remove owner"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {usersLoading || ownersLoading ? (
               <div className="text-sm text-gray-500">Loading users...</div>
             ) : (
-              <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
-                {users.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">No users available</div>
-                ) : (
-                  users.map((user) => (
-                    <label
-                      key={user.id}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+              <>
+                {/* Search Input */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={ownerSearch}
+                    onChange={(e) => setOwnerSearch(e.target.value)}
+                    placeholder="Search users by name or email..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {ownerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setOwnerSearch('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedOwnerIds.includes(user.id)}
-                        onChange={() => toggleOwner(user.id)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-            )}
-            {selectedOwnerIds.length > 0 && (
-              <div className="mt-2 text-xs text-gray-600">
-                {selectedOwnerIds.length} owner{selectedOwnerIds.length !== 1 ? 's' : ''} selected
-              </div>
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* User List */}
+                <div className="border border-gray-300 rounded-lg max-h-40 overflow-y-auto">
+                  {filteredUsers.length === 0 ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">
+                      {ownerSearch ? 'No users match your search' : 'No users available'}
+                    </div>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const isSelected = selectedOwnerIds.includes(user.id);
+                      return (
+                        <label
+                          key={user.id}
+                          className={`flex items-center gap-3 p-2.5 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${
+                            isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleOwner(user.id)}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">{user.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{user.email}</div>
+                          </div>
+                          {isSelected && (
+                            <span className="text-xs text-blue-600 font-medium flex-shrink-0">Owner</span>
+                          )}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </>
             )}
           </div>
 

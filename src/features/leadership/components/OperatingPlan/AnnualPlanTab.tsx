@@ -867,31 +867,21 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                       rows={2}
                                     />
                                   ) : (
-                                    <>
-                                      <div className="flex items-start gap-2">
-                                        <span className="text-gray-400">-</span>
-                                        <p
-                                          onClick={() => workflowState.canEdit && setEditingAction(action.id)}
-                                          className={`flex-1 text-sm text-gray-700 ${workflowState.canEdit ? 'cursor-pointer hover:text-gray-900' : ''}`}
-                                        >
-                                          {action.action_text}
-                                        </p>
-                                        {workflowState.canEdit && (
-                                          <button
-                                            onClick={() => handleDeleteAction(action.id, initiative.id)}
-                                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-gray-400">-</span>
+                                      <p
+                                        onClick={() => workflowState.canEdit && setEditingAction(action.id)}
+                                        className={`flex-1 text-sm text-gray-700 ${workflowState.canEdit ? 'cursor-pointer hover:text-gray-900' : ''}`}
+                                      >
+                                        {action.action_text}
+                                      </p>
 
-                                      {/* Scoring UI */}
+                                      {/* Scoring UI - inline on the right */}
                                       {(workflowState.canScoreBU || workflowState.canScoreCEO || action.bu_assessment || action.ceo_assessment) && (
-                                        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100">
+                                        <div className="flex items-center gap-2 flex-shrink-0 ml-2 pl-2 border-l border-gray-200">
                                           {/* BU Score */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-medium text-gray-600">BU:</span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs font-medium text-gray-500">BU:</span>
                                             {scoringMode === 'bu' && workflowState.canScoreBU ? (
                                               <select
                                                 value={action.bu_assessment || ''}
@@ -904,25 +894,25 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                     bu_assessment: (e.target.value as Assessment) || null,
                                                   })
                                                 }
-                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                                className="text-xs border-gray-200 rounded px-1 py-0.5"
                                               >
-                                                <option value="">Not Scored</option>
-                                                <option value="dark_green">Dark Green - Excellent</option>
-                                                <option value="light_green">Light Green - Good</option>
-                                                <option value="light_yellow">Light Yellow - Met</option>
-                                                <option value="dark_yellow">Dark Yellow - Below</option>
-                                                <option value="red">Red - Poor</option>
+                                                <option value="">-</option>
+                                                <option value="dark_green">Dark Green</option>
+                                                <option value="light_green">Light Green</option>
+                                                <option value="light_yellow">Light Yellow</option>
+                                                <option value="dark_yellow">Dark Yellow</option>
+                                                <option value="red">Red</option>
                                               </select>
                                             ) : action.bu_assessment ? (
-                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(action.bu_assessment)}`} title={action.bu_assessment.replace('_', ' ')} />
+                                              <span className={`inline-block w-5 h-3 rounded border ${getAssessmentColor(action.bu_assessment)}`} title={action.bu_assessment.replace('_', ' ')} />
                                             ) : (
-                                              <span className="text-xs text-gray-400">Not scored</span>
+                                              <span className="text-xs text-gray-400">-</span>
                                             )}
                                           </div>
 
                                           {/* CEO Score */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-medium text-gray-600">CEO:</span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs font-medium text-gray-500">CEO:</span>
                                             {scoringMode === 'ceo' && workflowState.canScoreCEO ? (
                                               <select
                                                 value={action.ceo_assessment || ''}
@@ -935,24 +925,33 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                     ceo_assessment: (e.target.value as Assessment) || null,
                                                   })
                                                 }
-                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                                className="text-xs border-gray-200 rounded px-1 py-0.5"
                                               >
-                                                <option value="">Not Scored</option>
-                                                <option value="dark_green">Dark Green - Excellent</option>
-                                                <option value="light_green">Light Green - Good</option>
-                                                <option value="light_yellow">Light Yellow - Met</option>
-                                                <option value="dark_yellow">Dark Yellow - Below</option>
-                                                <option value="red">Red - Poor</option>
+                                                <option value="">-</option>
+                                                <option value="dark_green">Dark Green</option>
+                                                <option value="light_green">Light Green</option>
+                                                <option value="light_yellow">Light Yellow</option>
+                                                <option value="dark_yellow">Dark Yellow</option>
+                                                <option value="red">Red</option>
                                               </select>
                                             ) : action.ceo_assessment ? (
-                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(action.ceo_assessment)}`} title={action.ceo_assessment.replace('_', ' ')} />
+                                              <span className={`inline-block w-5 h-3 rounded border ${getAssessmentColor(action.ceo_assessment)}`} title={action.ceo_assessment.replace('_', ' ')} />
                                             ) : (
-                                              <span className="text-xs text-gray-400">Not scored</span>
+                                              <span className="text-xs text-gray-400">-</span>
                                             )}
                                           </div>
                                         </div>
                                       )}
-                                    </>
+
+                                      {workflowState.canEdit && (
+                                        <button
+                                          onClick={() => handleDeleteAction(action.id, initiative.id)}
+                                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 flex-shrink-0"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               ))}
@@ -1012,30 +1011,20 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                       rows={3}
                                     />
                                   ) : (
-                                    <>
-                                      <div className="flex items-start justify-between gap-2">
-                                        <p
-                                          onClick={() => workflowState.canEdit && setEditingTarget(target.id)}
-                                          className={`flex-1 text-sm text-gray-900 ${workflowState.canEdit ? 'cursor-pointer hover:text-gray-700' : ''}`}
-                                        >
-                                          {target.target_text}
-                                        </p>
-                                        {workflowState.canEdit && (
-                                          <button
-                                            onClick={() => handleDeleteTarget(target.id, initiative.id)}
-                                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
+                                    <div className="flex items-start gap-2">
+                                      <p
+                                        onClick={() => workflowState.canEdit && setEditingTarget(target.id)}
+                                        className={`flex-1 text-sm text-gray-900 ${workflowState.canEdit ? 'cursor-pointer hover:text-gray-700' : ''}`}
+                                      >
+                                        {target.target_text}
+                                      </p>
 
-                                      {/* Scoring UI */}
+                                      {/* Scoring UI - inline on the right */}
                                       {(workflowState.canScoreBU || workflowState.canScoreCEO || target.bu_assessment || target.ceo_assessment) && (
-                                        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100">
+                                        <div className="flex items-center gap-2 flex-shrink-0 ml-2 pl-2 border-l border-gray-200">
                                           {/* BU Score */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-medium text-gray-600">BU:</span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs font-medium text-gray-500">BU:</span>
                                             {scoringMode === 'bu' && workflowState.canScoreBU ? (
                                               <select
                                                 value={target.bu_assessment || ''}
@@ -1048,25 +1037,25 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                     bu_assessment: (e.target.value as Assessment) || null,
                                                   })
                                                 }
-                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                                className="text-xs border-gray-200 rounded px-1 py-0.5"
                                               >
-                                                <option value="">Not Scored</option>
-                                                <option value="dark_green">Dark Green - Excellent</option>
-                                                <option value="light_green">Light Green - Good</option>
-                                                <option value="light_yellow">Light Yellow - Met</option>
-                                                <option value="dark_yellow">Dark Yellow - Below</option>
-                                                <option value="red">Red - Poor</option>
+                                                <option value="">-</option>
+                                                <option value="dark_green">Dark Green</option>
+                                                <option value="light_green">Light Green</option>
+                                                <option value="light_yellow">Light Yellow</option>
+                                                <option value="dark_yellow">Dark Yellow</option>
+                                                <option value="red">Red</option>
                                               </select>
                                             ) : target.bu_assessment ? (
-                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(target.bu_assessment)}`} title={target.bu_assessment.replace('_', ' ')} />
+                                              <span className={`inline-block w-5 h-3 rounded border ${getAssessmentColor(target.bu_assessment)}`} title={target.bu_assessment.replace('_', ' ')} />
                                             ) : (
-                                              <span className="text-xs text-gray-400">Not scored</span>
+                                              <span className="text-xs text-gray-400">-</span>
                                             )}
                                           </div>
 
                                           {/* CEO Score */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-medium text-gray-600">CEO:</span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs font-medium text-gray-500">CEO:</span>
                                             {scoringMode === 'ceo' && workflowState.canScoreCEO ? (
                                               <select
                                                 value={target.ceo_assessment || ''}
@@ -1079,24 +1068,33 @@ export default function AnnualPlanTab({ functionId, year }: AnnualPlanTabProps) 
                                                     ceo_assessment: (e.target.value as Assessment) || null,
                                                   })
                                                 }
-                                                className="text-xs border-gray-200 rounded px-2 py-1"
+                                                className="text-xs border-gray-200 rounded px-1 py-0.5"
                                               >
-                                                <option value="">Not Scored</option>
-                                                <option value="dark_green">Dark Green - Excellent</option>
-                                                <option value="light_green">Light Green - Good</option>
-                                                <option value="light_yellow">Light Yellow - Met</option>
-                                                <option value="dark_yellow">Dark Yellow - Below</option>
-                                                <option value="red">Red - Poor</option>
+                                                <option value="">-</option>
+                                                <option value="dark_green">Dark Green</option>
+                                                <option value="light_green">Light Green</option>
+                                                <option value="light_yellow">Light Yellow</option>
+                                                <option value="dark_yellow">Dark Yellow</option>
+                                                <option value="red">Red</option>
                                               </select>
                                             ) : target.ceo_assessment ? (
-                                              <span className={`inline-block w-6 h-4 rounded border ${getAssessmentColor(target.ceo_assessment)}`} title={target.ceo_assessment.replace('_', ' ')} />
+                                              <span className={`inline-block w-5 h-3 rounded border ${getAssessmentColor(target.ceo_assessment)}`} title={target.ceo_assessment.replace('_', ' ')} />
                                             ) : (
-                                              <span className="text-xs text-gray-400">Not scored</span>
+                                              <span className="text-xs text-gray-400">-</span>
                                             )}
                                           </div>
                                         </div>
                                       )}
-                                    </>
+
+                                      {workflowState.canEdit && (
+                                        <button
+                                          onClick={() => handleDeleteTarget(target.id, initiative.id)}
+                                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 flex-shrink-0"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               ))}
