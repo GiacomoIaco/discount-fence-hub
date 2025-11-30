@@ -89,7 +89,7 @@ export default function AccessManagement({ onBack }: AccessManagementProps) {
         </div>
 
         {/* Functions List */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {functions && functions.length > 0 ? (
             functions.map((func) => (
               <FunctionAccessCard
@@ -177,20 +177,20 @@ function FunctionAccessCard({ functionId, functionName, functionColor, canManage
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Header */}
       <div
-        className="px-5 py-4 border-b border-gray-100"
+        className="px-4 py-3 border-b border-gray-100"
         style={{ borderLeftWidth: '4px', borderLeftColor: functionColor || '#6B7280' }}
       >
-        <h3 className="text-lg font-semibold text-gray-900">{functionName}</h3>
+        <h3 className="text-base font-semibold text-gray-900">{functionName}</h3>
       </div>
 
-      <div className="p-5 grid grid-cols-2 gap-6">
+      <div className="p-4 grid grid-cols-2 gap-4">
         {/* Owners Section */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-amber-500" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Crown className="w-3.5 h-3.5 text-amber-500" />
               <span className="text-sm font-medium text-gray-700">Owners</span>
-              <span className="text-xs text-gray-500">({owners?.length || 0})</span>
+              <span className="text-xs text-gray-400">({owners?.length || 0})</span>
             </div>
             {canManageOwners && (
               <button
@@ -206,34 +206,27 @@ function FunctionAccessCard({ functionId, functionName, functionColor, canManage
           {ownersLoading ? (
             <div className="text-sm text-gray-500">Loading...</div>
           ) : owners && owners.length > 0 ? (
-            <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
               {owners.map((owner) => (
-                <div
+                <span
                   key={owner.id}
-                  className="flex items-center justify-between px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-700 text-white text-xs font-medium rounded-full"
                 >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">
-                      {owner.user_profile?.full_name || 'Unknown'}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {owner.user_profile?.email}
-                    </div>
-                  </div>
+                  {owner.user_profile?.full_name || 'Unknown'}
                   {canManageOwners && (
                     <button
                       onClick={() => handleRemoveOwner(owner.id)}
-                      className="ml-2 p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-100 rounded"
+                      className="ml-0.5 hover:bg-slate-600 rounded-full p-0.5"
                       title="Remove owner"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
-                </div>
+                </span>
               ))}
             </div>
           ) : (
-            <div className="text-sm text-gray-500 italic">No owners assigned</div>
+            <div className="text-sm text-gray-400 italic">No owners assigned</div>
           )}
 
           {/* Add Owner Modal */}
@@ -250,11 +243,11 @@ function FunctionAccessCard({ functionId, functionName, functionColor, canManage
 
         {/* Members Section */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-500" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-blue-500" />
               <span className="text-sm font-medium text-gray-700">Members</span>
-              <span className="text-xs text-gray-500">({members?.length || 0})</span>
+              <span className="text-xs text-gray-400">({members?.length || 0})</span>
             </div>
             {canManageMembers && (
               <button
@@ -270,34 +263,27 @@ function FunctionAccessCard({ functionId, functionName, functionColor, canManage
           {membersLoading ? (
             <div className="text-sm text-gray-500">Loading...</div>
           ) : members && members.length > 0 ? (
-            <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
               {members.map((member) => (
-                <div
+                <span
                   key={member.id}
-                  className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-700 text-white text-xs font-medium rounded-full"
                 >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">
-                      {member.user_profile?.full_name || 'Unknown'}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {member.user_profile?.email}
-                    </div>
-                  </div>
+                  {member.user_profile?.full_name || 'Unknown'}
                   {canManageMembers && (
                     <button
                       onClick={() => handleRemoveMember(member.id, member.user_id)}
-                      className="ml-2 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded"
+                      className="ml-0.5 hover:bg-slate-600 rounded-full p-0.5"
                       title="Remove member"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
-                </div>
+                </span>
               ))}
             </div>
           ) : (
-            <div className="text-sm text-gray-500 italic">No members assigned</div>
+            <div className="text-sm text-gray-400 italic">No members assigned</div>
           )}
 
           {/* Add Member Modal */}

@@ -17,9 +17,7 @@ import {
   ShoppingCart,
   Megaphone,
   Award,
-  Zap,
-  Pencil,
-  Eye
+  Zap
 } from 'lucide-react';
 import { useFunctionsQuery, useUserFunctionAccess } from '../hooks/useLeadershipQuery';
 import { useInitiativesQuery } from '../hooks/useLeadershipQuery';
@@ -153,31 +151,19 @@ export default function FunctionSidebar({
                       : 'hover:bg-gray-50 border border-transparent'
                   } ${!canEdit ? 'opacity-75' : ''}`}
                 >
-                  {/* Function Icon/Color */}
-                  <div className="relative">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold flex-shrink-0"
-                      style={{ backgroundColor: func.color || '#6B7280' }}
-                    >
-                      {IconComponent ? (
-                        <IconComponent className="w-5 h-5" />
-                      ) : (
-                        func.name.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    {/* Owned/View-only indicator badge */}
-                    <div
-                      className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white ${
-                        canEdit ? 'bg-green-500' : 'bg-gray-400'
-                      }`}
-                      title={canEdit ? 'You can edit this function' : 'View only'}
-                    >
-                      {canEdit ? (
-                        <Pencil className="w-2.5 h-2.5 text-white" />
-                      ) : (
-                        <Eye className="w-2.5 h-2.5 text-white" />
-                      )}
-                    </div>
+                  {/* Function Icon/Color with edit indicator ring */}
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold flex-shrink-0 ring-2 ring-offset-2 ${
+                      canEdit ? 'ring-green-500' : 'ring-transparent'
+                    }`}
+                    style={{ backgroundColor: func.color || '#6B7280' }}
+                    title={canEdit ? 'You can edit this function' : 'View only'}
+                  >
+                    {IconComponent ? (
+                      <IconComponent className="w-5 h-5" />
+                    ) : (
+                      func.name.charAt(0).toUpperCase()
+                    )}
                   </div>
 
                   {/* Function Info */}

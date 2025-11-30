@@ -14,9 +14,11 @@ import {
   Megaphone,
   Award,
   Zap,
-  UserPlus
+  Crown,
+  Plus,
+  Search
 } from 'lucide-react';
-import { useCreateFunction, useAddFunctionOwner } from '../hooks/useLeadershipQuery';
+import { useCreateFunction, useAddFunctionOwner, useAddFunctionMember } from '../hooks/useLeadershipQuery';
 import { useUsers } from '../../requests/hooks/useRequests';
 
 // Available icons for functions
@@ -44,6 +46,7 @@ interface NewFunctionModalProps {
 export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModalProps) {
   const createFunction = useCreateFunction();
   const addFunctionOwner = useAddFunctionOwner();
+  const addFunctionMember = useAddFunctionMember();
   const { users, loading: usersLoading } = useUsers();
 
   const [formData, setFormData] = useState({
@@ -52,7 +55,13 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
     color: '#3B82F6',
     icon: 'Briefcase',
     ownerIds: [] as string[],
+    memberIds: [] as string[],
   });
+
+  const [showOwnerPicker, setShowOwnerPicker] = useState(false);
+  const [showMemberPicker, setShowMemberPicker] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +92,18 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
         );
       }
 
+      // Add members
+      if (formData.memberIds.length > 0) {
+        await Promise.all(
+          formData.memberIds.map((userId) =>
+            addFunctionMember.mutateAsync({
+              functionId: newFunction.id,
+              userId,
+            })
+          )
+        );
+      }
+
       onSuccess?.();
       onClose();
     } catch (error) {
@@ -91,18 +112,64 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
     }
   };
 
-  const toggleOwner = (userId: string) => {
-    setFormData((prev) => ({
+  const addOwner = (userId: string) => {
+    if (!formData.ownerIds.includes(userId)) {
+      setFormData(prev => ({
+        ...prev,
+        ownerIds: [...prev.ownerIds, userId],
+        // Remove from members if they were a member
+        memberIds: prev.memberIds.filter(id => id !== userId),
+      }));
+    }
+    setShowOwnerPicker(false);
+    setOwnerSearch('');
+  };
+
+  const removeOwner = (userId: string) => {
+    setFormData(prev => ({
       ...prev,
-      ownerIds: prev.ownerIds.includes(userId)
-        ? prev.ownerIds.filter((id) => id !== userId)
-        : [...prev.ownerIds, userId],
+      ownerIds: prev.ownerIds.filter(id => id !== userId),
     }));
   };
 
+  const addMember = (userId: string) => {
+    if (!formData.memberIds.includes(userId) && !formData.ownerIds.includes(userId)) {
+      setFormData(prev => ({
+        ...prev,
+        memberIds: [...prev.memberIds, userId],
+      }));
+    }
+    setShowMemberPicker(false);
+    setMemberSearch('');
+  };
+
+  const removeMember = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      memberIds: prev.memberIds.filter(id => id !== userId),
+    }));
+  };
+
+  // Get user details for display
+  const getUser = (userId: string) => users.find(u => u.id === userId);
+
+  // Filter users for pickers (exclude already selected)
+  const availableOwners = users.filter(
+    user => !formData.ownerIds.includes(user.id) &&
+    (user.name.toLowerCase().includes(ownerSearch.toLowerCase()) ||
+     user.email.toLowerCase().includes(ownerSearch.toLowerCase()))
+  );
+
+  const availableMembers = users.filter(
+    user => !formData.memberIds.includes(user.id) &&
+    !formData.ownerIds.includes(user.id) && // Owners can't be members
+    (user.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+     user.email.toLowerCase().includes(memberSearch.toLowerCase()))
+  );
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Create New Function</h3>
@@ -140,7 +207,7 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Brief description of this function's purpose"
-              rows={3}
+              rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -187,45 +254,168 @@ export default function NewFunctionModal({ onClose, onSuccess }: NewFunctionModa
 
           {/* Function Owners */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4" />
-                <span>Function Owners</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <Crown className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-sm font-medium text-gray-700">Owners</span>
               </div>
-              <span className="text-xs text-gray-500 font-normal mt-1 block">
-                Owners can edit the function and receive weekly email summaries
-              </span>
-            </label>
-            {usersLoading ? (
-              <div className="text-sm text-gray-500">Loading users...</div>
-            ) : (
-              <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
-                {users.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">No users available</div>
-                ) : (
-                  users.map((user) => (
-                    <label
-                      key={user.id}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+              <button
+                type="button"
+                onClick={() => setShowOwnerPicker(!showOwnerPicker)}
+                className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium"
+              >
+                <Plus className="w-3 h-3" />
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              Owners can edit the function in Leadership Hub
+            </p>
+
+            {/* Selected Owners as badges */}
+            {formData.ownerIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {formData.ownerIds.map(userId => {
+                  const user = getUser(userId);
+                  return user ? (
+                    <span
+                      key={userId}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-700 text-white text-xs font-medium rounded-full"
                     >
-                      <input
-                        type="checkbox"
-                        checked={formData.ownerIds.includes(user.id)}
-                        onChange={() => toggleOwner(user.id)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
-                      </div>
-                    </label>
-                  ))
-                )}
+                      {user.name}
+                      <button
+                        type="button"
+                        onClick={() => removeOwner(userId)}
+                        className="ml-0.5 hover:bg-slate-600 rounded-full p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic mb-2">No owners assigned</div>
+            )}
+
+            {/* Owner Picker Dropdown */}
+            {showOwnerPicker && (
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={ownerSearch}
+                    onChange={(e) => setOwnerSearch(e.target.value)}
+                    placeholder="Search users..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border-b border-gray-200 focus:outline-none focus:bg-gray-50"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-32 overflow-y-auto">
+                  {usersLoading ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">Loading...</div>
+                  ) : availableOwners.length === 0 ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">
+                      {ownerSearch ? 'No users match' : 'No available users'}
+                    </div>
+                  ) : (
+                    availableOwners.slice(0, 5).map(user => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => addOwner(user.id)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">{user.name}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
             )}
-            {formData.ownerIds.length > 0 && (
-              <div className="mt-2 text-xs text-gray-600">
-                {formData.ownerIds.length} owner{formData.ownerIds.length !== 1 ? 's' : ''} selected
+          </div>
+
+          {/* Function Members */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-sm font-medium text-gray-700">Members</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMemberPicker(!showMemberPicker)}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <Plus className="w-3 h-3" />
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              Members can see Team View in My To-Dos
+            </p>
+
+            {/* Selected Members as badges */}
+            {formData.memberIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {formData.memberIds.map(userId => {
+                  const user = getUser(userId);
+                  return user ? (
+                    <span
+                      key={userId}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-700 text-white text-xs font-medium rounded-full"
+                    >
+                      {user.name}
+                      <button
+                        type="button"
+                        onClick={() => removeMember(userId)}
+                        className="ml-0.5 hover:bg-slate-600 rounded-full p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic mb-2">No members assigned</div>
+            )}
+
+            {/* Member Picker Dropdown */}
+            {showMemberPicker && (
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    placeholder="Search users..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border-b border-gray-200 focus:outline-none focus:bg-gray-50"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-32 overflow-y-auto">
+                  {usersLoading ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">Loading...</div>
+                  ) : availableMembers.length === 0 ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">
+                      {memberSearch ? 'No users match' : 'No available users'}
+                    </div>
+                  ) : (
+                    availableMembers.slice(0, 5).map(user => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => addMember(user.id)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">{user.name}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
