@@ -50,6 +50,9 @@ export const leadershipKeys = {
   all: ['leadership'] as const,
   functions: () => [...leadershipKeys.all, 'functions'] as const,
   function: (id: string) => [...leadershipKeys.functions(), id] as const,
+  functionOwners: (functionId: string) => [...leadershipKeys.function(functionId), 'owners'] as const,
+  functionMembers: (functionId: string) => [...leadershipKeys.function(functionId), 'members'] as const,
+  userFunctionAccess: (userId: string) => [...leadershipKeys.all, 'user-function-access', userId] as const,
   areas: () => [...leadershipKeys.all, 'areas'] as const,
   area: (id: string) => [...leadershipKeys.areas(), id] as const,
   areasForFunction: (functionId: string) => [...leadershipKeys.areas(), 'function', functionId] as const,
@@ -644,6 +647,179 @@ export const useRemoveFunctionOwner = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: leadershipKeys.function(data.functionId) });
     },
+  });
+};
+
+// ============================================
+// FUNCTION MEMBERS QUERIES
+// ============================================
+
+export interface FunctionMember {
+  id: string;
+  function_id: string;
+  user_id: string;
+  added_by: string | null;
+  created_at: string;
+  updated_at: string;
+  user_profile?: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url?: string;
+  };
+}
+
+/**
+ * Fetch members for a specific function
+ */
+export const useFunctionMembersQuery = (functionId?: string) => {
+  return useQuery({
+    queryKey: leadershipKeys.functionMembers(functionId!),
+    queryFn: async (): Promise<FunctionMember[]> => {
+      if (!functionId) throw new Error('Function ID is required');
+
+      const { data, error } = await supabase
+        .from('project_function_members')
+        .select(`
+          *,
+          user_profile:user_profiles(id, full_name, email, avatar_url)
+        `)
+        .eq('function_id', functionId);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!functionId,
+  });
+};
+
+/**
+ * Add a member to a function
+ */
+export const useAddFunctionMember = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ functionId, userId }: { functionId: string; userId: string }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('project_function_members')
+        .insert({
+          function_id: functionId,
+          user_id: userId,
+          added_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.functionMembers(variables.functionId) });
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.userFunctionAccess(variables.userId) });
+    },
+  });
+};
+
+/**
+ * Remove a member from a function
+ */
+export const useRemoveFunctionMember = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, functionId, userId }: { id: string; functionId: string; userId?: string }) => {
+      const { error } = await supabase
+        .from('project_function_members')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { id, functionId, userId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: leadershipKeys.functionMembers(data.functionId) });
+      if (data.userId) {
+        queryClient.invalidateQueries({ queryKey: leadershipKeys.userFunctionAccess(data.userId) });
+      }
+    },
+  });
+};
+
+// ============================================
+// USER FUNCTION ACCESS QUERY
+// ============================================
+
+export interface UserFunctionAccess {
+  isSuperAdmin: boolean;
+  ownedFunctions: ProjectFunction[];
+  memberFunctions: ProjectFunction[];
+  allAccessibleFunctions: ProjectFunction[];
+}
+
+/**
+ * Get all functions a user has access to (as owner or member)
+ * Used to determine Leadership Hub access and My Todos Team View scope
+ */
+export const useUserFunctionAccess = () => {
+  const { user, profile } = useAuth();
+
+  return useQuery({
+    queryKey: leadershipKeys.userFunctionAccess(user?.id || ''),
+    queryFn: async (): Promise<UserFunctionAccess> => {
+      if (!user) throw new Error('Not authenticated');
+
+      const isSuperAdmin = profile?.is_super_admin === true;
+
+      if (isSuperAdmin) {
+        // Super admin has access to all functions
+        const { data } = await supabase
+          .from('project_functions')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order');
+
+        return {
+          isSuperAdmin: true,
+          ownedFunctions: data || [],
+          memberFunctions: [],
+          allAccessibleFunctions: data || [],
+        };
+      }
+
+      // Get owned functions
+      const { data: ownedData } = await supabase
+        .from('project_function_owners')
+        .select('function:project_functions(*)')
+        .eq('user_id', user.id);
+
+      const ownedFunctions = (ownedData || [])
+        .map((d: any) => d.function)
+        .filter((f: any) => f?.is_active) as ProjectFunction[];
+
+      // Get member functions (exclude functions user already owns)
+      const { data: memberData } = await supabase
+        .from('project_function_members')
+        .select('function:project_functions(*)')
+        .eq('user_id', user.id);
+
+      const ownedFunctionIds = ownedFunctions.map(f => f.id);
+      const memberFunctions = (memberData || [])
+        .map((d: any) => d.function)
+        .filter((f: any) => f?.is_active && !ownedFunctionIds.includes(f.id)) as ProjectFunction[];
+
+      return {
+        isSuperAdmin: false,
+        ownedFunctions,
+        memberFunctions,
+        allAccessibleFunctions: [...ownedFunctions, ...memberFunctions],
+      };
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 };
 

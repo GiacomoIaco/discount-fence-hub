@@ -12,6 +12,7 @@ interface UserProfile {
   phone?: string;
   avatar_url?: string;
   created_at: string;
+  is_super_admin?: boolean;
 }
 
 interface AuthContextType {
