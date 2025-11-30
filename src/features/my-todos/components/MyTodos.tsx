@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe } from 'lucide-react';
 import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
+import { useFunctionsQuery, useAreasQuery, useCreateInitiative } from '../../leadership/hooks/useLeadershipQuery';
 
 interface MyTodosProps {
   onBack: () => void;
@@ -876,7 +877,10 @@ function QuickAddTask({
   );
 }
 
-// New initiative modal
+// Initiative type for the modal
+type InitiativeType = 'personal' | 'organizational';
+
+// New initiative modal - supports both personal and organizational initiatives
 function NewInitiativeModal({
   onClose,
   onSuccess,
@@ -886,41 +890,176 @@ function NewInitiativeModal({
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
   const [headerColor, setHeaderColor] = useState('blue-900');
-  const createInitiative = useCreatePersonalInitiative();
+  const [initiativeType, setInitiativeType] = useState<InitiativeType>('personal');
+  const [selectedFunctionId, setSelectedFunctionId] = useState<string>('');
+  const [selectedAreaId, setSelectedAreaId] = useState<string>('');
+
+  const createPersonalInitiative = useCreatePersonalInitiative();
+  const createOrgInitiative = useCreateInitiative();
+  const { data: functions = [], isLoading: functionsLoading } = useFunctionsQuery();
+  const { data: areas = [], isLoading: areasLoading } = useAreasQuery(selectedFunctionId || undefined);
+
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isCreating = createPersonalInitiative.isPending || createOrgInitiative.isPending;
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Reset area when function changes
+  useEffect(() => {
+    setSelectedAreaId('');
+  }, [selectedFunctionId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     try {
-      await createInitiative.mutateAsync({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        is_private: isPrivate,
-        header_color: headerColor,
-      });
+      if (initiativeType === 'personal') {
+        await createPersonalInitiative.mutateAsync({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          is_private: true, // Personal initiatives are always private
+          header_color: headerColor,
+        });
+      } else {
+        // Organizational initiative - requires area_id
+        if (!selectedAreaId) {
+          alert('Please select an area');
+          return;
+        }
+        await createOrgInitiative.mutateAsync({
+          area_id: selectedAreaId,
+          title: title.trim(),
+          description: description.trim() || undefined,
+        });
+      }
       onSuccess();
       onClose();
     } catch (err) {
       console.error('Failed to create initiative:', err);
+      alert('Failed to create initiative');
     }
   };
+
+  const selectedFunction = functions.find(f => f.id === selectedFunctionId);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">New Personal Initiative</h2>
-          <p className="text-sm text-gray-500 mt-1">Create an initiative for your personal to-dos</p>
+          <h2 className="text-lg font-semibold text-gray-900">New Initiative</h2>
+          <p className="text-sm text-gray-500 mt-1">Create a personal or organizational initiative</p>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Initiative Type Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Initiative Type</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setInitiativeType('personal')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                  initiativeType === 'personal'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <span className="font-medium">Personal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setInitiativeType('organizational')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                  initiativeType === 'organizational'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                <span className="font-medium">Organizational</span>
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {initiativeType === 'personal'
+                ? 'Personal initiatives are private and only visible to you'
+                : 'Organizational initiatives are linked to a Function > Area and visible to team members'}
+            </p>
+          </div>
+
+          {/* Function & Area Selection (only for organizational) */}
+          {initiativeType === 'organizational' && (
+            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
+                {functionsLoading ? (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading functions...
+                  </div>
+                ) : functions.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-2">No functions available. You need access to at least one function.</p>
+                ) : (
+                  <select
+                    value={selectedFunctionId}
+                    onChange={(e) => setSelectedFunctionId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    <option value="">Select a function...</option>
+                    {functions.map((func) => (
+                      <option key={func.id} value={func.id}>
+                        {func.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {selectedFunctionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
+                  {areasLoading ? (
+                    <div className="flex items-center gap-2 text-gray-500 text-sm py-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading areas...
+                    </div>
+                  ) : areas.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-2">
+                      No areas in this function. Create areas in the Leadership Hub first.
+                    </p>
+                  ) : (
+                    <select
+                      value={selectedAreaId}
+                      onChange={(e) => setSelectedAreaId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="">Select an area...</option>
+                      {areas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {selectedAreaId && selectedFunction && (
+                <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                  <Building2 className="w-4 h-4" />
+                  <span>
+                    {selectedFunction.name} / {areas.find(a => a.id === selectedAreaId)?.name}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
             <input
@@ -928,11 +1067,13 @@ function NewInitiativeModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Q4 Personal Goals"
+              placeholder={initiativeType === 'personal' ? 'e.g., Q4 Personal Goals' : 'e.g., Improve Customer Onboarding'}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               required
             />
           </div>
+
+          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
             <textarea
@@ -944,47 +1085,25 @@ function NewInitiativeModal({
             />
           </div>
 
-          {/* Header Color */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Header Color</label>
-            <div className="flex flex-wrap gap-2">
-              {headerColorOptions.map((color) => (
-                <button
-                  key={color.value}
-                  type="button"
-                  onClick={() => setHeaderColor(color.value)}
-                  className={`w-8 h-8 rounded-lg ${color.bg} ${
-                    headerColor === color.value ? 'ring-2 ring-offset-2 ring-blue-500' : ''
-                  }`}
-                  title={color.label}
-                />
-              ))}
+          {/* Header Color (only for personal initiatives) */}
+          {initiativeType === 'personal' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Header Color</label>
+              <div className="flex flex-wrap gap-2">
+                {headerColorOptions.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => setHeaderColor(color.value)}
+                    className={`w-8 h-8 rounded-lg ${color.bg} ${
+                      headerColor === color.value ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+                    }`}
+                    title={color.label}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* Private Toggle */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsPrivate(!isPrivate)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                isPrivate ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  isPrivate ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-            <div className="flex items-center gap-2">
-              <Lock className={`w-4 h-4 ${isPrivate ? 'text-blue-600' : 'text-gray-400'}`} />
-              <span className="text-sm text-gray-700">Private initiative</span>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 -mt-2 ml-14">
-            Private initiatives are only visible to you
-          </p>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -996,10 +1115,14 @@ function NewInitiativeModal({
             </button>
             <button
               type="submit"
-              disabled={createInitiative.isPending || !title.trim()}
+              disabled={
+                isCreating ||
+                !title.trim() ||
+                (initiativeType === 'organizational' && !selectedAreaId)
+              }
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
             >
-              {createInitiative.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isCreating && <Loader2 className="w-4 h-4 animate-spin" />}
               Create Initiative
             </button>
           </div>
