@@ -768,6 +768,7 @@ export function useReorderPersonalInitiatives() {
  */
 export function useReorderTasks() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (tasks: { id: string; sort_order: number }[]) => {
@@ -787,7 +788,36 @@ export function useReorderTasks() {
 
       return results;
     },
-    onSuccess: () => {
+    onMutate: async (updates) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['my-todos', user?.id] });
+
+      // Snapshot current data
+      const previousData = queryClient.getQueryData(['my-todos', user?.id]);
+
+      // Optimistically update sort_order in cache
+      queryClient.setQueryData(['my-todos', user?.id], (old: MyTasksData | undefined) => {
+        if (!old) return old;
+        const updateMap = new Map(updates.map(u => [u.id, u.sort_order]));
+        return {
+          ...old,
+          tasks: old.tasks.map(task => {
+            const newOrder = updateMap.get(task.id);
+            return newOrder !== undefined ? { ...task, sort_order: newOrder } : task;
+          }),
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _updates, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['my-todos', user?.id], context.previousData);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after mutation settles
       queryClient.invalidateQueries({ queryKey: ['my-todos'] });
     },
   });

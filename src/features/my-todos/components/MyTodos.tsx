@@ -1420,7 +1420,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
 
     try {
       await reorderTasks.mutateAsync(updates);
-      refetch(); // Refresh to get updated order
+      // Optimistic updates handle the UI - refetch happens in onSettled
     } catch (error) {
       console.error('Failed to reorder tasks:', error);
     }
@@ -1641,6 +1641,13 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       grouped.get(initiativeId)!.tasks.push(task);
     });
 
+    // Sort tasks within each initiative by sort_order when using default order
+    if (sortOption === 'default') {
+      grouped.forEach((group) => {
+        group.tasks.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      });
+    }
+
     // Sort: personal initiatives first (by sortOrder), then others by function/title
     return Array.from(grouped.values()).sort((a, b) => {
       // Personal initiatives first
@@ -1657,7 +1664,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       if (funcCompare !== 0) return funcCompare;
       return a.initiativeTitle.localeCompare(b.initiativeTitle);
     });
-  }, [filteredTasks, personalInitiatives, functionFilter]);
+  }, [filteredTasks, personalInitiatives, functionFilter, sortOption]);
 
   // Count active filters
   const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all' || dueDateFilter !== 'all' || sortOption !== 'default' || functionFilter !== 'all';
