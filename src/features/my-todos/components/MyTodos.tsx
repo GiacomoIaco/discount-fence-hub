@@ -1,7 +1,24 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe } from 'lucide-react';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, type TaskWithDetails } from '../hooks/useMyTodos';
+import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
@@ -73,91 +90,6 @@ const headerColorOptions = [
   { value: 'indigo-800', label: 'Indigo', bg: 'bg-indigo-800', hover: 'hover:bg-indigo-700' },
   { value: 'gray-700', label: 'Gray', bg: 'bg-gray-700', hover: 'hover:bg-gray-600' },
 ];
-
-// Inline editable text component
-function InlineEditableText({
-  value,
-  onSave,
-  placeholder = 'Click to add...',
-  className = '',
-}: {
-  value: string | null | undefined;
-  onSave: (value: string) => Promise<void>;
-  placeholder?: string;
-  className?: string;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value || '');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleSave = async () => {
-    if (editValue !== (value || '')) {
-      setIsSaving(true);
-      try {
-        await onSave(editValue);
-      } catch (err) {
-        console.error('Failed to save:', err);
-        setEditValue(value || '');
-      } finally {
-        setIsSaving(false);
-      }
-    }
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave();
-    }
-    if (e.key === 'Escape') {
-      setEditValue(value || '');
-      setIsEditing(false);
-    }
-  };
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          ref={inputRef}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          className={`w-full px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none ${className}`}
-          disabled={isSaving}
-        />
-        {isSaving && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-        setIsEditing(true);
-      }}
-      className={`group cursor-pointer hover:bg-blue-50 rounded px-2 py-1 -mx-1 transition-colors ${className}`}
-    >
-      {value ? (
-        <span className="text-sm text-gray-700">{value}</span>
-      ) : (
-        <span className="text-sm text-gray-400 italic">{placeholder}</span>
-      )}
-      <Edit3 className="w-3 h-3 text-gray-400 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-    </div>
-  );
-}
 
 // Inline date picker component
 function InlineDatePicker({
@@ -1394,6 +1326,20 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const updateStatus = useUpdateTaskStatus();
   const updateField = useUpdateTaskField();
   const deleteTask = useDeleteTask();
+  const reorderTasks = useReorderTasks();
+  // const reorderInitiatives = useReorderPersonalInitiatives(); // Ready for initiative drag-drop
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px drag before activation
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const handleStatusChange = async (taskId: string, status: string) => {
     await updateStatus.mutateAsync({ id: taskId, status });
@@ -1456,6 +1402,32 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       saveCollapseState(newCollapsed, true);
     }
   };
+
+  // Handle task drag end within an initiative
+  const handleTaskDragEnd = async (event: DragEndEvent, _initiativeId: string, tasks: TaskWithDetails[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = tasks.findIndex(t => t.id === active.id);
+    const newIndex = tasks.findIndex(t => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(tasks, oldIndex, newIndex);
+    const updates = reordered.map((task, index) => ({
+      id: task.id,
+      sort_order: index,
+    }));
+
+    try {
+      await reorderTasks.mutateAsync(updates);
+      refetch(); // Refresh to get updated order
+    } catch (error) {
+      console.error('Failed to reorder tasks:', error);
+    }
+  };
+
+  // TODO: Initiative drag-drop can be added by wrapping tasksByInitiative with DndContext
+  // and adding drag handles to initiative headers. The reorderInitiatives mutation is ready.
 
   // Get unique functions for the filter dropdown
   const availableFunctions = useMemo(() => {
@@ -2092,151 +2064,40 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         </tr>
                       )}
 
-                      {/* Task Rows */}
-                      {!isCollapsed && tasks.map((task, idx) => {
-                        const taskOverdue = isOverdue(task);
-
-                        return (
-                          <tr
-                            key={task.id}
-                            className={`border-b border-gray-200 hover:bg-blue-50 transition-colors group cursor-pointer ${
-                              idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-                            } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''}`}
-                            onClick={() => setSelectedTaskId(task.id)}
+                      {/* Task Rows with Drag-Drop */}
+                      {!isCollapsed && tasks.length > 0 && (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => handleTaskDragEnd(event, initiativeId, tasks)}
+                        >
+                          <SortableContext
+                            items={tasks.map(t => t.id)}
+                            strategy={verticalListSortingStrategy}
                           >
-                            {/* Task Title with checkbox indicator, description tooltip, and role badges */}
-                            <td className="px-4 py-3">
-                              <div className="pl-6">
-                                <div className="flex items-center gap-3">
-                                  {/* Status circle */}
-                                  <div
-                                    className={`w-4 h-4 rounded-full border-2 flex-shrink-0 cursor-pointer transition-colors ${
-                                      task.status === 'done'
-                                        ? 'bg-green-500 border-green-500'
-                                        : task.status === 'in_progress'
-                                        ? 'bg-blue-500 border-blue-500'
-                                        : task.status === 'blocked'
-                                        ? 'bg-red-500 border-red-500'
-                                        : 'border-gray-400 hover:border-green-500'
-                                    }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (task.status !== 'done') {
-                                        handleStatusChange(task.id, 'done');
-                                      }
-                                    }}
-                                    title={task.status === 'done' ? 'Completed' : 'Click to complete'}
-                                  >
-                                    {task.status === 'done' && (
-                                      <Check className="w-3 h-3 text-white m-auto" />
-                                    )}
-                                  </div>
-
-                                  {/* High priority indicator */}
-                                  {task.is_high_priority && (
-                                    <div
-                                      className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
-                                      title="High Priority"
-                                    />
-                                  )}
-
-                                  {/* Title with description tooltip on hover */}
-                                  <div className="relative group/title flex-1" onClick={(e) => e.stopPropagation()}>
-                                    <InlineEditableText
-                                      value={task.title}
-                                      onSave={async (value) => {
-                                        await updateField.mutateAsync({ id: task.id, field: 'title', value });
-                                      }}
-                                      placeholder="Enter task..."
-                                      className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
-                                    />
-                                    {/* Description tooltip - shows on hover if description exists */}
-                                    {task.description && (
-                                      <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/title:block">
-                                        <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-xs shadow-lg">
-                                          <div className="font-medium text-gray-300 mb-1">Description:</div>
-                                          <div className="whitespace-pre-wrap">{task.description}</div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="ml-7">
-                                  <RoleBadges task={task} />
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Owner - inline picker */}
-                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                              <InlineOwnerPicker task={task} />
-                            </td>
-
-                            {/* Assignees - inline picker */}
-                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                              <InlineAssigneePicker task={task} />
-                            </td>
-
-                            {/* Status */}
-                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                              <InlineStatusDropdown
-                                status={task.status}
-                                onSave={async (value) => {
-                                  await handleStatusChange(task.id, value);
-                                }}
+                            {tasks.map((task, idx) => (
+                              <SortableTaskRow
+                                key={task.id}
+                                task={task}
+                                idx={idx}
+                                onOpenTask={() => setSelectedTaskId(task.id)}
+                                onStatusChange={handleStatusChange}
+                                onUpdateField={updateField.mutateAsync}
+                                onDeleteTask={handleDeleteTask}
                               />
-                            </td>
-
-                            {/* Due Date */}
-                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                              <InlineDatePicker
-                                value={task.due_date}
-                                onSave={async (value) => {
-                                  await updateField.mutateAsync({ id: task.id, field: 'due_date', value });
-                                }}
-                                isOverdue={taskOverdue}
-                              />
-                            </td>
-
-                            {/* Notes */}
-                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                              <InlineEditableText
-                                value={task.notes || task.description}
-                                onSave={async (value) => {
-                                  await updateField.mutateAsync({ id: task.id, field: 'notes', value });
-                                }}
-                                placeholder="Add notes..."
-                              />
-                            </td>
-
-                            {/* Actions */}
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTaskId(task.id);
-                                  }}
-                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                  title="View details"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteTask(task.id);
-                                  }}
-                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                  title="Delete task"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                            ))}
+                          </SortableContext>
+                        </DndContext>
+                      )}
+                      {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
+                        <tr className="bg-gray-50">
+                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
+                            <div className="flex flex-col items-center gap-2">
+                              <span>No tasks yet. Click "+ Add Task" to create one.</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </>
                   );
                 })}
@@ -2251,8 +2112,8 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         <NewInitiativeModal
           onClose={() => setShowNewInitiativeModal(false)}
           onSuccess={() => {
-            refetch();
             refetchPersonal();
+            refetch();
           }}
         />
       )}
@@ -2263,7 +2124,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           initiative={editingInitiative}
           onClose={() => setEditingInitiative(null)}
           onSuccess={() => {
-            refetch();
+            setEditingInitiative(null);
             refetchPersonal();
           }}
         />
@@ -2277,5 +2138,179 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         />
       )}
     </div>
+  );
+}
+
+// Sortable Task Row Component
+interface SortableTaskRowProps {
+  task: TaskWithDetails;
+  idx: number;
+  onOpenTask: () => void;
+  onStatusChange: (taskId: string, status: string) => void;
+  onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
+  onDeleteTask: (taskId: string) => void;
+}
+
+function SortableTaskRow({ task, idx, onOpenTask, onStatusChange, onUpdateField, onDeleteTask }: SortableTaskRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const taskOverdue = isOverdue(task);
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors group cursor-pointer ${
+        idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+      } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''} ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''}`}
+      onClick={onOpenTask}
+    >
+      {/* Task Title with drag handle, checkbox indicator, description tooltip, and role badges */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {/* Drag Handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+            onClick={(e) => e.stopPropagation()}
+            title="Drag to reorder"
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+          <div className="pl-2">
+            <div className="flex items-center gap-3">
+              {/* Status circle */}
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 cursor-pointer transition-colors ${
+                  task.status === 'done'
+                    ? 'bg-green-500 border-green-500'
+                    : task.status === 'in_progress'
+                    ? 'bg-blue-500 border-blue-500'
+                    : task.status === 'blocked'
+                    ? 'bg-red-500 border-red-500'
+                    : 'border-gray-400 hover:border-green-500'
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (task.status !== 'done') {
+                    onStatusChange(task.id, 'done');
+                  }
+                }}
+                title={task.status === 'done' ? 'Completed' : 'Click to complete'}
+              >
+                {task.status === 'done' && (
+                  <Check className="w-3 h-3 text-white m-auto" />
+                )}
+              </div>
+
+              {/* High priority indicator */}
+              {task.is_high_priority && (
+                <div
+                  className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
+                  title="High Priority"
+                />
+              )}
+
+              {/* Title with description tooltip on hover */}
+              <div className="relative group/title flex-1" onClick={(e) => e.stopPropagation()}>
+                <span className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}>
+                  {task.title}
+                </span>
+                {/* Description tooltip - shows on hover if description exists */}
+                {task.description && (
+                  <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/title:block">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-xs shadow-lg">
+                      <div className="font-medium text-gray-300 mb-1">Description:</div>
+                      <div className="whitespace-pre-wrap">{task.description}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="ml-7">
+              <RoleBadges task={task} />
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Owner - inline picker */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <InlineOwnerPicker task={task} />
+      </td>
+
+      {/* Assignees - inline picker */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <InlineAssigneePicker task={task} />
+      </td>
+
+      {/* Status */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <InlineStatusDropdown
+          status={task.status}
+          onSave={async (value) => {
+            await onStatusChange(task.id, value);
+          }}
+        />
+      </td>
+
+      {/* Due Date */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <InlineDatePicker
+          value={task.due_date}
+          onSave={async (value) => {
+            await onUpdateField({ id: task.id, field: 'due_date', value });
+          }}
+          isOverdue={!!taskOverdue}
+        />
+      </td>
+
+      {/* Notes */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <span className="text-sm text-gray-600 truncate block max-w-[150px]">
+          {task.notes || task.description || '-'}
+        </span>
+      </td>
+
+      {/* Actions */}
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenTask();
+            }}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+            title="View details"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteTask(task.id);
+            }}
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+            title="Delete task"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }

@@ -109,7 +109,12 @@ export default function FunctionView({ functionId, onBack }: FunctionViewProps) 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <InitiativeTableView
                 initiatives={areas.flatMap((area) => area.initiatives || [])}
+                areas={areas}
                 onInitiativeClick={(id) => setSelectedInitiativeId(id)}
+                onAddInitiativeToArea={(areaId) => {
+                  setSelectedAreaId(areaId);
+                  setIsCreatingInitiative(true);
+                }}
               />
             </div>
           ) : (
