@@ -112,9 +112,9 @@ function App() {
     localStorage.setItem('viewMode', viewMode);
   }, [viewMode]);
 
-  // Auto-collapse sidebar in Leadership mode for maximum screen space
+  // Auto-collapse sidebar in Leadership and MyTodos modes for maximum screen space
   useEffect(() => {
-    if (activeSection === 'leadership') {
+    if (activeSection === 'leadership' || activeSection === 'my-todos') {
       setSidebarOpen(false);
     }
   }, [activeSection]);

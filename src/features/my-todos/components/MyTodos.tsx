@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe, GripVertical } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe, GripVertical } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, type TaskWithDetails } from '../hooks/useMyTodos';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, useLastCommentsQuery, setTaskViewed, isCommentUnread, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
@@ -69,9 +69,10 @@ const areaColorPalette = [
   { bg: 'bg-lime-800', hover: 'hover:bg-lime-700', border: 'border-lime-600' },
 ];
 
-const getAreaColor = (areaName: string): { bg: string; hover: string; border: string } => {
-  if (!areaName) return { bg: 'bg-gray-700', hover: 'hover:bg-gray-600', border: 'border-gray-500' };
-  const hash = areaName.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
+const getAreaColor = (areaId: string): { bg: string; hover: string; border: string } => {
+  if (!areaId) return { bg: 'bg-gray-700', hover: 'hover:bg-gray-600', border: 'border-gray-500' };
+  // Use area ID for consistent hashing (more reliable than area name)
+  const hash = areaId.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
   return areaColorPalette[hash % areaColorPalette.length];
 };
 
@@ -788,7 +789,7 @@ function QuickAddTask({
 
   return (
     <tr className="bg-blue-50 border-b border-blue-100">
-      <td className="px-4 py-2" colSpan={7}>
+      <td className="px-4 py-2" colSpan={8}>
         <div className="flex items-center gap-3 pl-6">
           <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
           <input
@@ -1345,7 +1346,10 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const updateField = useUpdateTaskField();
   const deleteTask = useDeleteTask();
   const reorderTasks = useReorderTasks();
-  // const reorderInitiatives = useReorderPersonalInitiatives(); // Ready for initiative drag-drop
+
+  // Fetch last comments for all tasks
+  const taskIds = useMemo(() => data?.tasks?.map(t => t.id) || [], [data?.tasks]);
+  const { data: lastComments = {} } = useLastCommentsQuery(taskIds);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -1595,6 +1599,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       initiativeTitle: string;
       functionName: string;
       functionId: string | null;
+      areaId: string;
       areaName: string;
       tasks: TaskWithDetails[];
       isPersonal: boolean;
@@ -1612,6 +1617,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           initiativeTitle: initiative.title,
           functionName: 'Personal',
           functionId: 'personal',
+          areaId: '',
           areaName: '',
           tasks: [],
           isPersonal: true,
@@ -1626,6 +1632,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     filteredTasks.forEach(task => {
       const initiativeId = task.initiative_id || 'no-initiative';
       const initiativeTitle = task.initiative?.title || 'No Initiative';
+      const areaId = task.initiative?.area?.id || '';
       const areaName = task.initiative?.area?.name || '';
       const functionName = task.initiative?.area?.function?.name || 'Uncategorized';
       const taskFunctionId = task.initiative?.area?.function?.id || null;
@@ -1648,6 +1655,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           initiativeTitle,
           functionName,
           functionId: taskFunctionId,
+          areaId,
           areaName,
           tasks: [],
           isPersonal: false,
@@ -1723,95 +1731,23 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-600 mb-1">
-            <Crown className="w-4 h-4 text-amber-500" />
-            <span className="text-sm">I Own</span>
-          </div>
-          <p className="text-2xl font-bold text-amber-600">{stats.totalOwned}</p>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-600 mb-1">
-            <UserCheck className="w-4 h-4 text-blue-500" />
-            <span className="text-sm">Assigned to Me</span>
-          </div>
-          <p className="text-2xl font-bold text-blue-600">{stats.totalAssigned}</p>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-600 mb-1">
-            <Clock className="w-4 h-4" />
-            <span className="text-sm">In Progress</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-700">{stats.inProgressCount}</p>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-600 mb-1">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            <span className="text-sm">Done This Week</span>
-          </div>
-          <p className="text-2xl font-bold text-green-600">{stats.completedThisWeek}</p>
-        </div>
-
-        {stats.overdueCount > 0 && (
-          <div className="bg-red-50 rounded-lg border border-red-200 p-4">
-            <div className="flex items-center gap-2 text-red-600 mb-1">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm">Overdue</span>
-            </div>
-            <p className="text-2xl font-bold text-red-600">{stats.overdueCount}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Filter Chips */}
-      <div className="flex flex-wrap gap-2">
-        {filterChips.map((chip) => {
-          const Icon = chip.icon;
-          const isActive = activeFilter === chip.id;
-          return (
-            <button
-              key={chip.id}
-              onClick={() => setActiveFilter(chip.id)}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{chip.label}</span>
-              <span className={`px-2 py-0.5 text-xs rounded-full ${
-                isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
-              }`}>
-                {chip.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Filter Bar */}
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-        <div className="flex items-center gap-4 flex-wrap">
+      {/* Row 1: Search, Status, Quick Filters, Sort */}
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[180px] max-w-[280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-9 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1822,7 +1758,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">All Statuses</option>
             <option value="todo">To Do</option>
@@ -1833,99 +1769,76 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           {/* Show Completed Toggle */}
           <button
             onClick={() => setShowCompleted(!showCompleted)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
               showCompleted
                 ? 'bg-green-100 text-green-800 border border-green-300'
-                : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
             }`}
           >
-            {showCompleted ? 'Showing Completed' : 'Show Completed'}
+            {showCompleted ? '✓ Completed' : 'Show Completed'}
           </button>
 
+          <div className="h-5 w-px bg-gray-300" />
+
           {/* Due Date Quick Filters */}
-          <div className="flex items-center gap-1 border-l border-gray-300 pl-4 ml-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                 dueDateFilter === 'overdue'
-                  ? 'bg-red-100 text-red-800 border border-red-300'
-                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               Overdue
             </button>
             <button
               onClick={() => setDueDateFilter(dueDateFilter === 'due-today' ? 'all' : 'due-today')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                 dueDateFilter === 'due-today'
-                  ? 'bg-orange-100 text-orange-800 border border-orange-300'
-                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                  ? 'bg-orange-100 text-orange-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Due Today
+              Today
             </button>
             <button
               onClick={() => setDueDateFilter(dueDateFilter === 'due-this-week' ? 'all' : 'due-this-week')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                 dueDateFilter === 'due-this-week'
-                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               This Week
             </button>
             <button
               onClick={() => setDueDateFilter(dueDateFilter === 'high-priority' ? 'all' : 'high-priority')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 ${
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${
                 dueDateFilter === 'high-priority'
-                  ? 'bg-red-100 text-red-800 border border-red-300'
-                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              High Priority
+              <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              Priority
             </button>
           </div>
+
+          <div className="h-5 w-px bg-gray-300" />
 
           {/* Sort Dropdown */}
           <select
             value={sortOption}
             onChange={(e) => setSortOption(e.target.value as SortOption)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="default">Default Order</option>
-            <option value="due-date-asc">Due Date (Earliest First)</option>
-            <option value="due-date-desc">Due Date (Latest First)</option>
-            <option value="updated-desc">Recently Updated</option>
-            <option value="created-desc">Recently Created</option>
+            <option value="due-date-asc">Due Date ↑</option>
+            <option value="due-date-desc">Due Date ↓</option>
+            <option value="updated-desc">Updated</option>
+            <option value="created-desc">Created</option>
           </select>
-
-          {/* Function Filter - only show if multiple functions */}
-          {availableFunctions.length > 1 && (
-            <div className="flex items-center gap-1 border-l border-gray-300 pl-4 ml-2">
-              <Folder className="w-4 h-4 text-gray-400" />
-              <select
-                value={functionFilter}
-                onChange={(e) => setFunctionFilter(e.target.value)}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Functions</option>
-                {availableFunctions.map(func => (
-                  <option key={func.id} value={func.id}>{func.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Expand/Collapse All Toggle */}
-          <button
-            onClick={toggleAllCollapse}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
-            title={allCollapsed ? 'Expand all initiatives' : 'Collapse all initiatives'}
-          >
-            <ChevronsUpDown className="w-4 h-4" />
-            {allCollapsed ? 'Expand All' : 'Collapse All'}
-          </button>
 
           {/* Clear Filters */}
           {hasActiveFilters && (
@@ -1939,16 +1852,76 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                 setSortOption('default');
                 setFunctionFilter('all');
               }}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
             >
-              Clear Filters
+              ✕ Clear
             </button>
           )}
 
-          {/* Results Count */}
-          <div className="text-sm text-gray-600 ml-auto">
-            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Row 2: Role Filters, Function Filter, Collapse, Task Count */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Role Filter Chips */}
+        <div className="flex items-center gap-1">
+          {filterChips.map((chip) => {
+            const Icon = chip.icon;
+            const isActive = activeFilter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                onClick={() => setActiveFilter(chip.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{chip.label}</span>
+                <span className={`px-1.5 py-0.5 text-xs rounded ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {chip.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="h-5 w-px bg-gray-300" />
+
+        {/* Function Filter */}
+        {availableFunctions.length > 1 && (
+          <div className="flex items-center gap-1">
+            <Folder className="w-4 h-4 text-gray-400" />
+            <select
+              value={functionFilter}
+              onChange={(e) => setFunctionFilter(e.target.value)}
+              className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Functions</option>
+              {availableFunctions.map(func => (
+                <option key={func.id} value={func.id}>{func.name}</option>
+              ))}
+            </select>
           </div>
+        )}
+
+        {/* Expand/Collapse All Toggle */}
+        <button
+          onClick={toggleAllCollapse}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
+          title={allCollapsed ? 'Expand all initiatives' : 'Collapse all initiatives'}
+        >
+          <ChevronsUpDown className="w-4 h-4" />
+          {allCollapsed ? 'Expand' : 'Collapse'}
+        </button>
+
+        {/* Results Count */}
+        <div className="text-sm text-gray-500 ml-auto">
+          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -1982,21 +1955,24 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[100px]">
                     Due Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[150px]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[120px]">
                     Notes
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[80px]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[180px]">
+                    Last Comment
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[70px]">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
+                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaId, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
                   const isCollapsed = collapsedInitiatives.has(initiativeId);
 
                   // Color logic:
                   // - Personal initiatives: use custom headerColor (user-selected)
-                  // - Organizational initiatives: use area-based color (auto-generated from area name)
+                  // - Organizational initiatives: use area-based color (auto-generated from area ID)
                   let bgClass: string;
                   let hoverClass: string;
                   let borderClass: string;
@@ -2007,9 +1983,9 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                     bgClass = `bg-${headerColor}`;
                     hoverClass = colorOption.hover;
                     borderClass = `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}`;
-                  } else if (!isPersonal && areaName) {
-                    // Organizational - use area-based color
-                    const areaColor = getAreaColor(areaName);
+                  } else if (!isPersonal && areaId) {
+                    // Organizational - use area-based color (using area ID for consistency)
+                    const areaColor = getAreaColor(areaId);
                     bgClass = areaColor.bg;
                     hoverClass = areaColor.hover;
                     borderClass = areaColor.border;
@@ -2028,7 +2004,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         className={`${bgClass} border-t-2 ${borderClass} cursor-pointer ${hoverClass} transition-colors`}
                         onClick={() => toggleInitiativeCollapse(initiativeId)}
                       >
-                        <td colSpan={7} className="px-4 py-2">
+                        <td colSpan={8} className="px-4 py-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               {isCollapsed ? (
@@ -2099,17 +2075,6 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                         />
                       )}
 
-                      {/* Empty Initiative Message */}
-                      {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
-                        <tr className="bg-gray-50">
-                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
-                            <div className="flex flex-col items-center gap-2">
-                              <span>No tasks yet. Click "+ Add Task" to create one.</span>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
                       {/* Task Rows with Drag-Drop */}
                       {!isCollapsed && tasks.length > 0 && (
                         <DndContext
@@ -2126,7 +2091,11 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                 key={task.id}
                                 task={task}
                                 idx={idx}
-                                onOpenTask={() => setSelectedTaskId(task.id)}
+                                lastComment={lastComments[task.id] || null}
+                                onOpenTask={() => {
+                                  setTaskViewed(task.id);
+                                  setSelectedTaskId(task.id);
+                                }}
                                 onStatusChange={handleStatusChange}
                                 onUpdateField={updateField.mutateAsync}
                                 onDeleteTask={handleDeleteTask}
@@ -2135,9 +2104,10 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                           </SortableContext>
                         </DndContext>
                       )}
+                      {/* Empty Initiative Message */}
                       {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
                         <tr className="bg-gray-50">
-                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
+                          <td colSpan={8} className="px-4 py-6 text-center text-gray-500 text-sm">
                             <div className="flex flex-col items-center gap-2">
                               <span>No tasks yet. Click "+ Add Task" to create one.</span>
                             </div>
@@ -2191,13 +2161,19 @@ export default function MyTodos({ onBack }: MyTodosProps) {
 interface SortableTaskRowProps {
   task: TaskWithDetails;
   idx: number;
+  lastComment: {
+    id: string;
+    content: string;
+    created_at: string;
+    user: { id: string; full_name: string } | null;
+  } | null;
   onOpenTask: () => void;
   onStatusChange: (taskId: string, status: string) => void;
   onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
   onDeleteTask: (taskId: string) => void;
 }
 
-function SortableTaskRow({ task, idx, onOpenTask, onStatusChange, onUpdateField, onDeleteTask }: SortableTaskRowProps) {
+function SortableTaskRow({ task, idx, lastComment, onOpenTask, onStatusChange, onUpdateField, onDeleteTask }: SortableTaskRowProps) {
   const {
     attributes,
     listeners,
@@ -2327,9 +2303,40 @@ function SortableTaskRow({ task, idx, onOpenTask, onStatusChange, onUpdateField,
 
       {/* Notes */}
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <span className="text-sm text-gray-600 truncate block max-w-[150px]">
-          {task.notes || task.description || '-'}
+        <span className="text-sm text-gray-600 truncate block max-w-[100px]">
+          {task.notes || '-'}
         </span>
+      </td>
+
+      {/* Last Comment */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        {lastComment ? (
+          <div
+            className={`text-xs rounded px-2 py-1 cursor-pointer hover:bg-gray-100 ${
+              isCommentUnread(task.id, lastComment.created_at)
+                ? 'bg-amber-50 border border-amber-200'
+                : 'bg-gray-50'
+            }`}
+            onClick={onOpenTask}
+            title={`${lastComment.user?.full_name || 'Unknown'}: ${lastComment.content}`}
+          >
+            <div className="flex items-center gap-1 text-gray-500 mb-0.5">
+              <span className="font-medium truncate max-w-[80px]">
+                {lastComment.user?.full_name?.split(' ')[0] || 'Unknown'}
+              </span>
+              <span>•</span>
+              <span>{formatDate(lastComment.created_at)}</span>
+              {isCommentUnread(task.id, lastComment.created_at) && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 ml-1" title="New comment" />
+              )}
+            </div>
+            <div className="text-gray-700 truncate max-w-[150px]">
+              {lastComment.content}
+            </div>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-xs">-</span>
+        )}
       </td>
 
       {/* Actions */}

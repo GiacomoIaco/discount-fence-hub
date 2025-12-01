@@ -937,6 +937,96 @@ export function useDeleteTaskComment() {
   });
 }
 
+/**
+ * Fetch the latest comment for multiple tasks (for showing in task list)
+ */
+export interface LastComment {
+  taskId: string;
+  comment: {
+    id: string;
+    content: string;
+    created_at: string;
+    user: {
+      id: string;
+      full_name: string;
+    } | null;
+  } | null;
+}
+
+export function useLastCommentsQuery(taskIds: string[]) {
+  return useQuery({
+    queryKey: ['last-comments', taskIds.sort().join(',')],
+    queryFn: async (): Promise<Record<string, LastComment['comment']>> => {
+      if (taskIds.length === 0) return {};
+
+      // Fetch all comments for these tasks, ordered by created_at desc
+      const { data, error } = await supabase
+        .from('task_comments')
+        .select(`
+          id,
+          task_id,
+          content,
+          created_at,
+          user:user_profiles!task_comments_user_id_fkey(id, full_name)
+        `)
+        .in('task_id', taskIds)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('last-comments query failed:', error);
+        return {};
+      }
+
+      // Group by task_id and take the first (latest) comment for each
+      const lastComments: Record<string, LastComment['comment']> = {};
+      (data || []).forEach(comment => {
+        if (!lastComments[comment.task_id]) {
+          // Handle Supabase typing - user might be returned as array or object
+          const user = Array.isArray(comment.user) ? comment.user[0] : comment.user;
+          lastComments[comment.task_id] = {
+            id: comment.id,
+            content: comment.content,
+            created_at: comment.created_at,
+            user: user || null,
+          };
+        }
+      });
+
+      return lastComments;
+    },
+    enabled: taskIds.length > 0,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+}
+
+// ============================================
+// TASK VIEWS (for unread comment tracking)
+// ============================================
+
+const TASK_VIEWS_KEY = 'taskLastViewed';
+
+export function getTaskLastViewed(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem(TASK_VIEWS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setTaskViewed(taskId: string) {
+  const views = getTaskLastViewed();
+  views[taskId] = new Date().toISOString();
+  localStorage.setItem(TASK_VIEWS_KEY, JSON.stringify(views));
+}
+
+export function isCommentUnread(taskId: string, commentCreatedAt: string): boolean {
+  const views = getTaskLastViewed();
+  const lastViewed = views[taskId];
+  if (!lastViewed) return true; // Never viewed = unread
+  return new Date(commentCreatedAt) > new Date(lastViewed);
+}
+
 // ============================================
 // TASK OWNER AND ASSIGNEES
 // ============================================
