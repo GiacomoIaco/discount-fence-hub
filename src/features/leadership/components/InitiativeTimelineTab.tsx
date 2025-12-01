@@ -1,6 +1,23 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, ChevronLeft, Archive, ArchiveRestore, Eye, EyeOff, Filter, Clock, Lock, Unlock } from 'lucide-react';
-import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useUpdateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative, useWeekLockQuery, useUnlockWeek } from '../hooks/useLeadershipQuery';
+import { Plus, ChevronDown, ChevronRight, Calendar, CheckSquare, Square, ChevronLeft, Archive, ArchiveRestore, Eye, EyeOff, Filter, Clock, Lock, Unlock, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useAreasQuery, useInitiativesByFunctionQuery, useInitiativeUpdatesQuery, useCreateInitiativeUpdate, useUpdateInitiativeUpdate, useDeactivateInitiative, useActivateInitiative, useWeekLockQuery, useUnlockWeek, useUpdateInitiative } from '../hooks/useLeadershipQuery';
 import { useTasksQuery, useCreateTask, useUpdateTask } from '../hooks/useGoalsQuery';
 import type { ProjectInitiative } from '../lib/leadership';
 import type { Task } from '../lib/goals.types';
@@ -30,9 +47,52 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
 
   const { profile } = useAuth();
   const { data: areas } = useAreasQuery(functionId);
-  const { data: allInitiatives } = useInitiativesByFunctionQuery(functionId);
+  const { data: allInitiatives, refetch: refetchInitiatives } = useInitiativesByFunctionQuery(functionId);
   const deactivateInitiative = useDeactivateInitiative();
   const activateInitiative = useActivateInitiative();
+  const updateInitiative = useUpdateInitiative();
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle initiative drag end
+  const handleInitiativeDragEnd = async (event: DragEndEvent, areaInitiatives: ProjectInitiative[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = areaInitiatives.findIndex(i => i.id === active.id);
+    const newIndex = areaInitiatives.findIndex(i => i.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(areaInitiatives, oldIndex, newIndex);
+
+    // Update sort_order for all reordered initiatives
+    try {
+      await Promise.all(
+        reordered.map((initiative, index) =>
+          updateInitiative.mutateAsync({
+            id: initiative.id,
+            sort_order: index,
+          })
+        )
+      );
+      refetchInitiatives();
+      toast.success('Initiative order updated');
+    } catch (error) {
+      console.error('Failed to reorder initiatives:', error);
+      toast.error('Failed to update order');
+    }
+  };
 
   // Week lock status - use local date format to avoid timezone issues
   const weekStartDate = formatDateOnly(selectedWeek);
@@ -63,7 +123,7 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
     });
   };
 
-  // Group initiatives by area
+  // Group initiatives by area and sort by sort_order
   const initiativesByArea = initiatives.reduce((acc, initiative) => {
     const areaId = initiative.area?.id || 'uncategorized';
     if (!acc[areaId]) {
@@ -72,6 +132,11 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
     acc[areaId].push(initiative);
     return acc;
   }, {} as Record<string, ProjectInitiative[]>);
+
+  // Sort initiatives within each area by sort_order
+  Object.values(initiativesByArea).forEach(areaInits => {
+    areaInits.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  });
 
   const handleDeactivateInitiative = async (initiative: ProjectInitiative) => {
     if (!window.confirm(`Deactivate "${initiative.title}"? This will hide it from planning views.`)) {
@@ -344,20 +409,31 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {areaInitiatives.map((initiative) => (
-                      <InitiativeTableRow
-                        key={initiative.id}
-                        initiative={initiative}
-                        selectedWeek={selectedWeek}
-                        isCurrentWeek={isCurrentWeek}
-                        isWeekLocked={isWeekLocked}
-                        isInGracePeriod={isInGracePeriod}
-                        onDeactivate={handleDeactivateInitiative}
-                        onActivate={handleActivateInitiative}
-                      />
-                    ))}
-                  </tbody>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => handleInitiativeDragEnd(event, areaInitiatives)}
+                  >
+                    <SortableContext
+                      items={areaInitiatives.map(i => i.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <tbody className="divide-y divide-gray-200">
+                        {areaInitiatives.map((initiative) => (
+                          <SortableInitiativeRow
+                            key={initiative.id}
+                            initiative={initiative}
+                            selectedWeek={selectedWeek}
+                            isCurrentWeek={isCurrentWeek}
+                            isWeekLocked={isWeekLocked}
+                            isInGracePeriod={isInGracePeriod}
+                            onDeactivate={handleDeactivateInitiative}
+                            onActivate={handleActivateInitiative}
+                          />
+                        ))}
+                      </tbody>
+                    </SortableContext>
+                  </DndContext>
                 </table>
               </div>
             )}
@@ -365,6 +441,43 @@ export default function InitiativeTimelineTab({ functionId }: InitiativeTimeline
         );
       })}
     </div>
+  );
+}
+
+// Sortable wrapper for initiative rows
+interface SortableInitiativeRowProps {
+  initiative: ProjectInitiative;
+  selectedWeek: Date;
+  isCurrentWeek: boolean;
+  isWeekLocked: boolean;
+  isInGracePeriod: boolean;
+  onDeactivate: (initiative: ProjectInitiative) => void;
+  onActivate: (initiative: ProjectInitiative) => void;
+}
+
+function SortableInitiativeRow(props: SortableInitiativeRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.initiative.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <InitiativeTableRow
+      {...props}
+      dragHandleProps={{ attributes, listeners }}
+      rowRef={setNodeRef}
+      rowStyle={style}
+    />
   );
 }
 
@@ -377,6 +490,12 @@ interface InitiativeTableRowProps {
   isInGracePeriod: boolean;
   onDeactivate: (initiative: ProjectInitiative) => void;
   onActivate: (initiative: ProjectInitiative) => void;
+  dragHandleProps?: {
+    attributes: ReturnType<typeof useSortable>['attributes'];
+    listeners: ReturnType<typeof useSortable>['listeners'];
+  };
+  rowRef?: (node: HTMLElement | null) => void;
+  rowStyle?: React.CSSProperties;
 }
 
 function InitiativeTableRow({
@@ -387,6 +506,9 @@ function InitiativeTableRow({
   isInGracePeriod,
   onDeactivate,
   onActivate,
+  dragHandleProps,
+  rowRef,
+  rowStyle,
 }: InitiativeTableRowProps) {
   const [isEditingThisWeek, setIsEditingThisWeek] = useState(false);
   const [thisWeekText, setThisWeekText] = useState('');
@@ -573,11 +695,23 @@ function InitiativeTableRow({
 
   return (
     <>
-      <tr className="hover:bg-gray-50">
-        {/* Initiative Column */}
+      <tr ref={rowRef} style={rowStyle} className="hover:bg-gray-50">
+        {/* Initiative Column with Drag Handle */}
         <td className="px-4 py-3 align-top">
-          <div className="flex flex-col gap-1">
-            <div className="font-medium text-gray-900 text-sm">{initiative.title}</div>
+          <div className="flex items-start gap-2">
+            {/* Drag Handle */}
+            {dragHandleProps && (
+              <button
+                {...dragHandleProps.attributes}
+                {...dragHandleProps.listeners}
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded transition-colors mt-0.5 flex-shrink-0"
+                title="Drag to reorder"
+              >
+                <GripVertical className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+            <div className="flex flex-col gap-1">
+              <div className="font-medium text-gray-900 text-sm">{initiative.title}</div>
             {!initiative.is_active && (
               <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded w-fit">
                 Inactive
@@ -602,6 +736,7 @@ function InitiativeTableRow({
                 Activate
               </button>
             )}
+            </div>
           </div>
         </td>
 
