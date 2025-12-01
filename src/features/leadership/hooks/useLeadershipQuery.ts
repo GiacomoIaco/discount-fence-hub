@@ -682,7 +682,7 @@ export const useFunctionMembersQuery = (functionId?: string) => {
         .from('project_function_members')
         .select(`
           *,
-          user_profile:user_profiles(id, full_name, email, avatar_url)
+          user_profile:user_profiles!project_function_members_user_id_fkey(id, full_name, email, avatar_url)
         `)
         .eq('function_id', functionId);
 
