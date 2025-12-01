@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, type TaskWithDetails } from '../hooks/useMyTodos';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, useReorderPersonalInitiatives, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
@@ -1327,7 +1327,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const updateField = useUpdateTaskField();
   const deleteTask = useDeleteTask();
   const reorderTasks = useReorderTasks();
-  // const reorderInitiatives = useReorderPersonalInitiatives(); // Ready for initiative drag-drop
+  const reorderInitiatives = useReorderPersonalInitiatives();
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -1426,8 +1426,29 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     }
   };
 
-  // TODO: Initiative drag-drop can be added by wrapping tasksByInitiative with DndContext
-  // and adding drag handles to initiative headers. The reorderInitiatives mutation is ready.
+  // Handle initiative drag end for reordering
+  const handleInitiativeDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = tasksByInitiative.findIndex(g => g.initiativeId === active.id);
+    const newIndex = tasksByInitiative.findIndex(g => g.initiativeId === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(tasksByInitiative, oldIndex, newIndex);
+    const updates = reordered.map((group, index) => ({
+      id: group.initiativeId,
+      sort_order: index,
+    }));
+
+    try {
+      await reorderInitiatives.mutateAsync(updates);
+      refetch();
+      refetchPersonal();
+    } catch (error) {
+      console.error('Failed to reorder initiatives:', error);
+    }
+  };
 
   // Get unique functions for the filter dropdown
   const availableFunctions = useMemo(() => {
@@ -1965,143 +1986,63 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
-                  const isCollapsed = collapsedInitiatives.has(initiativeId);
-                  // Get color classes based on headerColor or default to blue
-                  const colorOption = headerColorOptions.find(c => c.value === headerColor) || headerColorOptions[0];
-                  const bgClass = headerColor ? `bg-${headerColor}` : 'bg-blue-900';
-                  const hoverClass = headerColor ? colorOption.hover : 'hover:bg-blue-800';
-                  const borderClass = headerColor ? `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}` : 'border-blue-700';
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleInitiativeDragEnd}
+              >
+                <SortableContext
+                  items={tasksByInitiative.map(g => g.initiativeId)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <tbody>
+                    {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
+                      const isCollapsed = collapsedInitiatives.has(initiativeId);
+                      // Get color classes based on headerColor or default to blue
+                      const colorOption = headerColorOptions.find(c => c.value === headerColor) || headerColorOptions[0];
+                      const bgClass = headerColor ? `bg-${headerColor}` : 'bg-blue-900';
+                      const hoverClass = headerColor ? colorOption.hover : 'hover:bg-blue-800';
+                      const borderClass = headerColor ? `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}` : 'border-blue-700';
 
-                  return (
-                    <>
-                      {/* Initiative Header Row (like Area header in Initiatives tab) */}
-                      <tr
-                        key={`initiative-${initiativeId}`}
-                        className={`${bgClass} border-t-2 ${borderClass} cursor-pointer ${hoverClass} transition-colors`}
-                        onClick={() => toggleInitiativeCollapse(initiativeId)}
-                      >
-                        <td colSpan={7} className="px-4 py-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {isCollapsed ? (
-                                <ChevronRight className="w-4 h-4 text-white" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-white" />
-                              )}
-                              <span className="font-semibold text-white">{initiativeTitle}</span>
-                              {isPrivate && (
-                                <span title="Private initiative">
-                                  <Lock className="w-3.5 h-3.5 text-white/70" />
-                                </span>
-                              )}
-                              {areaName && (
-                                <>
-                                  <span className="text-white/50">•</span>
-                                  <span className="text-white/70 text-sm">{functionName} / {areaName}</span>
-                                </>
-                              )}
-                              {isPersonal && !areaName && (
-                                <>
-                                  <span className="text-white/50">•</span>
-                                  <span className="text-white/70 text-sm">Personal</span>
-                                </>
-                              )}
-                              <span className="text-sm text-white/70 ml-2">
-                                ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAddingTaskToInitiative(initiativeId);
-                                  if (isCollapsed) {
-                                    toggleInitiativeCollapse(initiativeId);
-                                  }
-                                }}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded transition-colors"
-                              >
-                                <Plus className="w-3 h-3" />
-                                Add Task
-                              </button>
-                              {isPersonal && (
-                                <InitiativeSettingsMenu
-                                  initiativeId={initiativeId}
-                                  initiativeTitle={initiativeTitle}
-                                  isPrivate={isPrivate}
-                                  headerColor={headerColor}
-                                  onEdit={() => setEditingInitiative({ id: initiativeId, title: initiativeTitle, isPrivate, headerColor })}
-                                  onArchive={() => handleArchiveInitiative(initiativeId, initiativeTitle)}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Quick Add Task Row */}
-                      {!isCollapsed && addingTaskToInitiative === initiativeId && (
-                        <QuickAddTask
+                      return (
+                        <SortableInitiativeGroup
+                          key={initiativeId}
                           initiativeId={initiativeId}
-                          onCancel={() => setAddingTaskToInitiative(null)}
-                          onSuccess={() => {
-                            setAddingTaskToInitiative(null);
-                            refetch();
+                          initiativeTitle={initiativeTitle}
+                          functionName={functionName}
+                          areaName={areaName}
+                          tasks={tasks}
+                          isPersonal={isPersonal}
+                          isPrivate={isPrivate}
+                          headerColor={headerColor}
+                          isCollapsed={isCollapsed}
+                          bgClass={bgClass}
+                          hoverClass={hoverClass}
+                          borderClass={borderClass}
+                          onToggleCollapse={() => toggleInitiativeCollapse(initiativeId)}
+                          onAddTask={() => {
+                            setAddingTaskToInitiative(initiativeId);
+                            if (isCollapsed) {
+                              toggleInitiativeCollapse(initiativeId);
+                            }
                           }}
-                        />
-                      )}
-
-                      {/* Empty Initiative Message */}
-                      {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
-                        <tr className="bg-gray-50">
-                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
-                            <div className="flex flex-col items-center gap-2">
-                              <span>No tasks yet. Click "+ Add Task" to create one.</span>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* Task Rows with Drag-Drop */}
-                      {!isCollapsed && tasks.length > 0 && (
-                        <DndContext
+                          onEditInitiative={() => setEditingInitiative({ id: initiativeId, title: initiativeTitle, isPrivate, headerColor })}
+                          onArchiveInitiative={() => handleArchiveInitiative(initiativeId, initiativeTitle)}
+                          addingTaskToInitiative={addingTaskToInitiative}
+                          setAddingTaskToInitiative={setAddingTaskToInitiative}
+                          refetch={refetch}
                           sensors={sensors}
-                          collisionDetection={closestCenter}
-                          onDragEnd={(event) => handleTaskDragEnd(event, initiativeId, tasks)}
-                        >
-                          <SortableContext
-                            items={tasks.map(t => t.id)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                            {tasks.map((task, idx) => (
-                              <SortableTaskRow
-                                key={task.id}
-                                task={task}
-                                idx={idx}
-                                onOpenTask={() => setSelectedTaskId(task.id)}
-                                onStatusChange={handleStatusChange}
-                                onUpdateField={updateField.mutateAsync}
-                                onDeleteTask={handleDeleteTask}
-                              />
-                            ))}
-                          </SortableContext>
-                        </DndContext>
-                      )}
-                      {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
-                        <tr className="bg-gray-50">
-                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
-                            <div className="flex flex-col items-center gap-2">
-                              <span>No tasks yet. Click "+ Add Task" to create one.</span>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
+                          handleTaskDragEnd={handleTaskDragEnd}
+                          setSelectedTaskId={setSelectedTaskId}
+                          handleStatusChange={handleStatusChange}
+                          updateFieldMutate={updateField.mutateAsync}
+                          handleDeleteTask={handleDeleteTask}
+                        />
+                      );
+                    })}
+                  </tbody>
+                </SortableContext>
+              </DndContext>
             </table>
           </div>
         </div>
@@ -2138,6 +2079,208 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         />
       )}
     </div>
+  );
+}
+
+// Sortable Initiative Group Component
+interface SortableInitiativeGroupProps {
+  initiativeId: string;
+  initiativeTitle: string;
+  functionName: string;
+  areaName: string;
+  tasks: TaskWithDetails[];
+  isPersonal: boolean;
+  isPrivate: boolean;
+  headerColor: string | null | undefined;
+  isCollapsed: boolean;
+  bgClass: string;
+  hoverClass: string;
+  borderClass: string;
+  onToggleCollapse: () => void;
+  onAddTask: () => void;
+  onEditInitiative: () => void;
+  onArchiveInitiative: () => void;
+  addingTaskToInitiative: string | null;
+  setAddingTaskToInitiative: (id: string | null) => void;
+  refetch: () => void;
+  sensors: ReturnType<typeof useSensors>;
+  handleTaskDragEnd: (event: DragEndEvent, initiativeId: string, tasks: TaskWithDetails[]) => void;
+  setSelectedTaskId: (id: string) => void;
+  handleStatusChange: (taskId: string, status: string) => void;
+  updateFieldMutate: (params: { id: string; field: string; value: any }) => Promise<any>;
+  handleDeleteTask: (taskId: string) => void;
+}
+
+function SortableInitiativeGroup({
+  initiativeId,
+  initiativeTitle,
+  functionName,
+  areaName,
+  tasks,
+  isPersonal,
+  isPrivate,
+  headerColor,
+  isCollapsed,
+  bgClass,
+  hoverClass,
+  borderClass,
+  onToggleCollapse,
+  onAddTask,
+  onEditInitiative,
+  onArchiveInitiative,
+  addingTaskToInitiative,
+  setAddingTaskToInitiative,
+  refetch,
+  sensors,
+  handleTaskDragEnd,
+  setSelectedTaskId,
+  handleStatusChange,
+  updateFieldMutate,
+  handleDeleteTask,
+}: SortableInitiativeGroupProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: initiativeId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <>
+      {/* Initiative Header Row */}
+      <tr
+        ref={setNodeRef}
+        style={style}
+        className={`${bgClass} border-t-2 ${borderClass} ${hoverClass} transition-colors ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''}`}
+      >
+        <td colSpan={7} className="px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {/* Drag Handle */}
+              <button
+                {...attributes}
+                {...listeners}
+                className="p-1 text-white/70 hover:text-white cursor-grab active:cursor-grabbing rounded hover:bg-white/10 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+                title="Drag to reorder"
+              >
+                <GripVertical className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onToggleCollapse}
+                className="p-1 hover:bg-white/10 rounded transition-colors"
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="w-4 h-4 text-white" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-white" />
+                )}
+              </button>
+              <span className="font-semibold text-white">{initiativeTitle}</span>
+              {isPrivate && (
+                <span title="Private initiative">
+                  <Lock className="w-3.5 h-3.5 text-white/70" />
+                </span>
+              )}
+              {areaName && (
+                <>
+                  <span className="text-white/50">•</span>
+                  <span className="text-white/70 text-sm">{functionName} / {areaName}</span>
+                </>
+              )}
+              {isPersonal && !areaName && (
+                <>
+                  <span className="text-white/50">•</span>
+                  <span className="text-white/70 text-sm">Personal</span>
+                </>
+              )}
+              <span className="text-sm text-white/70 ml-2">
+                ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddTask();
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Add Task
+              </button>
+              {isPersonal && (
+                <InitiativeSettingsMenu
+                  initiativeId={initiativeId}
+                  initiativeTitle={initiativeTitle}
+                  isPrivate={isPrivate}
+                  headerColor={headerColor ?? null}
+                  onEdit={onEditInitiative}
+                  onArchive={onArchiveInitiative}
+                />
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      {/* Quick Add Task Row */}
+      {!isCollapsed && addingTaskToInitiative === initiativeId && (
+        <QuickAddTask
+          initiativeId={initiativeId}
+          onCancel={() => setAddingTaskToInitiative(null)}
+          onSuccess={() => {
+            setAddingTaskToInitiative(null);
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Empty Initiative Message */}
+      {!isCollapsed && tasks.length === 0 && addingTaskToInitiative !== initiativeId && (
+        <tr className="bg-gray-50">
+          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 text-sm">
+            <div className="flex flex-col items-center gap-2">
+              <span>No tasks yet. Click "+ Add Task" to create one.</span>
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {/* Task Rows with Drag-Drop */}
+      {!isCollapsed && tasks.length > 0 && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(event) => handleTaskDragEnd(event, initiativeId, tasks)}
+        >
+          <SortableContext
+            items={tasks.map(t => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {tasks.map((task, idx) => (
+              <SortableTaskRow
+                key={task.id}
+                task={task}
+                idx={idx}
+                onOpenTask={() => setSelectedTaskId(task.id)}
+                onStatusChange={handleStatusChange}
+                onUpdateField={updateFieldMutate}
+                onDeleteTask={handleDeleteTask}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+    </>
   );
 }
 
