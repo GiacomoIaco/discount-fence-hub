@@ -57,6 +57,24 @@ const getAvatarColor = (userId: string): string => {
   return colors[hash % colors.length];
 };
 
+// Generate consistent header color from area name (for distinguishing initiatives by area)
+const areaColorPalette = [
+  { bg: 'bg-slate-700', hover: 'hover:bg-slate-600', border: 'border-slate-500' },
+  { bg: 'bg-emerald-800', hover: 'hover:bg-emerald-700', border: 'border-emerald-600' },
+  { bg: 'bg-violet-800', hover: 'hover:bg-violet-700', border: 'border-violet-600' },
+  { bg: 'bg-amber-800', hover: 'hover:bg-amber-700', border: 'border-amber-600' },
+  { bg: 'bg-rose-800', hover: 'hover:bg-rose-700', border: 'border-rose-600' },
+  { bg: 'bg-cyan-800', hover: 'hover:bg-cyan-700', border: 'border-cyan-600' },
+  { bg: 'bg-fuchsia-800', hover: 'hover:bg-fuchsia-700', border: 'border-fuchsia-600' },
+  { bg: 'bg-lime-800', hover: 'hover:bg-lime-700', border: 'border-lime-600' },
+];
+
+const getAreaColor = (areaName: string): { bg: string; hover: string; border: string } => {
+  if (!areaName) return { bg: 'bg-gray-700', hover: 'hover:bg-gray-600', border: 'border-gray-500' };
+  const hash = areaName.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
+  return areaColorPalette[hash % areaColorPalette.length];
+};
+
 // Format date for display
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';
@@ -1975,11 +1993,32 @@ export default function MyTodos({ onBack }: MyTodosProps) {
               <tbody>
                 {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
                   const isCollapsed = collapsedInitiatives.has(initiativeId);
-                  // Get color classes based on headerColor or default to blue
-                  const colorOption = headerColorOptions.find(c => c.value === headerColor) || headerColorOptions[0];
-                  const bgClass = headerColor ? `bg-${headerColor}` : 'bg-blue-900';
-                  const hoverClass = headerColor ? colorOption.hover : 'hover:bg-blue-800';
-                  const borderClass = headerColor ? `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}` : 'border-blue-700';
+
+                  // Color logic:
+                  // - Personal initiatives: use custom headerColor (user-selected)
+                  // - Organizational initiatives: use area-based color (auto-generated from area name)
+                  let bgClass: string;
+                  let hoverClass: string;
+                  let borderClass: string;
+
+                  if (isPersonal && headerColor) {
+                    // Personal with custom color
+                    const colorOption = headerColorOptions.find(c => c.value === headerColor) || headerColorOptions[0];
+                    bgClass = `bg-${headerColor}`;
+                    hoverClass = colorOption.hover;
+                    borderClass = `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}`;
+                  } else if (!isPersonal && areaName) {
+                    // Organizational - use area-based color
+                    const areaColor = getAreaColor(areaName);
+                    bgClass = areaColor.bg;
+                    hoverClass = areaColor.hover;
+                    borderClass = areaColor.border;
+                  } else {
+                    // Default (personal without color or uncategorized)
+                    bgClass = 'bg-blue-900';
+                    hoverClass = 'hover:bg-blue-800';
+                    borderClass = 'border-blue-700';
+                  }
 
                   return (
                     <>
