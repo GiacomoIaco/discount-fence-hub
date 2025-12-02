@@ -314,6 +314,8 @@ export default function MessageComposer({ onClose, onMessageSent, editingDraft }
       }
 
       // If editing an existing draft, update it; otherwise insert new
+      let insertedMessageId: string | null = null;
+
       if (editingDraft?.id) {
         const { error } = await supabase
           .from('company_messages')
@@ -321,12 +323,44 @@ export default function MessageComposer({ onClose, onMessageSent, editingDraft }
           .eq('id', editingDraft.id);
 
         if (error) throw error;
+        insertedMessageId = editingDraft.id;
       } else {
-        const { error } = await supabase
+        const { data: insertedData, error } = await supabase
           .from('company_messages')
-          .insert([messageData]);
+          .insert([messageData])
+          .select('id')
+          .single();
 
         if (error) throw error;
+        insertedMessageId = insertedData?.id;
+      }
+
+      // Send notifications to all targeted users (fire and forget)
+      if (insertedMessageId) {
+        // Get the creator's name
+        const { data: creatorProfile } = await supabase
+          .from('user_profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        const creatorName = creatorProfile?.full_name || 'Someone';
+
+        // Fire and forget - don't wait for notification to complete
+        fetch('/.netlify/functions/send-announcement-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            announcementId: insertedMessageId,
+            title: title.trim(),
+            content: content.trim(),
+            messageType,
+            priority,
+            targetRoles: targetRoles.length > 0 ? targetRoles : undefined,
+            createdByUserId: user.id,
+            createdByName: creatorName,
+          }),
+        }).catch(err => console.error('Failed to send announcement notifications:', err));
       }
 
       showError('Message sent successfully!');
