@@ -42,7 +42,7 @@ const MyRequestsView = lazy(() => import('./features/requests').then(module => (
 const OperationsQueue = lazy(() => import('./features/requests').then(module => ({ default: module.RequestQueue })));
 const RequestDetail = lazy(() => import('./features/requests').then(module => ({ default: module.RequestDetail })));
 const Login = lazy(() => import('./components/auth/Login'));
-const BOMCalculator = lazy(() => import('./features/bom_calculator/BOMCalculator').then(m => ({ default: m.BOMCalculator })));
+const BOMCalculatorHub = lazy(() => import('./features/bom_calculator/BOMCalculatorHub'));
 const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
 const MyTodos = lazy(() => import('./features/my-todos').then(m => ({ default: m.MyTodos })));
 
@@ -318,7 +318,7 @@ function App() {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
-              <BOMCalculator
+              <BOMCalculatorHub
                 onBack={() => setActiveSection('home')}
                 userRole={userRole}
                 userId={user?.id}

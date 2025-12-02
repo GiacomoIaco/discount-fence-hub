@@ -1,0 +1,4 @@
+Product SKU,Name,Category,Style,Height_ft,Rail Count,Post Type,Picket Width_in,CapTrim
+SKU-WV-STD-6-3R-SP,"6' Wood Vertical Standard, 3 Rails, Steel Posts",Wood Vertical,Standard,6,3,STEEL,5.5,False
+SKU-WV-GN-6-3R-SP,"6' Wood Vertical Good Neighbor, 3 Rails, Steel Posts",Wood Vertical,Good Neighbor,6,3,STEEL,5.5,False
+SKU-WV-BOB-6-3R-SP,"6' Wood Vertical Board-on-Board, 3 Rails, Steel Posts",Wood Vertical,Board-on-Board,6,3,STEEL,5.5,True
