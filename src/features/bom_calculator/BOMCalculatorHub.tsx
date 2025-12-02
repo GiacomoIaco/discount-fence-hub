@@ -4,6 +4,9 @@ import { HubLayout, type BOMHubPage } from './components/layout';
 import { BOMCalculator } from './BOMCalculator';
 import MaterialsPage from './pages/MaterialsPage';
 import LaborRatesPage from './pages/LaborRatesPage';
+import ProjectsPage from './pages/ProjectsPage';
+import SKUBuilderPage from './pages/SKUBuilderPage';
+import SKUCatalogPage from './pages/SKUCatalogPage';
 
 interface BOMCalculatorHubProps {
   onBack: () => void;
@@ -75,9 +78,16 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
         return <LaborRatesPage />;
 
       case 'projects':
+        return <ProjectsPage />;
+
       case 'sku-builder':
+        if (!isAdmin) {
+          return <AccessDenied onGoBack={() => setActivePage('calculator')} />;
+        }
+        return <SKUBuilderPage />;
+
       case 'sku-catalog':
-        return <ComingSoon page={activePage} />;
+        return <SKUCatalogPage />;
 
       default:
         return null;
@@ -93,30 +103,6 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
     >
       {renderContent()}
     </HubLayout>
-  );
-}
-
-// Coming Soon placeholder component
-function ComingSoon({ page }: { page: string }) {
-  const labels: Record<string, { title: string; description: string }> = {
-    projects: { title: 'Projects', description: 'View and manage saved BOM projects' },
-    'sku-builder': { title: 'SKU Builder', description: 'Create new fence SKU configurations' },
-    'sku-catalog': { title: 'SKU Catalog', description: 'Browse all available fence SKUs' },
-  };
-
-  const info = labels[page] || { title: page, description: '' };
-
-  return (
-    <div className="flex-1 flex items-center justify-center bg-gray-50">
-      <div className="text-center p-12">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <span className="text-4xl">🚧</span>
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-3">{info.title}</h2>
-        <p className="text-gray-600 mb-2">{info.description}</p>
-        <p className="text-sm text-gray-400">Coming Soon</p>
-      </div>
-    </div>
   );
 }
 
