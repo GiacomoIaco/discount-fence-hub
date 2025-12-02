@@ -278,11 +278,17 @@ export function useAddRequestNoteMutation() {
       requestId,
       content,
       noteType = 'comment',
+      fileUrl,
+      fileName,
+      fileType,
     }: {
       requestId: string;
       content: string;
       noteType?: 'comment' | 'internal' | 'status_change';
-    }) => addRequestNote(requestId, content, noteType),
+      fileUrl?: string;
+      fileName?: string;
+      fileType?: string;
+    }) => addRequestNote(requestId, content, noteType, { fileUrl, fileName, fileType }),
     onSuccess: (newNote, variables) => {
       // Add the new note to the cache
       queryClient.setQueryData<RequestNote[]>(

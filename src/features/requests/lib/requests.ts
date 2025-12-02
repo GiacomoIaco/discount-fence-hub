@@ -116,6 +116,9 @@ export interface RequestNote {
   note_type: 'comment' | 'internal' | 'status_change';
   content: string;
   created_at: string;
+  file_url?: string;
+  file_name?: string;
+  file_type?: string;
 }
 
 export interface RequestActivity {
@@ -459,7 +462,8 @@ export async function archiveRequest(requestId: string, reason?: string) {
 export async function addRequestNote(
   requestId: string,
   content: string,
-  noteType: 'comment' | 'internal' | 'status_change' = 'comment'
+  noteType: 'comment' | 'internal' | 'status_change' = 'comment',
+  fileInfo?: { fileUrl?: string; fileName?: string; fileType?: string }
 ) {
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -480,7 +484,10 @@ export async function addRequestNote(
       request_id: validatedNote.request_id,
       user_id: user.id,
       note_type: validatedNote.note_type,
-      content: validatedNote.content
+      content: validatedNote.content,
+      ...(fileInfo?.fileUrl && { file_url: fileInfo.fileUrl }),
+      ...(fileInfo?.fileName && { file_name: fileInfo.fileName }),
+      ...(fileInfo?.fileType && { file_type: fileInfo.fileType })
     })
     .select()
     .single();

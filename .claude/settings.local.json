@@ -43,7 +43,10 @@
       "Bash(ping:*)",
       "Bash(dir /b C:Usersgiacodiscount-fence-hubmigrations*.sql)",
       "Bash(more:*)",
-      "Bash(git revert:*)"
+      "Bash(git revert:*)",
+      "Bash(cmd /c \"type C:\\Users\\giaco\\discount-fence-hub\\migrations\\061_fix_storage_buckets.sql | clip\")",
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\061_fix_storage_buckets.sql'' | Set-Clipboard\")",
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\062_add_file_columns_to_request_notes.sql'' | Set-Clipboard\")"
     ],
     "deny": [],
     "ask": []

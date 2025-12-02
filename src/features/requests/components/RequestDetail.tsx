@@ -3,7 +3,7 @@ import type { Request } from '../lib/requests';
 import { useRequestAge, useUsers } from '../hooks/useRequests';
 import { useRequestQuery, useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation, useAssignRequestMutation } from '../hooks/useRequestsQuery';
 import { markRequestAsViewed, addRequestAttachment, getRequestAttachments, getRequestWatchers, addRequestWatcher, removeRequestWatcher, type RequestAttachment, type RequestWatcher } from '../lib/requests';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
@@ -72,6 +72,9 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const [isAddingWatcher, setIsAddingWatcher] = useState(false);
   const [selectedWatcherId, setSelectedWatcherId] = useState<string>('');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [showFilePickerModal, setShowFilePickerModal] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user can edit (admin or operations)
   const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
@@ -319,18 +322,37 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
     if (!files || files.length === 0) return;
 
     setUploadingFile(true);
+    setShowFilePickerModal(false);
     try {
       for (const file of Array.from(files)) {
+        // Upload to attachments
         const attachment = await addRequestAttachment(requestId, file);
         setAttachments(prev => [attachment, ...prev]);
+
+        // Also add a note with the file so it shows inline in chat
+        const isImage = file.type.startsWith('image/');
+        const noteContent = isImage
+          ? `📷 Shared an image: ${file.name}`
+          : `📎 Shared a file: ${file.name}`;
+
+        await addNote({
+          requestId,
+          content: noteContent,
+          noteType: 'comment',
+          fileUrl: attachment.file_url,
+          fileName: attachment.file_name,
+          fileType: attachment.file_type
+        });
       }
     } catch (error) {
       console.error('Failed to upload file:', error);
       showError('Failed to upload file. Please try again.');
     } finally {
       setUploadingFile(false);
-      // Reset file input
+      // Reset file inputs
       event.target.value = '';
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      if (documentInputRef.current) documentInputRef.current.value = '';
     }
   };
 
@@ -1009,6 +1031,31 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                       {new Date(note.created_at).toLocaleDateString()} {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
+                  {/* Show inline image if note has an image file */}
+                  {note.file_url && note.file_type === 'image' && (
+                    <button
+                      onClick={() => setLightboxImage(note.file_url!)}
+                      className="mb-2 rounded-lg overflow-hidden border border-blue-200 hover:border-blue-400 transition-colors cursor-pointer max-w-xs"
+                    >
+                      <img
+                        src={note.file_url}
+                        alt={note.file_name || 'Shared image'}
+                        className="w-full h-auto max-h-48 object-cover"
+                      />
+                    </button>
+                  )}
+                  {/* Show file link for non-image files */}
+                  {note.file_url && note.file_type !== 'image' && (
+                    <a
+                      href={note.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mb-2 flex items-center gap-2 p-2 bg-white rounded border border-blue-200 hover:bg-blue-50 transition-colors"
+                    >
+                      <Paperclip className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm text-blue-700 truncate">{note.file_name || 'Download file'}</span>
+                    </a>
+                  )}
                   <p className="text-sm text-gray-800">{note.content}</p>
                 </div>
               ))
@@ -1347,20 +1394,30 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
       {/* Sticky Message Bar at Bottom - Mobile */}
       <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 shadow-lg z-20 lg:hidden ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
         <div className="flex gap-1.5 items-center">
+          {/* Hidden file inputs for photo and document */}
           <input
+            ref={photoInputRef}
             type="file"
-            id="mobile-file-input"
+            id="mobile-photo-input"
             className="hidden"
             onChange={handleFileUpload}
-            multiple
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+            accept="image/*,video/*"
           />
-          <label
-            htmlFor="mobile-file-input"
+          <input
+            ref={documentInputRef}
+            type="file"
+            id="mobile-document-input"
+            className="hidden"
+            onChange={handleFileUpload}
+            accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+          />
+          <button
+            type="button"
+            onClick={() => setShowFilePickerModal(true)}
             className="flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer flex-shrink-0"
           >
             <Paperclip className="w-5 h-5" />
-          </label>
+          </button>
           <input
             type="text"
             value={newNote}
@@ -1458,6 +1515,47 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
           )}
         </div>
       </div>
+
+      {/* File Picker Modal - Mobile */}
+      {showFilePickerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 lg:hidden">
+          <div className="bg-white rounded-t-xl shadow-xl w-full max-w-lg p-4 pb-8 animate-slide-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Attach File</h3>
+              <button
+                onClick={() => setShowFilePickerModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setShowFilePickerModal(false);
+                  photoInputRef.current?.click();
+                }}
+                className="flex flex-col items-center gap-2 p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors border-2 border-blue-200"
+              >
+                <Image className="w-8 h-8 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">Photo / Video</span>
+                <span className="text-xs text-blue-600">From Gallery</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowFilePickerModal(false);
+                  documentInputRef.current?.click();
+                }}
+                className="flex flex-col items-center gap-2 p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-colors border-2 border-green-200"
+              >
+                <FileText className="w-8 h-8 text-green-600" />
+                <span className="text-sm font-medium text-green-900">Document</span>
+                <span className="text-xs text-green-600">PDF, Word, etc.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Watcher Modal */}
       {isAddingWatcher && (
