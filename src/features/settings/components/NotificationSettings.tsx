@@ -39,6 +39,16 @@ const NOTIFICATION_CATEGORIES: CategoryConfig[] = [
     ],
   },
   {
+    category: 'tasks',
+    label: 'Tasks & Initiatives',
+    types: [
+      { type: 'assignment', label: 'Task Assigned', description: 'When you are assigned to a task or initiative' },
+      { type: 'comment', label: 'Task Comment', description: 'When someone comments on your task' },
+      { type: 'status_change', label: 'Task Status Change', description: 'When a task status is updated' },
+      { type: 'due_date_reminder', label: 'Due Date Reminder', description: 'Reminders for upcoming task deadlines' },
+    ],
+  },
+  {
     category: 'chat',
     label: 'Chat & Messaging',
     types: [
