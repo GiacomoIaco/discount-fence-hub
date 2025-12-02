@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Save, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Save, Loader2, AlertCircle, Upload, Download, CheckCircle, X, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 
@@ -30,6 +30,17 @@ interface RateChange {
   newRate: number;
 }
 
+interface CSVRateRow {
+  labor_sku: string;
+  bu_code: string;
+  rate: number;
+  currentRate?: number;
+  laborCodeId?: string;
+  businessUnitId?: string;
+  status: 'match' | 'not_found' | 'error';
+  error?: string;
+}
+
 export default function LaborRatesPage() {
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
@@ -37,6 +48,12 @@ export default function LaborRatesPage() {
   const [loading, setLoading] = useState(true);
   const [pendingChanges, setPendingChanges] = useState<RateChange[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // CSV Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [csvData, setCsvData] = useState<CSVRateRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadData();
@@ -151,6 +168,171 @@ export default function LaborRatesPage() {
     setPendingChanges([]);
   };
 
+  // CSV Import functions
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      parseCSV(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const parseCSV = (text: string) => {
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) {
+      showError('CSV file is empty or has no data rows');
+      return;
+    }
+
+    // Parse header row
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+    const skuIndex = headers.findIndex(h => h === 'labor_sku' || h === 'sku' || h === 'code');
+    const buIndex = headers.findIndex(h => h === 'bu_code' || h === 'business_unit' || h === 'bu');
+    const rateIndex = headers.findIndex(h => h === 'rate' || h === 'cost' || h === 'price');
+
+    if (skuIndex === -1 || buIndex === -1 || rateIndex === -1) {
+      showError('CSV must have "labor_sku", "bu_code", and "rate" columns');
+      return;
+    }
+
+    // Parse data rows
+    const rows: CSVRateRow[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''));
+      const sku = values[skuIndex]?.toUpperCase();
+      const buCode = values[buIndex]?.toUpperCase();
+      const rateStr = values[rateIndex]?.replace(/[$,]/g, '');
+      const rate = parseFloat(rateStr);
+
+      if (!sku || !buCode) continue;
+
+      if (isNaN(rate)) {
+        rows.push({
+          labor_sku: sku,
+          bu_code: buCode,
+          rate: 0,
+          status: 'error',
+          error: 'Invalid rate value',
+        });
+        continue;
+      }
+
+      // Find matching labor code and business unit
+      const laborCode = laborCodes.find(lc => lc.labor_sku.toUpperCase() === sku);
+      const businessUnit = businessUnits.find(bu => bu.code.toUpperCase() === buCode);
+
+      if (!laborCode) {
+        rows.push({
+          labor_sku: sku,
+          bu_code: buCode,
+          rate,
+          status: 'not_found',
+          error: 'Labor code not found',
+        });
+        continue;
+      }
+
+      if (!businessUnit) {
+        rows.push({
+          labor_sku: sku,
+          bu_code: buCode,
+          rate,
+          status: 'not_found',
+          error: 'Business unit not found',
+        });
+        continue;
+      }
+
+      // Find current rate
+      const currentRateObj = laborRates.find(
+        r => r.labor_code_id === laborCode.id && r.business_unit_id === businessUnit.id
+      );
+
+      rows.push({
+        labor_sku: sku,
+        bu_code: buCode,
+        rate,
+        currentRate: currentRateObj?.rate,
+        laborCodeId: laborCode.id,
+        businessUnitId: businessUnit.id,
+        status: 'match',
+      });
+    }
+
+    setCsvData(rows);
+    setShowImportModal(true);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    const validRows = csvData.filter(r => r.status === 'match' && r.laborCodeId && r.businessUnitId);
+    if (validRows.length === 0) {
+      showError('No valid rows to import');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const upserts = validRows.map(row => ({
+        labor_code_id: row.laborCodeId!,
+        business_unit_id: row.businessUnitId!,
+        rate: row.rate,
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from('labor_rates')
+        .upsert(upserts, {
+          onConflict: 'labor_code_id,business_unit_id',
+        });
+
+      if (error) throw error;
+
+      showSuccess(`${validRows.length} rate(s) imported`);
+      setShowImportModal(false);
+      setCsvData([]);
+      loadData();
+    } catch (error) {
+      console.error('Error importing rates:', error);
+      showError('Failed to import rates');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleExportRates = () => {
+    const headers = 'labor_sku,bu_code,rate\n';
+    const rows: string[] = [];
+
+    for (const code of laborCodes) {
+      for (const bu of businessUnits) {
+        const rate = laborRates.find(
+          r => r.labor_code_id === code.id && r.business_unit_id === bu.id
+        );
+        if (rate) {
+          rows.push(`${code.labor_sku},${bu.code},${rate.rate.toFixed(2)}`);
+        }
+      }
+    }
+
+    const csv = headers + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'labor_rates.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -172,6 +354,33 @@ export default function LaborRatesPage() {
             <p className="text-sm text-gray-600 mt-1">
               Manage labor rates by business unit
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              onClick={handleExportRates}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700 transition-colors"
+              title="Export current rates to CSV"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700 transition-colors"
+              title="Import rates from CSV"
+            >
+              <Upload className="w-4 h-4" />
+              Import
+            </button>
           </div>
 
           {/* Save/Discard buttons */}
@@ -306,6 +515,129 @@ export default function LaborRatesPage() {
           </div>
         </div>
       </div>
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Import Labor Rates</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Review changes before importing
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowImportModal(false); setCsvData([]); }}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Summary */}
+            <div className="px-6 py-3 bg-gray-50 border-b flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span>{csvData.filter(r => r.status === 'match').length} will update</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <span>{csvData.filter(r => r.status === 'not_found').length} not found</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <X className="w-4 h-4 text-red-500" />
+                <span>{csvData.filter(r => r.status === 'error').length} errors</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-auto p-4">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Labor SKU</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">BU</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-600">Current</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-600">New</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-600">Change</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {csvData.map((row, idx) => {
+                    const diff = row.status === 'match' && row.currentRate !== undefined
+                      ? row.rate - row.currentRate
+                      : null;
+                    return (
+                      <tr key={idx} className={row.status !== 'match' ? 'bg-gray-50' : ''}>
+                        <td className="px-3 py-2">
+                          {row.status === 'match' && (
+                            <span className="inline-flex items-center gap-1 text-green-600">
+                              <CheckCircle className="w-4 h-4" />
+                            </span>
+                          )}
+                          {row.status === 'not_found' && (
+                            <span className="inline-flex items-center gap-1 text-amber-500" title={row.error}>
+                              <AlertTriangle className="w-4 h-4" />
+                            </span>
+                          )}
+                          {row.status === 'error' && (
+                            <span className="inline-flex items-center gap-1 text-red-500" title={row.error}>
+                              <X className="w-4 h-4" />
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-mono">{row.labor_sku}</td>
+                        <td className="px-3 py-2 font-mono text-gray-600">{row.bu_code}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">
+                          {row.currentRate !== undefined ? `$${row.currentRate.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium">
+                          ${row.rate.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {diff !== null && (
+                            <span className={diff > 0 ? 'text-red-600' : diff < 0 ? 'text-green-600' : 'text-gray-400'}>
+                              {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => { setShowImportModal(false); setCsvData([]); }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportConfirm}
+                disabled={importing || csvData.filter(r => r.status === 'match').length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center gap-2 font-medium transition-colors"
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Import {csvData.filter(r => r.status === 'match').length} Rates
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

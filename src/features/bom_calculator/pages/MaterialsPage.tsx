@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Edit2, Trash2, X, Save, Loader2, Upload, Download, AlertTriangle, CheckCircle } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 
@@ -48,6 +48,15 @@ const CATEGORIES = [
 
 const UNIT_TYPES = ['Each', 'LF', 'SF', 'Bags', 'Box', 'Set', 'Per LF'];
 
+interface CSVRow {
+  material_sku: string;
+  unit_cost: number;
+  currentCost?: number;
+  materialId?: string;
+  status: 'match' | 'not_found' | 'error';
+  error?: string;
+}
+
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +78,12 @@ export default function MaterialsPage() {
     status: 'Active',
     notes: '',
   });
+
+  // CSV Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [csvData, setCsvData] = useState<CSVRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadMaterials();
@@ -192,6 +207,137 @@ export default function MaterialsPage() {
     }
   };
 
+  // CSV Import functions
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      parseCSV(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const parseCSV = (text: string) => {
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) {
+      showError('CSV file is empty or has no data rows');
+      return;
+    }
+
+    // Parse header row
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+    const skuIndex = headers.findIndex(h => h === 'material_sku' || h === 'sku');
+    const costIndex = headers.findIndex(h => h === 'unit_cost' || h === 'cost' || h === 'price');
+
+    if (skuIndex === -1 || costIndex === -1) {
+      showError('CSV must have "material_sku" and "unit_cost" columns');
+      return;
+    }
+
+    // Parse data rows
+    const rows: CSVRow[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''));
+      const sku = values[skuIndex]?.toUpperCase();
+      const costStr = values[costIndex]?.replace(/[$,]/g, '');
+      const cost = parseFloat(costStr);
+
+      if (!sku) continue;
+
+      if (isNaN(cost)) {
+        rows.push({
+          material_sku: sku,
+          unit_cost: 0,
+          status: 'error',
+          error: 'Invalid cost value',
+        });
+        continue;
+      }
+
+      // Find matching material
+      const material = materials.find(m => m.material_sku.toUpperCase() === sku);
+      if (material) {
+        rows.push({
+          material_sku: sku,
+          unit_cost: cost,
+          currentCost: material.unit_cost,
+          materialId: material.id,
+          status: 'match',
+        });
+      } else {
+        rows.push({
+          material_sku: sku,
+          unit_cost: cost,
+          status: 'not_found',
+          error: 'SKU not found in database',
+        });
+      }
+    }
+
+    setCsvData(rows);
+    setShowImportModal(true);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    const validRows = csvData.filter(r => r.status === 'match' && r.materialId);
+    if (validRows.length === 0) {
+      showError('No valid rows to import');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      // Update each material's unit cost
+      const updates = validRows.map(row => ({
+        id: row.materialId!,
+        unit_cost: row.unit_cost,
+        updated_at: new Date().toISOString(),
+      }));
+
+      // Batch update using upsert
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('materials')
+          .update({ unit_cost: update.unit_cost, updated_at: update.updated_at })
+          .eq('id', update.id);
+
+        if (error) throw error;
+      }
+
+      showSuccess(`${validRows.length} material costs updated`);
+      setShowImportModal(false);
+      setCsvData([]);
+      loadMaterials();
+    } catch (error) {
+      console.error('Error importing costs:', error);
+      showError('Failed to import costs');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleExportTemplate = () => {
+    const headers = 'material_sku,unit_cost\n';
+    const rows = materials.map(m => `${m.material_sku},${m.unit_cost.toFixed(2)}`).join('\n');
+    const csv = headers + rows;
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'materials_costs.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Filter materials
   const filteredMaterials = materials.filter(m => {
     const matchesSearch =
@@ -216,13 +362,39 @@ export default function MaterialsPage() {
               Manage materials and pricing for BOM calculations
             </p>
           </div>
-          <button
-            onClick={openCreateModal}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Material
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              onClick={handleExportTemplate}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700 transition-colors"
+              title="Export current costs to CSV"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700 transition-colors"
+              title="Import costs from CSV"
+            >
+              <Upload className="w-4 h-4" />
+              Import Costs
+            </button>
+            <button
+              onClick={openCreateModal}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Material
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -519,6 +691,127 @@ export default function MaterialsPage() {
                   <>
                     <Save className="w-4 h-4" />
                     {editingMaterial ? 'Update' : 'Create'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Import Material Costs</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Review changes before importing
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowImportModal(false); setCsvData([]); }}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Summary */}
+            <div className="px-6 py-3 bg-gray-50 border-b flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span>{csvData.filter(r => r.status === 'match').length} will update</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <span>{csvData.filter(r => r.status === 'not_found').length} not found</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <X className="w-4 h-4 text-red-500" />
+                <span>{csvData.filter(r => r.status === 'error').length} errors</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-auto p-4">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">SKU</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-600">Current</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-600">New</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-600">Change</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {csvData.map((row, idx) => {
+                    const diff = row.status === 'match' && row.currentCost !== undefined
+                      ? row.unit_cost - row.currentCost
+                      : null;
+                    return (
+                      <tr key={idx} className={row.status !== 'match' ? 'bg-gray-50' : ''}>
+                        <td className="px-3 py-2">
+                          {row.status === 'match' && (
+                            <span className="inline-flex items-center gap-1 text-green-600">
+                              <CheckCircle className="w-4 h-4" />
+                            </span>
+                          )}
+                          {row.status === 'not_found' && (
+                            <span className="inline-flex items-center gap-1 text-amber-500" title={row.error}>
+                              <AlertTriangle className="w-4 h-4" />
+                            </span>
+                          )}
+                          {row.status === 'error' && (
+                            <span className="inline-flex items-center gap-1 text-red-500" title={row.error}>
+                              <X className="w-4 h-4" />
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-mono">{row.material_sku}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">
+                          {row.currentCost !== undefined ? `$${row.currentCost.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium">
+                          ${row.unit_cost.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {diff !== null && (
+                            <span className={diff > 0 ? 'text-red-600' : diff < 0 ? 'text-green-600' : 'text-gray-400'}>
+                              {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => { setShowImportModal(false); setCsvData([]); }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportConfirm}
+                disabled={importing || csvData.filter(r => r.status === 'match').length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center gap-2 font-medium transition-colors"
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Import {csvData.filter(r => r.status === 'match').length} Updates
                   </>
                 )}
               </button>
