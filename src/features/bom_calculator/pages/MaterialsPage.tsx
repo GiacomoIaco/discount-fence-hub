@@ -15,6 +15,9 @@ interface Material {
   width_nominal: number | null;
   actual_width: number | null;
   thickness: string | null;
+  quantity_per_unit: number | null;
+  fence_category_standard: string[] | null;
+  is_bom_default: boolean;
   status: 'Active' | 'Inactive';
   normally_stocked: boolean;
   notes: string | null;
@@ -29,6 +32,13 @@ interface MaterialFormData {
   category: string;
   unit_cost: string;
   unit_type: string;
+  length_ft: string;
+  width_nominal: string;
+  actual_width: string;
+  thickness: string;
+  quantity_per_unit: string;
+  is_bom_default: boolean;
+  normally_stocked: boolean;
   status: 'Active' | 'Inactive';
   notes: string;
 }
@@ -75,6 +85,13 @@ export default function MaterialsPage() {
     category: '01-Post',
     unit_cost: '',
     unit_type: 'Each',
+    length_ft: '',
+    width_nominal: '',
+    actual_width: '',
+    thickness: '',
+    quantity_per_unit: '1',
+    is_bom_default: false,
+    normally_stocked: true,
     status: 'Active',
     notes: '',
   });
@@ -117,6 +134,13 @@ export default function MaterialsPage() {
       category: '01-Post',
       unit_cost: '',
       unit_type: 'Each',
+      length_ft: '',
+      width_nominal: '',
+      actual_width: '',
+      thickness: '',
+      quantity_per_unit: '1',
+      is_bom_default: false,
+      normally_stocked: true,
       status: 'Active',
       notes: '',
     });
@@ -132,6 +156,13 @@ export default function MaterialsPage() {
       category: material.category,
       unit_cost: material.unit_cost.toString(),
       unit_type: material.unit_type,
+      length_ft: material.length_ft?.toString() || '',
+      width_nominal: material.width_nominal?.toString() || '',
+      actual_width: material.actual_width?.toString() || '',
+      thickness: material.thickness || '',
+      quantity_per_unit: material.quantity_per_unit?.toString() || '1',
+      is_bom_default: material.is_bom_default || false,
+      normally_stocked: material.normally_stocked ?? true,
       status: material.status,
       notes: material.notes || '',
     });
@@ -153,6 +184,13 @@ export default function MaterialsPage() {
         category: formData.category,
         unit_cost: parseFloat(formData.unit_cost),
         unit_type: formData.unit_type,
+        length_ft: formData.length_ft ? parseFloat(formData.length_ft) : null,
+        width_nominal: formData.width_nominal ? parseFloat(formData.width_nominal) : null,
+        actual_width: formData.actual_width ? parseFloat(formData.actual_width) : null,
+        thickness: formData.thickness.trim() || null,
+        quantity_per_unit: formData.quantity_per_unit ? parseInt(formData.quantity_per_unit) : 1,
+        is_bom_default: formData.is_bom_default,
+        normally_stocked: formData.normally_stocked,
         status: formData.status,
         notes: formData.notes.trim() || null,
       };
@@ -452,25 +490,34 @@ export default function MaterialsPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     SKU
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Name
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Category
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Unit Cost
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Length
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Width
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Thick
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Cost
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Unit
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -478,27 +525,39 @@ export default function MaterialsPage() {
               <tbody className="divide-y divide-gray-200">
                 {filteredMaterials.map(material => (
                   <tr key={material.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-mono text-gray-900">
+                    <td className="px-3 py-3 text-sm font-mono text-gray-900">
                       {material.material_sku}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900">{material.material_name}</div>
+                    <td className="px-3 py-3">
+                      <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={material.material_name}>
+                        {material.material_name}
+                      </div>
                       {material.sub_category && (
-                        <div className="text-xs text-gray-500 truncate max-w-xs">
+                        <div className="text-xs text-gray-500 truncate max-w-[200px]">
                           {material.sub_category}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-3 py-3 text-sm text-gray-600">
                       {material.category}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                    <td className="px-3 py-3 text-sm text-center text-gray-600">
+                      {material.length_ft ? `${material.length_ft}'` : '-'}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-center text-gray-600">
+                      {material.actual_width ?? material.width_nominal ?? '-'}
+                      {(material.actual_width || material.width_nominal) && '"'}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-center text-gray-600">
+                      {material.thickness || '-'}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-right font-medium text-gray-900">
                       ${material.unit_cost.toFixed(2)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-600">
+                    <td className="px-3 py-3 text-sm text-center text-gray-600">
                       {material.unit_type}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3 text-center">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                         material.status === 'Active'
                           ? 'bg-green-100 text-green-700'
@@ -507,8 +566,8 @@ export default function MaterialsPage() {
                         {material.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEditModal(material)}
                           className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -540,7 +599,7 @@ export default function MaterialsPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
                 {editingMaterial ? 'Edit Material' : 'Add Material'}
@@ -553,7 +612,8 @@ export default function MaterialsPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {/* Row 1: SKU and Category */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -583,6 +643,7 @@ export default function MaterialsPage() {
                 </div>
               </div>
 
+              {/* Row 2: Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Name <span className="text-red-500">*</span>
@@ -596,6 +657,7 @@ export default function MaterialsPage() {
                 />
               </div>
 
+              {/* Row 3: Sub-Category */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sub-Category
@@ -605,10 +667,69 @@ export default function MaterialsPage() {
                   value={formData.sub_category}
                   onChange={(e) => setFormData({ ...formData, sub_category: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="e.g., Wood, Steel, 1x6"
+                  placeholder="e.g., Wood 4x4, Iron Squared Post"
                 />
               </div>
 
+              {/* Row 4: Dimensions - Length, Width Nominal, Actual Width, Thickness */}
+              <div className="grid grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Length (ft)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={formData.length_ft}
+                    onChange={(e) => setFormData({ ...formData, length_ft: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="8"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Width (nom)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={formData.width_nominal}
+                    onChange={(e) => setFormData({ ...formData, width_nominal: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder='6"'
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Width (actual)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.125"
+                    min="0"
+                    value={formData.actual_width}
+                    onChange={(e) => setFormData({ ...formData, actual_width: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder='5.5"'
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Thickness
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.thickness}
+                    onChange={(e) => setFormData({ ...formData, thickness: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder='5/8"'
+                  />
+                </div>
+              </div>
+
+              {/* Row 5: Cost, Unit Type, Qty Per Unit */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -643,6 +764,23 @@ export default function MaterialsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Qty Per Unit
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.quantity_per_unit}
+                    onChange={(e) => setFormData({ ...formData, quantity_per_unit: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+
+              {/* Row 6: Status and Checkboxes */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
                   <select
@@ -653,6 +791,28 @@ export default function MaterialsPage() {
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
+                </div>
+                <div className="flex items-center pt-7">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_bom_default}
+                      onChange={(e) => setFormData({ ...formData, is_bom_default: e.target.checked })}
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">BOM Default</span>
+                  </label>
+                </div>
+                <div className="flex items-center pt-7">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.normally_stocked}
+                      onChange={(e) => setFormData({ ...formData, normally_stocked: e.target.checked })}
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">Normally Stocked</span>
+                  </label>
                 </div>
               </div>
 
