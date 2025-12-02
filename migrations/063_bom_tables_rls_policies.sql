@@ -30,7 +30,7 @@ CREATE POLICY "business_units_admin_all" ON business_units
   FOR ALL TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -47,7 +47,7 @@ CREATE POLICY "materials_admin_insert" ON materials
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -56,7 +56,7 @@ CREATE POLICY "materials_admin_update" ON materials
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -65,7 +65,7 @@ CREATE POLICY "materials_admin_delete" ON materials
   FOR DELETE TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -82,7 +82,7 @@ CREATE POLICY "labor_codes_admin_insert" ON labor_codes
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -91,7 +91,7 @@ CREATE POLICY "labor_codes_admin_update" ON labor_codes
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -100,7 +100,7 @@ CREATE POLICY "labor_codes_admin_delete" ON labor_codes
   FOR DELETE TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -117,7 +117,7 @@ CREATE POLICY "labor_rates_admin_insert" ON labor_rates
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -126,7 +126,7 @@ CREATE POLICY "labor_rates_admin_update" ON labor_rates
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -135,7 +135,7 @@ CREATE POLICY "labor_rates_admin_delete" ON labor_rates
   FOR DELETE TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -152,7 +152,7 @@ CREATE POLICY "wood_vertical_products_admin_all" ON wood_vertical_products
   FOR ALL TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -169,7 +169,7 @@ CREATE POLICY "wood_horizontal_products_admin_all" ON wood_horizontal_products
   FOR ALL TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -186,7 +186,7 @@ CREATE POLICY "iron_products_admin_all" ON iron_products
   FOR ALL TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'
     )
   );
 
@@ -208,7 +208,7 @@ CREATE POLICY "bom_projects_update" ON bom_projects
   FOR UPDATE TO authenticated
   USING (
     created_by = auth.uid() OR
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
 DROP POLICY IF EXISTS "bom_projects_delete" ON bom_projects;
@@ -216,7 +216,7 @@ CREATE POLICY "bom_projects_delete" ON bom_projects
   FOR DELETE TO authenticated
   USING (
     created_by = auth.uid() OR
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
 -- ============================================
@@ -245,7 +245,7 @@ CREATE POLICY "project_line_items_update" ON project_line_items
     EXISTS (
       SELECT 1 FROM bom_projects
       WHERE id = project_id
-      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'))
     )
   );
 
@@ -256,7 +256,7 @@ CREATE POLICY "project_line_items_delete" ON project_line_items
     EXISTS (
       SELECT 1 FROM bom_projects
       WHERE id = project_id
-      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'))
     )
   );
 
@@ -286,7 +286,7 @@ CREATE POLICY "project_materials_update" ON project_materials
     EXISTS (
       SELECT 1 FROM bom_projects
       WHERE id = project_id
-      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'))
     )
   );
 
@@ -297,7 +297,7 @@ CREATE POLICY "project_materials_delete" ON project_materials
     EXISTS (
       SELECT 1 FROM bom_projects
       WHERE id = project_id
-      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'))
     )
   );
 
@@ -327,7 +327,7 @@ CREATE POLICY "project_labor_update" ON project_labor
     EXISTS (
       SELECT 1 FROM bom_projects
       WHERE id = project_id
-      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'))
     )
   );
 
@@ -338,6 +338,6 @@ CREATE POLICY "project_labor_delete" ON project_labor
     EXISTS (
       SELECT 1 FROM bom_projects
       WHERE id = project_id
-      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+      AND (created_by = auth.uid() OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin'))
     )
   );
