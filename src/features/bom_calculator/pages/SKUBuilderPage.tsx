@@ -793,231 +793,228 @@ export default function SKUBuilderPage() {
   const laborCount = bomResult?.labor.length || 0;
 
   return (
-    <div className="flex-1 flex bg-gray-50 overflow-hidden">
-      {/* Left Panel - Configuration */}
-      <div className="w-[420px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900">SKU Builder</h1>
+    <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
+      {/* Left Panel - Configuration (wider) */}
+      <div className="w-[520px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+        {/* Header with save actions */}
+        <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+          <h1 className="text-base font-bold text-gray-900">SKU Builder</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resetForm}
+              className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset
+            </button>
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending || !skuCode}
+              className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium flex items-center gap-1.5 transition-colors hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Save SKU
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {/* SKU Configuration Card */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h2 className="font-semibold text-gray-900">SKU Configuration</h2>
-
-            {/* SKU Code & Name */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">SKU Number *</label>
-                <input
-                  type="text"
-                  value={skuCode}
-                  onChange={(e) => setSkuCode(e.target.value.toUpperCase())}
-                  placeholder="e.g., A07"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">SKU Name (Suggested)</label>
-                <input
-                  type="text"
-                  value={skuName || suggestedSkuName}
-                  onChange={(e) => setSkuName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                />
-              </div>
+        <div className="flex-1 overflow-y-auto p-3">
+          {/* SKU Code & Name - inline */}
+          <div className="flex gap-2 mb-3">
+            <div className="w-24 flex-shrink-0">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU #</label>
+              <input
+                type="text"
+                value={skuCode}
+                onChange={(e) => setSkuCode(e.target.value.toUpperCase())}
+                placeholder="A07"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              />
             </div>
-
-            {/* Product Type Tabs */}
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-              <button
-                onClick={() => handleProductTypeChange('wood-vertical')}
-                className={`flex-1 px-3 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                  productType === 'wood-vertical'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Grid3X3 className="w-4 h-4" />
-                Wood Vertical
-              </button>
-              <button
-                onClick={() => handleProductTypeChange('wood-horizontal')}
-                className={`flex-1 px-3 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border-l border-gray-200 ${
-                  productType === 'wood-horizontal'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                Wood Horizontal
-              </button>
-              <button
-                onClick={() => handleProductTypeChange('iron')}
-                className={`flex-1 px-3 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border-l border-gray-200 ${
-                  productType === 'iron'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Package className="w-4 h-4" />
-                Iron
-              </button>
+            <div className="flex-1">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU Name</label>
+              <input
+                type="text"
+                value={skuName || suggestedSkuName}
+                onChange={(e) => setSkuName(e.target.value)}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              />
             </div>
+          </div>
 
-            {/* Style & Height */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Style *</label>
-                <select
-                  value={style}
-                  onChange={(e) => setStyle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                >
-                  {(productType === 'wood-vertical' ? WOOD_VERTICAL_STYLES :
-                    productType === 'wood-horizontal' ? WOOD_HORIZONTAL_STYLES :
-                    IRON_STYLES).map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Height *</label>
-                <select
-                  value={height}
-                  onChange={(e) => {
-                    setHeight(Number(e.target.value));
-                    // Clear picket selection when height changes
-                    setPicketMaterialId('');
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                >
-                  {productType === 'iron' ? (
-                    <>
-                      <option value={4}>4 ft</option>
-                      <option value={5}>5 ft</option>
-                      <option value={6}>6 ft</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value={4}>4 ft</option>
-                      <option value={5}>5 ft</option>
-                      <option value={6}>6 ft</option>
-                      <option value={7}>7 ft</option>
-                      <option value={8}>8 ft</option>
-                    </>
-                  )}
-                </select>
-              </div>
+          {/* Product Type Tabs - compact */}
+          <div className="flex rounded border border-gray-200 overflow-hidden mb-3">
+            <button
+              onClick={() => handleProductTypeChange('wood-vertical')}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                productType === 'wood-vertical' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              Vertical
+            </button>
+            <button
+              onClick={() => handleProductTypeChange('wood-horizontal')}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1 transition-colors border-l border-gray-200 ${
+                productType === 'wood-horizontal' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Horizontal
+            </button>
+            <button
+              onClick={() => handleProductTypeChange('iron')}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1 transition-colors border-l border-gray-200 ${
+                productType === 'iron' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" />
+              Iron
+            </button>
+          </div>
+
+          {/* Compact attribute row - Style, Height, Rails/PostType on one line */}
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Style</label>
+              <select
+                value={style}
+                onChange={(e) => setStyle(e.target.value)}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
+              >
+                {(productType === 'wood-vertical' ? WOOD_VERTICAL_STYLES :
+                  productType === 'wood-horizontal' ? WOOD_HORIZONTAL_STYLES :
+                  IRON_STYLES).map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
-
-            {/* Wood Vertical specific */}
+            <div className="w-16">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Height</label>
+              <select
+                value={height}
+                onChange={(e) => { setHeight(Number(e.target.value)); setPicketMaterialId(''); }}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
+              >
+                {(productType === 'iron' ? [4, 5, 6] : [4, 5, 6, 7, 8]).map(h => (
+                  <option key={h} value={h}>{h} ft</option>
+                ))}
+              </select>
+            </div>
             {productType === 'wood-vertical' && (
               <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1"># Rails *</label>
+                <div className="w-16">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5"># Rails</label>
                   <select
                     value={railCount}
                     onChange={(e) => setRailCount(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
                   >
-                    <option value={2}>2 Rails</option>
-                    <option value={3}>3 Rails</option>
-                    <option value={4}>4 Rails</option>
+                    <option value={2}>2</option>
+                    <option value={3}>3</option>
+                    <option value={4}>4</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Post Type *</label>
+                <div className="w-20">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Post Type</label>
                   <select
                     value={postType}
-                    onChange={(e) => {
-                      setPostType(e.target.value as 'WOOD' | 'STEEL');
-                      setPostMaterialId(''); // Clear post selection
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    onChange={(e) => { setPostType(e.target.value as 'WOOD' | 'STEEL'); setPostMaterialId(''); }}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
                   >
-                    <option value="WOOD">Wood Posts</option>
-                    <option value="STEEL">Steel Posts</option>
+                    <option value="WOOD">Wood</option>
+                    <option value="STEEL">Steel</option>
                   </select>
                 </div>
+              </>
+            )}
+            {productType === 'wood-horizontal' && (
+              <div className="w-20">
+                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Post Type</label>
+                <select
+                  value={postType}
+                  onChange={(e) => { setPostType(e.target.value as 'WOOD' | 'STEEL'); setPostMaterialId(''); }}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
+                >
+                  <option value="WOOD">Wood</option>
+                  <option value="STEEL">Steel</option>
+                </select>
+              </div>
+            )}
+          </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Select Post *</label>
-                  <select
-                    value={postMaterialId}
-                    onChange={(e) => setPostMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Select a post...</option>
-                    {filteredPostMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          {/* Materials Section - compact grid */}
+          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Materials</h3>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Pickets *</label>
+            {/* Post Material - inline label */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600 w-14 flex-shrink-0">Post</span>
+              <select
+                value={postMaterialId}
+                onChange={(e) => setPostMaterialId(e.target.value)}
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+              >
+                <option value="">Select post...</option>
+                {filteredPostMaterials.map(m => (
+                  <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Wood Vertical Materials */}
+            {productType === 'wood-vertical' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Pickets</span>
                   <select
                     value={picketMaterialId}
                     onChange={(e) => setPicketMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                   >
                     <option value="">Select pickets...</option>
                     {filteredPicketMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Rails *</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Rails</span>
                   <select
                     value={railMaterialId}
                     onChange={(e) => setRailMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                   >
                     <option value="">Select rails...</option>
                     {filteredRailMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Cap (Optional)</label>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
                     <select
                       value={capMaterialId}
                       onChange={(e) => setCapMaterialId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
-                      <option value="">No Cap</option>
+                      <option value="">None</option>
                       {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.material_sku} - {m.material_name}
-                        </option>
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Trim (Optional)</label>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-10 flex-shrink-0">Trim</span>
                     <select
                       value={trimMaterialId}
                       onChange={(e) => setTrimMaterialId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
-                      <option value="">No Trim</option>
+                      <option value="">None</option>
                       {filteredCapTrimMaterials.filter(m => m.sub_category === 'Trim').map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.material_sku} - {m.material_name}
-                        </option>
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
                       ))}
                     </select>
                   </div>
@@ -1025,338 +1022,221 @@ export default function SKUBuilderPage() {
               </>
             )}
 
-            {/* Wood Horizontal specific */}
+            {/* Wood Horizontal Materials */}
             {productType === 'wood-horizontal' && (
               <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Post Type *</label>
-                  <select
-                    value={postType}
-                    onChange={(e) => {
-                      setPostType(e.target.value as 'WOOD' | 'STEEL');
-                      setPostMaterialId('');
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="WOOD">Wood Posts</option>
-                    <option value="STEEL">Steel Posts</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Select Post *</label>
-                  <select
-                    value={postMaterialId}
-                    onChange={(e) => setPostMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Select a post...</option>
-                    {filteredPostMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Horizontal Boards *</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Boards</span>
                   <select
                     value={boardMaterialId}
                     onChange={(e) => setBoardMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                   >
                     <option value="">Select boards...</option>
                     {filteredHorizontalBoardMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Nailer Material</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Nailer</span>
                   <select
                     value={nailerMaterialId}
                     onChange={(e) => setNailerMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                   >
                     <option value="">Select nailer...</option>
                     {filteredRailMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cap (Optional)</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
                   <select
                     value={capMaterialId}
                     onChange={(e) => setCapMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                   >
-                    <option value="">No Cap</option>
+                    <option value="">None</option>
                     {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name}
-                      </option>
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
                     ))}
                   </select>
                 </div>
               </>
             )}
 
-            {/* Iron specific */}
+            {/* Iron Materials */}
             {productType === 'iron' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Select Post *</label>
-                  <select
-                    value={postMaterialId}
-                    onChange={(e) => setPostMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Select a post...</option>
-                    {filteredPostMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Panel Material *</label>
-                  <select
-                    value={panelMaterialId}
-                    onChange={(e) => setPanelMaterialId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Select panel...</option>
-                    {filteredIronPanelMaterials.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600 w-14 flex-shrink-0">Panel</span>
+                <select
+                  value={panelMaterialId}
+                  onChange={(e) => setPanelMaterialId(e.target.value)}
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                >
+                  <option value="">Select panel...</option>
+                  {filteredIronPanelMaterials.map(m => (
+                    <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
+                  ))}
+                </select>
+              </div>
             )}
-          </div>
-
-          {/* Component Summary */}
-          <div className="flex items-center gap-6 py-3 border-t border-gray-200">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{componentCount}</div>
-              <div className="text-xs text-gray-500">Components</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{laborCount}</div>
-              <div className="text-xs text-gray-500">Labor Items</div>
-            </div>
-          </div>
-
-          {/* Fence Type Badge */}
-          <div className="flex justify-center">
-            <span className={`px-4 py-1.5 rounded-full text-sm font-medium ${
-              productType === 'wood-vertical' ? 'bg-amber-100 text-amber-800' :
-              productType === 'wood-horizontal' ? 'bg-blue-100 text-blue-800' :
-              'bg-gray-200 text-gray-800'
-            }`}>
-              {productType === 'wood-vertical' ? 'Wood Vertical' :
-               productType === 'wood-horizontal' ? 'Wood Horizontal' : 'Iron'} {height}'
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Preview & BOM */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Preview Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Preview and Test</h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={resetForm}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Reset Form
-              </button>
-              <button
-                onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending || !skuCode}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2 transition-colors disabled:bg-gray-400"
-              >
-                {saveMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                Save SKU
-              </button>
+      {/* Right Panel - Preview & BOM (narrower) */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Key Stats Bar - Always visible at top */}
+        <div className="bg-white border-b border-gray-200 px-4 py-2">
+          <div className="flex items-center gap-4">
+            {/* Cost Per Foot - Most important */}
+            <div className="bg-purple-600 text-white rounded-lg px-4 py-2 flex-shrink-0">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/Ft</div>
+              <div className="text-xl font-bold">${bomResult?.costPerFoot.toFixed(2) || '0.00'}</div>
+            </div>
+            {/* Total Project Cost */}
+            <div className="bg-green-600 text-white rounded-lg px-4 py-2 flex-shrink-0">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Total Cost</div>
+              <div className="text-xl font-bold">${bomResult?.projectTotal.toFixed(2) || '0.00'}</div>
+            </div>
+            {/* Smaller stats */}
+            <div className="flex items-center gap-4 ml-auto text-xs">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-gray-800">{componentCount}</div>
+                <div className="text-gray-500">Components</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-gray-800">{laborCount}</div>
+                <div className="text-gray-500">Labor Items</div>
+              </div>
+              <div className="text-center px-3 py-1 rounded-full bg-gray-100">
+                <span className="text-xs font-medium text-gray-700">
+                  {productType === 'wood-vertical' ? 'Wood V' : productType === 'wood-horizontal' ? 'Wood H' : 'Iron'} {height}'
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Test Parameters */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Net Length</label>
-                <input
-                  type="number"
-                  value={preview.netLength}
-                  onChange={(e) => setPreview({ ...preview, netLength: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Lines</label>
-                <select
-                  value={preview.lines}
-                  onChange={(e) => setPreview({ ...preview, lines: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Gates</label>
-                <select
-                  value={preview.gates}
-                  onChange={(e) => setPreview({ ...preview, gates: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  {[0, 1, 2, 3].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Business Unit *</label>
-                <select
-                  value={preview.businessUnitId}
-                  onChange={(e) => setPreview({ ...preview, businessUnitId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  {businessUnits.map(bu => (
-                    <option key={bu.id} value={bu.id}>{bu.code} - {bu.name}</option>
-                  ))}
-                </select>
-              </div>
+        {/* Test Parameters - Compact inline */}
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
+          <div className="flex items-center gap-4">
+            <span className="text-xs font-medium text-gray-600">Test:</span>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">Length</label>
+              <input
+                type="number"
+                value={preview.netLength}
+                onChange={(e) => setPreview({ ...preview, netLength: Number(e.target.value) })}
+                className="w-16 px-2 py-1 border border-gray-300 rounded text-xs"
+              />
+              <span className="text-[10px] text-gray-400">ft</span>
             </div>
-
-            <div className="mt-4 text-center">
-              <p className="text-xs text-gray-500">Generated SKU Name:</p>
-              <p className="text-lg font-semibold text-gray-900">{skuName || suggestedSkuName}</p>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">Lines</label>
+              <select
+                value={preview.lines}
+                onChange={(e) => setPreview({ ...preview, lines: Number(e.target.value) })}
+                className="w-12 px-1 py-1 border border-gray-300 rounded text-xs"
+              >
+                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">BU</label>
+              <select
+                value={preview.businessUnitId}
+                onChange={(e) => setPreview({ ...preview, businessUnitId: e.target.value })}
+                className="w-28 px-1 py-1 border border-gray-300 rounded text-xs"
+              >
+                {businessUnits.map(bu => (
+                  <option key={bu.id} value={bu.id}>{bu.code}</option>
+                ))}
+              </select>
             </div>
           </div>
+        </div>
 
+        <div className="flex-1 overflow-y-auto p-3">
           {/* Warning if no materials selected */}
           {!postMaterialId && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 mb-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-amber-800">Select materials to see BOM preview</p>
-                <p className="text-xs text-amber-600 mt-1">Choose at least a post material to calculate the bill of materials.</p>
+                <p className="text-xs font-medium text-amber-800">Select materials to see BOM preview</p>
               </div>
             </div>
           )}
 
           {/* BOM Preview */}
           {bomResult && postMaterialId && (
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="px-4 py-3 border-b border-gray-200">
-                <h3 className="font-semibold text-gray-900">Bill of Materials & Labor</h3>
-              </div>
-
-              {/* Materials Table */}
-              <div className="p-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Materials (BOM)</h4>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-500 uppercase border-b">
-                      <th className="text-left py-2">Material</th>
-                      <th className="text-left py-2">Type</th>
-                      <th className="text-right py-2">Qty</th>
-                      <th className="text-right py-2">Cost</th>
-                      <th className="text-right py-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {bomResult.materials.map((item, i) => (
-                      <tr key={i}>
-                        <td className="py-2">
-                          <div className="font-medium text-gray-900">{item.name}</div>
-                          <div className="text-xs text-gray-500">{item.sku}</div>
-                        </td>
-                        <td className="py-2 text-gray-600">{item.type}</td>
-                        <td className="py-2 text-right text-gray-900">{item.qty}</td>
-                        <td className="py-2 text-right text-gray-600">${item.cost.toFixed(2)}</td>
-                        <td className="py-2 text-right font-medium text-green-600">${item.total.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-gray-200">
-                      <td colSpan={4} className="py-2 text-right font-medium text-gray-900">Material Total:</td>
-                      <td className="py-2 text-right font-bold text-green-600">${bomResult.materialTotal.toFixed(2)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Labor Table */}
-              <div className="p-4 border-t border-gray-200">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Labor (BOL)</h4>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-500 uppercase border-b">
-                      <th className="text-left py-2">Labor</th>
-                      <th className="text-right py-2">Rate/Ft</th>
-                      <th className="text-right py-2">Qty (Ft)</th>
-                      <th className="text-right py-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {bomResult.labor.map((item, i) => (
-                      <tr key={i}>
-                        <td className="py-2">
-                          <div className="font-medium text-gray-900">{item.code}</div>
-                          <div className="text-xs text-gray-500">{item.description}</div>
-                        </td>
-                        <td className="py-2 text-right text-gray-600">${item.ratePerFt.toFixed(2)}</td>
-                        <td className="py-2 text-right text-gray-900">{item.qty}</td>
-                        <td className="py-2 text-right font-medium text-green-600">${item.total.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-gray-200">
-                      <td colSpan={3} className="py-2 text-right font-medium text-gray-900">Labor Total:</td>
-                      <td className="py-2 text-right font-bold text-green-600">${bomResult.laborTotal.toFixed(2)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Totals */}
-              <div className="p-4 bg-gray-50 border-t border-gray-200 grid grid-cols-2 gap-4">
-                <div className="bg-green-600 text-white rounded-lg p-4 text-center">
-                  <div className="text-sm opacity-90">Total Project Cost</div>
-                  <div className="text-3xl font-bold">${bomResult.projectTotal.toFixed(2)}</div>
+            <div className="space-y-3">
+              {/* Materials Table - Compact */}
+              <div className="bg-white rounded-lg border border-gray-200">
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-gray-700">Materials (BOM)</h4>
+                  <span className="text-xs font-semibold text-green-600">${bomResult.materialTotal.toFixed(2)}</span>
                 </div>
-                <div className="bg-purple-600 text-white rounded-lg p-4 text-center">
-                  <div className="text-sm opacity-90">Cost Per Foot</div>
-                  <div className="text-3xl font-bold">${bomResult.costPerFoot.toFixed(2)}</div>
+                <div className="max-h-[180px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-50">
+                      <tr className="text-[10px] text-gray-500 uppercase">
+                        <th className="text-left py-1.5 px-2">Material</th>
+                        <th className="text-right py-1.5 px-2 w-12">Qty</th>
+                        <th className="text-right py-1.5 px-2 w-16">Cost</th>
+                        <th className="text-right py-1.5 px-2 w-16">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {bomResult.materials.map((item, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="py-1.5 px-2">
+                            <div className="font-medium text-gray-900 truncate" title={item.name}>{item.name}</div>
+                            <div className="text-[10px] text-gray-400">{item.sku} · {item.type}</div>
+                          </td>
+                          <td className="py-1.5 px-2 text-right text-gray-700">{item.qty}</td>
+                          <td className="py-1.5 px-2 text-right text-gray-500">${item.cost.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 text-right font-medium text-green-600">${item.total.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Labor Table - Compact */}
+              <div className="bg-white rounded-lg border border-gray-200">
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-gray-700">Labor (BOL)</h4>
+                  <span className="text-xs font-semibold text-blue-600">${bomResult.laborTotal.toFixed(2)}</span>
+                </div>
+                <div className="max-h-[120px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-50">
+                      <tr className="text-[10px] text-gray-500 uppercase">
+                        <th className="text-left py-1.5 px-2">Labor Code</th>
+                        <th className="text-right py-1.5 px-2 w-16">Rate/Ft</th>
+                        <th className="text-right py-1.5 px-2 w-12">Qty</th>
+                        <th className="text-right py-1.5 px-2 w-16">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {bomResult.labor.map((item, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="py-1.5 px-2">
+                            <div className="font-medium text-gray-900">{item.code}</div>
+                            <div className="text-[10px] text-gray-400 truncate" title={item.description}>{item.description}</div>
+                          </td>
+                          <td className="py-1.5 px-2 text-right text-gray-500">${item.ratePerFt.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 text-right text-gray-700">{item.qty}</td>
+                          <td className="py-1.5 px-2 text-right font-medium text-blue-600">${item.total.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
