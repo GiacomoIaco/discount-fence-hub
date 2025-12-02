@@ -73,6 +73,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const [selectedWatcherId, setSelectedWatcherId] = useState<string>('');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [showFilePickerModal, setShowFilePickerModal] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
 
@@ -351,6 +352,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
       setUploadingFile(false);
       // Reset file inputs
       event.target.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
       if (photoInputRef.current) photoInputRef.current.value = '';
       if (documentInputRef.current) documentInputRef.current.value = '';
     }
@@ -1394,7 +1396,16 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
       {/* Sticky Message Bar at Bottom - Mobile */}
       <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 shadow-lg z-20 lg:hidden ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
         <div className="flex gap-1.5 items-center">
-          {/* Hidden file inputs for photo and document */}
+          {/* Hidden file inputs for camera, gallery, and document */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            id="mobile-camera-input"
+            className="hidden"
+            onChange={handleFileUpload}
+            accept="image/*"
+            capture="environment"
+          />
           <input
             ref={photoInputRef}
             type="file"
@@ -1529,28 +1540,36 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => {
+                  setShowFilePickerModal(false);
+                  cameraInputRef.current?.click();
+                }}
+                className="flex flex-col items-center gap-2 p-3 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors border-2 border-purple-200"
+              >
+                <Camera className="w-7 h-7 text-purple-600" />
+                <span className="text-xs font-medium text-purple-900">Camera</span>
+              </button>
               <button
                 onClick={() => {
                   setShowFilePickerModal(false);
                   photoInputRef.current?.click();
                 }}
-                className="flex flex-col items-center gap-2 p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors border-2 border-blue-200"
+                className="flex flex-col items-center gap-2 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors border-2 border-blue-200"
               >
-                <Image className="w-8 h-8 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">Photo / Video</span>
-                <span className="text-xs text-blue-600">From Gallery</span>
+                <Image className="w-7 h-7 text-blue-600" />
+                <span className="text-xs font-medium text-blue-900">Gallery</span>
               </button>
               <button
                 onClick={() => {
                   setShowFilePickerModal(false);
                   documentInputRef.current?.click();
                 }}
-                className="flex flex-col items-center gap-2 p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-colors border-2 border-green-200"
+                className="flex flex-col items-center gap-2 p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-colors border-2 border-green-200"
               >
-                <FileText className="w-8 h-8 text-green-600" />
-                <span className="text-sm font-medium text-green-900">Document</span>
-                <span className="text-xs text-green-600">PDF, Word, etc.</span>
+                <FileText className="w-7 h-7 text-green-600" />
+                <span className="text-xs font-medium text-green-900">Document</span>
               </button>
             </div>
           </div>
