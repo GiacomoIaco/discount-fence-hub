@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe, GripVertical } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, User, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Trash2, Edit3, Check, Loader2, Plus, Lock, MoreVertical, Archive, Pencil, Crown, UserCheck, Eye, UserPlus, Folder, Globe, GripVertical, MessageCircle, Send, Palette } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, useLastCommentsQuery, setTaskViewed, isCommentUnread, type TaskWithDetails } from '../hooks/useMyTodos';
+import { useMyTodosQuery, useMyTodosStats, useUpdateTaskStatus, useUpdateTaskField, useDeleteTask, useCreateTask, useCreatePersonalInitiative, usePersonalInitiativesQuery, useUpdatePersonalInitiative, useArchivePersonalInitiative, useAddTaskAssignee, useRemoveTaskAssignee, useReorderTasks, useLastCommentsQuery, useAddTaskComment, setTaskViewed, isCommentUnread, type TaskWithDetails } from '../hooks/useMyTodos';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
@@ -57,24 +57,46 @@ const getAvatarColor = (userId: string): string => {
   return colors[hash % colors.length];
 };
 
-// Generate consistent header color from area name (for distinguishing initiatives by area)
-const areaColorPalette = [
-  { bg: 'bg-slate-700', hover: 'hover:bg-slate-600', border: 'border-slate-500' },
-  { bg: 'bg-emerald-800', hover: 'hover:bg-emerald-700', border: 'border-emerald-600' },
-  { bg: 'bg-violet-800', hover: 'hover:bg-violet-700', border: 'border-violet-600' },
-  { bg: 'bg-amber-800', hover: 'hover:bg-amber-700', border: 'border-amber-600' },
-  { bg: 'bg-rose-800', hover: 'hover:bg-rose-700', border: 'border-rose-600' },
-  { bg: 'bg-cyan-800', hover: 'hover:bg-cyan-700', border: 'border-cyan-600' },
-  { bg: 'bg-fuchsia-800', hover: 'hover:bg-fuchsia-700', border: 'border-fuchsia-600' },
-  { bg: 'bg-lime-800', hover: 'hover:bg-lime-700', border: 'border-lime-600' },
-];
+// Default blue color for all initiatives (user can customize per-initiative)
+const DEFAULT_INITIATIVE_COLOR = { bg: 'bg-blue-900', hover: 'hover:bg-blue-800', border: 'border-blue-700' };
 
-const getAreaColor = (areaId: string): { bg: string; hover: string; border: string } => {
-  if (!areaId) return { bg: 'bg-gray-700', hover: 'hover:bg-gray-600', border: 'border-gray-500' };
-  // Use area ID for consistent hashing (more reliable than area name)
-  const hash = areaId.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
-  return areaColorPalette[hash % areaColorPalette.length];
-};
+// User initiative color preferences (stored in localStorage)
+const INITIATIVE_COLORS_KEY = 'myTodosInitiativeColors';
+
+function getUserInitiativeColors(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem(INITIATIVE_COLORS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setUserInitiativeColor(initiativeId: string, colorValue: string) {
+  const colors = getUserInitiativeColors();
+  colors[initiativeId] = colorValue;
+  localStorage.setItem(INITIATIVE_COLORS_KEY, JSON.stringify(colors));
+}
+
+function getInitiativeColor(initiativeId: string): { bg: string; hover: string; border: string } {
+  const userColors = getUserInitiativeColors();
+  const userColor = userColors[initiativeId];
+
+  if (userColor) {
+    // Find the color option that matches
+    const colorOption = headerColorOptions.find(c => c.value === userColor);
+    if (colorOption) {
+      return {
+        bg: colorOption.bg,
+        hover: colorOption.hover,
+        border: `border-${userColor.replace('900', '700').replace('800', '600').replace('700', '500')}`,
+      };
+    }
+  }
+
+  // Default to blue
+  return DEFAULT_INITIATIVE_COLOR;
+}
 
 // Format date for display
 function formatDate(dateStr: string | null): string {
@@ -274,6 +296,250 @@ function InlineTextEditor({
       )}
       <Edit3 className="w-3 h-3 text-gray-400 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
+  );
+}
+
+// Inline comment popup component (like ClickUp)
+function InlineCommentPopup({
+  taskId,
+  taskTitle,
+  lastComment,
+  onClose,
+  position,
+}: {
+  taskId: string;
+  taskTitle: string;
+  lastComment: {
+    id: string;
+    content: string;
+    created_at: string;
+    user: { id: string; full_name: string } | null;
+  } | null;
+  onClose: () => void;
+  position: { top: number; left: number };
+}) {
+  const [newComment, setNewComment] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const addComment = useAddTaskComment();
+  const { user } = useAuth();
+  const popupRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus input on mount
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
+
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const handleSendComment = async () => {
+    if (!newComment.trim() || !user) return;
+    setIsSending(true);
+    try {
+      await addComment.mutateAsync({
+        taskId,
+        content: newComment.trim(),
+      });
+      setNewComment('');
+      setTaskViewed(taskId); // Mark as read after adding comment
+      onClose();
+    } catch (err) {
+      console.error('Failed to add comment:', err);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendComment();
+    }
+  };
+
+  // Calculate position to ensure popup stays in viewport
+  const adjustedTop = Math.min(position.top, window.innerHeight - 350);
+  const adjustedLeft = Math.min(position.left, window.innerWidth - 350);
+
+  return createPortal(
+    <div
+      ref={popupRef}
+      className="fixed z-[9999] w-80 bg-white border border-gray-200 rounded-lg shadow-xl"
+      style={{ top: adjustedTop, left: adjustedLeft }}
+    >
+      {/* Header */}
+      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">{taskTitle}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Last Comment */}
+      {lastComment && (
+        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex items-start gap-2">
+            <div className={`w-7 h-7 rounded-full ${getAvatarColor(lastComment.user?.id || 'unknown')} text-white text-xs font-medium flex items-center justify-center flex-shrink-0`}>
+              {getInitials(lastComment.user?.full_name || 'U')}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{lastComment.user?.full_name || 'Unknown'}</span>
+                <span>•</span>
+                <span>{formatDate(lastComment.created_at)}</span>
+              </div>
+              <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">
+                {lastComment.content}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comment Input */}
+      <div className="p-3">
+        <div className="flex items-start gap-2">
+          <textarea
+            ref={inputRef}
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add a comment... (Enter to send)"
+            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            rows={2}
+            disabled={isSending}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-gray-400">Press Enter to send, Shift+Enter for new line</span>
+          <button
+            onClick={handleSendComment}
+            disabled={!newComment.trim() || isSending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            Send
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Initiative color picker dropdown
+function InitiativeColorPicker({
+  initiativeId,
+  currentColor,
+  onColorChange,
+}: {
+  initiativeId: string;
+  currentColor: string;
+  onColorChange: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const toggleDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+      });
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const handleSelectColor = (colorValue: string) => {
+    setUserInitiativeColor(initiativeId, colorValue);
+    onColorChange();
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={toggleDropdown}
+        className="p-1 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors opacity-0 group-hover:opacity-100"
+        title="Change color"
+      >
+        <Palette className="w-4 h-4" />
+      </button>
+      {isOpen && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg p-2"
+          style={{ top: position.top, left: position.left }}
+        >
+          <div className="grid grid-cols-4 gap-1">
+            {headerColorOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectColor(option.value);
+                }}
+                className={`w-8 h-8 rounded-lg ${option.bg} ${option.hover} transition-transform hover:scale-110 ${
+                  currentColor === option.value ? 'ring-2 ring-white ring-offset-2' : ''
+                }`}
+                title={option.label}
+              />
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -1433,6 +1699,12 @@ export default function MyTodos({ onBack }: MyTodosProps) {
   const [editingInitiative, setEditingInitiative] = useState<{ id: string; title: string; isPrivate: boolean; headerColor: string | null } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [functionFilter, setFunctionFilter] = useState<string>('all');
+  const [colorRefresh, setColorRefresh] = useState(0); // Trigger re-render when user changes initiative color
+  const [commentPopup, setCommentPopup] = useState<{
+    taskId: string;
+    taskTitle: string;
+    position: { top: number; left: number };
+  } | null>(null);
 
   const { data, isLoading, error, refetch } = useMyTodosQuery();
   const { data: personalInitiatives = [], refetch: refetchPersonal } = usePersonalInitiativesQuery();
@@ -1798,7 +2070,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
       if (funcCompare !== 0) return funcCompare;
       return a.initiativeTitle.localeCompare(b.initiativeTitle);
     });
-  }, [filteredTasks, personalInitiatives, functionFilter, sortOption]);
+  }, [filteredTasks, personalInitiatives, functionFilter, sortOption, colorRefresh]);
 
   // Count active filters
   const hasActiveFilters = searchQuery !== '' || filterStatus !== 'all' || showCompleted || activeFilter !== 'all' || dueDateFilter !== 'all' || sortOption !== 'default' || functionFilter !== 'all';
@@ -2101,33 +2373,33 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                 </tr>
               </thead>
               <tbody>
-                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaId, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
+                {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, isPrivate, headerColor }) => {
                   const isCollapsed = collapsedInitiatives.has(initiativeId);
 
                   // Color logic:
-                  // - Personal initiatives: use custom headerColor (user-selected)
-                  // - Organizational initiatives: use area-based color (auto-generated from area ID)
+                  // - Personal initiatives: use custom headerColor (user-selected, stored in DB)
+                  // - Organizational initiatives: use user preference from localStorage (default blue)
                   let bgClass: string;
                   let hoverClass: string;
                   let borderClass: string;
+                  let currentColorValue: string = 'blue-900';
 
                   if (isPersonal && headerColor) {
-                    // Personal with custom color
+                    // Personal with custom color (stored in DB)
                     const colorOption = headerColorOptions.find(c => c.value === headerColor) || headerColorOptions[0];
                     bgClass = `bg-${headerColor}`;
                     hoverClass = colorOption.hover;
                     borderClass = `border-${headerColor.replace('900', '700').replace('800', '600').replace('700', '500')}`;
-                  } else if (!isPersonal && areaId) {
-                    // Organizational - use area-based color (using area ID for consistency)
-                    const areaColor = getAreaColor(areaId);
-                    bgClass = areaColor.bg;
-                    hoverClass = areaColor.hover;
-                    borderClass = areaColor.border;
+                    currentColorValue = headerColor;
                   } else {
-                    // Default (personal without color or uncategorized)
-                    bgClass = 'bg-blue-900';
-                    hoverClass = 'hover:bg-blue-800';
-                    borderClass = 'border-blue-700';
+                    // Organizational or personal without color - use user preference (localStorage) with blue default
+                    const userColor = getInitiativeColor(initiativeId);
+                    bgClass = userColor.bg;
+                    hoverClass = userColor.hover;
+                    borderClass = userColor.border;
+                    // Get the current color value for the picker
+                    const userColors = getUserInitiativeColors();
+                    currentColorValue = userColors[initiativeId] || 'blue-900';
                   }
 
                   return (
@@ -2168,7 +2440,15 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                 ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
                               </span>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 group">
+                              {/* Color picker for organizational initiatives (user preference stored in localStorage) */}
+                              {!isPersonal && (
+                                <InitiativeColorPicker
+                                  initiativeId={initiativeId}
+                                  currentColor={currentColorValue}
+                                  onColorChange={() => setColorRefresh(prev => prev + 1)}
+                                />
+                              )}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2230,6 +2510,9 @@ export default function MyTodos({ onBack }: MyTodosProps) {
                                   setTaskViewed(task.id);
                                   setSelectedTaskId(task.id);
                                 }}
+                                onOpenCommentPopup={(taskId, taskTitle, position) => {
+                                  setCommentPopup({ taskId, taskTitle, position });
+                                }}
                                 onStatusChange={handleStatusChange}
                                 onUpdateField={updateField.mutateAsync}
                                 onDeleteTask={handleDeleteTask}
@@ -2287,6 +2570,17 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           onClose={() => setSelectedTaskId(null)}
         />
       )}
+
+      {/* Inline Comment Popup */}
+      {commentPopup && (
+        <InlineCommentPopup
+          taskId={commentPopup.taskId}
+          taskTitle={commentPopup.taskTitle}
+          lastComment={lastComments[commentPopup.taskId] || null}
+          position={commentPopup.position}
+          onClose={() => setCommentPopup(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2302,12 +2596,13 @@ interface SortableTaskRowProps {
     user: { id: string; full_name: string } | null;
   } | null;
   onOpenTask: () => void;
+  onOpenCommentPopup: (taskId: string, taskTitle: string, position: { top: number; left: number }) => void;
   onStatusChange: (taskId: string, status: string) => void;
   onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
   onDeleteTask: (taskId: string) => void;
 }
 
-function SortableTaskRow({ task, idx, lastComment, onOpenTask, onStatusChange, onUpdateField, onDeleteTask }: SortableTaskRowProps) {
+function SortableTaskRow({ task, idx, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, onUpdateField, onDeleteTask }: SortableTaskRowProps) {
   const {
     attributes,
     listeners,
@@ -2443,35 +2738,43 @@ function SortableTaskRow({ task, idx, lastComment, onOpenTask, onStatusChange, o
         />
       </td>
 
-      {/* Last Comment */}
+      {/* Last Comment - click to open inline comment popup */}
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        {lastComment ? (
-          <div
-            className={`text-xs rounded px-2 py-1 cursor-pointer hover:bg-gray-100 ${
-              isCommentUnread(task.id, lastComment.created_at)
-                ? 'bg-amber-50 border border-amber-200'
-                : 'bg-gray-50'
-            }`}
-            onClick={onOpenTask}
-            title={`${lastComment.user?.full_name || 'Unknown'}: ${lastComment.content}`}
-          >
-            <div className="flex items-center gap-1 text-gray-500 mb-0.5">
-              <span className="font-medium truncate max-w-[80px]">
-                {lastComment.user?.full_name?.split(' ')[0] || 'Unknown'}
-              </span>
-              <span>•</span>
-              <span>{formatDate(lastComment.created_at)}</span>
-              {isCommentUnread(task.id, lastComment.created_at) && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 ml-1" title="New comment" />
-              )}
+        <div
+          className={`text-xs rounded px-2 py-1 cursor-pointer hover:bg-blue-50 transition-colors ${
+            lastComment && isCommentUnread(task.id, lastComment.created_at)
+              ? 'bg-amber-50 border border-amber-200'
+              : 'bg-gray-50 border border-transparent'
+          }`}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            onOpenCommentPopup(task.id, task.title, { top: rect.bottom + 4, left: rect.left });
+          }}
+          title="Click to add comment"
+        >
+          {lastComment ? (
+            <>
+              <div className="flex items-center gap-1 text-gray-500 mb-0.5">
+                <span className="font-medium truncate max-w-[80px]">
+                  {lastComment.user?.full_name?.split(' ')[0] || 'Unknown'}
+                </span>
+                <span>•</span>
+                <span>{formatDate(lastComment.created_at)}</span>
+                {isCommentUnread(task.id, lastComment.created_at) && (
+                  <span className="w-2 h-2 rounded-full bg-amber-500 ml-1" title="New comment" />
+                )}
+              </div>
+              <div className="text-gray-700 truncate max-w-[150px]">
+                {lastComment.content}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-1 text-gray-400">
+              <MessageCircle className="w-3 h-3" />
+              <span>Add comment</span>
             </div>
-            <div className="text-gray-700 truncate max-w-[150px]">
-              {lastComment.content}
-            </div>
-          </div>
-        ) : (
-          <span className="text-gray-400 text-xs">-</span>
-        )}
+          )}
+        </div>
       </td>
 
       {/* Actions */}

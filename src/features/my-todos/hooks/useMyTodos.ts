@@ -910,6 +910,7 @@ export function useAddTaskComment() {
     },
     onSuccess: (_, { taskId }) => {
       queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['last-comments'] });
       queryClient.invalidateQueries({ queryKey: ['my-todos'] });
     },
   });
