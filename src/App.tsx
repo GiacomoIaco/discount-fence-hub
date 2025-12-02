@@ -468,7 +468,7 @@ function App() {
         />
 
         <div className="flex-1 overflow-auto">
-          <div className={activeSection === 'leadership' ? '' : 'p-8 max-w-7xl mx-auto'}>
+          <div className={activeSection === 'leadership' || activeSection === 'my-todos' ? 'p-6' : 'p-8 max-w-7xl mx-auto'}>
             {renderContent()}
           </div>
         </div>

@@ -42,7 +42,8 @@
       "Bash(timeout /t 3 /nobreak)",
       "Bash(ping:*)",
       "Bash(dir /b C:Usersgiacodiscount-fence-hubmigrations*.sql)",
-      "Bash(more:*)"
+      "Bash(more:*)",
+      "Bash(git revert:*)"
     ],
     "deny": [],
     "ask": []

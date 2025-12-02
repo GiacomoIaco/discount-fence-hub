@@ -181,6 +181,102 @@ function InlineDatePicker({
   );
 }
 
+// Inline text editor component for title and notes
+function InlineTextEditor({
+  value,
+  onSave,
+  placeholder = 'Click to edit...',
+  className = '',
+  multiline = false,
+}: {
+  value: string | null | undefined;
+  onSave: (value: string) => Promise<void>;
+  placeholder?: string;
+  className?: string;
+  multiline?: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSave = async () => {
+    if (editValue === (value || '')) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onSave(editValue);
+    } catch (err) {
+      console.error('Failed to save:', err);
+      setEditValue(value || '');
+    } finally {
+      setIsSaving(false);
+      setIsEditing(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !multiline) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditValue(value || '');
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    const inputProps = {
+      ref: inputRef as any,
+      value: editValue,
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setEditValue(e.target.value),
+      onBlur: handleSave,
+      onKeyDown: handleKeyDown,
+      className: `w-full px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none ${className}`,
+      disabled: isSaving,
+    };
+
+    return multiline ? (
+      <div className="flex items-center gap-1">
+        <textarea {...inputProps} rows={2} />
+        {isSaving && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+      </div>
+    ) : (
+      <div className="flex items-center gap-1">
+        <input type="text" {...inputProps} />
+        {isSaving && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditValue(value || '');
+        setIsEditing(true);
+      }}
+      className={`group cursor-text hover:bg-blue-50 rounded px-2 py-1 -mx-1 transition-colors ${className}`}
+    >
+      {value ? (
+        <span className="text-sm">{value}</span>
+      ) : (
+        <span className="text-sm text-gray-400 italic">{placeholder}</span>
+      )}
+      <Edit3 className="w-3 h-3 text-gray-400 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
 // Inline status dropdown component with portal for proper positioning
 function InlineStatusDropdown({
   status,
@@ -1292,7 +1388,7 @@ function EditInitiativeModal({
 }
 
 // Due date filter type
-type DueDateFilter = 'all' | 'overdue' | 'due-today' | 'due-this-week' | 'high-priority';
+type DueDateFilter = 'all' | 'overdue' | 'due-today' | 'due-this-week' | 'high-priority' | 'in-progress' | 'done-this-week';
 
 // Sort option type
 type SortOption = 'default' | 'due-date-asc' | 'due-date-desc' | 'updated-desc' | 'created-desc';
@@ -1559,6 +1655,18 @@ export default function MyTodos({ onBack }: MyTodosProps) {
             return isThisWeek(t.due_date);
           case 'high-priority':
             return t.is_high_priority;
+          case 'in-progress':
+            return t.status === 'in_progress';
+          case 'done-this-week': {
+            if (t.status !== 'done') return false;
+            if (!t.updated_at) return false;
+            const updatedDate = new Date(t.updated_at);
+            const today = new Date();
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay());
+            startOfWeek.setHours(0, 0, 0, 0);
+            return updatedDate >= startOfWeek;
+          }
           default:
             return true;
         }
@@ -1888,6 +1996,32 @@ export default function MyTodos({ onBack }: MyTodosProps) {
               </button>
             );
           })}
+        </div>
+
+        <div className="h-5 w-px bg-gray-300" />
+
+        {/* Status Quick Filters */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setDueDateFilter(dueDateFilter === 'in-progress' ? 'all' : 'in-progress')}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              dueDateFilter === 'in-progress'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            In Progress ({stats.inProgressCount})
+          </button>
+          <button
+            onClick={() => setDueDateFilter(dueDateFilter === 'done-this-week' ? 'all' : 'done-this-week')}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              dueDateFilter === 'done-this-week'
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Done This Week ({stats.completedThisWeek})
+          </button>
         </div>
 
         <div className="h-5 w-px bg-gray-300" />
@@ -2247,20 +2381,16 @@ function SortableTaskRow({ task, idx, lastComment, onOpenTask, onStatusChange, o
                 />
               )}
 
-              {/* Title with description tooltip on hover */}
-              <div className="relative group/title flex-1" onClick={(e) => e.stopPropagation()}>
-                <span className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}>
-                  {task.title}
-                </span>
-                {/* Description tooltip - shows on hover if description exists */}
-                {task.description && (
-                  <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/title:block">
-                    <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-xs shadow-lg">
-                      <div className="font-medium text-gray-300 mb-1">Description:</div>
-                      <div className="whitespace-pre-wrap">{task.description}</div>
-                    </div>
-                  </div>
-                )}
+              {/* Title - inline editable */}
+              <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
+                <InlineTextEditor
+                  value={task.title}
+                  onSave={async (value) => {
+                    await onUpdateField({ id: task.id, field: 'title', value });
+                  }}
+                  placeholder="Add title..."
+                  className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
+                />
               </div>
             </div>
             <div className="ml-7">
@@ -2301,11 +2431,16 @@ function SortableTaskRow({ task, idx, lastComment, onOpenTask, onStatusChange, o
         />
       </td>
 
-      {/* Notes */}
+      {/* Notes - inline editable */}
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <span className="text-sm text-gray-600 truncate block max-w-[100px]">
-          {task.notes || '-'}
-        </span>
+        <InlineTextEditor
+          value={task.notes}
+          onSave={async (value) => {
+            await onUpdateField({ id: task.id, field: 'notes', value });
+          }}
+          placeholder="Add notes..."
+          className="text-gray-600 max-w-[120px]"
+        />
       </td>
 
       {/* Last Comment */}
