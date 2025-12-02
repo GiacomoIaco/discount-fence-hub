@@ -14,6 +14,7 @@ interface LaborCode {
   labor_sku: string;
   description: string;
   unit_type: string;
+  fence_category_standard: string[] | null;
 }
 
 interface LaborRate {
@@ -48,6 +49,7 @@ export default function LaborRatesPage() {
   const [loading, setLoading] = useState(true);
   const [pendingChanges, setPendingChanges] = useState<RateChange[]>([]);
   const [saving, setSaving] = useState(false);
+  const [fenceTypeFilter, setFenceTypeFilter] = useState<string>('');
 
   // CSV Import state
   const [showImportModal, setShowImportModal] = useState(false);
@@ -66,7 +68,7 @@ export default function LaborRatesPage() {
       // Load all data in parallel
       const [buResult, codesResult, ratesResult] = await Promise.all([
         supabase.from('business_units').select('id, name, code').order('name'),
-        supabase.from('labor_codes').select('id, labor_sku, description, unit_type').order('labor_sku'),
+        supabase.from('labor_codes').select('id, labor_sku, description, unit_type, fence_category_standard').order('labor_sku'),
         supabase.from('labor_rates').select('id, labor_code_id, business_unit_id, rate, updated_at'),
       ]);
 
@@ -333,6 +335,18 @@ export default function LaborRatesPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Get unique fence types from labor codes
+  const fenceTypes = [...new Set(
+    laborCodes
+      .flatMap(lc => lc.fence_category_standard || [])
+      .filter(Boolean)
+  )].sort();
+
+  // Filter labor codes by fence type
+  const filteredLaborCodes = fenceTypeFilter
+    ? laborCodes.filter(lc => lc.fence_category_standard?.includes(fenceTypeFilter))
+    : laborCodes;
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -346,14 +360,28 @@ export default function LaborRatesPage() {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Labor Rates</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Manage labor rates by business unit
-            </p>
+      {/* Header - Compact */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Labor Rates</h1>
+              <p className="text-xs text-gray-500">
+                {filteredLaborCodes.length} codes · {businessUnits.length} units
+              </p>
+            </div>
+
+            {/* Fence Type Filter */}
+            <select
+              value={fenceTypeFilter}
+              onChange={(e) => setFenceTypeFilter(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="">All Fence Types</option>
+              {fenceTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center gap-2">
@@ -367,98 +395,99 @@ export default function LaborRatesPage() {
             />
             <button
               onClick={handleExportRates}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700 transition-colors"
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-gray-700 transition-colors"
               title="Export current rates to CSV"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               Export
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700 transition-colors"
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-gray-700 transition-colors"
               title="Import rates from CSV"
             >
-              <Upload className="w-4 h-4" />
+              <Upload className="w-3.5 h-3.5" />
               Import
             </button>
-          </div>
 
-          {/* Save/Discard buttons */}
-          {pendingChanges.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-amber-600 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
-                {pendingChanges.length} unsaved change(s)
-              </span>
-              <button
-                onClick={handleDiscardChanges}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Discard
-              </button>
-              <button
-                onClick={handleSaveAll}
-                disabled={saving}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium transition-colors disabled:bg-gray-400"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    Save All
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+            {/* Save/Discard buttons */}
+            {pendingChanges.length > 0 && (
+              <>
+                <span className="text-xs text-amber-600 flex items-center gap-1 ml-2">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {pendingChanges.length} unsaved
+                </span>
+                <button
+                  onClick={handleDiscardChanges}
+                  className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={handleSaveAll}
+                  disabled={saving}
+                  className="bg-green-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-green-700 flex items-center gap-1.5 font-medium transition-colors disabled:bg-gray-400"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Save
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Matrix Table */}
-      <div className="flex-1 overflow-auto p-6">
-        {laborCodes.length === 0 ? (
+      <div className="flex-1 overflow-auto p-3">
+        {filteredLaborCodes.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">No labor codes found</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 min-w-[100px]">
+                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 min-w-[60px]">
                       Code
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider sticky left-[100px] bg-gray-50 z-10 min-w-[200px]">
+                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-[60px] bg-gray-50 z-10 min-w-[160px]">
                       Description
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[60px]">
+                    <th className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider min-w-[40px]">
                       UOM
                     </th>
                     {businessUnits.map(bu => (
                       <th
                         key={bu.id}
-                        className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[120px]"
+                        className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider min-w-[80px]"
+                        title={bu.name}
                       >
-                        {bu.name}
+                        {bu.code}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {laborCodes.map(code => (
+                <tbody className="divide-y divide-gray-100">
+                  {filteredLaborCodes.map(code => (
                     <tr key={code.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-mono text-gray-900 sticky left-0 bg-white z-10">
+                      <td className="px-2 py-1 font-mono text-gray-900 sticky left-0 bg-white z-10">
                         {code.labor_sku}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 sticky left-[100px] bg-white z-10">
+                      <td className="px-2 py-1 text-gray-700 sticky left-[60px] bg-white z-10 truncate max-w-[160px]" title={code.description}>
                         {code.description}
                       </td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-500">
+                      <td className="px-1 py-1 text-center text-gray-500">
                         {code.unit_type}
                       </td>
                       {businessUnits.map(bu => {
@@ -466,26 +495,23 @@ export default function LaborRatesPage() {
                         const isPending = hasPendingChange(code.id, bu.id);
 
                         return (
-                          <td key={bu.id} className="px-2 py-2 text-center">
+                          <td key={bu.id} className="px-1 py-0.5 text-center">
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                                $
-                              </span>
                               <input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 value={rate ?? ''}
                                 onChange={(e) => handleRateChange(code.id, bu.id, e.target.value)}
-                                className={`w-full pl-6 pr-2 py-1.5 text-sm text-right border rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                                className={`w-full px-1 py-0.5 text-xs text-right border rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
                                   isPending
                                     ? 'border-amber-400 bg-amber-50'
-                                    : 'border-gray-300'
+                                    : 'border-gray-200'
                                 }`}
-                                placeholder="0.00"
+                                placeholder="0"
                               />
                               {isPending && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full" />
+                                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full" />
                               )}
                             </div>
                           </td>
@@ -500,18 +526,18 @@ export default function LaborRatesPage() {
         )}
       </div>
 
-      {/* Legend */}
-      <div className="bg-white border-t border-gray-200 px-6 py-3">
-        <div className="flex items-center gap-6 text-sm text-gray-600">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border border-gray-300 rounded" />
-            <span>Saved rate</span>
+      {/* Legend - Compact */}
+      <div className="bg-white border-t border-gray-200 px-4 py-1.5">
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 border border-gray-200 rounded" />
+            <span>Saved</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border border-amber-400 bg-amber-50 rounded relative">
-              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full" />
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 border border-amber-400 bg-amber-50 rounded relative">
+              <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full" />
             </div>
-            <span>Unsaved change</span>
+            <span>Unsaved</span>
           </div>
         </div>
       </div>
