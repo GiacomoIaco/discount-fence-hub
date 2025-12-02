@@ -11,7 +11,7 @@ interface BusinessUnit {
 
 interface LaborCode {
   id: string;
-  sku: string;
+  labor_sku: string;
   description: string;
   unit_type: string;
 }
@@ -49,7 +49,7 @@ export default function LaborRatesPage() {
       // Load all data in parallel
       const [buResult, codesResult, ratesResult] = await Promise.all([
         supabase.from('business_units').select('id, name, code').order('name'),
-        supabase.from('labor_codes').select('id, sku, description, unit_type').order('sku'),
+        supabase.from('labor_codes').select('id, labor_sku, description, unit_type').order('labor_sku'),
         supabase.from('labor_rates').select('id, labor_code_id, business_unit_id, rate, updated_at'),
       ]);
 
@@ -244,7 +244,7 @@ export default function LaborRatesPage() {
                   {laborCodes.map(code => (
                     <tr key={code.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-mono text-gray-900 sticky left-0 bg-white z-10">
-                        {code.sku}
+                        {code.labor_sku}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 sticky left-[100px] bg-white z-10">
                         {code.description}

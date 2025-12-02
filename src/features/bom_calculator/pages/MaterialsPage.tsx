@@ -5,61 +5,69 @@ import { showSuccess, showError } from '../../../lib/toast';
 
 interface Material {
   id: string;
-  sku: string;
-  name: string;
-  description: string | null;
+  material_sku: string;
+  material_name: string;
+  sub_category: string | null;
   category: string;
   unit_cost: number;
   unit_type: string;
-  status: 'active' | 'inactive';
+  length_ft: number | null;
+  width_nominal: number | null;
+  actual_width: number | null;
+  thickness: string | null;
+  status: 'Active' | 'Inactive';
+  normally_stocked: boolean;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
 
 interface MaterialFormData {
-  sku: string;
-  name: string;
-  description: string;
+  material_sku: string;
+  material_name: string;
+  sub_category: string;
   category: string;
   unit_cost: string;
   unit_type: string;
-  status: 'active' | 'inactive';
+  status: 'Active' | 'Inactive';
+  notes: string;
 }
 
 const CATEGORIES = [
-  'Lumber',
-  'Posts',
-  'Hardware',
-  'Fasteners',
-  'Gates',
-  'Pickets',
-  'Rails',
-  'Panels',
-  'Iron',
-  'Other'
+  '01-Post',
+  '02-Pickets',
+  '03-Rails',
+  '04-Cap/Trim',
+  '05-Rot Board',
+  '06-Concrete',
+  '07-Horizontal Boards',
+  '08-Hardware',
+  '09-Iron',
+  '10-Other'
 ];
 
-const UNIT_TYPES = ['EA', 'LF', 'SF', 'BDL', 'BOX', 'BAG', 'GAL'];
+const UNIT_TYPES = ['Each', 'LF', 'SF', 'Bags', 'Box', 'Set', 'Per LF'];
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Inactive'>('Active');
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<MaterialFormData>({
-    sku: '',
-    name: '',
-    description: '',
-    category: 'Lumber',
+    material_sku: '',
+    material_name: '',
+    sub_category: '',
+    category: '01-Post',
     unit_cost: '',
-    unit_type: 'EA',
-    status: 'active',
+    unit_type: 'Each',
+    status: 'Active',
+    notes: '',
   });
 
   useEffect(() => {
@@ -73,7 +81,7 @@ export default function MaterialsPage() {
         .from('materials')
         .select('*')
         .order('category', { ascending: true })
-        .order('name', { ascending: true });
+        .order('material_name', { ascending: true });
 
       if (error) throw error;
       setMaterials(data || []);
@@ -88,13 +96,14 @@ export default function MaterialsPage() {
   const openCreateModal = () => {
     setEditingMaterial(null);
     setFormData({
-      sku: '',
-      name: '',
-      description: '',
-      category: 'Lumber',
+      material_sku: '',
+      material_name: '',
+      sub_category: '',
+      category: '01-Post',
       unit_cost: '',
-      unit_type: 'EA',
-      status: 'active',
+      unit_type: 'Each',
+      status: 'Active',
+      notes: '',
     });
     setShowModal(true);
   };
@@ -102,19 +111,20 @@ export default function MaterialsPage() {
   const openEditModal = (material: Material) => {
     setEditingMaterial(material);
     setFormData({
-      sku: material.sku,
-      name: material.name,
-      description: material.description || '',
+      material_sku: material.material_sku,
+      material_name: material.material_name,
+      sub_category: material.sub_category || '',
       category: material.category,
       unit_cost: material.unit_cost.toString(),
       unit_type: material.unit_type,
       status: material.status,
+      notes: material.notes || '',
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!formData.sku.trim() || !formData.name.trim() || !formData.unit_cost) {
+    if (!formData.material_sku.trim() || !formData.material_name.trim() || !formData.unit_cost) {
       showError('Please fill in all required fields');
       return;
     }
@@ -122,13 +132,14 @@ export default function MaterialsPage() {
     setSaving(true);
     try {
       const payload = {
-        sku: formData.sku.trim().toUpperCase(),
-        name: formData.name.trim(),
-        description: formData.description.trim() || null,
+        material_sku: formData.material_sku.trim().toUpperCase(),
+        material_name: formData.material_name.trim(),
+        sub_category: formData.sub_category.trim() || null,
         category: formData.category,
         unit_cost: parseFloat(formData.unit_cost),
         unit_type: formData.unit_type,
         status: formData.status,
+        notes: formData.notes.trim() || null,
       };
 
       if (editingMaterial) {
@@ -161,19 +172,19 @@ export default function MaterialsPage() {
   };
 
   const handleDeactivate = async (material: Material) => {
-    if (!confirm(`Are you sure you want to ${material.status === 'active' ? 'deactivate' : 'activate'} "${material.name}"?`)) {
+    if (!confirm(`Are you sure you want to ${material.status === 'Active' ? 'deactivate' : 'activate'} "${material.material_name}"?`)) {
       return;
     }
 
     try {
-      const newStatus = material.status === 'active' ? 'inactive' : 'active';
+      const newStatus = material.status === 'Active' ? 'Inactive' : 'Active';
       const { error } = await supabase
         .from('materials')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', material.id);
 
       if (error) throw error;
-      showSuccess(`Material ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+      showSuccess(`Material ${newStatus === 'Active' ? 'activated' : 'deactivated'}`);
       loadMaterials();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -184,8 +195,8 @@ export default function MaterialsPage() {
   // Filter materials
   const filteredMaterials = materials.filter(m => {
     const matchesSearch =
-      m.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase());
+      m.material_sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.material_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !categoryFilter || m.category === categoryFilter;
     const matchesStatus = statusFilter === 'all' || m.status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
@@ -243,8 +254,8 @@ export default function MaterialsPage() {
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
           >
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
+            <option value="Active">Active Only</option>
+            <option value="Inactive">Inactive Only</option>
             <option value="all">All Status</option>
           </select>
 
@@ -296,13 +307,13 @@ export default function MaterialsPage() {
                 {filteredMaterials.map(material => (
                   <tr key={material.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-mono text-gray-900">
-                      {material.sku}
+                      {material.material_sku}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900">{material.name}</div>
-                      {material.description && (
+                      <div className="text-sm font-medium text-gray-900">{material.material_name}</div>
+                      {material.sub_category && (
                         <div className="text-xs text-gray-500 truncate max-w-xs">
-                          {material.description}
+                          {material.sub_category}
                         </div>
                       )}
                     </td>
@@ -317,7 +328,7 @@ export default function MaterialsPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        material.status === 'active'
+                        material.status === 'Active'
                           ? 'bg-green-100 text-green-700'
                           : 'bg-gray-100 text-gray-600'
                       }`}>
@@ -336,11 +347,11 @@ export default function MaterialsPage() {
                         <button
                           onClick={() => handleDeactivate(material)}
                           className={`p-1.5 rounded ${
-                            material.status === 'active'
+                            material.status === 'Active'
                               ? 'text-gray-500 hover:text-red-600 hover:bg-red-50'
                               : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
                           }`}
-                          title={material.status === 'active' ? 'Deactivate' : 'Activate'}
+                          title={material.status === 'Active' ? 'Deactivate' : 'Activate'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -378,10 +389,10 @@ export default function MaterialsPage() {
                   </label>
                   <input
                     type="text"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    value={formData.material_sku}
+                    onChange={(e) => setFormData({ ...formData, material_sku: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 uppercase"
-                    placeholder="MAT-001"
+                    placeholder="PS13"
                   />
                 </div>
                 <div>
@@ -406,8 +417,8 @@ export default function MaterialsPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  value={formData.material_name}
+                  onChange={(e) => setFormData({ ...formData, material_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   placeholder="Material name"
                 />
@@ -415,14 +426,14 @@ export default function MaterialsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  Sub-Category
                 </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                <input
+                  type="text"
+                  value={formData.sub_category}
+                  onChange={(e) => setFormData({ ...formData, sub_category: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  rows={2}
-                  placeholder="Optional description..."
+                  placeholder="e.g., Wood, Steel, 1x6"
                 />
               </div>
 
@@ -467,10 +478,23 @@ export default function MaterialsPage() {
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  rows={2}
+                  placeholder="Optional notes..."
+                />
               </div>
             </div>
 
