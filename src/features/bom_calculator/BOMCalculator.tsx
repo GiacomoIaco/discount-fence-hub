@@ -11,6 +11,7 @@ interface BOMCalculatorProps {
   userRole: 'operations' | 'admin';
   userId?: string;
   userName?: string;
+  hideHeader?: boolean; // Hide header when inside Hub
 }
 
 // SKU Autocomplete Search Component
@@ -85,7 +86,7 @@ function SKUSearch({ value, onChange, fenceType, products }: SKUSearchProps) {
 
 type ModalView = 'none' | 'projects' | 'sku-builder' | 'catalog' | 'new-material';
 
-export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, userName: _userName }: BOMCalculatorProps) {
+export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, userName: _userName, hideHeader = false }: BOMCalculatorProps) {
   // Modal state
   const [activeModal, setActiveModal] = useState<ModalView>('none');
 
@@ -243,63 +244,65 @@ export function BOMCalculator({ onBack, userRole: _userRole, userId: _userId, us
   const costPerFoot = totalFootage > 0 ? totalProjectCost / totalFootage : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="p-4 flex items-center justify-between">
-          <button
-            onClick={onBack}
-            className="text-blue-600 font-medium flex items-center space-x-2 hover:text-blue-700"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back</span>
-          </button>
+    <div className={hideHeader ? "h-full bg-gray-50 overflow-auto" : "min-h-screen bg-gray-50"}>
+      {/* Header - hidden when inside Hub */}
+      {!hideHeader && (
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+          <div className="p-4 flex items-center justify-between">
+            <button
+              onClick={onBack}
+              className="text-blue-600 font-medium flex items-center space-x-2 hover:text-blue-700"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
 
-          <div className="text-center flex-1">
-            <h1 className="text-xl font-bold text-gray-900">BOM Calculator</h1>
-            <p className="text-xs text-gray-600">Bill of Materials & Labor</p>
+            <div className="text-center flex-1">
+              <h1 className="text-xl font-bold text-gray-900">BOM Calculator</h1>
+              <p className="text-xs text-gray-600">Bill of Materials & Labor</p>
+            </div>
+
+            <div className="w-20"></div>
           </div>
 
-          <div className="w-20"></div>
-        </div>
+          {/* Sub-header with navigation buttons */}
+          <div className="border-t border-gray-200 bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-center space-x-3">
+              <button
+                onClick={() => setActiveModal('projects')}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span>Projects</span>
+              </button>
 
-        {/* Sub-header with navigation buttons */}
-        <div className="border-t border-gray-200 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-center space-x-3">
-            <button
-              onClick={() => setActiveModal('projects')}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2 text-sm font-medium transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              <span>Projects</span>
-            </button>
+              <button
+                onClick={() => setActiveModal('sku-builder')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+              >
+                <Wrench className="w-4 h-4" />
+                <span>SKU Builder</span>
+              </button>
 
-            <button
-              onClick={() => setActiveModal('sku-builder')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2 text-sm font-medium transition-colors"
-            >
-              <Wrench className="w-4 h-4" />
-              <span>SKU Builder</span>
-            </button>
+              <button
+                onClick={() => setActiveModal('catalog')}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>SKU Catalog</span>
+              </button>
 
-            <button
-              onClick={() => setActiveModal('catalog')}
-              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2 text-sm font-medium transition-colors"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>SKU Catalog</span>
-            </button>
-
-            <button
-              onClick={() => setActiveModal('new-material')}
-              className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 flex items-center space-x-2 text-sm font-medium transition-colors"
-            >
-              <PackagePlus className="w-4 h-4" />
-              <span>New Material</span>
-            </button>
+              <button
+                onClick={() => setActiveModal('new-material')}
+                className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 flex items-center space-x-2 text-sm font-medium transition-colors"
+              >
+                <PackagePlus className="w-4 h-4" />
+                <span>New Material</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-4 space-y-6">

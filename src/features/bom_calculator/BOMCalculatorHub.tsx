@@ -58,6 +58,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
             userRole={userRole}
             userId={userId}
             userName={userName}
+            hideHeader={true}
           />
         );
 

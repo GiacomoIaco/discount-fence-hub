@@ -85,6 +85,14 @@ function App() {
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
+  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Leadership)
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'leadership';
+  useEffect(() => {
+    if (isHubSection) {
+      setSidebarOpen(false);
+    }
+  }, [isHubSection]);
+
   // Enable escalation engine for operations/admin roles
   const isOperationsRole = ['operations', 'sales-manager', 'admin'].includes(userRole);
   useEscalationEngine(isOperationsRole);
@@ -468,9 +476,14 @@ function App() {
         />
 
         <div className="flex-1 overflow-auto">
-          <div className={activeSection === 'leadership' || activeSection === 'my-todos' ? 'p-6' : 'p-8 max-w-7xl mx-auto'}>
-            {renderContent()}
-          </div>
+          {isHubSection ? (
+            // Hub sections take full screen with no wrapper padding
+            renderContent()
+          ) : (
+            <div className={activeSection === 'my-todos' ? 'p-6' : 'p-8 max-w-7xl mx-auto'}>
+              {renderContent()}
+            </div>
+          )}
         </div>
 
         {/* Install App Banner */}
