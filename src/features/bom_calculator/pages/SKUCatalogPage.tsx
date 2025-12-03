@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Search, X, Pencil } from 'lucide-react';
+import { Loader2, Search, RefreshCw, Pencil, Info } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import { recalculateAllSKUs, SKU_STANDARD_ASSUMPTIONS } from '../services/recalculateSKUs';
+import type { SelectedSKU } from '../BOMCalculatorHub';
 
 // Extended interfaces with cost fields
 interface WoodVerticalProduct {
@@ -18,11 +20,7 @@ interface WoodVerticalProduct {
   standard_material_cost: number | null;
   standard_labor_cost: number | null;
   standard_cost_per_foot: number | null;
-  post_material_id: string | null;
-  picket_material_id: string | null;
-  rail_material_id: string | null;
-  cap_material_id: string | null;
-  trim_material_id: string | null;
+  standard_cost_calculated_at: string | null;
 }
 
 interface WoodHorizontalProduct {
@@ -38,10 +36,7 @@ interface WoodHorizontalProduct {
   standard_material_cost: number | null;
   standard_labor_cost: number | null;
   standard_cost_per_foot: number | null;
-  post_material_id: string | null;
-  board_material_id: string | null;
-  nailer_material_id: string | null;
-  cap_material_id: string | null;
+  standard_cost_calculated_at: string | null;
 }
 
 interface IronProduct {
@@ -57,8 +52,7 @@ interface IronProduct {
   standard_material_cost: number | null;
   standard_labor_cost: number | null;
   standard_cost_per_foot: number | null;
-  post_material_id: string | null;
-  panel_material_id: string | null;
+  standard_cost_calculated_at: string | null;
 }
 
 // Unified SKU row for table display
@@ -66,7 +60,7 @@ interface SKURow {
   id: string;
   sku_code: string;
   sku_name: string;
-  category: 'Wood Vertical' | 'Wood Horizontal' | 'Iron' | 'Other';
+  category: 'Wood Vertical' | 'Wood Horizontal' | 'Iron';
   categoryKey: 'wood-vertical' | 'wood-horizontal' | 'iron';
   style: string;
   height: number;
@@ -77,8 +71,7 @@ interface SKURow {
   total_cost: number;
   cost_per_foot: number;
   is_active: boolean;
-  // Original data for editing
-  original: WoodVerticalProduct | WoodHorizontalProduct | IronProduct;
+  calculated_at: string | null;
 }
 
 interface BusinessUnit {
@@ -87,11 +80,16 @@ interface BusinessUnit {
   name: string;
 }
 
+interface SKUCatalogPageProps {
+  onEditSKU: (sku: SelectedSKU) => void;
+  isAdmin: boolean;
+}
+
 type CategoryFilter = 'all' | 'wood-vertical' | 'wood-horizontal' | 'iron';
 type StyleFilter = 'all' | string;
 type HeightFilter = 'all' | number;
 
-export default function SKUCatalogPage() {
+export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPageProps) {
   const queryClient = useQueryClient();
 
   // Filters
@@ -101,8 +99,9 @@ export default function SKUCatalogPage() {
   const [styleFilter, setStyleFilter] = useState<StyleFilter>('all');
   const [heightFilter, setHeightFilter] = useState<HeightFilter>('all');
 
-  // Edit modal
-  const [editingSku, setEditingSku] = useState<SKURow | null>(null);
+  // Recalculation state
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcProgress, setRecalcProgress] = useState({ current: 0, total: 0 });
 
   // Fetch business units
   const { data: businessUnits = [] } = useQuery({
@@ -127,7 +126,7 @@ export default function SKUCatalogPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('wood_vertical_products')
-        .select('*')
+        .select('id, sku_code, sku_name, height, rail_count, post_type, style, post_spacing, is_active, standard_material_cost, standard_labor_cost, standard_cost_per_foot, standard_cost_calculated_at')
         .order('sku_code');
       if (error) throw error;
       return data as WoodVerticalProduct[];
@@ -139,7 +138,7 @@ export default function SKUCatalogPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('wood_horizontal_products')
-        .select('*')
+        .select('id, sku_code, sku_name, height, post_type, style, post_spacing, board_width_actual, is_active, standard_material_cost, standard_labor_cost, standard_cost_per_foot, standard_cost_calculated_at')
         .order('sku_code');
       if (error) throw error;
       return data as WoodHorizontalProduct[];
@@ -151,7 +150,7 @@ export default function SKUCatalogPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('iron_products')
-        .select('*')
+        .select('id, sku_code, sku_name, height, post_type, style, panel_width, rails_per_panel, is_active, standard_material_cost, standard_labor_cost, standard_cost_per_foot, standard_cost_calculated_at')
         .order('sku_code');
       if (error) throw error;
       return data as IronProduct[];
@@ -180,7 +179,7 @@ export default function SKUCatalogPage() {
         total_cost: (p.standard_material_cost || 0) + (p.standard_labor_cost || 0),
         cost_per_foot: p.standard_cost_per_foot || 0,
         is_active: p.is_active,
-        original: p,
+        calculated_at: p.standard_cost_calculated_at,
       });
     });
 
@@ -200,7 +199,7 @@ export default function SKUCatalogPage() {
         total_cost: (p.standard_material_cost || 0) + (p.standard_labor_cost || 0),
         cost_per_foot: p.standard_cost_per_foot || 0,
         is_active: p.is_active,
-        original: p,
+        calculated_at: p.standard_cost_calculated_at,
       });
     });
 
@@ -220,7 +219,7 @@ export default function SKUCatalogPage() {
         total_cost: (p.standard_material_cost || 0) + (p.standard_labor_cost || 0),
         cost_per_foot: p.standard_cost_per_foot || 0,
         is_active: p.is_active,
-        original: p,
+        calculated_at: p.standard_cost_calculated_at,
       });
     });
 
@@ -245,16 +244,9 @@ export default function SKUCatalogPage() {
   // Apply filters
   const filteredRows = useMemo(() => {
     return allRows.filter(row => {
-      // Category filter
       if (categoryFilter !== 'all' && row.categoryKey !== categoryFilter) return false;
-
-      // Style filter
       if (styleFilter !== 'all' && row.style !== styleFilter) return false;
-
-      // Height filter
       if (heightFilter !== 'all' && row.height !== heightFilter) return false;
-
-      // Search filter
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         return (
@@ -262,7 +254,6 @@ export default function SKUCatalogPage() {
           row.sku_name.toLowerCase().includes(term)
         );
       }
-
       return true;
     });
   }, [allRows, categoryFilter, styleFilter, heightFilter, searchTerm]);
@@ -312,6 +303,58 @@ export default function SKUCatalogPage() {
     }
   };
 
+  // Handle row click - navigate to SKU Builder
+  const handleRowClick = (row: SKURow) => {
+    if (!isAdmin) {
+      showError('Admin access required to edit SKUs');
+      return;
+    }
+    onEditSKU({
+      id: row.id,
+      type: row.categoryKey,
+      skuCode: row.sku_code,
+    });
+  };
+
+  // Recalculate all SKUs
+  const handleRecalculateAll = async () => {
+    if (!businessUnitId) {
+      showError('Please select a business unit');
+      return;
+    }
+
+    if (!confirm(`Recalculate costs for all ${allRows.length} SKUs using current material prices and labor rates?`)) {
+      return;
+    }
+
+    setRecalculating(true);
+    setRecalcProgress({ current: 0, total: allRows.length });
+
+    try {
+      const result = await recalculateAllSKUs(
+        businessUnitId,
+        (current, total) => setRecalcProgress({ current, total })
+      );
+
+      if (result.success) {
+        showSuccess(`Updated ${result.updated} SKUs successfully`);
+      } else {
+        showSuccess(`Updated ${result.updated} SKUs with ${result.errors.length} errors`);
+        console.error('Recalculation errors:', result.errors);
+      }
+
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
+    } catch (error) {
+      console.error('Recalculation failed:', error);
+      showError('Failed to recalculate SKUs');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -325,6 +368,38 @@ export default function SKUCatalogPage() {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
+      {/* Header with title and Recalculate button */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold text-gray-900">SKU Catalog</h1>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Info className="w-3.5 h-3.5" />
+              <span>Costs based on {SKU_STANDARD_ASSUMPTIONS.netLength}ft, {SKU_STANDARD_ASSUMPTIONS.numberOfLines} lines</span>
+            </div>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={handleRecalculateAll}
+              disabled={recalculating}
+              className="px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 font-medium transition-colors disabled:bg-gray-400"
+            >
+              {recalculating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {recalcProgress.current}/{recalcProgress.total}
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  Recalculate All
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Filters Row */}
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -459,15 +534,15 @@ export default function SKUCatalogPage() {
               <th className="text-right py-2 px-3 font-medium">Labor</th>
               <th className="text-right py-2 px-3 font-medium bg-yellow-50">Total</th>
               <th className="text-right py-2 px-3 font-medium bg-yellow-50">$/Foot</th>
-              <th className="text-center py-2 px-2 font-medium w-10"></th>
+              {isAdmin && <th className="text-center py-2 px-2 font-medium w-10"></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredRows.map((row) => (
               <tr
                 key={`${row.categoryKey}-${row.id}`}
-                className="hover:bg-gray-50 cursor-pointer"
-                onClick={() => setEditingSku(row)}
+                className={`hover:bg-gray-50 ${isAdmin ? 'cursor-pointer' : ''}`}
+                onClick={() => handleRowClick(row)}
               >
                 <td className="py-2 px-3 font-mono font-semibold text-gray-900">{row.sku_code}</td>
                 <td className="py-2 px-3 text-gray-700 max-w-[200px] truncate" title={row.sku_name}>
@@ -494,18 +569,20 @@ export default function SKUCatalogPage() {
                 <td className={`py-2 px-3 text-right font-medium bg-yellow-50 ${row.cost_per_foot > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
                   {formatCurrency(row.cost_per_foot)}
                 </td>
-                <td className="py-2 px-2 text-center">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingSku(row);
-                    }}
-                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                    title="Edit SKU"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                </td>
+                {isAdmin && (
+                  <td className="py-2 px-2 text-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowClick(row);
+                      }}
+                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Edit in SKU Builder"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -516,204 +593,6 @@ export default function SKUCatalogPage() {
             <p className="text-gray-500">No SKUs match the selected filters</p>
           </div>
         )}
-      </div>
-
-      {/* Edit Modal */}
-      {editingSku && (
-        <SKUEditModal
-          sku={editingSku}
-          onClose={() => setEditingSku(null)}
-          onSaved={() => {
-            setEditingSku(null);
-            queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog'] });
-            queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
-            queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// Edit Modal Component
-function SKUEditModal({
-  sku,
-  onClose,
-  onSaved,
-}: {
-  sku: SKURow;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [skuName, setSkuName] = useState(sku.sku_name);
-  const [isActive, setIsActive] = useState(sku.is_active);
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      let table = '';
-      if (sku.categoryKey === 'wood-vertical') table = 'wood_vertical_products';
-      else if (sku.categoryKey === 'wood-horizontal') table = 'wood_horizontal_products';
-      else table = 'iron_products';
-
-      const { error } = await supabase
-        .from(table)
-        .update({
-          sku_name: skuName,
-          is_active: isActive,
-        })
-        .eq('id', sku.id);
-
-      if (error) throw error;
-      showSuccess('SKU updated successfully');
-      onSaved();
-    } catch (err) {
-      showError('Failed to update SKU');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm(`Are you sure you want to delete SKU "${sku.sku_code}"?`)) return;
-
-    setSaving(true);
-    try {
-      let table = '';
-      if (sku.categoryKey === 'wood-vertical') table = 'wood_vertical_products';
-      else if (sku.categoryKey === 'wood-horizontal') table = 'wood_horizontal_products';
-      else table = 'iron_products';
-
-      const { error } = await supabase.from(table).delete().eq('id', sku.id);
-      if (error) throw error;
-      showSuccess('SKU deleted');
-      onSaved();
-    } catch (err) {
-      showError('Failed to delete SKU');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Format currency
-  const fmt = (num: number) => '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Edit SKU</h2>
-            <p className="text-sm text-gray-500">{sku.sku_code} · {sku.category}</p>
-          </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="px-6 py-4 space-y-4">
-          {/* SKU Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SKU Name</label>
-            <input
-              type="text"
-              value={skuName}
-              onChange={(e) => setSkuName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            />
-          </div>
-
-          {/* Details (Read-only) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Style</label>
-              <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-700">{sku.style}</div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Height</label>
-              <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-700">{sku.height}'</div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Post Type</label>
-              <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-700">{sku.post_type}</div>
-            </div>
-            {sku.rails !== null && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Rails</label>
-                <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-700">{sku.rails}</div>
-              </div>
-            )}
-          </div>
-
-          {/* Costs */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Cost Estimates (100 ft)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-gray-500">Material Cost</div>
-                <div className="text-lg font-semibold text-green-600">{fmt(sku.material_cost)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Labor Cost</div>
-                <div className="text-lg font-semibold text-purple-600">{fmt(sku.labor_cost)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Total Cost</div>
-                <div className="text-lg font-semibold text-gray-900">{fmt(sku.total_cost)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Cost per Foot</div>
-                <div className="text-lg font-semibold text-amber-600">{fmt(sku.cost_per_foot)}</div>
-              </div>
-            </div>
-            {sku.cost_per_foot === 0 && (
-              <p className="text-xs text-amber-600 mt-2">
-                No cost data. Open in SKU Builder to configure materials and calculate costs.
-              </p>
-            )}
-          </div>
-
-          {/* Active Toggle */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            <span className="text-sm text-gray-700">Active (visible in calculator)</span>
-          </label>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-          <button
-            onClick={handleDelete}
-            disabled={saving}
-            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            Delete SKU
-          </button>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors disabled:bg-gray-400 flex items-center gap-2"
-            >
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              Save Changes
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

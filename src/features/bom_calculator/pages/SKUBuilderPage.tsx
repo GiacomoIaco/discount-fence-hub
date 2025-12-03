@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Save, RotateCcw, AlertTriangle,
-  Grid3X3, Layers, Package
+  Grid3X3, Layers, Package, ArrowLeft
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import type { SelectedSKU } from '../BOMCalculatorHub';
 
 // Extended Material interface with dimensions for filtering
 interface Material {
@@ -91,9 +92,15 @@ interface BOMResult {
   costPerFoot: number;
 }
 
-export default function SKUBuilderPage() {
+interface SKUBuilderPageProps {
+  selectedSKU?: SelectedSKU | null;
+  onClearSelection?: () => void;
+}
+
+export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBuilderPageProps) {
   const queryClient = useQueryClient();
   const [productType, setProductType] = useState<ProductType>('wood-vertical');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Configuration state
   const [skuCode, setSkuCode] = useState('');
@@ -116,10 +123,80 @@ export default function SKUBuilderPage() {
   // Preview parameters
   const [preview, setPreview] = useState<PreviewParams>({
     netLength: 100,
-    lines: 1,
+    lines: 4,
     gates: 0,
     businessUnitId: '',
   });
+
+  // Load selected SKU data
+  useEffect(() => {
+    if (!selectedSKU) {
+      setEditingId(null);
+      return;
+    }
+
+    const loadSKU = async () => {
+      try {
+        if (selectedSKU.type === 'wood-vertical') {
+          const { data: wv, error } = await supabase
+            .from('wood_vertical_products')
+            .select('*')
+            .eq('id', selectedSKU.id)
+            .single();
+          if (error) throw error;
+          setProductType('wood-vertical');
+          setSkuCode(wv.sku_code);
+          setSkuName(wv.sku_name);
+          setHeight(wv.height);
+          setStyle(wv.style);
+          setRailCount(wv.rail_count);
+          setPostType(wv.post_type);
+          setPostMaterialId(wv.post_material_id || '');
+          setPicketMaterialId(wv.picket_material_id || '');
+          setRailMaterialId(wv.rail_material_id || '');
+          setCapMaterialId(wv.cap_material_id || '');
+          setTrimMaterialId(wv.trim_material_id || '');
+        } else if (selectedSKU.type === 'wood-horizontal') {
+          const { data: wh, error } = await supabase
+            .from('wood_horizontal_products')
+            .select('*')
+            .eq('id', selectedSKU.id)
+            .single();
+          if (error) throw error;
+          setProductType('wood-horizontal');
+          setSkuCode(wh.sku_code);
+          setSkuName(wh.sku_name);
+          setHeight(wh.height);
+          setStyle(wh.style);
+          setPostType(wh.post_type);
+          setPostMaterialId(wh.post_material_id || '');
+          setBoardMaterialId(wh.board_material_id || '');
+          setNailerMaterialId(wh.nailer_material_id || '');
+          setCapMaterialId(wh.cap_material_id || '');
+        } else {
+          const { data: ir, error } = await supabase
+            .from('iron_products')
+            .select('*')
+            .eq('id', selectedSKU.id)
+            .single();
+          if (error) throw error;
+          setProductType('iron');
+          setSkuCode(ir.sku_code);
+          setSkuName(ir.sku_name);
+          setHeight(ir.height);
+          setStyle(ir.style);
+          setPostMaterialId(ir.post_material_id || '');
+          setPanelMaterialId(ir.panel_material_id || '');
+        }
+        setEditingId(selectedSKU.id);
+      } catch (err) {
+        console.error('Error loading SKU:', err);
+        showError('Failed to load SKU');
+      }
+    };
+
+    loadSKU();
+  }, [selectedSKU]);
 
   // Fetch materials with all fields needed for filtering
   const { data: materials = [], isLoading: loadingMaterials } = useQuery({
@@ -666,6 +743,7 @@ export default function SKUBuilderPage() {
 
   // Reset form
   const resetForm = () => {
+    setEditingId(null);
     setSkuCode('');
     setSkuName('');
     setHeight(6);
@@ -680,15 +758,18 @@ export default function SKUBuilderPage() {
     setBoardMaterialId('');
     setNailerMaterialId('');
     setPanelMaterialId('');
+    onClearSelection?.();
   };
 
-  // Save SKU mutation
+  // Save SKU mutation (insert or update)
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!skuCode) throw new Error('SKU code is required');
 
+      const isEditing = !!editingId;
+
       if (productType === 'wood-vertical') {
-        const { error } = await supabase.from('wood_vertical_products').insert({
+        const payload = {
           sku_code: skuCode,
           sku_name: skuName || suggestedSkuName,
           height,
@@ -704,12 +785,24 @@ export default function SKUBuilderPage() {
           standard_material_cost: bomResult?.materialTotal || null,
           standard_labor_cost: bomResult?.laborTotal || null,
           standard_cost_per_foot: bomResult?.costPerFoot || null,
-          is_active: true,
-        });
-        if (error) throw error;
+          standard_cost_calculated_at: new Date().toISOString(),
+        };
+
+        if (isEditing) {
+          const { error } = await supabase
+            .from('wood_vertical_products')
+            .update(payload)
+            .eq('id', editingId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('wood_vertical_products')
+            .insert({ ...payload, is_active: true });
+          if (error) throw error;
+        }
       } else if (productType === 'wood-horizontal') {
         const boardMat = getMaterial(boardMaterialId);
-        const { error } = await supabase.from('wood_horizontal_products').insert({
+        const payload = {
           sku_code: skuCode,
           sku_name: skuName || suggestedSkuName,
           height,
@@ -724,16 +817,28 @@ export default function SKUBuilderPage() {
           standard_material_cost: bomResult?.materialTotal || null,
           standard_labor_cost: bomResult?.laborTotal || null,
           standard_cost_per_foot: bomResult?.costPerFoot || null,
-          is_active: true,
-        });
-        if (error) throw error;
+          standard_cost_calculated_at: new Date().toISOString(),
+        };
+
+        if (isEditing) {
+          const { error } = await supabase
+            .from('wood_horizontal_products')
+            .update(payload)
+            .eq('id', editingId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('wood_horizontal_products')
+            .insert({ ...payload, is_active: true });
+          if (error) throw error;
+        }
       } else {
         const ironStyle = IRON_STYLES.find(s => s.value === style);
-        const { error } = await supabase.from('iron_products').insert({
+        const payload = {
           sku_code: skuCode,
           sku_name: skuName || suggestedSkuName,
           height,
-          post_type: 'STEEL',
+          post_type: 'STEEL' as const,
           style,
           panel_width: 8,
           rails_per_panel: ironStyle?.rails || 2,
@@ -742,16 +847,36 @@ export default function SKUBuilderPage() {
           standard_material_cost: bomResult?.materialTotal || null,
           standard_labor_cost: bomResult?.laborTotal || null,
           standard_cost_per_foot: bomResult?.costPerFoot || null,
-          is_active: true,
-        });
-        if (error) throw error;
+          standard_cost_calculated_at: new Date().toISOString(),
+        };
+
+        if (isEditing) {
+          const { error } = await supabase
+            .from('iron_products')
+            .update(payload)
+            .eq('id', editingId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('iron_products')
+            .insert({ ...payload, is_active: true });
+          if (error) throw error;
+        }
       }
     },
     onSuccess: () => {
-      showSuccess('SKU saved successfully');
+      showSuccess(editingId ? 'SKU updated successfully' : 'SKU saved successfully');
       queryClient.invalidateQueries({ queryKey: ['wood-vertical-products'] });
       queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products'] });
       queryClient.invalidateQueries({ queryKey: ['iron-products'] });
+      queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
+      if (editingId) {
+        // Stay on page after update, clear selection
+        onClearSelection?.();
+        setEditingId(null);
+      }
       resetForm();
     },
     onError: (err: Error) => {
@@ -808,7 +933,25 @@ export default function SKUBuilderPage() {
       <div className="w-[520px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
         {/* Header with save actions */}
         <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-          <h1 className="text-base font-bold text-gray-900">SKU Builder</h1>
+          <div className="flex items-center gap-3">
+            {editingId && (
+              <button
+                onClick={resetForm}
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                title="New SKU"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-base font-bold text-gray-900">
+                {editingId ? 'Edit SKU' : 'SKU Builder'}
+              </h1>
+              {editingId && (
+                <p className="text-xs text-blue-600">{skuCode}</p>
+              )}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={resetForm}
@@ -820,10 +963,12 @@ export default function SKUBuilderPage() {
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending || !skuCode}
-              className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium flex items-center gap-1.5 transition-colors hover:bg-green-700 disabled:bg-gray-400"
+              className={`px-3 py-1.5 text-white rounded text-xs font-medium flex items-center gap-1.5 transition-colors disabled:bg-gray-400 ${
+                editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'
+              }`}
             >
               {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Save SKU
+              {editingId ? 'Update SKU' : 'Save SKU'}
             </button>
           </div>
         </div>

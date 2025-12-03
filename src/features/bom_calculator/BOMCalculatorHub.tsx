@@ -15,6 +15,13 @@ interface BOMCalculatorHubProps {
   userName?: string;
 }
 
+// SKU selection for navigation between Catalog and Builder
+export interface SelectedSKU {
+  id: string;
+  type: 'wood-vertical' | 'wood-horizontal' | 'iron';
+  skuCode: string;
+}
+
 // Check if screen is desktop size
 const useIsDesktop = () => {
   return typeof window !== 'undefined' && window.innerWidth >= 1024;
@@ -22,8 +29,23 @@ const useIsDesktop = () => {
 
 export default function BOMCalculatorHub({ onBack, userRole, userId, userName }: BOMCalculatorHubProps) {
   const [activePage, setActivePage] = useState<BOMHubPage>('calculator');
+  const [selectedSKU, setSelectedSKU] = useState<SelectedSKU | null>(null);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
+
+  // Navigate to SKU Builder with a selected SKU
+  const handleEditSKU = (sku: SelectedSKU) => {
+    setSelectedSKU(sku);
+    setActivePage('sku-builder');
+  };
+
+  // Clear selected SKU when leaving SKU Builder
+  const handlePageChange = (page: BOMHubPage) => {
+    if (page !== 'sku-builder') {
+      setSelectedSKU(null);
+    }
+    setActivePage(page);
+  };
 
   // Desktop-only check
   if (!isDesktop) {
@@ -67,13 +89,13 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
 
       case 'materials':
         if (!isAdmin) {
-          return <AccessDenied onGoBack={() => setActivePage('calculator')} />;
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
         }
         return <MaterialsPage />;
 
       case 'labor-rates':
         if (!isAdmin) {
-          return <AccessDenied onGoBack={() => setActivePage('calculator')} />;
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
         }
         return <LaborRatesPage />;
 
@@ -82,12 +104,22 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
 
       case 'sku-builder':
         if (!isAdmin) {
-          return <AccessDenied onGoBack={() => setActivePage('calculator')} />;
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
         }
-        return <SKUBuilderPage />;
+        return (
+          <SKUBuilderPage
+            selectedSKU={selectedSKU}
+            onClearSelection={() => setSelectedSKU(null)}
+          />
+        );
 
       case 'sku-catalog':
-        return <SKUCatalogPage />;
+        return (
+          <SKUCatalogPage
+            onEditSKU={handleEditSKU}
+            isAdmin={isAdmin}
+          />
+        );
 
       default:
         return null;
@@ -97,7 +129,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
   return (
     <HubLayout
       activePage={activePage}
-      onPageChange={setActivePage}
+      onPageChange={handlePageChange}
       onBack={onBack}
       isAdmin={isAdmin}
     >
