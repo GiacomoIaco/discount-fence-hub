@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Loader2, AlertCircle, Upload, Download, CheckCircle, X, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, AlertCircle, Upload, Download, CheckCircle, X, AlertTriangle, Plus, Pencil } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 
@@ -15,6 +15,7 @@ interface LaborCode {
   description: string;
   unit_type: string;
   fence_category_standard: string[] | null;
+  notes?: string | null;
 }
 
 interface LaborRate {
@@ -42,6 +43,18 @@ interface CSVRateRow {
   error?: string;
 }
 
+// Available product types
+const PRODUCT_TYPES = [
+  'Wood Vertical',
+  'Wood Horizontal',
+  'Iron',
+  'Chain Link',
+  'Vinyl',
+  'Gate',
+  'Deck',
+  'Glass Railing',
+];
+
 export default function LaborRatesPage() {
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
@@ -49,13 +62,17 @@ export default function LaborRatesPage() {
   const [loading, setLoading] = useState(true);
   const [pendingChanges, setPendingChanges] = useState<RateChange[]>([]);
   const [saving, setSaving] = useState(false);
-  const [fenceTypeFilter, setFenceTypeFilter] = useState<string>('');
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('');
 
   // CSV Import state
   const [showImportModal, setShowImportModal] = useState(false);
   const [csvData, setCsvData] = useState<CSVRateRow[]>([]);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Labor Code Edit Modal state
+  const [editingCode, setEditingCode] = useState<LaborCode | null>(null);
+  const [showNewCodeModal, setShowNewCodeModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -68,7 +85,7 @@ export default function LaborRatesPage() {
       // Load all data in parallel
       const [buResult, codesResult, ratesResult] = await Promise.all([
         supabase.from('business_units').select('id, name, code').order('name'),
-        supabase.from('labor_codes').select('id, labor_sku, description, unit_type, fence_category_standard').order('labor_sku'),
+        supabase.from('labor_codes').select('id, labor_sku, description, unit_type, fence_category_standard, notes').order('labor_sku'),
         supabase.from('labor_rates').select('id, labor_code_id, business_unit_id, rate, updated_at'),
       ]);
 
@@ -335,17 +352,23 @@ export default function LaborRatesPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Get unique fence types from labor codes
-  const fenceTypes = [...new Set(
+  // Get unique product types from labor codes
+  const productTypes = [...new Set(
     laborCodes
       .flatMap(lc => lc.fence_category_standard || [])
       .filter(Boolean)
   )].sort();
 
-  // Filter labor codes by fence type
-  const filteredLaborCodes = fenceTypeFilter
-    ? laborCodes.filter(lc => lc.fence_category_standard?.includes(fenceTypeFilter))
+  // Filter labor codes by product type
+  const filteredLaborCodes = productTypeFilter
+    ? laborCodes.filter(lc => lc.fence_category_standard?.includes(productTypeFilter))
     : laborCodes;
+
+  // Format UOM - remove "Per " prefix if present
+  const formatUOM = (uom: string): string => {
+    if (!uom) return '-';
+    return uom.replace(/^Per\s+/i, '');
+  };
 
   if (loading) {
     return (
@@ -371,20 +394,29 @@ export default function LaborRatesPage() {
               </p>
             </div>
 
-            {/* Fence Type Filter */}
+            {/* Product Type Filter */}
             <select
-              value={fenceTypeFilter}
-              onChange={(e) => setFenceTypeFilter(e.target.value)}
+              value={productTypeFilter}
+              onChange={(e) => setProductTypeFilter(e.target.value)}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
             >
-              <option value="">All Fence Types</option>
-              {fenceTypes.map(type => (
+              <option value="">All Product Types</option>
+              {productTypes.map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Add New Code */}
+            <button
+              onClick={() => setShowNewCodeModal(true)}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1.5 font-medium transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Code
+            </button>
+
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -458,44 +490,66 @@ export default function LaborRatesPage() {
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 min-w-[60px]">
+                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 w-[70px]">
                       Code
                     </th>
-                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-[60px] bg-gray-50 z-10 min-w-[160px]">
+                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-[70px] bg-gray-50 z-10 min-w-[280px]">
                       Description
                     </th>
-                    <th className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider min-w-[40px]">
+                    <th className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider w-[45px]">
                       UOM
+                    </th>
+                    <th className="px-1 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider w-[120px]">
+                      Products
                     </th>
                     {businessUnits.map(bu => (
                       <th
                         key={bu.id}
-                        className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider min-w-[80px]"
+                        className="px-0.5 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider w-[55px]"
                         title={bu.name}
                       >
                         {bu.code}
                       </th>
                     ))}
+                    <th className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider w-[30px]">
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredLaborCodes.map(code => (
-                    <tr key={code.id} className="hover:bg-gray-50">
-                      <td className="px-2 py-1 font-mono text-gray-900 sticky left-0 bg-white z-10">
+                    <tr key={code.id} className="hover:bg-gray-50 group">
+                      <td className="px-2 py-1 font-mono text-gray-900 sticky left-0 bg-white z-10 group-hover:bg-gray-50">
                         {code.labor_sku}
                       </td>
-                      <td className="px-2 py-1 text-gray-700 sticky left-[60px] bg-white z-10 truncate max-w-[160px]" title={code.description}>
-                        {code.description}
+                      <td className="px-2 py-1 text-gray-700 sticky left-[70px] bg-white z-10 group-hover:bg-gray-50" title={code.description}>
+                        <div className="truncate max-w-[280px]">{code.description}</div>
+                        {code.notes && (
+                          <div className="text-[10px] text-gray-400 truncate" title={code.notes}>
+                            {code.notes}
+                          </div>
+                        )}
                       </td>
                       <td className="px-1 py-1 text-center text-gray-500">
-                        {code.unit_type}
+                        {formatUOM(code.unit_type)}
+                      </td>
+                      <td className="px-1 py-1 text-gray-500">
+                        <div className="flex flex-wrap gap-0.5">
+                          {(code.fence_category_standard || []).slice(0, 2).map((pt, i) => (
+                            <span key={i} className="text-[9px] bg-gray-100 text-gray-600 px-1 rounded">
+                              {pt.split(' ').map(w => w[0]).join('')}
+                            </span>
+                          ))}
+                          {(code.fence_category_standard?.length || 0) > 2 && (
+                            <span className="text-[9px] text-gray-400">+{(code.fence_category_standard?.length || 0) - 2}</span>
+                          )}
+                        </div>
                       </td>
                       {businessUnits.map(bu => {
                         const rate = getRate(code.id, bu.id);
                         const isPending = hasPendingChange(code.id, bu.id);
 
                         return (
-                          <td key={bu.id} className="px-1 py-0.5 text-center">
+                          <td key={bu.id} className="px-0.5 py-0.5 text-center">
                             <div className="relative">
                               <input
                                 type="number"
@@ -503,7 +557,7 @@ export default function LaborRatesPage() {
                                 min="0"
                                 value={rate ?? ''}
                                 onChange={(e) => handleRateChange(code.id, bu.id, e.target.value)}
-                                className={`w-full px-1 py-0.5 text-xs text-right border rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
+                                className={`w-full px-0.5 py-0.5 text-[11px] text-right border rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
                                   isPending
                                     ? 'border-amber-400 bg-amber-50'
                                     : 'border-gray-200'
@@ -511,12 +565,21 @@ export default function LaborRatesPage() {
                                 placeholder="0"
                               />
                               {isPending && (
-                                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full" />
+                                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full" />
                               )}
                             </div>
                           </td>
                         );
                       })}
+                      <td className="px-1 py-0.5 text-center">
+                        <button
+                          onClick={() => setEditingCode(code)}
+                          className="p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          title="Edit labor code"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -664,6 +727,334 @@ export default function LaborRatesPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Labor Code Modal */}
+      {editingCode && (
+        <LaborCodeModal
+          code={editingCode}
+          businessUnits={businessUnits}
+          laborRates={laborRates}
+          onClose={() => setEditingCode(null)}
+          onSaved={() => {
+            setEditingCode(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* New Labor Code Modal */}
+      {showNewCodeModal && (
+        <LaborCodeModal
+          code={null}
+          businessUnits={businessUnits}
+          laborRates={[]}
+          onClose={() => setShowNewCodeModal(false)}
+          onSaved={() => {
+            setShowNewCodeModal(false);
+            loadData();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Labor Code Edit/Create Modal
+function LaborCodeModal({
+  code,
+  businessUnits,
+  laborRates,
+  onClose,
+  onSaved,
+}: {
+  code: LaborCode | null;
+  businessUnits: BusinessUnit[];
+  laborRates: LaborRate[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isNew = code === null;
+  const [laborSku, setLaborSku] = useState(code?.labor_sku || '');
+  const [description, setDescription] = useState(code?.description || '');
+  const [unitType, setUnitType] = useState(code?.unit_type || 'LF');
+  const [productTypes, setProductTypes] = useState<string[]>(code?.fence_category_standard || []);
+  const [notes, setNotes] = useState(code?.notes || '');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Rate inputs for each BU
+  const [rates, setRates] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (code) {
+      businessUnits.forEach(bu => {
+        const rate = laborRates.find(r => r.labor_code_id === code.id && r.business_unit_id === bu.id);
+        initial[bu.id] = rate?.rate?.toString() || '';
+      });
+    }
+    return initial;
+  });
+
+  const handleSave = async () => {
+    if (!laborSku.trim() || !description.trim()) {
+      showError('Code and description are required');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let codeId = code?.id;
+
+      if (isNew) {
+        // Create new labor code
+        const { data, error } = await supabase
+          .from('labor_codes')
+          .insert({
+            labor_sku: laborSku.toUpperCase().trim(),
+            description: description.trim(),
+            unit_type: unitType,
+            fence_category_standard: productTypes.length > 0 ? productTypes : null,
+            notes: notes.trim() || null,
+          })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        codeId = data.id;
+      } else {
+        // Update existing labor code
+        const { error } = await supabase
+          .from('labor_codes')
+          .update({
+            labor_sku: laborSku.toUpperCase().trim(),
+            description: description.trim(),
+            unit_type: unitType,
+            fence_category_standard: productTypes.length > 0 ? productTypes : null,
+            notes: notes.trim() || null,
+          })
+          .eq('id', code!.id);
+
+        if (error) throw error;
+      }
+
+      // Save rates
+      const rateUpserts = Object.entries(rates)
+        .filter(([, val]) => val !== '')
+        .map(([buId, val]) => ({
+          labor_code_id: codeId!,
+          business_unit_id: buId,
+          rate: parseFloat(val) || 0,
+          updated_at: new Date().toISOString(),
+        }));
+
+      if (rateUpserts.length > 0) {
+        const { error: rateError } = await supabase
+          .from('labor_rates')
+          .upsert(rateUpserts, {
+            onConflict: 'labor_code_id,business_unit_id',
+          });
+
+        if (rateError) throw rateError;
+      }
+
+      showSuccess(isNew ? 'Labor code created' : 'Labor code updated');
+      onSaved();
+    } catch (error: unknown) {
+      console.error('Error saving labor code:', error);
+      const errMsg = error instanceof Error ? error.message : 'Failed to save labor code';
+      showError(errMsg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!code) return;
+    if (!confirm(`Delete labor code "${code.labor_sku}"? This will also delete all associated rates.`)) return;
+
+    setDeleting(true);
+    try {
+      // Delete rates first
+      await supabase.from('labor_rates').delete().eq('labor_code_id', code.id);
+
+      // Delete labor code
+      const { error } = await supabase.from('labor_codes').delete().eq('id', code.id);
+      if (error) throw error;
+
+      showSuccess('Labor code deleted');
+      onSaved();
+    } catch (error) {
+      console.error('Error deleting labor code:', error);
+      showError('Failed to delete labor code');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleProductType = (pt: string) => {
+    setProductTypes(prev =>
+      prev.includes(pt) ? prev.filter(p => p !== pt) : [...prev, pt]
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isNew ? 'New Labor Code' : 'Edit Labor Code'}
+            </h2>
+            {!isNew && (
+              <p className="text-sm text-gray-500 mt-0.5">{code?.labor_sku}</p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Code & Description Row */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+              <input
+                type="text"
+                value={laborSku}
+                onChange={(e) => setLaborSku(e.target.value.toUpperCase())}
+                placeholder="e.g., LAB001"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono uppercase"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g., Install wood vertical fence"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+          </div>
+
+          {/* UOM */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Unit of Measure</label>
+            <select
+              value={unitType}
+              onChange={(e) => setUnitType(e.target.value)}
+              className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="LF">LF (Linear Foot)</option>
+              <option value="SF">SF (Square Foot)</option>
+              <option value="EA">EA (Each)</option>
+              <option value="HR">HR (Hour)</option>
+              <option value="POST">POST</option>
+              <option value="PANEL">PANEL</option>
+            </select>
+          </div>
+
+          {/* Product Types */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Applies to Product Types</label>
+            <div className="flex flex-wrap gap-2">
+              {PRODUCT_TYPES.map(pt => (
+                <button
+                  key={pt}
+                  type="button"
+                  onClick={() => toggleProductType(pt)}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    productTypes.includes(pt)
+                      ? 'bg-green-100 border-green-300 text-green-800'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {pt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Additional notes or instructions..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+            />
+          </div>
+
+          {/* Rates by Business Unit */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Rates by Business Unit ($)</label>
+            <div className="grid grid-cols-4 gap-3">
+              {businessUnits.map(bu => (
+                <div key={bu.id}>
+                  <label className="block text-xs text-gray-500 mb-0.5" title={bu.name}>{bu.code}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={rates[bu.id] || ''}
+                    onChange={(e) => setRates(prev => ({ ...prev, [bu.id]: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-right"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+          {!isNew ? (
+            <button
+              onClick={handleDelete}
+              disabled={deleting || saving}
+              className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Deleting...' : 'Delete Code'}
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || deleting}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center gap-2 font-medium transition-colors"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  {isNew ? 'Create Code' : 'Save Changes'}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
