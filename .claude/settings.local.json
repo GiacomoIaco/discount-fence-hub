@@ -54,7 +54,9 @@
       "Bash(cd:*)",
       "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\063_bom_tables_rls_policies.sql'' | Set-Clipboard\")",
       "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\064_import_labor_rates_data.sql'' | Set-Clipboard\")",
-      "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\065_import_materials_data.sql'' | Set-Clipboard\")"
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\065_import_materials_data.sql'' | Set-Clipboard\")",
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\067_sku_labor_costs_table.sql'' | Set-Clipboard\")",
+      "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\068_add_labor_rates_unique_constraint.sql'' | Set-Clipboard\")"
     ],
     "deny": [],
     "ask": []
