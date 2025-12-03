@@ -3,20 +3,59 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Search, RefreshCw, Pencil, Info } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import {
-  recalculateAllSKUs,
-  calculateWoodVerticalLaborCost,
-  calculateWoodHorizontalLaborCost,
-  calculateIronLaborCost,
-  SKU_STANDARD_ASSUMPTIONS,
-} from '../services/recalculateSKUs';
+import { recalculateAllSKUs, SKU_STANDARD_ASSUMPTIONS } from '../services/recalculateSKUs';
 import type { SelectedSKU } from '../BOMCalculatorHub';
-import type {
-  WoodVerticalProductWithMaterials,
-  WoodHorizontalProductWithMaterials,
-  IronProductWithMaterials,
-  LaborRateWithDetails,
-} from '../database.types';
+
+// Product interfaces with cost fields
+interface WoodVerticalProduct {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  height: number;
+  rail_count: number;
+  post_type: 'WOOD' | 'STEEL';
+  style: string;
+  is_active: boolean;
+  standard_material_cost: number | null;
+  standard_cost_per_foot: number | null;
+  standard_cost_calculated_at: string | null;
+}
+
+interface WoodHorizontalProduct {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  height: number;
+  post_type: 'WOOD' | 'STEEL';
+  style: string;
+  is_active: boolean;
+  standard_material_cost: number | null;
+  standard_cost_per_foot: number | null;
+  standard_cost_calculated_at: string | null;
+}
+
+interface IronProduct {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  height: number;
+  post_type: string;
+  style: string;
+  rails_per_panel: number;
+  is_active: boolean;
+  standard_material_cost: number | null;
+  standard_cost_per_foot: number | null;
+  standard_cost_calculated_at: string | null;
+}
+
+// Labor cost from junction table
+interface SKULaborCost {
+  product_type: 'wood-vertical' | 'wood-horizontal' | 'iron';
+  product_id: string;
+  business_unit_id: string;
+  labor_cost: number;
+  labor_cost_per_foot: number;
+}
 
 // Unified SKU row for table display (with per-foot costs)
 interface SKURow {
@@ -63,7 +102,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
 
   // Recalculation state
   const [recalculating, setRecalculating] = useState(false);
-  const [recalcProgress, setRecalcProgress] = useState({ current: 0, total: 0 });
+  const [recalcProgress, setRecalcProgress] = useState({ current: 0, total: 0, phase: '' });
 
   // Fetch business units
   const { data: businessUnits = [] } = useQuery({
@@ -82,106 +121,77 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     },
   });
 
-  // Fetch labor rates for selected business unit
-  const { data: laborRates = [] } = useQuery({
-    queryKey: ['labor-rates-for-bu', businessUnitId],
+  // Fetch labor costs for selected business unit from junction table
+  const { data: laborCosts = [] } = useQuery({
+    queryKey: ['sku-labor-costs', businessUnitId],
     queryFn: async () => {
       if (!businessUnitId) return [];
       const { data, error } = await supabase
-        .from('labor_rates')
-        .select(`
-          id,
-          labor_code_id,
-          business_unit_id,
-          rate,
-          effective_date,
-          created_at,
-          updated_at,
-          labor_code:labor_codes(id, labor_sku, description, unit_type, fence_category_standard, is_active),
-          business_unit:business_units(id, code, name)
-        `)
+        .from('sku_labor_costs')
+        .select('product_type, product_id, business_unit_id, labor_cost, labor_cost_per_foot')
         .eq('business_unit_id', businessUnitId);
       if (error) throw error;
-      return (data || []) as unknown as LaborRateWithDetails[];
+      return (data || []) as SKULaborCost[];
     },
     enabled: !!businessUnitId,
   });
 
-  // Fetch all Wood Vertical products with materials
+  // Create a lookup map for labor costs
+  const laborCostMap = useMemo(() => {
+    const map = new Map<string, number>();
+    laborCosts.forEach(lc => {
+      const key = `${lc.product_type}:${lc.product_id}`;
+      map.set(key, lc.labor_cost_per_foot);
+    });
+    return map;
+  }, [laborCosts]);
+
+  // Fetch all Wood Vertical products
   const { data: woodVertical = [], isLoading: loadingWV } = useQuery({
-    queryKey: ['wood-vertical-products-catalog-with-materials'],
+    queryKey: ['wood-vertical-products-catalog'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('wood_vertical_products')
-        .select(`
-          *,
-          post_material:materials!wood_vertical_products_post_material_id_fkey(*),
-          picket_material:materials!wood_vertical_products_picket_material_id_fkey(*),
-          rail_material:materials!wood_vertical_products_rail_material_id_fkey(*),
-          cap_material:materials!wood_vertical_products_cap_material_id_fkey(*),
-          trim_material:materials!wood_vertical_products_trim_material_id_fkey(*)
-        `)
+        .select('id, sku_code, sku_name, height, rail_count, post_type, style, is_active, standard_material_cost, standard_cost_per_foot, standard_cost_calculated_at')
         .order('sku_code');
       if (error) throw error;
-      return data as WoodVerticalProductWithMaterials[];
+      return data as WoodVerticalProduct[];
     },
   });
 
   const { data: woodHorizontal = [], isLoading: loadingWH } = useQuery({
-    queryKey: ['wood-horizontal-products-catalog-with-materials'],
+    queryKey: ['wood-horizontal-products-catalog'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('wood_horizontal_products')
-        .select(`
-          *,
-          post_material:materials!wood_horizontal_products_post_material_id_fkey(*),
-          board_material:materials!wood_horizontal_products_board_material_id_fkey(*),
-          nailer_material:materials!wood_horizontal_products_nailer_material_id_fkey(*),
-          cap_material:materials!wood_horizontal_products_cap_material_id_fkey(*)
-        `)
+        .select('id, sku_code, sku_name, height, post_type, style, is_active, standard_material_cost, standard_cost_per_foot, standard_cost_calculated_at')
         .order('sku_code');
       if (error) throw error;
-      return data as WoodHorizontalProductWithMaterials[];
+      return data as WoodHorizontalProduct[];
     },
   });
 
   const { data: iron = [], isLoading: loadingIron } = useQuery({
-    queryKey: ['iron-products-catalog-with-materials'],
+    queryKey: ['iron-products-catalog'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('iron_products')
-        .select(`
-          *,
-          post_material:materials!iron_products_post_material_id_fkey(*),
-          panel_material:materials!iron_products_panel_material_id_fkey(*),
-          bracket_material:materials!iron_products_bracket_material_id_fkey(*)
-        `)
+        .select('id, sku_code, sku_name, height, post_type, style, rails_per_panel, is_active, standard_material_cost, standard_cost_per_foot, standard_cost_calculated_at')
         .order('sku_code');
       if (error) throw error;
-      return data as IronProductWithMaterials[];
+      return data as IronProduct[];
     },
   });
 
   const isLoading = loadingWV || loadingWH || loadingIron;
 
-  // Combine all products into unified rows with labor calculated on-the-fly
+  // Combine all products into unified rows with labor from stored values
   const allRows: SKURow[] = useMemo(() => {
     const rows: SKURow[] = [];
 
     woodVertical.forEach(p => {
-      // Material cost per foot comes from DB (stored as cost_per_foot which is material only now)
       const materialCostPerFoot = p.standard_cost_per_foot || 0;
-
-      // Calculate labor cost on-the-fly using current BU rates
-      let laborCostPerFoot = 0;
-      if (laborRates.length > 0 && p.post_material && p.picket_material && p.rail_material) {
-        try {
-          const laborResult = calculateWoodVerticalLaborCost(p, laborRates);
-          laborCostPerFoot = laborResult.laborCostPerFoot;
-        } catch (e) {
-          console.warn(`Failed to calculate labor for ${p.sku_code}:`, e);
-        }
-      }
+      const laborCostPerFoot = laborCostMap.get(`wood-vertical:${p.id}`) || 0;
 
       rows.push({
         id: p.id,
@@ -203,16 +213,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
 
     woodHorizontal.forEach(p => {
       const materialCostPerFoot = p.standard_cost_per_foot || 0;
-
-      let laborCostPerFoot = 0;
-      if (laborRates.length > 0 && p.post_material && p.board_material) {
-        try {
-          const laborResult = calculateWoodHorizontalLaborCost(p, laborRates);
-          laborCostPerFoot = laborResult.laborCostPerFoot;
-        } catch (e) {
-          console.warn(`Failed to calculate labor for ${p.sku_code}:`, e);
-        }
-      }
+      const laborCostPerFoot = laborCostMap.get(`wood-horizontal:${p.id}`) || 0;
 
       rows.push({
         id: p.id,
@@ -234,16 +235,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
 
     iron.forEach(p => {
       const materialCostPerFoot = p.standard_cost_per_foot || 0;
-
-      let laborCostPerFoot = 0;
-      if (laborRates.length > 0 && p.post_material) {
-        try {
-          const laborResult = calculateIronLaborCost(p, laborRates);
-          laborCostPerFoot = laborResult.laborCostPerFoot;
-        } catch (e) {
-          console.warn(`Failed to calculate labor for ${p.sku_code}:`, e);
-        }
-      }
+      const laborCostPerFoot = laborCostMap.get(`iron:${p.id}`) || 0;
 
       rows.push({
         id: p.id,
@@ -264,7 +256,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     });
 
     return rows.sort((a, b) => a.sku_code.localeCompare(b.sku_code));
-  }, [woodVertical, woodHorizontal, iron, laborRates]);
+  }, [woodVertical, woodHorizontal, iron, laborCostMap]);
 
   // Get unique styles and heights for filter dropdowns
   const uniqueStyles = useMemo(() => {
@@ -356,31 +348,32 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     });
   };
 
-  // Recalculate all SKUs (material costs only - no BU required)
+  // Recalculate all SKUs (materials + labor for all BUs)
   const handleRecalculateAll = async () => {
-    if (!confirm(`Recalculate material costs for all ${allRows.length} SKUs using current material prices?`)) {
+    if (!confirm(`Recalculate costs for all SKUs?\n\nThis will update:\n• Material costs (universal)\n• Labor costs (for all ${businessUnits.length} business units)`)) {
       return;
     }
 
     setRecalculating(true);
-    setRecalcProgress({ current: 0, total: allRows.length });
+    setRecalcProgress({ current: 0, total: 0, phase: 'Starting...' });
 
     try {
       const result = await recalculateAllSKUs(
-        (current, total) => setRecalcProgress({ current, total })
+        (current, total, phase) => setRecalcProgress({ current, total, phase })
       );
 
       if (result.success) {
-        showSuccess(`Updated ${result.updated} SKUs successfully`);
+        showSuccess(`Updated ${result.updatedMaterials} materials, ${result.updatedLabor} labor costs`);
       } else {
-        showSuccess(`Updated ${result.updated} SKUs with ${result.errors.length} errors`);
+        showSuccess(`Updated ${result.updatedMaterials} materials, ${result.updatedLabor} labor costs (${result.errors.length} errors)`);
         console.error('Recalculation errors:', result.errors);
       }
 
       // Refresh data
-      queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog-with-materials'] });
-      queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog-with-materials'] });
-      queryClient.invalidateQueries({ queryKey: ['iron-products-catalog-with-materials'] });
+      queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['sku-labor-costs'] });
     } catch (error) {
       console.error('Recalculation failed:', error);
       showError('Failed to recalculate SKUs');
@@ -421,12 +414,12 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
               {recalculating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {recalcProgress.current}/{recalcProgress.total}
+                  <span className="text-xs">{recalcProgress.current}/{recalcProgress.total}</span>
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4" />
-                  Recalculate Materials
+                  Recalculate All
                 </>
               )}
             </button>
@@ -437,7 +430,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
       {/* Filters Row */}
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Business Unit - for labor cost selection */}
+          {/* Business Unit - for labor cost display */}
           <div>
             <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Labor Rates (BU)</label>
             <select
