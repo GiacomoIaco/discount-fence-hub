@@ -789,8 +789,18 @@ export default function SKUBuilderPage() {
     );
   }
 
-  const componentCount = bomResult?.materials.filter(m => !['Concrete', 'Hardware'].includes(m.type)).length || 0;
+  // Number formatting helper
+  const formatNumber = (num: number, decimals: number = 2): string => {
+    return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  };
+  const formatWholeNumber = (num: number): string => {
+    return Math.round(num).toLocaleString('en-US');
+  };
+
+  const componentCount = bomResult?.materials.length || 0;
   const laborCount = bomResult?.labor.length || 0;
+  const materialCostPerFt = bomResult && preview.netLength > 0 ? bomResult.materialTotal / preview.netLength : 0;
+  const laborCostPerFt = bomResult && preview.netLength > 0 ? bomResult.laborTotal / preview.netLength : 0;
 
   return (
     <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
@@ -1090,33 +1100,27 @@ export default function SKUBuilderPage() {
       {/* Right Panel - Preview & BOM (narrower) */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Key Stats Bar - Always visible at top */}
-        <div className="bg-white border-b border-gray-200 px-4 py-2">
-          <div className="flex items-center gap-4">
-            {/* Cost Per Foot - Most important */}
-            <div className="bg-purple-600 text-white rounded-lg px-4 py-2 flex-shrink-0">
+        <div className="bg-white border-b border-gray-200 px-3 py-2">
+          <div className="grid grid-cols-4 gap-2">
+            {/* Cost Per Foot */}
+            <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/Ft</div>
-              <div className="text-xl font-bold">${bomResult?.costPerFoot.toFixed(2) || '0.00'}</div>
+              <div className="text-lg font-bold">${formatNumber(bomResult?.costPerFoot || 0)}</div>
             </div>
             {/* Total Project Cost */}
-            <div className="bg-green-600 text-white rounded-lg px-4 py-2 flex-shrink-0">
+            <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Total Cost</div>
-              <div className="text-xl font-bold">${bomResult?.projectTotal.toFixed(2) || '0.00'}</div>
+              <div className="text-lg font-bold">${formatWholeNumber(bomResult?.projectTotal || 0)}</div>
             </div>
-            {/* Smaller stats */}
-            <div className="flex items-center gap-4 ml-auto text-xs">
-              <div className="text-center">
-                <div className="text-lg font-semibold text-gray-800">{componentCount}</div>
-                <div className="text-gray-500">Components</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-gray-800">{laborCount}</div>
-                <div className="text-gray-500">Labor Items</div>
-              </div>
-              <div className="text-center px-3 py-1 rounded-full bg-gray-100">
-                <span className="text-xs font-medium text-gray-700">
-                  {productType === 'wood-vertical' ? 'Wood V' : productType === 'wood-horizontal' ? 'Wood H' : 'Iron'} {height}'
-                </span>
-              </div>
+            {/* Material Cost/Ft */}
+            <div className="bg-amber-500 text-white rounded-lg px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Material/Ft</div>
+              <div className="text-lg font-bold">${formatNumber(materialCostPerFt)}</div>
+            </div>
+            {/* Labor Cost/Ft */}
+            <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Labor/Ft</div>
+              <div className="text-lg font-bold">${formatNumber(laborCostPerFt)}</div>
             </div>
           </div>
         </div>
@@ -1174,70 +1178,66 @@ export default function SKUBuilderPage() {
           {/* BOM Preview */}
           {bomResult && postMaterialId && (
             <div className="space-y-3">
-              {/* Materials Table - Compact */}
+              {/* Materials Table */}
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-gray-700">Materials (BOM)</h4>
-                  <span className="text-xs font-semibold text-green-600">${bomResult.materialTotal.toFixed(2)}</span>
+                  <h4 className="text-xs font-semibold text-gray-700">Materials (BOM) <span className="text-gray-400 font-normal">· {componentCount} items</span></h4>
+                  <span className="text-xs font-semibold text-green-600">${formatNumber(bomResult.materialTotal)}</span>
                 </div>
-                <div className="max-h-[180px] overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50">
-                      <tr className="text-[10px] text-gray-500 uppercase">
-                        <th className="text-left py-1.5 px-2">Material</th>
-                        <th className="text-right py-1.5 px-2 w-12">Qty</th>
-                        <th className="text-right py-1.5 px-2 w-16">Cost</th>
-                        <th className="text-right py-1.5 px-2 w-16">Total</th>
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr className="text-[10px] text-gray-500 uppercase">
+                      <th className="text-left py-1.5 px-2">Material</th>
+                      <th className="text-right py-1.5 px-2 w-14">Qty</th>
+                      <th className="text-right py-1.5 px-2 w-16">Cost</th>
+                      <th className="text-right py-1.5 px-2 w-20">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {bomResult.materials.map((item, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="py-1.5 px-2">
+                          <div className="font-medium text-gray-900 truncate" title={item.name}>{item.name}</div>
+                          <div className="text-[10px] text-gray-400">{item.sku} · {item.type}</div>
+                        </td>
+                        <td className="py-1.5 px-2 text-right text-gray-700">{item.qty.toLocaleString()}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-500">${formatNumber(item.cost)}</td>
+                        <td className="py-1.5 px-2 text-right font-medium text-green-600">${formatNumber(item.total)}</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {bomResult.materials.map((item, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="py-1.5 px-2">
-                            <div className="font-medium text-gray-900 truncate" title={item.name}>{item.name}</div>
-                            <div className="text-[10px] text-gray-400">{item.sku} · {item.type}</div>
-                          </td>
-                          <td className="py-1.5 px-2 text-right text-gray-700">{item.qty}</td>
-                          <td className="py-1.5 px-2 text-right text-gray-500">${item.cost.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 text-right font-medium text-green-600">${item.total.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Labor Table - Compact */}
+              {/* Labor Table */}
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-gray-700">Labor (BOL)</h4>
-                  <span className="text-xs font-semibold text-blue-600">${bomResult.laborTotal.toFixed(2)}</span>
+                  <h4 className="text-xs font-semibold text-gray-700">Labor (BOL) <span className="text-gray-400 font-normal">· {laborCount} items</span></h4>
+                  <span className="text-xs font-semibold text-blue-600">${formatNumber(bomResult.laborTotal)}</span>
                 </div>
-                <div className="max-h-[120px] overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50">
-                      <tr className="text-[10px] text-gray-500 uppercase">
-                        <th className="text-left py-1.5 px-2">Labor Code</th>
-                        <th className="text-right py-1.5 px-2 w-16">Rate/Ft</th>
-                        <th className="text-right py-1.5 px-2 w-12">Qty</th>
-                        <th className="text-right py-1.5 px-2 w-16">Total</th>
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr className="text-[10px] text-gray-500 uppercase">
+                      <th className="text-left py-1.5 px-2">Labor</th>
+                      <th className="text-right py-1.5 px-2 w-16">Rate/Ft</th>
+                      <th className="text-right py-1.5 px-2 w-14">Qty</th>
+                      <th className="text-right py-1.5 px-2 w-20">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {bomResult.labor.map((item, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="py-1.5 px-2">
+                          <div className="font-medium text-gray-900 truncate" title={item.description}>{item.description}</div>
+                          <div className="text-[10px] text-gray-400">{item.code}</div>
+                        </td>
+                        <td className="py-1.5 px-2 text-right text-gray-500">${formatNumber(item.ratePerFt)}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-700">{item.qty.toLocaleString()}</td>
+                        <td className="py-1.5 px-2 text-right font-medium text-blue-600">${formatNumber(item.total)}</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {bomResult.labor.map((item, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="py-1.5 px-2">
-                            <div className="font-medium text-gray-900">{item.code}</div>
-                            <div className="text-[10px] text-gray-400 truncate" title={item.description}>{item.description}</div>
-                          </td>
-                          <td className="py-1.5 px-2 text-right text-gray-500">${item.ratePerFt.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 text-right text-gray-700">{item.qty}</td>
-                          <td className="py-1.5 px-2 text-right font-medium text-blue-600">${item.total.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

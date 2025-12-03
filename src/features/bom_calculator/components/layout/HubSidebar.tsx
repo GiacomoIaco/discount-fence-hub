@@ -6,7 +6,8 @@ import {
   Boxes,
   DollarSign,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  PanelLeftClose
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -37,9 +38,10 @@ interface HubSidebarProps {
   onPageChange: (page: BOMHubPage) => void;
   onBack: () => void;
   isAdmin: boolean;
+  onCollapse?: () => void;
 }
 
-export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin }: HubSidebarProps) {
+export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, onCollapse }: HubSidebarProps) {
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
     const isActive = activePage === item.id;
@@ -69,9 +71,18 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin }
           <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
             <Calculator className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="text-sm font-bold text-white">BOM Hub</h2>
           </div>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="p-1 text-blue-200 hover:text-white hover:bg-blue-800/50 rounded transition-colors"
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
