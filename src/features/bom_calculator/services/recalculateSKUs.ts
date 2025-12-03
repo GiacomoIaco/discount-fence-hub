@@ -1,13 +1,16 @@
 /**
  * SKU Recalculation Service
  *
- * Uses FenceCalculator to recalculate standard costs for all SKUs
- * based on current material prices and labor rates.
+ * Uses FenceCalculator to recalculate standard material costs for all SKUs
+ * based on current material prices.
  *
  * Standard assumptions for SKU costing:
  * - 100 linear feet
  * - 4 lines (fence runs)
  * - 0 gates
+ *
+ * NOTE: Material costs are universal (same for all BUs).
+ * Labor costs are calculated on-the-fly in the UI based on selected BU.
  */
 
 import { supabase } from '../../../lib/supabase';
@@ -32,25 +35,28 @@ export interface RecalculationResult {
   errors: string[];
 }
 
-export interface SingleSKUResult {
+export interface MaterialCostResult {
   materialCost: number;
+  materialCostPerFoot: number;
+}
+
+export interface LaborCostResult {
   laborCost: number;
-  totalCost: number;
-  costPerFoot: number;
+  laborCostPerFoot: number;
 }
 
 /**
- * Recalculate costs for a single Wood Vertical SKU
+ * Calculate material costs only for a Wood Vertical SKU
  */
-export async function recalculateWoodVerticalSKU(
-  product: WoodVerticalProductWithMaterials,
-  laborRates: LaborRateWithDetails[]
-): Promise<SingleSKUResult> {
+export function calculateWoodVerticalMaterialCost(
+  product: WoodVerticalProductWithMaterials
+): MaterialCostResult {
   const calculator = new FenceCalculator('sku-builder');
+  // Pass empty labor rates to get just materials calculated
   const result = calculator.calculateWoodVertical(
     product,
     SKU_STANDARD_ASSUMPTIONS,
-    laborRates
+    [] // No labor rates needed for material-only calculation
   );
 
   // Round materials for cost calculation
@@ -58,22 +64,90 @@ export async function recalculateWoodVerticalSKU(
     (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
     0
   );
-  const laborCost = result.totalLaborCost;
-  const totalCost = materialCost + laborCost;
-  const costPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
-    ? totalCost / SKU_STANDARD_ASSUMPTIONS.netLength
+  const materialCostPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
+    ? materialCost / SKU_STANDARD_ASSUMPTIONS.netLength
     : 0;
 
-  return { materialCost, laborCost, totalCost, costPerFoot };
+  return { materialCost, materialCostPerFoot };
 }
 
 /**
- * Recalculate costs for a single Wood Horizontal SKU
+ * Calculate material costs only for a Wood Horizontal SKU
  */
-export async function recalculateWoodHorizontalSKU(
+export function calculateWoodHorizontalMaterialCost(
+  product: WoodHorizontalProductWithMaterials
+): MaterialCostResult {
+  const calculator = new FenceCalculator('sku-builder');
+  const result = calculator.calculateWoodHorizontal(
+    product,
+    SKU_STANDARD_ASSUMPTIONS,
+    []
+  );
+
+  const materialCost = result.materials.reduce(
+    (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
+    0
+  );
+  const materialCostPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
+    ? materialCost / SKU_STANDARD_ASSUMPTIONS.netLength
+    : 0;
+
+  return { materialCost, materialCostPerFoot };
+}
+
+/**
+ * Calculate material costs only for an Iron SKU
+ */
+export function calculateIronMaterialCost(
+  product: IronProductWithMaterials
+): MaterialCostResult {
+  const calculator = new FenceCalculator('sku-builder');
+  const result = calculator.calculateIron(
+    product,
+    SKU_STANDARD_ASSUMPTIONS,
+    []
+  );
+
+  const materialCost = result.materials.reduce(
+    (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
+    0
+  );
+  const materialCostPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
+    ? materialCost / SKU_STANDARD_ASSUMPTIONS.netLength
+    : 0;
+
+  return { materialCost, materialCostPerFoot };
+}
+
+/**
+ * Calculate labor costs for a Wood Vertical SKU with specific BU rates
+ */
+export function calculateWoodVerticalLaborCost(
+  product: WoodVerticalProductWithMaterials,
+  laborRates: LaborRateWithDetails[]
+): LaborCostResult {
+  const calculator = new FenceCalculator('sku-builder');
+  const result = calculator.calculateWoodVertical(
+    product,
+    SKU_STANDARD_ASSUMPTIONS,
+    laborRates
+  );
+
+  const laborCost = result.totalLaborCost;
+  const laborCostPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
+    ? laborCost / SKU_STANDARD_ASSUMPTIONS.netLength
+    : 0;
+
+  return { laborCost, laborCostPerFoot };
+}
+
+/**
+ * Calculate labor costs for a Wood Horizontal SKU with specific BU rates
+ */
+export function calculateWoodHorizontalLaborCost(
   product: WoodHorizontalProductWithMaterials,
   laborRates: LaborRateWithDetails[]
-): Promise<SingleSKUResult> {
+): LaborCostResult {
   const calculator = new FenceCalculator('sku-builder');
   const result = calculator.calculateWoodHorizontal(
     product,
@@ -81,26 +155,21 @@ export async function recalculateWoodHorizontalSKU(
     laborRates
   );
 
-  const materialCost = result.materials.reduce(
-    (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
-    0
-  );
   const laborCost = result.totalLaborCost;
-  const totalCost = materialCost + laborCost;
-  const costPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
-    ? totalCost / SKU_STANDARD_ASSUMPTIONS.netLength
+  const laborCostPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
+    ? laborCost / SKU_STANDARD_ASSUMPTIONS.netLength
     : 0;
 
-  return { materialCost, laborCost, totalCost, costPerFoot };
+  return { laborCost, laborCostPerFoot };
 }
 
 /**
- * Recalculate costs for a single Iron SKU
+ * Calculate labor costs for an Iron SKU with specific BU rates
  */
-export async function recalculateIronSKU(
+export function calculateIronLaborCost(
   product: IronProductWithMaterials,
   laborRates: LaborRateWithDetails[]
-): Promise<SingleSKUResult> {
+): LaborCostResult {
   const calculator = new FenceCalculator('sku-builder');
   const result = calculator.calculateIron(
     product,
@@ -108,51 +177,26 @@ export async function recalculateIronSKU(
     laborRates
   );
 
-  const materialCost = result.materials.reduce(
-    (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
-    0
-  );
   const laborCost = result.totalLaborCost;
-  const totalCost = materialCost + laborCost;
-  const costPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
-    ? totalCost / SKU_STANDARD_ASSUMPTIONS.netLength
+  const laborCostPerFoot = SKU_STANDARD_ASSUMPTIONS.netLength > 0
+    ? laborCost / SKU_STANDARD_ASSUMPTIONS.netLength
     : 0;
 
-  return { materialCost, laborCost, totalCost, costPerFoot };
+  return { laborCost, laborCostPerFoot };
 }
 
 /**
- * Recalculate all SKUs and update the database
+ * Recalculate MATERIAL costs only for all SKUs and update the database.
+ * This does not require a business unit since material costs are universal.
  */
 export async function recalculateAllSKUs(
-  businessUnitId: string,
   onProgress?: (current: number, total: number) => void
 ): Promise<RecalculationResult> {
   const errors: string[] = [];
   let updated = 0;
 
   try {
-    // 1. Fetch labor rates for the business unit
-    const { data: laborRatesData, error: laborError } = await supabase
-      .from('labor_rates')
-      .select(`
-        id,
-        labor_code_id,
-        business_unit_id,
-        rate,
-        effective_date,
-        created_at,
-        updated_at,
-        labor_code:labor_codes(id, labor_sku, description, unit_type, fence_category_standard, is_active),
-        business_unit:business_units(id, code, name)
-      `)
-      .eq('business_unit_id', businessUnitId);
-
-    if (laborError) throw laborError;
-
-    const laborRates = (laborRatesData || []) as unknown as LaborRateWithDetails[];
-
-    // 2. Fetch all Wood Vertical products with materials
+    // 1. Fetch all Wood Vertical products with materials
     const { data: wvProducts, error: wvError } = await supabase
       .from('wood_vertical_products')
       .select(`
@@ -166,7 +210,7 @@ export async function recalculateAllSKUs(
 
     if (wvError) throw wvError;
 
-    // 3. Fetch all Wood Horizontal products with materials
+    // 2. Fetch all Wood Horizontal products with materials
     const { data: whProducts, error: whError } = await supabase
       .from('wood_horizontal_products')
       .select(`
@@ -179,7 +223,7 @@ export async function recalculateAllSKUs(
 
     if (whError) throw whError;
 
-    // 4. Fetch all Iron products with materials
+    // 3. Fetch all Iron products with materials
     const { data: ironProducts, error: ironError } = await supabase
       .from('iron_products')
       .select(`
@@ -198,7 +242,7 @@ export async function recalculateAllSKUs(
 
     let current = 0;
 
-    // 5. Recalculate Wood Vertical products
+    // 4. Recalculate Wood Vertical products - MATERIAL COSTS ONLY
     for (const product of (wvProducts || [])) {
       try {
         // Skip if missing required materials
@@ -209,17 +253,15 @@ export async function recalculateAllSKUs(
           continue;
         }
 
-        const result = await recalculateWoodVerticalSKU(
-          product as WoodVerticalProductWithMaterials,
-          laborRates
+        const result = calculateWoodVerticalMaterialCost(
+          product as WoodVerticalProductWithMaterials
         );
 
         const { error: updateError } = await supabase
           .from('wood_vertical_products')
           .update({
             standard_material_cost: result.materialCost,
-            standard_labor_cost: result.laborCost,
-            standard_cost_per_foot: result.costPerFoot,
+            standard_cost_per_foot: result.materialCostPerFoot,
             standard_cost_calculated_at: new Date().toISOString(),
           })
           .eq('id', product.id);
@@ -236,7 +278,7 @@ export async function recalculateAllSKUs(
       onProgress?.(current, totalProducts);
     }
 
-    // 6. Recalculate Wood Horizontal products
+    // 5. Recalculate Wood Horizontal products - MATERIAL COSTS ONLY
     for (const product of (whProducts || [])) {
       try {
         if (!product.post_material || !product.board_material) {
@@ -246,17 +288,15 @@ export async function recalculateAllSKUs(
           continue;
         }
 
-        const result = await recalculateWoodHorizontalSKU(
-          product as WoodHorizontalProductWithMaterials,
-          laborRates
+        const result = calculateWoodHorizontalMaterialCost(
+          product as WoodHorizontalProductWithMaterials
         );
 
         const { error: updateError } = await supabase
           .from('wood_horizontal_products')
           .update({
             standard_material_cost: result.materialCost,
-            standard_labor_cost: result.laborCost,
-            standard_cost_per_foot: result.costPerFoot,
+            standard_cost_per_foot: result.materialCostPerFoot,
             standard_cost_calculated_at: new Date().toISOString(),
           })
           .eq('id', product.id);
@@ -273,7 +313,7 @@ export async function recalculateAllSKUs(
       onProgress?.(current, totalProducts);
     }
 
-    // 7. Recalculate Iron products
+    // 6. Recalculate Iron products - MATERIAL COSTS ONLY
     for (const product of (ironProducts || [])) {
       try {
         if (!product.post_material) {
@@ -283,17 +323,15 @@ export async function recalculateAllSKUs(
           continue;
         }
 
-        const result = await recalculateIronSKU(
-          product as IronProductWithMaterials,
-          laborRates
+        const result = calculateIronMaterialCost(
+          product as IronProductWithMaterials
         );
 
         const { error: updateError } = await supabase
           .from('iron_products')
           .update({
             standard_material_cost: result.materialCost,
-            standard_labor_cost: result.laborCost,
-            standard_cost_per_foot: result.costPerFoot,
+            standard_cost_per_foot: result.materialCostPerFoot,
             standard_cost_calculated_at: new Date().toISOString(),
           })
           .eq('id', product.id);
