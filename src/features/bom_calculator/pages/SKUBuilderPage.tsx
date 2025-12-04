@@ -296,9 +296,72 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     };
   }, [materials, bracketMaterialId]);
 
-  // Get concrete materials
-  const concreteMaterials = useMemo(() => {
-    return materials.filter(m => m.category === '05-Concrete');
+  // Get concrete materials - with fallback defaults if not in database
+  const concreteMaterials = useMemo((): Material[] => {
+    const dbConcrete = materials.filter(m => m.category === '05-Concrete');
+
+    // Check if we have the required SKUs, otherwise create defaults
+    const hasCTS = dbConcrete.some(m => m.material_sku === 'CTS');
+    const hasCTP = dbConcrete.some(m => m.material_sku === 'CTP');
+    const hasCTQ = dbConcrete.some(m => m.material_sku === 'CTQ');
+
+    const result: Material[] = [...dbConcrete];
+
+    // Add fallback materials if not found in database
+    const baseFallback = {
+      length_ft: null,
+      width_nominal: null,
+      actual_width: null,
+      thickness: null,
+      quantity_per_unit: 1,
+      fence_category_standard: [],
+      is_bom_default: false,
+      status: 'Active',
+      normally_stocked: true,
+      current_stock_qty: null,
+      notes: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (!hasCTS) {
+      result.push({
+        ...baseFallback,
+        id: 'fallback-cts',
+        material_sku: 'CTS',
+        material_name: 'Sand & Gravel Mix (50lb)',
+        category: '05-Concrete',
+        sub_category: '3-Part',
+        unit_type: 'bag',
+        unit_cost: 4.25,
+      });
+    }
+    if (!hasCTP) {
+      result.push({
+        ...baseFallback,
+        id: 'fallback-ctp',
+        material_sku: 'CTP',
+        material_name: 'Portland Cement (94lb)',
+        category: '05-Concrete',
+        sub_category: '3-Part',
+        unit_type: 'bag',
+        unit_cost: 12.75,
+      });
+    }
+    if (!hasCTQ) {
+      result.push({
+        ...baseFallback,
+        id: 'fallback-ctq',
+        material_sku: 'CTQ',
+        material_name: 'QuickRock (50lb)',
+        category: '05-Concrete',
+        sub_category: '3-Part',
+        unit_type: 'bag',
+        unit_cost: 5.50,
+      });
+    }
+
+    return result;
   }, [materials]);
 
   // Build product object with materials for FenceCalculator
