@@ -4,3 +4,4 @@
 
 export * from './useProductTypes';
 export * from './useProductSKUs';
+export * from './useComponentMaterials';
