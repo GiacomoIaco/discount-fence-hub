@@ -82,19 +82,40 @@ export default function ProjectsPage() {
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['bom-projects'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch projects
+      const { data: projectsData, error: projectsError } = await supabase
         .from('bom_projects')
         .select(`
           *,
           business_unit:business_unit_id(id, code, name),
-          yard:yard_id(id, code, name),
-          creator:created_by(id, full_name, email)
+          yard:yard_id(id, code, name)
         `)
         .order('expected_pickup_date', { ascending: true, nullsFirst: false })
         .order('updated_at', { ascending: false });
 
-      if (error) throw error;
-      return data as BOMProject[];
+      if (projectsError) throw projectsError;
+
+      // Get unique creator IDs
+      const creatorIds = [...new Set(projectsData?.map(p => p.created_by).filter(Boolean))] as string[];
+
+      // Fetch creators if any
+      let creatorsMap: Record<string, { id: string; full_name: string | null; email: string }> = {};
+      if (creatorIds.length > 0) {
+        const { data: creators } = await supabase
+          .from('user_profiles')
+          .select('id, full_name, email')
+          .in('id', creatorIds);
+
+        if (creators) {
+          creatorsMap = Object.fromEntries(creators.map(c => [c.id, c]));
+        }
+      }
+
+      // Merge creator info
+      return (projectsData || []).map(p => ({
+        ...p,
+        creator: p.created_by ? creatorsMap[p.created_by] || null : null,
+      })) as BOMProject[];
     },
   });
 
