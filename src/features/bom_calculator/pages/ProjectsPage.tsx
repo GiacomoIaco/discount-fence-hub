@@ -27,6 +27,7 @@ interface BOMProject {
   is_bundle: boolean | null;
   bundle_id: string | null;
   bundle_name: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   business_unit: {
@@ -39,6 +40,12 @@ interface BOMProject {
     code: string;
     name: string;
   } | null;
+  creator: {
+    id: string;
+    full_name: string | null;
+    email: string;
+  } | null;
+  children?: BOMProject[];
 }
 
 interface Yard {
@@ -78,7 +85,8 @@ export default function ProjectsPage() {
         .select(`
           *,
           business_unit:business_unit_id(id, code, name),
-          yard:yard_id(id, code, name)
+          yard:yard_id(id, code, name),
+          creator:created_by(id, full_name, email)
         `)
         .order('expected_pickup_date', { ascending: true, nullsFirst: false })
         .order('updated_at', { ascending: false });
@@ -150,17 +158,50 @@ export default function ProjectsPage() {
     };
   }, [projects, statusFilter, yardFilter, searchTerm]);
 
-  // Status change mutation
+  // Status change mutation - handles bundle auto-breaking for child projects
   const statusMutation = useMutation({
-    mutationFn: async ({ projectIds, newStatus }: { projectIds: string[]; newStatus: string }) => {
+    mutationFn: async ({ projectIds, newStatus, isChildOfBundle }: { projectIds: string[]; newStatus: string; isChildOfBundle?: boolean }) => {
+      // Update the status
       const { error } = await supabase
         .from('bom_projects')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .in('id', projectIds);
       if (error) throw error;
+
+      // If this is a child of a bundle changing independently, remove it from bundle
+      if (isChildOfBundle && projectIds.length === 1) {
+        const project = projects.find(p => p.id === projectIds[0]);
+        if (project?.bundle_id) {
+          // Remove from bundle
+          await supabase
+            .from('bom_projects')
+            .update({ bundle_id: null })
+            .eq('id', projectIds[0]);
+
+          // Check if bundle now has less than 2 children
+          const { data: remainingChildren } = await supabase
+            .from('bom_projects')
+            .select('id')
+            .eq('bundle_id', project.bundle_id);
+
+          if (remainingChildren && remainingChildren.length < 2) {
+            // Dissolve bundle - remove bundle_id from remaining child(ren)
+            await supabase
+              .from('bom_projects')
+              .update({ bundle_id: null })
+              .eq('bundle_id', project.bundle_id);
+
+            // Delete the bundle itself
+            await supabase
+              .from('bom_projects')
+              .delete()
+              .eq('id', project.bundle_id);
+          }
+        }
+      }
     },
-    onSuccess: () => {
-      showSuccess('Status updated');
+    onSuccess: (_, variables) => {
+      showSuccess(variables.isChildOfBundle ? 'Status updated (removed from bundle)' : 'Status updated');
       queryClient.invalidateQueries({ queryKey: ['bom-projects'] });
       setSelectedProjects(new Set());
     },
@@ -429,11 +470,11 @@ export default function ProjectsPage() {
                 <th className="text-left px-3 py-3 font-medium">Status</th>
                 <th className="text-left px-3 py-3 font-medium">Project</th>
                 <th className="text-left px-3 py-3 font-medium">Customer</th>
+                <th className="text-left px-3 py-3 font-medium">Created By</th>
                 <th className="text-center px-3 py-3 font-medium">Yard</th>
                 <th className="text-center px-3 py-3 font-medium">Pickup</th>
                 <th className="text-center px-3 py-3 font-medium w-10">Crew</th>
                 <th className="text-right px-3 py-3 font-medium">Total</th>
-                <th className="text-center px-3 py-3 font-medium w-10"></th>
                 <th className="w-10"></th>
               </tr>
             </thead>
@@ -467,6 +508,7 @@ export default function ProjectsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-sm text-gray-500">-</td>
+                    <td className="px-3 py-2 text-sm text-gray-500">-</td>
                     <td className="px-3 py-2 text-center">
                       {bundle.yard && (
                         <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs font-medium rounded">
@@ -498,7 +540,6 @@ export default function ProjectsPage() {
                         ${(bundle.total_project_cost || 0).toLocaleString()}
                       </div>
                     </td>
-                    <td className="px-3 py-2"></td>
                     <td className="px-3 py-2">
                       <BundleActions
                         bundle={bundle}
@@ -520,7 +561,7 @@ export default function ProjectsPage() {
                       isSelected={false}
                       onSelect={() => {}}
                       onDelete={() => {}}
-                      onStatusChange={(status) => statusMutation.mutate({ projectIds: [child.id], newStatus: status })}
+                      onStatusChange={(status) => statusMutation.mutate({ projectIds: [child.id], newStatus: status, isChildOfBundle: true })}
                       formatPickupDate={formatPickupDate}
                       getPickupDateStyle={getPickupDateStyle}
                     />
@@ -634,6 +675,13 @@ function ProjectRow({
         </div>
       </td>
       <td className="px-3 py-2 text-sm text-gray-600">{project.customer_name || '-'}</td>
+      <td className="px-3 py-2 text-sm text-gray-600">
+        {project.creator ? (
+          <span title={project.creator.email}>
+            {project.creator.full_name || project.creator.email.split('@')[0]}
+          </span>
+        ) : '-'}
+      </td>
       <td className="px-3 py-2 text-center">
         {project.yard ? (
           <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs font-medium rounded">
