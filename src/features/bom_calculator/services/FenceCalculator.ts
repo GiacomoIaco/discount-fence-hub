@@ -79,10 +79,8 @@ export interface HardwareMaterials {
 // ============================================================================
 
 export class FenceCalculator {
-  private mode: CalculatorMode;
-
-  constructor(mode: CalculatorMode = 'project') {
-    this.mode = mode;
+  constructor(_mode: CalculatorMode = 'project') {
+    // Mode stored for future use (e.g., different rounding strategies)
   }
 
   // ==========================================================================
@@ -378,13 +376,8 @@ export class FenceCalculator {
     }
 
     // 4. VERTICAL TRIM BOARDS (covers post faces)
-    // Note: This requires a trim material on horizontal products
-    // For now, we calculate the quantity but need the material reference
-    const verticalTrimCount = this.calculateVerticalTrimBoards(
-      gateAdjustment.adjustedPosts,
-      product.style
-    );
-    // TODO: Add vertical trim material to WoodHorizontalProduct if needed
+    // TODO: Add vertical trim material to WoodHorizontalProduct schema
+    // Formula ready: this.calculateVerticalTrimBoards(posts, style)
 
     // 5. STEEL POST EXTRAS
     if (product.post_type === 'STEEL') {
@@ -901,8 +894,11 @@ export class FenceCalculator {
     return (boardsHigh - 1) * sections;
   }
 
-  // NEW: Vertical trim boards for horizontal fences
-  private calculateVerticalTrimBoards(posts: number, style: string): number {
+  /**
+   * Calculate vertical trim boards for horizontal fences
+   * Public for future use when vertical_trim_material is added to schema
+   */
+  calculateVerticalTrimBoards(posts: number, style: string): number {
     if (style.includes('Exposed')) {
       return 0; // Not needed for exposed style
     }
