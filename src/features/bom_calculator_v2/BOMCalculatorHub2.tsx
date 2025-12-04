@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Monitor, ArrowLeft, FlaskConical } from 'lucide-react';
-import { ProductTypesPage, SKUCatalogPage, SKUBuilderPage } from './pages';
+import { ProductTypesPage, SKUCatalogPage, SKUBuilderPage, CalculatorPage } from './pages';
 
 // Page types for navigation
 type Hub2Page = 'product-types' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
@@ -29,7 +29,7 @@ const useIsDesktop = () => {
   return typeof window !== 'undefined' && window.innerWidth >= 1024;
 };
 
-export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, userName: _userName }: BOMCalculatorHub2Props) {
+export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: _userName }: BOMCalculatorHub2Props) {
   const [activePage, setActivePage] = useState<Hub2Page>('product-types');
   const [editingSKUId, setEditingSKUId] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
@@ -86,9 +86,11 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, u
 
       case 'calculator':
         return (
-          <ComingSoon
-            title="Calculator"
-            description="Create project estimates using the new calculation engine."
+          <CalculatorPage
+            userId={userId}
+            onProjectSaved={(projectId) => {
+              console.log('Project saved:', projectId);
+            }}
           />
         );
 
