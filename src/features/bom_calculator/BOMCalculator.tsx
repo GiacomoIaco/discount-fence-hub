@@ -32,6 +32,8 @@ interface BOMCalculatorProps {
   userId?: string;
   userName?: string;
   hideHeader?: boolean;
+  initialProjectId?: string;
+  duplicateMode?: boolean;
 }
 
 // Material row in BOM with adjustment support
@@ -334,6 +336,8 @@ function AddLaborModal({
 export function BOMCalculator({
   userId,
   hideHeader = false,
+  initialProjectId,
+  duplicateMode = false,
 }: BOMCalculatorProps) {
   const queryClient = useQueryClient();
 
@@ -367,6 +371,10 @@ export function BOMCalculator({
   // UI state
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
   const [showAddLaborModal, setShowAddLaborModal] = useState(false);
+
+  // Edit mode state - tracks loaded project ID (null for new projects, undefined for duplicate)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
 
   // Fetch data
   const { businessUnits, laborRates, products, loading } = useBOMCalculatorData(businessUnitId);
@@ -426,6 +434,111 @@ export function BOMCalculator({
       setYardId(yards[0].id);
     }
   }, [yards, yardId]);
+
+  // Load project data when initialProjectId is provided
+  useEffect(() => {
+    if (!initialProjectId) return;
+
+    const loadProject = async () => {
+      setIsLoadingProject(true);
+      try {
+        // Fetch project with related data
+        const { data: project, error: projectError } = await supabase
+          .from('bom_projects')
+          .select('*')
+          .eq('id', initialProjectId)
+          .single();
+
+        if (projectError) throw projectError;
+
+        // Fetch line items
+        const { data: lineItemsData } = await supabase
+          .from('project_line_items')
+          .select('*')
+          .eq('project_id', initialProjectId)
+          .order('sort_order');
+
+        // Fetch materials with material details
+        const { data: materialsData } = await supabase
+          .from('project_materials')
+          .select('*, material:material_id(material_sku, material_name)')
+          .eq('project_id', initialProjectId);
+
+        // Fetch labor with labor code details
+        const { data: laborData } = await supabase
+          .from('project_labor')
+          .select('*, labor_code:labor_code_id(labor_sku, description)')
+          .eq('project_id', initialProjectId);
+
+        // Populate project info
+        setProjectName(duplicateMode ? `${project.project_name} (Copy)` : project.project_name);
+        setCustomerName(project.customer_name || '');
+        setBusinessUnitId(project.business_unit_id || '');
+        setYardId(project.yard_id || '');
+        setExpectedPickupDate(project.expected_pickup_date || '');
+        setProjectNotes(project.notes || '');
+
+        // Set editing project ID (null for duplicate = creates new project)
+        setEditingProjectId(duplicateMode ? null : initialProjectId);
+
+        // Populate line items
+        if (lineItemsData && lineItemsData.length > 0) {
+          setLineItems(lineItemsData.map((item: any) => ({
+            id: `line-${item.id}`,
+            fenceType: item.fence_type as 'wood_vertical' | 'wood_horizontal' | 'iron',
+            productId: item.product_id,
+            productName: item.product_name,
+            postType: 'WOOD' as const, // Will be recalculated
+            totalFootage: item.total_footage,
+            buffer: item.buffer,
+            netLength: item.net_length,
+            numberOfLines: item.number_of_lines,
+            numberOfGates: item.number_of_gates,
+            sortOrder: item.sort_order,
+          })));
+        }
+
+        // Populate material rows (with adjustments preserved)
+        if (materialsData && materialsData.length > 0) {
+          setMaterialRows(materialsData.map((mat: any) => ({
+            material_id: mat.material_id,
+            material_sku: mat.material?.material_sku || '',
+            material_name: mat.material?.material_name || '',
+            unit_cost: mat.unit_cost,
+            calculated_qty: mat.calculated_quantity,
+            rounded_qty: mat.rounded_quantity,
+            adjustment: mat.adjustment_amount || 0,
+            total_qty: mat.manual_quantity || mat.rounded_quantity,
+            total_cost: mat.adjusted_extended_cost,
+            is_manual: mat.is_manual_addition || false,
+          })));
+        }
+
+        // Populate labor rows (with adjustments preserved)
+        if (laborData && laborData.length > 0) {
+          setLaborRows(laborData.map((lab: any) => ({
+            labor_code_id: lab.labor_code_id,
+            labor_sku: lab.labor_code?.labor_sku || '',
+            description: lab.labor_code?.description || '',
+            rate: lab.labor_rate,
+            quantity: lab.calculated_quantity,
+            calculated_cost: lab.calculated_extended_cost,
+            adjustment: lab.adjustment_amount || 0,
+            total_cost: lab.adjusted_extended_cost,
+            is_manual: lab.is_manual_addition || false,
+          })));
+        }
+
+        showSuccess(duplicateMode ? 'Project loaded for duplication' : 'Project loaded');
+      } catch (err: any) {
+        showError(`Failed to load project: ${err.message}`);
+      } finally {
+        setIsLoadingProject(false);
+      }
+    };
+
+    loadProject();
+  }, [initialProjectId, duplicateMode]);
 
   // Auto-calculate when inputs change
   const calculate = useCallback(() => {
@@ -682,32 +795,53 @@ export function BOMCalculator({
       if (!projectName.trim()) throw new Error('Project name is required');
       if (!businessUnitId) throw new Error('Business unit is required');
 
-      // 1. Create project
-      const { data: project, error: projectError } = await supabase
-        .from('bom_projects')
-        .insert({
-          project_name: projectName.trim(),
-          customer_name: customerName.trim() || null,
-          business_unit_id: businessUnitId,
-          yard_id: yardId || null,
-          expected_pickup_date: expectedPickupDate || null,
-          notes: projectNotes.trim() || null,
-          status,
-          total_linear_feet: totals.footage,
-          total_material_cost: totals.material,
-          total_labor_cost: totals.labor,
-          total_calculated_cost: totals.calculatedTotal,
-          total_adjustment_amount: totals.adjustments,
-          total_project_cost: totals.total,
-          cost_per_foot: totals.perFoot,
-          adjustment_flagged: Math.abs(totals.adjustments) > 500 || (totals.calculatedTotal > 0 && Math.abs(totals.adjustments / totals.calculatedTotal) > 0.05),
-          created_by: userId,
-          updated_by: userId,
-        })
-        .select('id')
-        .single();
+      const isUpdate = !!editingProjectId;
+      let projectId: string;
 
-      if (projectError) throw projectError;
+      const projectData = {
+        project_name: projectName.trim(),
+        customer_name: customerName.trim() || null,
+        business_unit_id: businessUnitId,
+        yard_id: yardId || null,
+        expected_pickup_date: expectedPickupDate || null,
+        notes: projectNotes.trim() || null,
+        status,
+        total_linear_feet: totals.footage,
+        total_material_cost: totals.material,
+        total_labor_cost: totals.labor,
+        total_calculated_cost: totals.calculatedTotal,
+        total_adjustment_amount: totals.adjustments,
+        total_project_cost: totals.total,
+        cost_per_foot: totals.perFoot,
+        adjustment_flagged: Math.abs(totals.adjustments) > 500 || (totals.calculatedTotal > 0 && Math.abs(totals.adjustments / totals.calculatedTotal) > 0.05),
+        updated_by: userId,
+      };
+
+      if (isUpdate) {
+        // UPDATE existing project
+        const { error: projectError } = await supabase
+          .from('bom_projects')
+          .update({ ...projectData, updated_at: new Date().toISOString() })
+          .eq('id', editingProjectId);
+
+        if (projectError) throw projectError;
+        projectId = editingProjectId;
+
+        // Delete existing related data (will be re-inserted)
+        await supabase.from('project_line_items').delete().eq('project_id', projectId);
+        await supabase.from('project_materials').delete().eq('project_id', projectId);
+        await supabase.from('project_labor').delete().eq('project_id', projectId);
+      } else {
+        // INSERT new project
+        const { data: project, error: projectError } = await supabase
+          .from('bom_projects')
+          .insert({ ...projectData, created_by: userId })
+          .select('id')
+          .single();
+
+        if (projectError) throw projectError;
+        projectId = project.id;
+      }
 
       // 2. Create line items
       const lineItemInserts = lineItems
@@ -719,7 +853,7 @@ export function BOMCalculator({
             products.iron.find(p => p.id === item.productId);
 
           return {
-            project_id: project.id,
+            project_id: projectId,
             fence_type: item.fenceType,
             product_id: item.productId,
             product_sku_code: product?.sku_code || '',
@@ -742,7 +876,7 @@ export function BOMCalculator({
 
       // 3. Create project materials
       const materialInserts = materialRows.map(mat => ({
-        project_id: project.id,
+        project_id: projectId,
         material_id: mat.material_id,
         calculated_quantity: mat.calculated_qty,
         rounded_quantity: mat.rounded_qty,
@@ -763,7 +897,7 @@ export function BOMCalculator({
 
       // 4. Create project labor
       const laborInserts = laborRows.map(lab => ({
-        project_id: project.id,
+        project_id: projectId,
         labor_code_id: lab.labor_code_id,
         calculated_quantity: lab.quantity,
         manual_quantity: null,
@@ -781,31 +915,21 @@ export function BOMCalculator({
         if (labError) throw labError;
       }
 
-      return project;
+      return { id: projectId, isUpdate };
     },
-    onSuccess: (_, status) => {
-      showSuccess(status === 'draft' ? 'Draft saved' : 'Project saved');
+    onSuccess: (result, status) => {
+      const message = result.isUpdate
+        ? (status === 'draft' ? 'Draft updated' : 'Project updated')
+        : (status === 'draft' ? 'Draft saved' : 'Project saved');
+      showSuccess(message);
       queryClient.invalidateQueries({ queryKey: ['bom-projects'] });
-      // Reset form for new project
-      setProjectName('');
-      setCustomerName('');
-      setProjectNotes('');
-      setExpectedPickupDate('');
-      setLineItems([{
-        id: `line-${Date.now()}`,
-        fenceType: 'wood_vertical',
-        productId: '',
-        productName: '',
-        postType: 'WOOD',
-        totalFootage: 0,
-        buffer: 5,
-        numberOfLines: 1,
-        numberOfGates: 0,
-        netLength: 0,
-        sortOrder: 0,
-      }]);
-      setMaterialRows([]);
-      setLaborRows([]);
+
+      // If it was a new project (not update), set it as the editing project
+      if (!result.isUpdate) {
+        setEditingProjectId(result.id);
+      }
+
+      // Don't reset form - keep showing the saved project
     },
     onError: (err: Error) => {
       showError(err.message);
@@ -818,10 +942,13 @@ export function BOMCalculator({
 
   const formatCurrency = (num: number) => '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  if (loading) {
+  if (loading || isLoadingProject) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto" />
+          {isLoadingProject && <p className="mt-2 text-gray-600">Loading project...</p>}
+        </div>
       </div>
     );
   }

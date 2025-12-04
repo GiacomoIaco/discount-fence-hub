@@ -94,12 +94,6 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
   const renderContent = () => {
     switch (activePage) {
       case 'calculator':
-        // TODO: Add project loading support to BOMCalculator
-        // When implemented, pass projectToOpen?.id and projectToOpen?.mode
-        if (projectToOpen) {
-          // For now just navigate to calculator - full project loading to be implemented
-          console.log('Opening project:', projectToOpen.id, 'mode:', projectToOpen.mode);
-        }
         return (
           <BOMCalculator
             onBack={onBack}
@@ -107,6 +101,8 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
             userId={userId}
             userName={userName}
             hideHeader={true}
+            initialProjectId={projectToOpen?.id}
+            duplicateMode={projectToOpen?.mode === 'duplicate'}
           />
         );
 
