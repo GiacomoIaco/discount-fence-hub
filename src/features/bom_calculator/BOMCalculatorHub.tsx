@@ -27,9 +27,16 @@ const useIsDesktop = () => {
   return typeof window !== 'undefined' && window.innerWidth >= 1024;
 };
 
+// Project to open in calculator
+export interface ProjectToOpen {
+  id: string;
+  mode: 'edit' | 'duplicate';
+}
+
 export default function BOMCalculatorHub({ onBack, userRole, userId, userName }: BOMCalculatorHubProps) {
   const [activePage, setActivePage] = useState<BOMHubPage>('calculator');
   const [selectedSKU, setSelectedSKU] = useState<SelectedSKU | null>(null);
+  const [projectToOpen, setProjectToOpen] = useState<ProjectToOpen | null>(null);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
 
@@ -39,10 +46,20 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
     setActivePage('sku-builder');
   };
 
+  // Navigate to calculator with a project to edit/duplicate
+  const handleOpenProject = (projectId: string, mode: 'edit' | 'duplicate') => {
+    setProjectToOpen({ id: projectId, mode });
+    setActivePage('calculator');
+  };
+
   // Clear selected SKU when leaving SKU Builder
   const handlePageChange = (page: BOMHubPage) => {
     if (page !== 'sku-builder') {
       setSelectedSKU(null);
+    }
+    // Clear project when navigating away from calculator
+    if (page !== 'calculator') {
+      setProjectToOpen(null);
     }
     setActivePage(page);
   };
@@ -77,6 +94,12 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
   const renderContent = () => {
     switch (activePage) {
       case 'calculator':
+        // TODO: Add project loading support to BOMCalculator
+        // When implemented, pass projectToOpen?.id and projectToOpen?.mode
+        if (projectToOpen) {
+          // For now just navigate to calculator - full project loading to be implemented
+          console.log('Opening project:', projectToOpen.id, 'mode:', projectToOpen.mode);
+        }
         return (
           <BOMCalculator
             onBack={onBack}
@@ -100,7 +123,12 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
         return <LaborRatesPage />;
 
       case 'projects':
-        return <ProjectsPage />;
+        return (
+          <ProjectsPage
+            onEditProject={(projectId) => handleOpenProject(projectId, 'edit')}
+            onDuplicateProject={(projectId) => handleOpenProject(projectId, 'duplicate')}
+          />
+        );
 
       case 'sku-builder':
         if (!isAdmin) {

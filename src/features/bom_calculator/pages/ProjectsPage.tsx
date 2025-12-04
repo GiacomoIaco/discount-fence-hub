@@ -3,11 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Search, Folder, Trash2, Send, Package,
   MoreVertical, Archive, Eye, Users, AlertTriangle, Check, Clock,
-  Truck, CheckCircle, ChevronDown, ChevronRight, X
+  Truck, CheckCircle, ChevronDown, ChevronRight, X, Copy, Pencil,
+  ArrowRight
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import { format, isToday, isTomorrow, isPast } from 'date-fns';
+
+interface ProjectsPageProps {
+  onEditProject?: (projectId: string) => void;
+  onDuplicateProject?: (projectId: string) => void;
+}
 
 interface BOMProject {
   id: string;
@@ -68,11 +74,21 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   archived: { label: 'Archived', color: 'text-gray-500', bgColor: 'bg-gray-200', icon: <Archive className="w-3 h-3" /> },
 };
 
-export default function ProjectsPage() {
+// Status workflow - defines the next status in the workflow
+const STATUS_WORKFLOW: Record<string, string | null> = {
+  draft: 'ready',
+  ready: 'sent_to_yard',
+  sent_to_yard: 'staged',
+  staged: 'completed',
+  completed: null, // No next status
+};
+
+export default function ProjectsPage({ onEditProject, onDuplicateProject }: ProjectsPageProps) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [yardFilter, setYardFilter] = useState<string>('all');
+  const [creatorFilter, setCreatorFilter] = useState<string>('all');
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set());
   const [showBundleModal, setShowBundleModal] = useState(false);
@@ -133,6 +149,20 @@ export default function ProjectsPage() {
     },
   });
 
+  // Get unique creators for filter dropdown
+  const uniqueCreators = useMemo(() => {
+    const creators = new Map<string, { id: string; name: string }>();
+    projects.forEach(p => {
+      if (p.creator) {
+        creators.set(p.creator.id, {
+          id: p.creator.id,
+          name: p.creator.full_name || p.creator.email.split('@')[0]
+        });
+      }
+    });
+    return Array.from(creators.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [projects]);
+
   // Filter and organize projects
   const { filteredProjects, bundles, standaloneProjects } = useMemo(() => {
     let filtered = projects.filter(p => {
@@ -144,6 +174,8 @@ export default function ProjectsPage() {
       }
       // Yard filter
       if (yardFilter !== 'all' && p.yard_id !== yardFilter) return false;
+      // Creator filter
+      if (creatorFilter !== 'all' && p.created_by !== creatorFilter) return false;
       // Search
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
@@ -183,7 +215,7 @@ export default function ProjectsPage() {
       })),
       standaloneProjects: standalone,
     };
-  }, [projects, statusFilter, yardFilter, searchTerm]);
+  }, [projects, statusFilter, yardFilter, creatorFilter, searchTerm]);
 
   // Status change mutation - handles bundle auto-breaking for child projects
   const statusMutation = useMutation({
@@ -513,6 +545,18 @@ export default function ProjectsPage() {
               ))}
             </select>
 
+            {/* Creator Filter */}
+            <select
+              value={creatorFilter}
+              onChange={(e) => setCreatorFilter(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+            >
+              <option value="all">All Creators</option>
+              {uniqueCreators.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
             {/* Bundle Button */}
             {selectedProjects.size >= 2 && (
               <button
@@ -585,6 +629,7 @@ export default function ProjectsPage() {
                 <th className="text-center px-3 py-3 font-medium">Pickup</th>
                 <th className="text-center px-3 py-3 font-medium w-10">Crew</th>
                 <th className="text-right px-3 py-3 font-medium">Total</th>
+                <th className="text-center px-3 py-3 font-medium w-20">Actions</th>
                 <th className="w-10"></th>
               </tr>
             </thead>
@@ -650,6 +695,7 @@ export default function ProjectsPage() {
                         ${(bundle.total_project_cost || 0).toLocaleString()}
                       </div>
                     </td>
+                    <td className="px-3 py-2"></td>
                     <td className="px-3 py-2">
                       <BundleActions
                         bundle={bundle}
@@ -674,6 +720,8 @@ export default function ProjectsPage() {
                       onStatusChange={(status) => statusMutation.mutate({ projectIds: [child.id], newStatus: status, isChildOfBundle: true })}
                       onOpenCompletionModal={() => setCompletionModal({ projectId: child.id, projectName: child.project_name, isChildOfBundle: true })}
                       onClearPartial={() => clearPartialPickupMutation.mutate(child.id)}
+                      onEdit={onEditProject ? () => onEditProject(child.id) : undefined}
+                      onDuplicate={onDuplicateProject ? () => onDuplicateProject(child.id) : undefined}
                       formatPickupDate={formatPickupDate}
                       getPickupDateStyle={getPickupDateStyle}
                     />
@@ -696,6 +744,8 @@ export default function ProjectsPage() {
                   onStatusChange={(status) => statusMutation.mutate({ projectIds: [project.id], newStatus: status })}
                   onOpenCompletionModal={() => setCompletionModal({ projectId: project.id, projectName: project.project_name })}
                   onClearPartial={() => clearPartialPickupMutation.mutate(project.id)}
+                  onEdit={onEditProject ? () => onEditProject(project.id) : undefined}
+                  onDuplicate={onDuplicateProject ? () => onDuplicateProject(project.id) : undefined}
                   formatPickupDate={formatPickupDate}
                   getPickupDateStyle={getPickupDateStyle}
                 />
@@ -761,6 +811,8 @@ function ProjectRow({
   onStatusChange,
   onOpenCompletionModal,
   onClearPartial,
+  onEdit,
+  onDuplicate,
   formatPickupDate,
   getPickupDateStyle,
 }: {
@@ -772,10 +824,13 @@ function ProjectRow({
   onStatusChange: (status: string) => void;
   onOpenCompletionModal: () => void;
   onClearPartial: () => void;
+  onEdit?: () => void;
+  onDuplicate?: () => void;
   formatPickupDate: (date: string | null) => string | null;
   getPickupDateStyle: (date: string | null) => string;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const nextStatus = STATUS_WORKFLOW[project.status];
 
   return (
     <tr className={`hover:bg-gray-50 ${isChild ? 'bg-purple-25' : ''}`}>
@@ -864,10 +919,36 @@ function ProjectRow({
           {project.total_linear_feet ? `${project.total_linear_feet} ft` : '-'}
         </div>
       </td>
-      <td className="px-3 py-2 text-center">
-        {project.cost_per_foot ? (
-          <span className="text-xs text-gray-500">${project.cost_per_foot.toFixed(2)}/ft</span>
-        ) : null}
+      {/* Quick Actions - View/Edit and Next Stage */}
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-1">
+          {/* View/Edit Button */}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 text-blue-600 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors"
+              title="View/Edit in Calculator"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          {/* Next Stage Button - only show if not completed */}
+          {nextStatus && (
+            <button
+              onClick={() => {
+                if (nextStatus === 'completed') {
+                  onOpenCompletionModal();
+                } else {
+                  onStatusChange(nextStatus);
+                }
+              }}
+              className="p-1.5 text-green-600 hover:text-green-700 rounded-lg hover:bg-green-50 transition-colors"
+              title={`Advance to ${STATUS_CONFIG[nextStatus]?.label || nextStatus}`}
+            >
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2">
         <div className="relative">
@@ -880,11 +961,31 @@ function ProjectRow({
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                <button className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  View Details
-                </button>
+              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                {onEdit && (
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      onEdit();
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View / Edit
+                  </button>
+                )}
+                {onDuplicate && (
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      onDuplicate();
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Duplicate Project
+                  </button>
+                )}
                 <hr className="my-1" />
                 <div className="px-3 py-1 text-xs text-gray-400 uppercase">Change Status</div>
                 {['ready', 'sent_to_yard', 'staged'].map(status => (

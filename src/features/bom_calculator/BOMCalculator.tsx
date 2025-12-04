@@ -331,7 +331,10 @@ function AddLaborModal({
   );
 }
 
-export function BOMCalculator({ userId, hideHeader = false }: BOMCalculatorProps) {
+export function BOMCalculator({
+  userId,
+  hideHeader = false,
+}: BOMCalculatorProps) {
   const queryClient = useQueryClient();
 
   // Project state
