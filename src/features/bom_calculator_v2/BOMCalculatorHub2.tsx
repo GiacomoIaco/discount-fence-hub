@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Monitor, ArrowLeft, FlaskConical } from 'lucide-react';
-import { ProductTypesPage, SKUCatalogPage, SKUBuilderPage, CalculatorPage } from './pages';
+import { ProductTypesPage, SKUCatalogPage, SKUBuilderPage, CalculatorPage, ProjectsPage } from './pages';
 
 // Page types for navigation
 type Hub2Page = 'product-types' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
@@ -96,9 +96,16 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
 
       case 'projects':
         return (
-          <ComingSoon
-            title="Projects"
-            description="View and manage saved projects."
+          <ProjectsPage
+            onEditProject={(projectId) => {
+              // TODO: Load project into calculator
+              console.log('Edit project:', projectId);
+              setActivePage('calculator');
+            }}
+            onDuplicateProject={(projectId) => {
+              // TODO: Duplicate project
+              console.log('Duplicate project:', projectId);
+            }}
           />
         );
 
@@ -208,18 +215,3 @@ function NavItem({
   );
 }
 
-// Coming soon placeholder
-function ComingSoon({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <FlaskConical className="w-8 h-8 text-purple-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2>
-        <p className="text-gray-600 mb-4">{description}</p>
-        <p className="text-sm text-gray-400">Coming soon in BOM Calculator v2</p>
-      </div>
-    </div>
-  );
-}
