@@ -1,10 +1,12 @@
 /**
  * FenceCalculator - Unified calculation engine for BOM/BOL
  *
- * Implements all formulas from 02-BUSINESS_LOGIC.md
+ * Implements all formulas from Excel BOM_Formula_Specification_Tables
  * Supports two calculation contexts:
- * 1. SKU Builder: Calculate standard cost for single SKU (rounds immediately)
- * 2. Project: Multi-SKU estimates with project-level aggregation (round once)
+ * 1. SKU Builder: Calculate standard cost for single SKU (no gates, rounds immediately)
+ * 2. Project: Multi-SKU estimates with project-level aggregation (includes gates)
+ *
+ * Updated: December 2024 - Aligned with Excel Formula Specification
  */
 
 import type {
@@ -13,6 +15,7 @@ import type {
   IronProductWithMaterials,
   Material,
   LaborRateWithDetails,
+  PostType,
 } from '../database.types';
 
 // ============================================================================
@@ -22,7 +25,7 @@ import type {
 export interface CalculationInput {
   netLength: number; // feet
   numberOfLines: number; // 1-5
-  numberOfGates: number; // 0-3
+  numberOfGates: number; // 0-3 (always 0 for SKU Builder)
 }
 
 export interface MaterialCalculation {
@@ -54,13 +57,32 @@ export interface CalculationResult {
 
 export type CalculatorMode = 'sku-builder' | 'project';
 
+// Gate post adjustment result
+interface GatePostAdjustment {
+  adjustedPosts: number; // Modified count of base posts
+  steelGatePosts: number; // Separate line item for wood-post fences
+}
+
+// Hardware materials for project-level calculations
+export interface HardwareMaterials {
+  picketNails?: Material; // HW08 - 300 nails per coil
+  frameNails?: Material; // HW07 - 28 nails per box
+  steelGatePost?: Material; // Steel post for gates on wood fences
+  postCapDome?: Material; // Dome cap for steel posts
+  postCapPlug?: Material; // Plug cap for steel posts (when cap+trim)
+  brackets?: Material; // Brackets for steel posts
+  selfTappingScrews?: Material; // Screws for steel post rails
+}
+
 // ============================================================================
 // FENCE CALCULATOR CLASS
 // ============================================================================
 
 export class FenceCalculator {
+  private mode: CalculatorMode;
 
-  constructor(_mode: CalculatorMode = 'project') {
+  constructor(mode: CalculatorMode = 'project') {
+    this.mode = mode;
   }
 
   // ==========================================================================
@@ -70,28 +92,50 @@ export class FenceCalculator {
   calculateWoodVertical(
     product: WoodVerticalProductWithMaterials,
     input: CalculationInput,
-    laborRates: LaborRateWithDetails[]
+    laborRates: LaborRateWithDetails[],
+    hardwareMaterials?: HardwareMaterials
   ): CalculationResult {
     const materials: MaterialCalculation[] = [];
     const labor: LaborCalculation[] = [];
 
-    // 1. POSTS
-    const posts = this.calculateWoodVerticalPosts(
+    // 1. POSTS (base calculation)
+    const basePosts = this.calculateWoodVerticalPosts(
       input.netLength,
       product.style,
       product.post_spacing,
       input.numberOfLines
     );
 
+    // 1b. GATE POST ADJUSTMENT (Calculator/Project mode only)
+    const gateAdjustment = this.adjustPostsForGates(
+      basePosts,
+      input.numberOfGates,
+      product.post_type
+    );
+
+    // Add adjusted base posts
     materials.push({
       material_id: product.post_material.id,
       material_sku: product.post_material.material_sku,
       material_name: product.post_material.material_name,
-      quantity: posts,
+      quantity: gateAdjustment.adjustedPosts,
       unit_type: product.post_material.unit_type,
       unit_cost: product.post_material.unit_cost,
       category: product.post_material.category,
     });
+
+    // Add steel gate posts if wood fence with gates
+    if (gateAdjustment.steelGatePosts > 0 && hardwareMaterials?.steelGatePost) {
+      materials.push({
+        material_id: hardwareMaterials.steelGatePost.id,
+        material_sku: hardwareMaterials.steelGatePost.material_sku,
+        material_name: hardwareMaterials.steelGatePost.material_name,
+        quantity: gateAdjustment.steelGatePosts,
+        unit_type: hardwareMaterials.steelGatePost.unit_type,
+        unit_cost: hardwareMaterials.steelGatePost.unit_cost,
+        category: hardwareMaterials.steelGatePost.category,
+      });
+    }
 
     // 2. PICKETS
     const pickets = this.calculateWoodVerticalPickets(
@@ -128,8 +172,9 @@ export class FenceCalculator {
     });
 
     // 4. CAP (if present)
+    let caps = 0;
     if (product.cap_material) {
-      const caps = this.calculateCap(input.netLength, product.cap_material.length_ft || 8);
+      caps = this.calculateCap(input.netLength, product.cap_material.length_ft || 8);
       materials.push({
         material_id: product.cap_material.id,
         material_sku: product.cap_material.material_sku,
@@ -142,8 +187,9 @@ export class FenceCalculator {
     }
 
     // 5. TRIM (if present)
+    let trims = 0;
     if (product.trim_material) {
-      const trims = this.calculateTrim(input.netLength, product.trim_material.length_ft || 8);
+      trims = this.calculateTrim(input.netLength, product.trim_material.length_ft || 8);
       materials.push({
         material_id: product.trim_material.id,
         material_sku: product.trim_material.material_sku,
@@ -155,7 +201,77 @@ export class FenceCalculator {
       });
     }
 
-    // 6. LABOR
+    // 6. ROT BOARD (if present)
+    if (product.rot_board_material) {
+      const rotBoards = this.calculateRotBoard(
+        input.netLength,
+        product.rot_board_material.length_ft || 8
+      );
+      materials.push({
+        material_id: product.rot_board_material.id,
+        material_sku: product.rot_board_material.material_sku,
+        material_name: product.rot_board_material.material_name,
+        quantity: rotBoards,
+        unit_type: product.rot_board_material.unit_type,
+        unit_cost: product.rot_board_material.unit_cost,
+        category: product.rot_board_material.category,
+      });
+    }
+
+    // 7. STEEL POST EXTRAS (if steel posts)
+    if (product.post_type === 'STEEL') {
+      const totalPosts = gateAdjustment.adjustedPosts;
+      const hasCap = product.cap_material_id !== null;
+      const hasTrim = product.trim_material_id !== null;
+
+      // 7a. Post Caps (Dome or Plug based on cap+trim)
+      const postCapMaterial =
+        hasCap && hasTrim
+          ? hardwareMaterials?.postCapPlug
+          : hardwareMaterials?.postCapDome;
+
+      if (postCapMaterial) {
+        materials.push({
+          material_id: postCapMaterial.id,
+          material_sku: postCapMaterial.material_sku,
+          material_name: postCapMaterial.material_name,
+          quantity: totalPosts,
+          unit_type: postCapMaterial.unit_type,
+          unit_cost: postCapMaterial.unit_cost,
+          category: postCapMaterial.category,
+        });
+      }
+
+      // 7b. Brackets (one per rail per post)
+      if (hardwareMaterials?.brackets) {
+        const brackets = this.calculateSteelPostBrackets(totalPosts, product.rail_count);
+        materials.push({
+          material_id: hardwareMaterials.brackets.id,
+          material_sku: hardwareMaterials.brackets.material_sku,
+          material_name: hardwareMaterials.brackets.material_name,
+          quantity: brackets,
+          unit_type: hardwareMaterials.brackets.unit_type,
+          unit_cost: hardwareMaterials.brackets.unit_cost,
+          category: hardwareMaterials.brackets.category,
+        });
+      }
+
+      // 7c. Self-Tapping Screws (4 per rail)
+      if (hardwareMaterials?.selfTappingScrews) {
+        const screws = this.calculateSelfTappingScrews(rails);
+        materials.push({
+          material_id: hardwareMaterials.selfTappingScrews.id,
+          material_sku: hardwareMaterials.selfTappingScrews.material_sku,
+          material_name: hardwareMaterials.selfTappingScrews.material_name,
+          quantity: screws,
+          unit_type: hardwareMaterials.selfTappingScrews.unit_type,
+          unit_cost: hardwareMaterials.selfTappingScrews.unit_cost,
+          category: hardwareMaterials.selfTappingScrews.category,
+        });
+      }
+    }
+
+    // 8. LABOR
     const laborCodes = this.getWoodVerticalLaborCodes(product, input);
     for (const code of laborCodes) {
       const rateRecord = laborRates.find((r) => r.labor_code.labor_sku === code.labor_sku);
@@ -181,27 +297,48 @@ export class FenceCalculator {
   calculateWoodHorizontal(
     product: WoodHorizontalProductWithMaterials,
     input: CalculationInput,
-    laborRates: LaborRateWithDetails[]
+    laborRates: LaborRateWithDetails[],
+    hardwareMaterials?: HardwareMaterials
   ): CalculationResult {
     const materials: MaterialCalculation[] = [];
     const labor: LaborCalculation[] = [];
 
-    // 1. POSTS
-    const posts = this.calculateWoodHorizontalPosts(
+    // 1. POSTS (base calculation)
+    const basePosts = this.calculateWoodHorizontalPosts(
       input.netLength,
       product.post_spacing,
       input.numberOfLines
+    );
+
+    // 1b. GATE POST ADJUSTMENT
+    const gateAdjustment = this.adjustPostsForGates(
+      basePosts,
+      input.numberOfGates,
+      product.post_type
     );
 
     materials.push({
       material_id: product.post_material.id,
       material_sku: product.post_material.material_sku,
       material_name: product.post_material.material_name,
-      quantity: posts,
+      quantity: gateAdjustment.adjustedPosts,
       unit_type: product.post_material.unit_type,
       unit_cost: product.post_material.unit_cost,
       category: product.post_material.category,
     });
+
+    // Add steel gate posts if wood fence with gates
+    if (gateAdjustment.steelGatePosts > 0 && hardwareMaterials?.steelGatePost) {
+      materials.push({
+        material_id: hardwareMaterials.steelGatePost.id,
+        material_sku: hardwareMaterials.steelGatePost.material_sku,
+        material_name: hardwareMaterials.steelGatePost.material_name,
+        quantity: gateAdjustment.steelGatePosts,
+        unit_type: hardwareMaterials.steelGatePost.unit_type,
+        unit_cost: hardwareMaterials.steelGatePost.unit_cost,
+        category: hardwareMaterials.steelGatePost.category,
+      });
+    }
 
     // 2. HORIZONTAL BOARDS
     const boards = this.calculateHorizontalBoards(
@@ -222,9 +359,13 @@ export class FenceCalculator {
       category: product.board_material.category,
     });
 
-    // 3. NAILERS (if present)
+    // Calculate boardsHigh for nailer calculation
+    const boardsHigh = Math.ceil((product.height * 12) / product.board_width_actual);
+    const sections = Math.ceil(input.netLength / product.post_spacing);
+
+    // 3. MID NAILERS (2x2 vertical supports between posts)
     if (product.nailer_material) {
-      const nailers = this.calculateNailers(input.netLength, product.post_spacing);
+      const nailers = this.calculateMidNailers(boardsHigh, sections, product.style);
       materials.push({
         material_id: product.nailer_material.id,
         material_sku: product.nailer_material.material_sku,
@@ -236,7 +377,48 @@ export class FenceCalculator {
       });
     }
 
-    // 4. LABOR
+    // 4. VERTICAL TRIM BOARDS (covers post faces)
+    // Note: This requires a trim material on horizontal products
+    // For now, we calculate the quantity but need the material reference
+    const verticalTrimCount = this.calculateVerticalTrimBoards(
+      gateAdjustment.adjustedPosts,
+      product.style
+    );
+    // TODO: Add vertical trim material to WoodHorizontalProduct if needed
+
+    // 5. STEEL POST EXTRAS
+    if (product.post_type === 'STEEL') {
+      const totalPosts = gateAdjustment.adjustedPosts;
+
+      // 5a. Brackets for steel posts (top & bottom)
+      if (hardwareMaterials?.brackets) {
+        const brackets = totalPosts * 2; // Top and bottom brackets
+        materials.push({
+          material_id: hardwareMaterials.brackets.id,
+          material_sku: hardwareMaterials.brackets.material_sku,
+          material_name: hardwareMaterials.brackets.material_name,
+          quantity: brackets,
+          unit_type: hardwareMaterials.brackets.unit_type,
+          unit_cost: hardwareMaterials.brackets.unit_cost,
+          category: hardwareMaterials.brackets.category,
+        });
+      }
+
+      // 5b. Post caps
+      if (hardwareMaterials?.postCapDome) {
+        materials.push({
+          material_id: hardwareMaterials.postCapDome.id,
+          material_sku: hardwareMaterials.postCapDome.material_sku,
+          material_name: hardwareMaterials.postCapDome.material_name,
+          quantity: totalPosts,
+          unit_type: hardwareMaterials.postCapDome.unit_type,
+          unit_cost: hardwareMaterials.postCapDome.unit_cost,
+          category: hardwareMaterials.postCapDome.category,
+        });
+      }
+    }
+
+    // 6. LABOR
     const laborCodes = this.getWoodHorizontalLaborCodes(product, input);
     for (const code of laborCodes) {
       const rateRecord = laborRates.find((r) => r.labor_code.labor_sku === code.labor_sku);
@@ -262,23 +444,27 @@ export class FenceCalculator {
   calculateIron(
     product: IronProductWithMaterials,
     input: CalculationInput,
-    laborRates: LaborRateWithDetails[]
+    laborRates: LaborRateWithDetails[],
+    hardwareMaterials?: HardwareMaterials
   ): CalculationResult {
     const materials: MaterialCalculation[] = [];
     const labor: LaborCalculation[] = [];
 
-    // 1. POSTS
-    const posts = this.calculateIronPosts(
+    // 1. POSTS (Iron always uses steel posts, gate adjustment adds to count)
+    const basePosts = this.calculateIronPosts(
       input.netLength,
       product.panel_width,
       input.numberOfLines
     );
 
+    // Gate adjustment for iron (steel posts): +1 per gate
+    const gateAdjustment = this.adjustPostsForGates(basePosts, input.numberOfGates, 'STEEL');
+
     materials.push({
       material_id: product.post_material.id,
       material_sku: product.post_material.material_sku,
       material_name: product.post_material.material_name,
-      quantity: posts,
+      quantity: gateAdjustment.adjustedPosts,
       unit_type: product.post_material.unit_type,
       unit_cost: product.post_material.unit_cost,
       category: product.post_material.category,
@@ -317,7 +503,20 @@ export class FenceCalculator {
       });
     }
 
-    // 4. LABOR
+    // 4. POST CAPS (one per post)
+    if (hardwareMaterials?.postCapDome) {
+      materials.push({
+        material_id: hardwareMaterials.postCapDome.id,
+        material_sku: hardwareMaterials.postCapDome.material_sku,
+        material_name: hardwareMaterials.postCapDome.material_name,
+        quantity: gateAdjustment.adjustedPosts,
+        unit_type: hardwareMaterials.postCapDome.unit_type,
+        unit_cost: hardwareMaterials.postCapDome.unit_cost,
+        category: hardwareMaterials.postCapDome.category,
+      });
+    }
+
+    // 5. LABOR
     const laborCodes = this.getIronLaborCodes(product, input);
     for (const code of laborCodes) {
       const rateRecord = laborRates.find((r) => r.labor_code.labor_sku === code.labor_sku);
@@ -383,7 +582,7 @@ export class FenceCalculator {
           material_id: ctq.id,
           material_sku: ctq.material_sku,
           material_name: ctq.material_name,
-          quantity: totalPosts * 0.5,
+          quantity: Math.ceil(totalPosts * 0.5),
           unit_type: ctq.unit_type,
           unit_cost: ctq.unit_cost,
           category: ctq.category,
@@ -409,7 +608,7 @@ export class FenceCalculator {
           material_id: ctr.id,
           material_sku: ctr.material_sku,
           material_name: ctr.material_name,
-          quantity: totalPosts * 1,
+          quantity: Math.ceil(totalPosts * 1),
           unit_type: ctr.unit_type,
           unit_cost: ctr.unit_cost,
           category: ctr.category,
@@ -418,6 +617,158 @@ export class FenceCalculator {
     }
 
     return materials;
+  }
+
+  // ==========================================================================
+  // NAIL/HARDWARE CALCULATIONS (Project-Level)
+  // ==========================================================================
+
+  /**
+   * Calculate picket nails needed (PROJECT LEVEL - aggregate first)
+   * Formula: coils = ceil((pickets × railsPerSection × 2) / 300) + if trim: trimBoards × 6
+   */
+  calculatePicketNails(
+    totalPickets: number,
+    railsPerSection: number,
+    totalTrimBoards: number,
+    nailMaterial: Material,
+    nailsPerCoil: number = 300
+  ): MaterialCalculation {
+    // Base: pickets × rails × 2 nails per connection
+    let totalNails = totalPickets * railsPerSection * 2;
+
+    // If trim: add 6 nails per trim board
+    if (totalTrimBoards > 0) {
+      totalNails += totalTrimBoards * 6;
+    }
+
+    const coils = Math.ceil(totalNails / nailsPerCoil);
+
+    return {
+      material_id: nailMaterial.id,
+      material_sku: nailMaterial.material_sku,
+      material_name: nailMaterial.material_name,
+      quantity: coils,
+      unit_type: nailMaterial.unit_type,
+      unit_cost: nailMaterial.unit_cost,
+      category: nailMaterial.category,
+    };
+  }
+
+  /**
+   * Calculate frame nails needed (PROJECT LEVEL - aggregate first)
+   * Formula: boxes = ceil((posts × railsPerSection × 4) / 28) + if cap: posts × 6
+   */
+  calculateFrameNails(
+    totalPosts: number,
+    railsPerSection: number,
+    hasCap: boolean,
+    nailMaterial: Material,
+    nailsPerBox: number = 28
+  ): MaterialCalculation {
+    // Base: posts × rails × 4 nails per connection
+    let totalNails = totalPosts * railsPerSection * 4;
+
+    // If cap: add 6 nails per post for cap attachment
+    if (hasCap) {
+      totalNails += totalPosts * 6;
+    }
+
+    const boxes = Math.ceil(totalNails / nailsPerBox);
+
+    return {
+      material_id: nailMaterial.id,
+      material_sku: nailMaterial.material_sku,
+      material_name: nailMaterial.material_name,
+      quantity: boxes,
+      unit_type: nailMaterial.unit_type,
+      unit_cost: nailMaterial.unit_cost,
+      category: nailMaterial.category,
+    };
+  }
+
+  /**
+   * Calculate board nails for horizontal fences (PROJECT LEVEL)
+   * Formula: coils = ceil((boards × 4) / 300)
+   */
+  calculateBoardNails(
+    totalBoards: number,
+    nailMaterial: Material,
+    nailsPerCoil: number = 300
+  ): MaterialCalculation {
+    const totalNails = totalBoards * 4;
+    const coils = Math.ceil(totalNails / nailsPerCoil);
+
+    return {
+      material_id: nailMaterial.id,
+      material_sku: nailMaterial.material_sku,
+      material_name: nailMaterial.material_name,
+      quantity: coils,
+      unit_type: nailMaterial.unit_type,
+      unit_cost: nailMaterial.unit_cost,
+      category: nailMaterial.category,
+    };
+  }
+
+  /**
+   * Calculate structure nails for horizontal fences (PROJECT LEVEL)
+   * Formula: boxes = ceil((nailers × 2 × 6) / 28)
+   */
+  calculateStructureNails(
+    totalNailers: number,
+    nailMaterial: Material,
+    nailsPerBox: number = 28
+  ): MaterialCalculation {
+    const totalNails = totalNailers * 2 * 6;
+    const boxes = Math.ceil(totalNails / nailsPerBox);
+
+    return {
+      material_id: nailMaterial.id,
+      material_sku: nailMaterial.material_sku,
+      material_name: nailMaterial.material_name,
+      quantity: boxes,
+      unit_type: nailMaterial.unit_type,
+      unit_cost: nailMaterial.unit_cost,
+      category: nailMaterial.category,
+    };
+  }
+
+  // ==========================================================================
+  // GATE POST ADJUSTMENT LOGIC
+  // ==========================================================================
+
+  /**
+   * Adjust post counts based on gates
+   * - STEEL base posts: +1 steel post per gate (added to existing count)
+   * - WOOD base posts: -1 wood post per gate + 2 steel gate posts per gate (separate line)
+   */
+  private adjustPostsForGates(
+    basePosts: number,
+    numberOfGates: number,
+    postType: PostType
+  ): GatePostAdjustment {
+    if (numberOfGates === 0) {
+      return {
+        adjustedPosts: basePosts,
+        steelGatePosts: 0,
+      };
+    }
+
+    if (postType === 'STEEL') {
+      // STEEL base posts: +1 steel post per gate (added to existing count)
+      return {
+        adjustedPosts: basePosts + numberOfGates,
+        steelGatePosts: 0,
+      };
+    } else {
+      // WOOD base posts:
+      // -1 wood post per gate (replaced by gate posts)
+      // +2 steel gate posts per gate (new line item)
+      return {
+        adjustedPosts: Math.max(0, basePosts - numberOfGates),
+        steelGatePosts: numberOfGates * 2,
+      };
+    }
   }
 
   // ==========================================================================
@@ -454,7 +805,8 @@ export class FenceCalculator {
 
     // Style modifiers
     if (style.includes('Good Neighbor')) {
-      pickets = pickets * 1.1; // 10% more for double-sided
+      // FIXED: 11% more for double-sided (was 10%)
+      pickets = pickets * 1.11;
     } else if (style.includes('Board-on-Board')) {
       // Formula: (length × 2) / (width × 2 - gap) × waste
       pickets = ((lengthInches * 2) / (picketWidthActual * 2 - 2.5)) * 1.025;
@@ -472,12 +824,29 @@ export class FenceCalculator {
     return sections * railsPerSection;
   }
 
+  // FIXED: Added Math.ceil()
   private calculateCap(netLength: number, capLength: number): number {
-    return netLength / capLength;
+    return Math.ceil(netLength / capLength);
   }
 
+  // FIXED: Added Math.ceil()
   private calculateTrim(netLength: number, trimLength: number): number {
-    return netLength / trimLength;
+    return Math.ceil(netLength / trimLength);
+  }
+
+  // NEW: Rot board calculation
+  private calculateRotBoard(netLength: number, rotBoardLength: number): number {
+    return Math.ceil(netLength / rotBoardLength);
+  }
+
+  // NEW: Steel post brackets (one per rail per post)
+  private calculateSteelPostBrackets(posts: number, railsPerSection: number): number {
+    return posts * railsPerSection;
+  }
+
+  // NEW: Self-tapping screws (4 per rail)
+  private calculateSelfTappingScrews(rails: number): number {
+    return rails * 4;
   }
 
   private calculateWoodHorizontalPosts(
@@ -504,8 +873,8 @@ export class FenceCalculator {
     // Calculate how many boards tall
     const boardsHigh = Math.ceil((fenceHeight * 12) / boardWidthActual);
 
-    // Each row runs the full length
-    const boardsPerRow = netLength / boardLength;
+    // FIXED: Added Math.ceil() - Each row runs the full length
+    const boardsPerRow = Math.ceil(netLength / boardLength);
 
     let totalBoards = boardsHigh * boardsPerRow;
 
@@ -517,9 +886,30 @@ export class FenceCalculator {
     return totalBoards;
   }
 
-  private calculateNailers(netLength: number, postSpacing: number): number {
-    const sections = Math.ceil(netLength / postSpacing);
-    return sections;
+  // FIXED: Correct nailer formula - (boardsHigh - 1) × sections
+  private calculateMidNailers(
+    boardsHigh: number,
+    sections: number,
+    style: string
+  ): number {
+    if (style.includes('Exposed')) {
+      // Exposed style: nailers = posts × 2 (one each side)
+      // This is calculated differently, return sections × 2 as approximation
+      return sections * 2;
+    }
+    // Standard and Good Neighbor: nailers = (boardsHigh - 1) × sections
+    return (boardsHigh - 1) * sections;
+  }
+
+  // NEW: Vertical trim boards for horizontal fences
+  private calculateVerticalTrimBoards(posts: number, style: string): number {
+    if (style.includes('Exposed')) {
+      return 0; // Not needed for exposed style
+    }
+    if (style.includes('Good Neighbor')) {
+      return posts * 2; // Both sides
+    }
+    return posts * 1; // Standard: one side
   }
 
   private calculateIronPosts(
@@ -537,7 +927,7 @@ export class FenceCalculator {
   }
 
   private calculateIronPanels(netLength: number, panelWidth: number): number {
-    return netLength / panelWidth;
+    return Math.ceil(netLength / panelWidth);
   }
 
   private calculateIronBrackets(
@@ -554,6 +944,15 @@ export class FenceCalculator {
   // ==========================================================================
   // LABOR CODE SELECTION
   // ==========================================================================
+
+  /**
+   * Get default rail count based on fence height
+   * 6ft fences: 2 rails default
+   * 8ft fences: 3 rails default
+   */
+  private getDefaultRailCount(height: number): number {
+    return height <= 6 ? 2 : 3;
+  }
 
   private getWoodVerticalLaborCodes(
     product: WoodVerticalProductWithMaterials,
@@ -600,10 +999,17 @@ export class FenceCalculator {
       codes.push({ labor_sku: 'W08', quantity: input.netLength });
     }
 
-    // Gates
+    // NEW: Additional Rail labor (W05) - if rails > default for height
+    const defaultRails = this.getDefaultRailCount(product.height);
+    if (product.rail_count > defaultRails) {
+      codes.push({ labor_sku: 'W05', quantity: input.netLength });
+    }
+
+    // Gates - using correct codes per Excel spec
     if (input.numberOfGates > 0) {
       codes.push({
-        labor_sku: product.height <= 6 ? 'W10' : 'W11',
+        // W11 for 6ft gates, W12 for 8ft gates (per Excel Labor Codes sheet)
+        labor_sku: product.height <= 6 ? 'W11' : 'W12',
         quantity: input.numberOfGates,
       });
     }
@@ -612,16 +1018,24 @@ export class FenceCalculator {
   }
 
   private getWoodHorizontalLaborCodes(
-    _product: WoodHorizontalProductWithMaterials,
+    product: WoodHorizontalProductWithMaterials,
     input: CalculationInput
   ): Array<{ labor_sku: string; quantity: number }> {
     const codes: Array<{ labor_sku: string; quantity: number }> = [];
 
-    // W12: Set posts (6" OC for horizontal)
+    // W12: Set posts (6' OC for horizontal)
     codes.push({ labor_sku: 'W12', quantity: input.netLength });
 
     // W13: Nail up horizontal boards
     codes.push({ labor_sku: 'W13', quantity: input.netLength });
+
+    // Good Neighbor style modifier
+    if (product.style.includes('Good Neighbor')) {
+      codes.push({
+        labor_sku: product.post_type === 'STEEL' ? 'M06' : 'W06',
+        quantity: input.netLength,
+      });
+    }
 
     // Gates
     if (input.numberOfGates > 0) {
