@@ -376,8 +376,23 @@ export class FenceCalculator {
     }
 
     // 4. VERTICAL TRIM BOARDS (covers post faces)
-    // TODO: Add vertical trim material to WoodHorizontalProduct schema
-    // Formula ready: this.calculateVerticalTrimBoards(posts, style)
+    if (product.vertical_trim_material) {
+      const verticalTrimCount = this.calculateVerticalTrimBoards(
+        gateAdjustment.adjustedPosts,
+        product.style
+      );
+      if (verticalTrimCount > 0) {
+        materials.push({
+          material_id: product.vertical_trim_material.id,
+          material_sku: product.vertical_trim_material.material_sku,
+          material_name: product.vertical_trim_material.material_name,
+          quantity: verticalTrimCount,
+          unit_type: product.vertical_trim_material.unit_type,
+          unit_cost: product.vertical_trim_material.unit_cost,
+          category: product.vertical_trim_material.category,
+        });
+      }
+    }
 
     // 5. STEEL POST EXTRAS
     if (product.post_type === 'STEEL') {
@@ -896,9 +911,9 @@ export class FenceCalculator {
 
   /**
    * Calculate vertical trim boards for horizontal fences
-   * Public for future use when vertical_trim_material is added to schema
+   * Standard: posts × 1, Good Neighbor: posts × 2, Exposed: 0
    */
-  calculateVerticalTrimBoards(posts: number, style: string): number {
+  private calculateVerticalTrimBoards(posts: number, style: string): number {
     if (style.includes('Exposed')) {
       return 0; // Not needed for exposed style
     }

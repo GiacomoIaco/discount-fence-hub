@@ -133,6 +133,7 @@ export interface WoodHorizontalProduct {
   board_material_id: string;
   nailer_material_id: string | null;
   cap_material_id: string | null;
+  vertical_trim_material_id: string | null; // Covers post faces
 
   standard_material_cost: number | null;
   standard_labor_cost: number | null;
@@ -293,6 +294,7 @@ export interface WoodHorizontalProductWithMaterials extends WoodHorizontalProduc
   board_material: Material;
   nailer_material?: Material;
   cap_material?: Material;
+  vertical_trim_material?: Material;
 }
 
 export interface IronProductWithMaterials extends IronProduct {
