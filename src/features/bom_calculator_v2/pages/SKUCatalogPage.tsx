@@ -37,7 +37,7 @@ interface BusinessUnit {
 }
 
 interface SKUCatalogPageProps {
-  onEditSKU?: (skuId: string, productTypeCode: string) => void;
+  onEditSKU?: (skuId: string) => void;
   isAdmin?: boolean;
 }
 
@@ -227,7 +227,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
   // Handle row click
   const handleRowClick = (row: SKURow) => {
     if (onEditSKU && isAdmin) {
-      onEditSKU(row.id, row.product_type_code);
+      onEditSKU(row.id);
     }
   };
 

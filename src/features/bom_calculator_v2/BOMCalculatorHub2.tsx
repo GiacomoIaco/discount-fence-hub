@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Monitor, ArrowLeft, FlaskConical } from 'lucide-react';
-import { ProductTypesPage, SKUCatalogPage } from './pages';
+import { ProductTypesPage, SKUCatalogPage, SKUBuilderPage } from './pages';
 
 // Page types for navigation
 type Hub2Page = 'product-types' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
@@ -31,6 +31,7 @@ const useIsDesktop = () => {
 
 export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, userName: _userName }: BOMCalculatorHub2Props) {
   const [activePage, setActivePage] = useState<Hub2Page>('product-types');
+  const [editingSKUId, setEditingSKUId] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
 
@@ -65,9 +66,10 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, u
 
       case 'sku-builder':
         return (
-          <ComingSoon
-            title="SKU Builder"
-            description="Build and configure product SKUs with the new component-based system."
+          <SKUBuilderPage
+            editingSKUId={editingSKUId}
+            onClearSelection={() => setEditingSKUId(null)}
+            isAdmin={isAdmin}
           />
         );
 
@@ -75,9 +77,8 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, u
         return (
           <SKUCatalogPage
             isAdmin={isAdmin}
-            onEditSKU={(skuId, productTypeCode) => {
-              console.log('Edit SKU:', skuId, productTypeCode);
-              // TODO: Navigate to SKU Builder with this SKU loaded
+            onEditSKU={(skuId) => {
+              setEditingSKUId(skuId);
               setActivePage('sku-builder');
             }}
           />
