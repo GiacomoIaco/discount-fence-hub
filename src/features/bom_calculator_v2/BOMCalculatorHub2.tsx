@@ -12,10 +12,10 @@
 
 import { useState } from 'react';
 import { Monitor, ArrowLeft, FlaskConical } from 'lucide-react';
-import { ProductTypesPage, ComponentMaterialsPage } from './pages';
+import { ProductTypesPage } from './pages';
 
 // Page types for navigation
-type Hub2Page = 'product-types' | 'component-materials' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
+type Hub2Page = 'product-types' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
 
 interface BOMCalculatorHub2Props {
   onBack: () => void;
@@ -62,9 +62,6 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, u
     switch (activePage) {
       case 'product-types':
         return <ProductTypesPage />;
-
-      case 'component-materials':
-        return <ComponentMaterialsPage />;
 
       case 'sku-builder':
         return (
@@ -125,12 +122,6 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, u
             label="Product Types"
             isActive={activePage === 'product-types'}
             onClick={() => setActivePage('product-types')}
-            badge={isAdmin ? undefined : 'Admin'}
-          />
-          <NavItem
-            label="Component Materials"
-            isActive={activePage === 'component-materials'}
-            onClick={() => setActivePage('component-materials')}
             badge={isAdmin ? undefined : 'Admin'}
           />
           <NavItem

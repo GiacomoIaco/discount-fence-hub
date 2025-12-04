@@ -3,4 +3,3 @@
  */
 
 export { ProductTypesPage } from './ProductTypesPage';
-export { ComponentMaterialsPage } from './ComponentMaterialsPage';
