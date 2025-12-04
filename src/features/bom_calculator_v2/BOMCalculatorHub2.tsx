@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Monitor, ArrowLeft, FlaskConical } from 'lucide-react';
-import { ProductTypesPage } from './pages';
+import { ProductTypesPage, SKUCatalogPage } from './pages';
 
 // Page types for navigation
 type Hub2Page = 'product-types' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
@@ -73,9 +73,13 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId: _userId, u
 
       case 'sku-catalog':
         return (
-          <ComingSoon
-            title="SKU Catalog"
-            description="Browse all SKUs across product types with unified view."
+          <SKUCatalogPage
+            isAdmin={isAdmin}
+            onEditSKU={(skuId, productTypeCode) => {
+              console.log('Edit SKU:', skuId, productTypeCode);
+              // TODO: Navigate to SKU Builder with this SKU loaded
+              setActivePage('sku-builder');
+            }}
           />
         );
 
