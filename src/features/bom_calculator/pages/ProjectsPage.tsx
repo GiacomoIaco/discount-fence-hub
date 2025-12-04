@@ -28,6 +28,8 @@ interface BOMProject {
   bundle_id: string | null;
   bundle_name: string | null;
   created_by: string | null;
+  partial_pickup: boolean | null;
+  partial_pickup_notes: string | null;
   created_at: string;
   updated_at: string;
   business_unit: {
@@ -54,14 +56,13 @@ interface Yard {
   name: string;
 }
 
-type StatusFilter = 'all' | 'draft' | 'ready' | 'sent_to_yard' | 'staged' | 'loaded' | 'completed';
+type StatusFilter = 'all' | 'draft' | 'ready' | 'sent_to_yard' | 'staged' | 'completed' | 'partial_pickup';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
   draft: { label: 'Draft', color: 'text-gray-600', bgColor: 'bg-gray-100', icon: <Clock className="w-3 h-3" /> },
   ready: { label: 'Ready', color: 'text-blue-600', bgColor: 'bg-blue-100', icon: <Check className="w-3 h-3" /> },
   sent_to_yard: { label: 'Sent to Yard', color: 'text-orange-600', bgColor: 'bg-orange-100', icon: <Send className="w-3 h-3" /> },
   staged: { label: 'Staged', color: 'text-purple-600', bgColor: 'bg-purple-100', icon: <Package className="w-3 h-3" /> },
-  loaded: { label: 'Loaded', color: 'text-indigo-600', bgColor: 'bg-indigo-100', icon: <Truck className="w-3 h-3" /> },
   completed: { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-100', icon: <CheckCircle className="w-3 h-3" /> },
   cancelled: { label: 'Cancelled', color: 'text-red-600', bgColor: 'bg-red-100', icon: <X className="w-3 h-3" /> },
   archived: { label: 'Archived', color: 'text-gray-500', bgColor: 'bg-gray-200', icon: <Archive className="w-3 h-3" /> },
@@ -75,6 +76,7 @@ export default function ProjectsPage() {
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set());
   const [showBundleModal, setShowBundleModal] = useState(false);
+  const [completionModal, setCompletionModal] = useState<{ projectId: string; projectName: string; isChildOfBundle?: boolean } | null>(null);
 
   // Fetch projects
   const { data: projects = [], isLoading } = useQuery({
@@ -113,8 +115,12 @@ export default function ProjectsPage() {
   // Filter and organize projects
   const { filteredProjects, bundles, standaloneProjects } = useMemo(() => {
     let filtered = projects.filter(p => {
-      // Status filter
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      // Status filter - special handling for partial_pickup
+      if (statusFilter === 'partial_pickup') {
+        if (!p.partial_pickup) return false;
+      } else if (statusFilter !== 'all' && p.status !== statusFilter) {
+        return false;
+      }
       // Yard filter
       if (yardFilter !== 'all' && p.yard_id !== yardFilter) return false;
       // Search
@@ -290,6 +296,89 @@ export default function ProjectsPage() {
     onError: (err: Error) => showError(err.message),
   });
 
+  // Complete with partial pickup mutation
+  const completeWithPartialMutation = useMutation({
+    mutationFn: async ({
+      projectId,
+      isPartial,
+      notes,
+      isChildOfBundle
+    }: {
+      projectId: string;
+      isPartial: boolean;
+      notes: string;
+      isChildOfBundle?: boolean
+    }) => {
+      // Update the project
+      const { error } = await supabase
+        .from('bom_projects')
+        .update({
+          status: 'completed',
+          partial_pickup: isPartial,
+          partial_pickup_notes: isPartial ? notes : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
+      if (error) throw error;
+
+      // Handle bundle auto-breaking if this is a child
+      if (isChildOfBundle) {
+        const project = projects.find(p => p.id === projectId);
+        if (project?.bundle_id) {
+          // Remove from bundle
+          await supabase
+            .from('bom_projects')
+            .update({ bundle_id: null })
+            .eq('id', projectId);
+
+          // Check if bundle now has less than 2 children
+          const { data: remainingChildren } = await supabase
+            .from('bom_projects')
+            .select('id')
+            .eq('bundle_id', project.bundle_id);
+
+          if (remainingChildren && remainingChildren.length < 2) {
+            // Dissolve bundle
+            await supabase
+              .from('bom_projects')
+              .update({ bundle_id: null })
+              .eq('bundle_id', project.bundle_id);
+            await supabase
+              .from('bom_projects')
+              .delete()
+              .eq('id', project.bundle_id);
+          }
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      showSuccess(variables.isPartial ? 'Marked completed (partial pickup)' : 'Marked completed');
+      queryClient.invalidateQueries({ queryKey: ['bom-projects'] });
+      setCompletionModal(null);
+    },
+    onError: (err: Error) => showError(err.message),
+  });
+
+  // Clear partial pickup mutation (for completing the remaining pickup)
+  const clearPartialPickupMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await supabase
+        .from('bom_projects')
+        .update({
+          partial_pickup: false,
+          partial_pickup_notes: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess('Partial pickup cleared - project fully completed');
+      queryClient.invalidateQueries({ queryKey: ['bom-projects'] });
+    },
+    onError: (err: Error) => showError(err.message),
+  });
+
   const toggleProjectSelection = (projectId: string) => {
     const newSet = new Set(selectedProjects);
     if (newSet.has(projectId)) {
@@ -387,8 +476,8 @@ export default function ProjectsPage() {
               <option value="ready">Ready</option>
               <option value="sent_to_yard">Sent to Yard</option>
               <option value="staged">Staged</option>
-              <option value="loaded">Loaded</option>
               <option value="completed">Completed</option>
+              <option value="partial_pickup">⚠️ Partial Pickup</option>
             </select>
 
             {/* Yard Filter */}
@@ -562,6 +651,8 @@ export default function ProjectsPage() {
                       onSelect={() => {}}
                       onDelete={() => {}}
                       onStatusChange={(status) => statusMutation.mutate({ projectIds: [child.id], newStatus: status, isChildOfBundle: true })}
+                      onOpenCompletionModal={() => setCompletionModal({ projectId: child.id, projectName: child.project_name, isChildOfBundle: true })}
+                      onClearPartial={() => clearPartialPickupMutation.mutate(child.id)}
                       formatPickupDate={formatPickupDate}
                       getPickupDateStyle={getPickupDateStyle}
                     />
@@ -582,6 +673,8 @@ export default function ProjectsPage() {
                     }
                   }}
                   onStatusChange={(status) => statusMutation.mutate({ projectIds: [project.id], newStatus: status })}
+                  onOpenCompletionModal={() => setCompletionModal({ projectId: project.id, projectName: project.project_name })}
+                  onClearPartial={() => clearPartialPickupMutation.mutate(project.id)}
                   formatPickupDate={formatPickupDate}
                   getPickupDateStyle={getPickupDateStyle}
                 />
@@ -603,6 +696,23 @@ export default function ProjectsPage() {
             });
           }}
           isCreating={createBundleMutation.isPending}
+        />
+      )}
+
+      {/* Completion Modal */}
+      {completionModal && (
+        <CompletionModal
+          projectName={completionModal.projectName}
+          onClose={() => setCompletionModal(null)}
+          onComplete={(isPartial, notes) => {
+            completeWithPartialMutation.mutate({
+              projectId: completionModal.projectId,
+              isPartial,
+              notes,
+              isChildOfBundle: completionModal.isChildOfBundle,
+            });
+          }}
+          isCompleting={completeWithPartialMutation.isPending}
         />
       )}
     </div>
@@ -628,6 +738,8 @@ function ProjectRow({
   onSelect,
   onDelete,
   onStatusChange,
+  onOpenCompletionModal,
+  onClearPartial,
   formatPickupDate,
   getPickupDateStyle,
 }: {
@@ -637,6 +749,8 @@ function ProjectRow({
   onSelect: () => void;
   onDelete: () => void;
   onStatusChange: (status: string) => void;
+  onOpenCompletionModal: () => void;
+  onClearPartial: () => void;
   formatPickupDate: (date: string | null) => string | null;
   getPickupDateStyle: (date: string | null) => string;
 }) {
@@ -657,7 +771,18 @@ function ProjectRow({
         )}
       </td>
       <td className="px-3 py-2">
-        <StatusBadge status={project.status} />
+        <div className="flex items-center gap-1">
+          <StatusBadge status={project.status} />
+          {project.partial_pickup && (
+            <span
+              title={`Partial pickup: ${project.partial_pickup_notes || 'Material remaining'}`}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
+            >
+              <Truck className="w-3 h-3 mr-0.5" />
+              Partial
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2">
         <div className={isChild ? 'pl-2' : ''}>
@@ -741,7 +866,7 @@ function ProjectRow({
                 </button>
                 <hr className="my-1" />
                 <div className="px-3 py-1 text-xs text-gray-400 uppercase">Change Status</div>
-                {['ready', 'sent_to_yard', 'staged', 'loaded', 'completed'].map(status => (
+                {['ready', 'sent_to_yard', 'staged'].map(status => (
                   <button
                     key={status}
                     onClick={() => {
@@ -754,6 +879,31 @@ function ProjectRow({
                     {STATUS_CONFIG[status]?.label}
                   </button>
                 ))}
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    onOpenCompletionModal();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  {STATUS_CONFIG.completed?.icon}
+                  Mark Completed...
+                </button>
+                {project.partial_pickup && (
+                  <>
+                    <hr className="my-1" />
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        onClearPartial();
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Clear Partial Pickup
+                    </button>
+                  </>
+                )}
                 <hr className="my-1" />
                 <button
                   onClick={() => {
@@ -798,7 +948,7 @@ function BundleActions({
           <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
           <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
             <div className="px-3 py-1 text-xs text-gray-400 uppercase">Bundle Status</div>
-            {['ready', 'sent_to_yard', 'staged', 'loaded', 'completed'].map(status => (
+            {['ready', 'sent_to_yard', 'staged', 'completed'].map(status => (
               <button
                 key={status}
                 onClick={() => {
@@ -898,6 +1048,106 @@ function BundleModal({
               <>
                 <Package className="w-4 h-4" />
                 Create Bundle
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Completion Modal - for marking project as completed with partial pickup option
+function CompletionModal({
+  projectName,
+  onClose,
+  onComplete,
+  isCompleting,
+}: {
+  projectName: string;
+  onClose: () => void;
+  onComplete: (isPartial: boolean, notes: string) => void;
+  isCompleting: boolean;
+}) {
+  const [isPartial, setIsPartial] = useState(false);
+  const [notes, setNotes] = useState('');
+
+  const canComplete = !isPartial || notes.trim().length > 0;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <h2 className="text-lg font-bold text-gray-900">Complete Project</h2>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-600">
+            Marking <span className="font-semibold">{projectName}</span> as completed.
+          </p>
+
+          <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <input
+              type="checkbox"
+              id="partial-pickup"
+              checked={isPartial}
+              onChange={(e) => setIsPartial(e.target.checked)}
+              className="mt-1 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+            />
+            <div>
+              <label htmlFor="partial-pickup" className="text-sm font-medium text-amber-800 cursor-pointer">
+                Partial Pickup
+              </label>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Check this if the crew only took part of the material and will return for the rest.
+              </p>
+            </div>
+          </div>
+
+          {isPartial && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                What material remains? *
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g., 10 pickets and 2 posts remaining, crew will return tomorrow morning"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 h-24 resize-none"
+                autoFocus
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg text-sm transition-colors"
+            disabled={isCompleting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onComplete(isPartial, notes)}
+            disabled={isCompleting || !canComplete}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2 transition-colors disabled:bg-gray-400"
+          >
+            {isCompleting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Completing...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                {isPartial ? 'Mark Partial Completion' : 'Mark Completed'}
               </>
             )}
           </button>
