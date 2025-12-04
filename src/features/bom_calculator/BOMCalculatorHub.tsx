@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Monitor } from 'lucide-react';
 import { HubLayout, type BOMHubPage } from './components/layout';
 import { BOMCalculator } from './BOMCalculator';
@@ -7,6 +7,9 @@ import LaborRatesPage from './pages/LaborRatesPage';
 import ProjectsPage from './pages/ProjectsPage';
 import SKUBuilderPage from './pages/SKUBuilderPage';
 import SKUCatalogPage from './pages/SKUCatalogPage';
+
+// Lazy load Hub v2 for code splitting
+const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
 
 interface BOMCalculatorHubProps {
   onBack: () => void;
@@ -37,6 +40,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
   const [activePage, setActivePage] = useState<BOMHubPage>('calculator');
   const [selectedSKU, setSelectedSKU] = useState<SelectedSKU | null>(null);
   const [projectToOpen, setProjectToOpen] = useState<ProjectToOpen | null>(null);
+  const [showV2, setShowV2] = useState(false);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
 
@@ -87,6 +91,27 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Show Hub v2 Beta (admin only)
+  if (showV2 && isAdmin) {
+    return (
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="text-gray-600">Loading Hub v2...</div>
+          </div>
+        </div>
+      }>
+        <BOMCalculatorHub2
+          onBack={() => setShowV2(false)}
+          userRole={userRole}
+          userId={userId}
+          userName={userName}
+        />
+      </Suspense>
     );
   }
 
@@ -156,6 +181,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
       onPageChange={handlePageChange}
       onBack={onBack}
       isAdmin={isAdmin}
+      onOpenV2={() => setShowV2(true)}
     >
       {renderContent()}
     </HubLayout>

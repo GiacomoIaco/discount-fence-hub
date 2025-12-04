@@ -7,7 +7,8 @@ import {
   DollarSign,
   ArrowLeft,
   ChevronRight,
-  PanelLeftClose
+  PanelLeftClose,
+  FlaskConical
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -39,9 +40,10 @@ interface HubSidebarProps {
   onBack: () => void;
   isAdmin: boolean;
   onCollapse?: () => void;
+  onOpenV2?: () => void;
 }
 
-export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, onCollapse }: HubSidebarProps) {
+export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, onCollapse, onOpenV2 }: HubSidebarProps) {
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
     const isActive = activePage === item.id;
@@ -100,6 +102,20 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
               </span>
             </div>
             {ADMIN_NAV_ITEMS.map(renderNavItem)}
+
+            {/* v2 Beta Button */}
+            {onOpenV2 && (
+              <button
+                onClick={onOpenV2}
+                className="w-full flex items-center gap-2 px-3 py-2 mt-2 rounded-lg bg-purple-600/20 text-purple-200 hover:bg-purple-600/30 transition-colors text-left text-sm border border-purple-500/30"
+              >
+                <FlaskConical className="w-4 h-4" />
+                <span className="flex-1 font-medium truncate">Try v2 Beta</span>
+                <span className="px-1.5 py-0.5 text-[10px] bg-purple-500/40 text-purple-100 rounded">
+                  NEW
+                </span>
+              </button>
+            )}
           </>
         )}
       </div>

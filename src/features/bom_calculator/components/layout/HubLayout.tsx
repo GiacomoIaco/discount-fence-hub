@@ -8,6 +8,7 @@ interface HubLayoutProps {
   onPageChange: (page: BOMHubPage) => void;
   onBack: () => void;
   isAdmin: boolean;
+  onOpenV2?: () => void;
 }
 
 /**
@@ -20,7 +21,8 @@ export default function HubLayout({
   activePage,
   onPageChange,
   onBack,
-  isAdmin
+  isAdmin,
+  onOpenV2
 }: HubLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -34,6 +36,7 @@ export default function HubLayout({
           onBack={onBack}
           isAdmin={isAdmin}
           onCollapse={() => setSidebarCollapsed(true)}
+          onOpenV2={onOpenV2}
         />
       )}
 
