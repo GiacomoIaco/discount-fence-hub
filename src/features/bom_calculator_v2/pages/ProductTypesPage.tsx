@@ -283,7 +283,6 @@ function ComponentsTab({
                 <div className="text-left">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-900">{item.component.name}</span>
-                    <span className="text-xs font-mono text-gray-500">({item.component.code})</span>
                     {item.is_required && (
                       <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
                         Required
