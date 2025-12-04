@@ -7,45 +7,25 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import type { SelectedSKU } from '../BOMCalculatorHub';
-
-// Extended Material interface with dimensions for filtering
-interface Material {
-  id: string;
-  material_sku: string;
-  material_name: string;
-  category: string;
-  sub_category: string | null;
-  unit_cost: number;
-  length_ft: number | null;
-  width_nominal: number | null;
-  actual_width: number | null;
-  thickness: string | null;
-}
-
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
-}
-
-interface LaborCode {
-  id: string;
-  labor_sku: string;
-  description: string;
-  unit_type: string;
-}
-
-interface LaborRate {
-  labor_code_id: string;
-  rate: number;
-}
-
-type ProductType = 'wood-vertical' | 'wood-horizontal' | 'iron';
+import {
+  FenceCalculator,
+  type CalculationInput,
+  type CalculationResult,
+  type HardwareMaterials,
+} from '../services/FenceCalculator';
+import type {
+  Material,
+  WoodVerticalProductWithMaterials,
+  WoodHorizontalProductWithMaterials,
+  IronProductWithMaterials,
+  LaborRateWithDetails,
+  PostType,
+} from '../database.types';
 
 // Style options per fence type
 const WOOD_VERTICAL_STYLES = [
   { value: 'Standard', label: 'Standard', postSpacing: 8, picketMultiplier: 1.0 },
-  { value: 'Good Neighbor', label: 'Good Neighbor', postSpacing: 7.71, picketMultiplier: 1.1 },
+  { value: 'Good Neighbor', label: 'Good Neighbor', postSpacing: 7.71, picketMultiplier: 1.11 },
   { value: 'Board-on-Board', label: 'Board-on-Board', postSpacing: 8, picketMultiplier: 1.14 },
 ];
 
@@ -61,6 +41,8 @@ const IRON_STYLES = [
   { value: 'Ameristar', label: 'Ameristar/3 Rail Brackets', rails: 3, postSpacing: 8 },
 ];
 
+type ProductType = 'wood-vertical' | 'wood-horizontal' | 'iron';
+
 // Preview test parameters
 interface PreviewParams {
   netLength: number;
@@ -69,27 +51,11 @@ interface PreviewParams {
   businessUnitId: string;
 }
 
-// BOM calculation result
-interface BOMResult {
-  materials: Array<{
-    name: string;
-    sku: string;
-    type: string;
-    qty: number;
-    cost: number;
-    total: number;
-  }>;
-  labor: Array<{
-    code: string;
-    description: string;
-    ratePerFt: number;
-    qty: number;
-    total: number;
-  }>;
-  materialTotal: number;
-  laborTotal: number;
-  projectTotal: number;
+// Extended BOM result with per-foot metrics
+interface BOMResultExtended extends CalculationResult {
   costPerFoot: number;
+  materialCostPerFoot: number;
+  laborCostPerFoot: number;
 }
 
 interface SKUBuilderPageProps {
@@ -108,25 +74,31 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
   const [height, setHeight] = useState(6);
   const [style, setStyle] = useState('Standard');
   const [railCount, setRailCount] = useState(2);
-  const [postType, setPostType] = useState<'WOOD' | 'STEEL'>('WOOD');
+  const [postType, setPostType] = useState<PostType>('WOOD');
 
-  // Material selections
+  // Material selections (IDs)
   const [postMaterialId, setPostMaterialId] = useState('');
   const [picketMaterialId, setPicketMaterialId] = useState('');
   const [railMaterialId, setRailMaterialId] = useState('');
   const [capMaterialId, setCapMaterialId] = useState('');
   const [trimMaterialId, setTrimMaterialId] = useState('');
+  const [rotBoardMaterialId, setRotBoardMaterialId] = useState('');
   const [boardMaterialId, setBoardMaterialId] = useState('');
   const [nailerMaterialId, setNailerMaterialId] = useState('');
+  const [verticalTrimMaterialId, setVerticalTrimMaterialId] = useState('');
   const [panelMaterialId, setPanelMaterialId] = useState('');
+  const [bracketMaterialId, setBracketMaterialId] = useState('');
 
   // Preview parameters
   const [preview, setPreview] = useState<PreviewParams>({
     netLength: 100,
     lines: 4,
-    gates: 0,
+    gates: 0, // SKU Builder uses 0 gates for standard cost
     businessUnitId: '',
   });
+
+  // Instantiate calculator (sku-builder mode)
+  const calculator = useMemo(() => new FenceCalculator('sku-builder'), []);
 
   // Load selected SKU data
   useEffect(() => {
@@ -156,6 +128,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
           setRailMaterialId(wv.rail_material_id || '');
           setCapMaterialId(wv.cap_material_id || '');
           setTrimMaterialId(wv.trim_material_id || '');
+          setRotBoardMaterialId(wv.rot_board_material_id || '');
         } else if (selectedSKU.type === 'wood-horizontal') {
           const { data: wh, error } = await supabase
             .from('wood_horizontal_products')
@@ -173,6 +146,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
           setBoardMaterialId(wh.board_material_id || '');
           setNailerMaterialId(wh.nailer_material_id || '');
           setCapMaterialId(wh.cap_material_id || '');
+          setVerticalTrimMaterialId(wh.vertical_trim_material_id || '');
         } else {
           const { data: ir, error } = await supabase
             .from('iron_products')
@@ -187,6 +161,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
           setStyle(ir.style);
           setPostMaterialId(ir.post_material_id || '');
           setPanelMaterialId(ir.panel_material_id || '');
+          setBracketMaterialId(ir.bracket_material_id || '');
         }
         setEditingId(selectedSKU.id);
       } catch (err) {
@@ -198,13 +173,13 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     loadSKU();
   }, [selectedSKU]);
 
-  // Fetch materials with all fields needed for filtering
+  // Fetch all materials
   const { data: materials = [], isLoading: loadingMaterials } = useQuery({
     queryKey: ['materials-for-sku-builder'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, material_sku, material_name, category, sub_category, unit_cost, length_ft, width_nominal, actual_width, thickness')
+        .select('*')
         .eq('status', 'Active')
         .order('category')
         .order('material_name');
@@ -223,41 +198,35 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
         .eq('is_active', true)
         .order('code');
       if (error) throw error;
-      // Set default BU if not set
       if (data && data.length > 0 && !preview.businessUnitId) {
         setPreview(p => ({ ...p, businessUnitId: data[0].id }));
       }
-      return data as BusinessUnit[];
+      return data;
     },
   });
 
-  // Fetch labor codes
-  const { data: laborCodes = [] } = useQuery({
-    queryKey: ['labor-codes-sku'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('labor_codes')
-        .select('id, labor_sku, description, unit_type')
-        .eq('is_active', true);
-      if (error) throw error;
-      return data as LaborCode[];
-    },
-  });
-
-  // Fetch labor rates for selected BU
+  // Fetch labor rates with details for selected BU
   const { data: laborRates = [] } = useQuery({
-    queryKey: ['labor-rates-sku', preview.businessUnitId],
+    queryKey: ['labor-rates-with-details', preview.businessUnitId],
     queryFn: async () => {
       if (!preview.businessUnitId) return [];
       const { data, error } = await supabase
         .from('labor_rates')
-        .select('labor_code_id, rate')
+        .select(`
+          *,
+          labor_code:labor_codes(*),
+          business_unit:business_units(*)
+        `)
         .eq('business_unit_id', preview.businessUnitId);
       if (error) throw error;
-      return data as LaborRate[];
+      return data as LaborRateWithDetails[];
     },
     enabled: !!preview.businessUnitId,
   });
+
+  // Get material by ID helper
+  const getMaterial = (id: string): Material | undefined =>
+    materials.find(m => m.id === id);
 
   // Get style config
   const getStyleConfig = () => {
@@ -270,16 +239,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     }
   };
 
-  // Filter materials based on fence type and height
+  // Filter materials based on fence type and configuration
   const filteredPostMaterials = useMemo(() => {
     const posts = materials.filter(m => m.category === '01-Post');
-
     if (productType === 'iron') {
-      // Iron fences use iron posts
       return posts.filter(m => m.sub_category === 'Iron' || m.material_name.toLowerCase().includes('iron'));
     }
-
-    // Wood fences - filter by post type and height
     if (postType === 'STEEL') {
       return posts.filter(m =>
         m.sub_category === 'Steel' ||
@@ -287,7 +252,6 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
         m.material_name.toLowerCase().includes('tubing')
       );
     } else {
-      // Wood posts - 8ft posts for 6ft fence, 10ft for 8ft fence
       const requiredLength = height <= 6 ? 8 : 10;
       return posts.filter(m =>
         (m.sub_category === 'Wood' || m.material_name.toLowerCase().includes('ptp')) &&
@@ -298,7 +262,6 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
 
   const filteredPicketMaterials = useMemo(() => {
     const pickets = materials.filter(m => m.category === '02-Pickets');
-    // Filter by height - 6ft fence uses 6ft pickets, 8ft uses 8ft pickets
     return pickets.filter(m => m.length_ft === null || m.length_ft === height);
   }, [materials, height]);
 
@@ -312,417 +275,271 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
 
   const filteredHorizontalBoardMaterials = useMemo(() => {
     const boards = materials.filter(m => m.category === '07-Horizontal Boards');
-    // Filter by post spacing for horizontal
-    const spacing = getStyleConfig().postSpacing || 6;
-    return boards.filter(m => m.length_ft === null || m.length_ft === spacing || m.length_ft === 8);
-  }, [materials, style, productType]);
+    return boards.filter(m => m.length_ft === null || m.length_ft === 6 || m.length_ft === 8);
+  }, [materials]);
 
   const filteredIronPanelMaterials = useMemo(() => {
     const panels = materials.filter(m => m.category === '09-Iron' && m.sub_category === 'Panel');
-    // Filter by height
     return panels.filter(m => m.length_ft === null || m.length_ft === 8);
-  }, [materials, height]);
+  }, [materials]);
 
-  // Get material by ID
-  const getMaterial = (id: string) => materials.find(m => m.id === id);
+  // Get hardware materials for calculations
+  const hardwareMaterials = useMemo((): HardwareMaterials => {
+    return {
+      picketNails: materials.find(m => m.material_sku === 'HW08'),
+      frameNails: materials.find(m => m.material_sku === 'HW07'),
+      steelGatePost: materials.find(m => m.sub_category === 'Steel' && m.category === '01-Post'),
+      postCapDome: materials.find(m => m.material_sku === 'PC-DOME' || m.material_name.toLowerCase().includes('dome cap')),
+      postCapPlug: materials.find(m => m.material_sku === 'PC-PLUG' || m.material_name.toLowerCase().includes('plug cap')),
+      brackets: getMaterial(bracketMaterialId) || materials.find(m => m.material_sku === 'BRK01'),
+      selfTappingScrews: materials.find(m => m.material_sku === 'HW-STS' || m.material_name.toLowerCase().includes('self-tap')),
+    };
+  }, [materials, bracketMaterialId]);
 
-  // Get labor rate
-  const getLaborRate = (laborSku: string): number => {
-    const code = laborCodes.find(c => c.labor_sku === laborSku);
-    if (!code) return 0;
-    const rate = laborRates.find(r => r.labor_code_id === code.id);
-    return rate?.rate || 0;
-  };
+  // Get concrete materials
+  const concreteMaterials = useMemo(() => {
+    return materials.filter(m => m.category === '05-Concrete');
+  }, [materials]);
 
-  // Calculate BOM preview
-  const bomResult = useMemo((): BOMResult | null => {
-    const { netLength, lines, gates } = preview;
-    if (netLength <= 0) return null;
+  // Build product object with materials for FenceCalculator
+  const buildWoodVerticalProduct = (): WoodVerticalProductWithMaterials | null => {
+    const postMat = getMaterial(postMaterialId);
+    const picketMat = getMaterial(picketMaterialId);
+    const railMat = getMaterial(railMaterialId);
+
+    if (!postMat || !picketMat || !railMat) return null;
 
     const styleConfig = getStyleConfig();
-    const bomMaterials: BOMResult['materials'] = [];
-    const bomLabor: BOMResult['labor'] = [];
 
-    if (productType === 'wood-vertical') {
-      const postSpacing = (styleConfig as typeof WOOD_VERTICAL_STYLES[0]).postSpacing;
-      const picketMultiplier = (styleConfig as typeof WOOD_VERTICAL_STYLES[0]).picketMultiplier;
+    return {
+      id: editingId || 'preview',
+      sku_code: skuCode,
+      sku_name: skuName,
+      height,
+      rail_count: railCount,
+      post_type: postType,
+      style,
+      post_spacing: styleConfig.postSpacing,
+      post_material_id: postMaterialId,
+      picket_material_id: picketMaterialId,
+      rail_material_id: railMaterialId,
+      cap_material_id: capMaterialId || null,
+      trim_material_id: trimMaterialId || null,
+      rot_board_material_id: rotBoardMaterialId || null,
+      standard_material_cost: null,
+      standard_labor_cost: null,
+      standard_cost_per_foot: null,
+      standard_cost_calculated_at: null,
+      product_description: null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      // Material relations
+      post_material: postMat,
+      picket_material: picketMat,
+      rail_material: railMat,
+      cap_material: getMaterial(capMaterialId),
+      trim_material: getMaterial(trimMaterialId),
+      rot_board_material: getMaterial(rotBoardMaterialId),
+    };
+  };
 
-      // Calculate posts
-      let posts = Math.ceil(netLength / postSpacing) + 1;
-      if (lines > 2) posts += Math.ceil((lines - 2) / 2);
+  const buildWoodHorizontalProduct = (): WoodHorizontalProductWithMaterials | null => {
+    const postMat = getMaterial(postMaterialId);
+    const boardMat = getMaterial(boardMaterialId);
 
-      // Add gate posts
-      if (gates > 0) {
-        if (postType === 'STEEL') {
-          posts += gates;
-        } else {
-          posts += gates * 2; // 2 steel posts per gate for wood fence
+    if (!postMat || !boardMat) return null;
+
+    const styleConfig = getStyleConfig();
+
+    return {
+      id: editingId || 'preview',
+      sku_code: skuCode,
+      sku_name: skuName,
+      height,
+      post_type: postType,
+      style,
+      post_spacing: styleConfig.postSpacing,
+      board_width_actual: boardMat.actual_width || 5.5,
+      post_material_id: postMaterialId,
+      board_material_id: boardMaterialId,
+      nailer_material_id: nailerMaterialId || null,
+      cap_material_id: capMaterialId || null,
+      vertical_trim_material_id: verticalTrimMaterialId || null,
+      standard_material_cost: null,
+      standard_labor_cost: null,
+      standard_cost_per_foot: null,
+      standard_cost_calculated_at: null,
+      product_description: null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      // Material relations
+      post_material: postMat,
+      board_material: boardMat,
+      nailer_material: getMaterial(nailerMaterialId),
+      cap_material: getMaterial(capMaterialId),
+      vertical_trim_material: getMaterial(verticalTrimMaterialId),
+    };
+  };
+
+  const buildIronProduct = (): IronProductWithMaterials | null => {
+    const postMat = getMaterial(postMaterialId);
+
+    if (!postMat) return null;
+
+    const styleConfig = IRON_STYLES.find(s => s.value === style) || IRON_STYLES[0];
+
+    return {
+      id: editingId || 'preview',
+      sku_code: skuCode,
+      sku_name: skuName,
+      height,
+      post_type: 'STEEL' as PostType,
+      style,
+      panel_width: 8,
+      rails_per_panel: styleConfig.rails,
+      post_material_id: postMaterialId,
+      panel_material_id: panelMaterialId || null,
+      bracket_material_id: bracketMaterialId || null,
+      rail_material_id: null,
+      picket_material_id: null,
+      standard_material_cost: null,
+      standard_labor_cost: null,
+      standard_cost_per_foot: null,
+      standard_cost_calculated_at: null,
+      product_description: null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      // Material relations
+      post_material: postMat,
+      panel_material: getMaterial(panelMaterialId),
+      bracket_material: getMaterial(bracketMaterialId),
+      rail_material: undefined,
+      picket_material: undefined,
+    };
+  };
+
+  // Calculate BOM using FenceCalculator
+  const bomResult = useMemo((): BOMResultExtended | null => {
+    const { netLength, lines, gates } = preview;
+    if (netLength <= 0 || laborRates.length === 0) return null;
+
+    const input: CalculationInput = {
+      netLength,
+      numberOfLines: lines,
+      numberOfGates: gates,
+    };
+
+    let result: CalculationResult | null = null;
+
+    try {
+      if (productType === 'wood-vertical') {
+        const product = buildWoodVerticalProduct();
+        if (!product) return null;
+        result = calculator.calculateWoodVertical(product, input, laborRates, hardwareMaterials);
+
+        // SKU Builder: Add nails for this standalone SKU
+        const postQty = result.materials.find(m => m.category === '01-Post')?.quantity || 0;
+        const picketQty = result.materials.find(m => m.category === '02-Pickets')?.quantity || 0;
+        const trimQty = result.materials.find(m => m.category === '04-Cap/Trim' && m.material_name.toLowerCase().includes('trim'))?.quantity || 0;
+
+        // Add picket nails
+        if (hardwareMaterials.picketNails && picketQty > 0) {
+          const nailResult = calculator.calculatePicketNails(
+            picketQty,
+            railCount,
+            trimQty,
+            hardwareMaterials.picketNails
+          );
+          result.materials.push(nailResult);
         }
+
+        // Add frame nails
+        if (hardwareMaterials.frameNails && postQty > 0) {
+          const hasCap = !!capMaterialId;
+          const nailResult = calculator.calculateFrameNails(
+            postQty,
+            railCount,
+            hasCap,
+            hardwareMaterials.frameNails
+          );
+          result.materials.push(nailResult);
+        }
+
+        // Add concrete for this SKU
+        const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
+        result.materials.push(...concreteMats);
+
+      } else if (productType === 'wood-horizontal') {
+        const product = buildWoodHorizontalProduct();
+        if (!product) return null;
+        result = calculator.calculateWoodHorizontal(product, input, laborRates, hardwareMaterials);
+
+        // SKU Builder: Add nails for horizontal
+        const postQty = result.materials.find(m => m.category === '01-Post')?.quantity || 0;
+        const boardQty = result.materials.find(m => m.category === '07-Horizontal Boards')?.quantity || 0;
+        const nailerQty = result.materials.find(m => m.category === '03-Rails')?.quantity || 0;
+
+        // Add board nails
+        if (hardwareMaterials.picketNails && boardQty > 0) {
+          const nailResult = calculator.calculateBoardNails(
+            boardQty,
+            hardwareMaterials.picketNails
+          );
+          result.materials.push(nailResult);
+        }
+
+        // Add structure nails
+        if (hardwareMaterials.frameNails && nailerQty > 0) {
+          const nailResult = calculator.calculateStructureNails(
+            nailerQty,
+            hardwareMaterials.frameNails
+          );
+          result.materials.push(nailResult);
+        }
+
+        // Add concrete
+        const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
+        result.materials.push(...concreteMats);
+
+      } else if (productType === 'iron') {
+        const product = buildIronProduct();
+        if (!product) return null;
+        result = calculator.calculateIron(product, input, laborRates, hardwareMaterials);
+
+        // SKU Builder: Add concrete for iron
+        const postQty = result.materials.find(m => m.category === '01-Post')?.quantity || 0;
+        const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
+        result.materials.push(...concreteMats);
       }
 
-      const postMat = getMaterial(postMaterialId);
-      if (postMat) {
-        bomMaterials.push({
-          name: postMat.material_name,
-          sku: postMat.material_sku,
-          type: 'Post',
-          qty: posts,
-          cost: postMat.unit_cost,
-          total: posts * postMat.unit_cost,
-        });
-      }
+      if (!result) return null;
 
-      // Calculate pickets
-      const picketMat = getMaterial(picketMaterialId);
-      if (picketMat) {
-        const picketWidth = picketMat.actual_width || 5.5;
-        const pickets = Math.ceil((netLength * 12) / picketWidth * 1.025 * picketMultiplier);
-        bomMaterials.push({
-          name: picketMat.material_name,
-          sku: picketMat.material_sku,
-          type: 'Picket',
-          qty: pickets,
-          cost: picketMat.unit_cost,
-          total: pickets * picketMat.unit_cost,
-        });
-      }
+      // Recalculate totals after adding nails/concrete
+      const totalMaterialCost = result.materials.reduce((sum, m) => sum + m.quantity * m.unit_cost, 0);
+      const totalLaborCost = result.labor.reduce((sum, l) => sum + l.quantity * l.rate, 0);
+      const totalCost = totalMaterialCost + totalLaborCost;
 
-      // Calculate rails
-      const railMat = getMaterial(railMaterialId);
-      if (railMat) {
-        const rails = (posts - 1) * railCount;
-        bomMaterials.push({
-          name: railMat.material_name,
-          sku: railMat.material_sku,
-          type: 'Rail',
-          qty: rails,
-          cost: railMat.unit_cost,
-          total: rails * railMat.unit_cost,
-        });
-      }
-
-      // Brackets (steel posts only)
-      if (postType === 'STEEL') {
-        const brackets = posts * railCount;
-        bomMaterials.push({
-          name: 'Rail Brackets',
-          sku: 'BRK01',
-          type: 'Hardware',
-          qty: brackets,
-          cost: 0.75,
-          total: brackets * 0.75,
-        });
-      }
-
-      // Concrete (3-part system)
-      const sandGravel = Math.ceil(posts / 10);
-      const portland = Math.ceil(posts / 20);
-      const quickrock = Math.ceil(posts * 0.5);
-
-      bomMaterials.push(
-        { name: 'Sand & Gravel Mix', sku: 'CTS', type: 'Concrete', qty: sandGravel, cost: 4.25, total: sandGravel * 4.25 },
-        { name: 'Portland Cement', sku: 'CTP', type: 'Concrete', qty: portland, cost: 12.75, total: portland * 12.75 },
-        { name: 'QuickRock', sku: 'CTQ', type: 'Concrete', qty: quickrock, cost: 5.50, total: quickrock * 5.50 }
-      );
-
-      // Cap (optional)
-      const capMat = getMaterial(capMaterialId);
-      if (capMat) {
-        const caps = Math.ceil(netLength / (capMat.length_ft || 8));
-        bomMaterials.push({
-          name: capMat.material_name,
-          sku: capMat.material_sku,
-          type: 'Cap',
-          qty: caps,
-          cost: capMat.unit_cost,
-          total: caps * capMat.unit_cost,
-        });
-      }
-
-      // Trim (optional)
-      const trimMat = getMaterial(trimMaterialId);
-      if (trimMat) {
-        const trims = Math.ceil((netLength * 2) / (trimMat.length_ft || 8));
-        bomMaterials.push({
-          name: trimMat.material_name,
-          sku: trimMat.material_sku,
-          type: 'Trim',
-          qty: trims,
-          cost: trimMat.unit_cost,
-          total: trims * trimMat.unit_cost,
-        });
-      }
-
-      // Labor
-      const setPostCode = postType === 'STEEL' ? (height <= 6 ? 'M03' : 'M04') : 'W02';
-      const nailUpCode = height <= 6 ? 'W03' : 'W04';
-
-      bomLabor.push({
-        code: setPostCode,
-        description: laborCodes.find(c => c.labor_sku === setPostCode)?.description || 'Set Post',
-        ratePerFt: getLaborRate(setPostCode),
-        qty: netLength,
-        total: netLength * getLaborRate(setPostCode),
-      });
-
-      bomLabor.push({
-        code: nailUpCode,
-        description: laborCodes.find(c => c.labor_sku === nailUpCode)?.description || 'Nail Up',
-        ratePerFt: getLaborRate(nailUpCode),
-        qty: netLength,
-        total: netLength * getLaborRate(nailUpCode),
-      });
-
-      // Good neighbor style labor
-      if (style === 'Good Neighbor') {
-        bomLabor.push({
-          code: 'W06',
-          description: 'Good Neighbor Style',
-          ratePerFt: getLaborRate('W06'),
-          qty: netLength,
-          total: netLength * getLaborRate('W06'),
-        });
-      }
-
-      // Cap labor
-      if (capMaterialId && trimMaterialId) {
-        bomLabor.push({
-          code: 'W09',
-          description: 'Cap & Trim Installation',
-          ratePerFt: getLaborRate('W09'),
-          qty: netLength,
-          total: netLength * getLaborRate('W09'),
-        });
-      } else if (capMaterialId) {
-        bomLabor.push({
-          code: 'W07',
-          description: 'Cap Installation',
-          ratePerFt: getLaborRate('W07'),
-          qty: netLength,
-          total: netLength * getLaborRate('W07'),
-        });
-      } else if (trimMaterialId) {
-        bomLabor.push({
-          code: 'W08',
-          description: 'Trim Installation',
-          ratePerFt: getLaborRate('W08'),
-          qty: netLength,
-          total: netLength * getLaborRate('W08'),
-        });
-      }
-
-      // Gate labor
-      if (gates > 0) {
-        const gateCode = height <= 6 ? 'W10' : 'W11';
-        bomLabor.push({
-          code: gateCode,
-          description: laborCodes.find(c => c.labor_sku === gateCode)?.description || 'Wood Gate',
-          ratePerFt: getLaborRate(gateCode),
-          qty: gates,
-          total: gates * getLaborRate(gateCode),
-        });
-      }
-
-    } else if (productType === 'wood-horizontal') {
-      const postSpacing = (styleConfig as typeof WOOD_HORIZONTAL_STYLES[0]).postSpacing;
-
-      // Posts
-      let posts = Math.ceil(netLength / postSpacing) + 1;
-      if (lines > 2) posts += Math.ceil((lines - 2) / 2);
-
-      const postMat = getMaterial(postMaterialId);
-      if (postMat) {
-        bomMaterials.push({
-          name: postMat.material_name,
-          sku: postMat.material_sku,
-          type: 'Post',
-          qty: posts,
-          cost: postMat.unit_cost,
-          total: posts * postMat.unit_cost,
-        });
-      }
-
-      // Horizontal boards
-      const boardMat = getMaterial(boardMaterialId);
-      if (boardMat) {
-        const boardWidth = boardMat.actual_width || 5.5;
-        const rows = Math.ceil((height * 12) / boardWidth);
-        const sections = Math.ceil(netLength / postSpacing);
-        const boards = rows * sections;
-        bomMaterials.push({
-          name: boardMat.material_name,
-          sku: boardMat.material_sku,
-          type: 'Board',
-          qty: boards,
-          cost: boardMat.unit_cost,
-          total: boards * boardMat.unit_cost,
-        });
-      }
-
-      // Nailers
-      const nailerMat = getMaterial(nailerMaterialId);
-      if (nailerMat) {
-        const sections = Math.ceil(netLength / postSpacing);
-        const nailers = style === 'Exposed' ? posts * 2 : sections;
-        bomMaterials.push({
-          name: nailerMat.material_name,
-          sku: nailerMat.material_sku,
-          type: 'Nailer',
-          qty: nailers,
-          cost: nailerMat.unit_cost,
-          total: nailers * nailerMat.unit_cost,
-        });
-      }
-
-      // Concrete
-      const sandGravel = Math.ceil(posts / 10);
-      const portland = Math.ceil(posts / 20);
-      const quickrock = Math.ceil(posts * 0.5);
-
-      bomMaterials.push(
-        { name: 'Sand & Gravel Mix', sku: 'CTS', type: 'Concrete', qty: sandGravel, cost: 4.25, total: sandGravel * 4.25 },
-        { name: 'Portland Cement', sku: 'CTP', type: 'Concrete', qty: portland, cost: 12.75, total: portland * 12.75 },
-        { name: 'QuickRock', sku: 'CTQ', type: 'Concrete', qty: quickrock, cost: 5.50, total: quickrock * 5.50 }
-      );
-
-      // Labor
-      const setPostCode = style === 'Exposed' ? 'W16' : 'W12';
-      bomLabor.push({
-        code: setPostCode,
-        description: laborCodes.find(c => c.labor_sku === setPostCode)?.description || 'Set Post',
-        ratePerFt: getLaborRate(setPostCode),
-        qty: netLength,
-        total: netLength * getLaborRate(setPostCode),
-      });
-
-      const nailUpCode = style === 'Exposed' ? 'W17' : (height <= 6 ? 'W13' : 'W18');
-      bomLabor.push({
-        code: nailUpCode,
-        description: laborCodes.find(c => c.labor_sku === nailUpCode)?.description || 'Horizontal Assembly',
-        ratePerFt: getLaborRate(nailUpCode),
-        qty: netLength,
-        total: netLength * getLaborRate(nailUpCode),
-      });
-
-      // Gate labor
-      if (gates > 0) {
-        bomLabor.push({
-          code: 'W15',
-          description: 'Horizontal Wood Gate',
-          ratePerFt: getLaborRate('W15'),
-          qty: gates,
-          total: gates * getLaborRate('W15'),
-        });
-      }
-
-    } else if (productType === 'iron') {
-      const ironStyle = styleConfig as typeof IRON_STYLES[0];
-
-      // Panels
-      const panels = Math.ceil(netLength / 8);
-      const panelMat = getMaterial(panelMaterialId);
-      if (panelMat) {
-        bomMaterials.push({
-          name: panelMat.material_name,
-          sku: panelMat.material_sku,
-          type: 'Panel',
-          qty: panels,
-          cost: panelMat.unit_cost,
-          total: panels * panelMat.unit_cost,
-        });
-      }
-
-      // Posts
-      let posts = Math.ceil(netLength / 8) + 1;
-      if (lines > 2) posts += Math.ceil((lines - 2) / 2);
-
-      const postMat = getMaterial(postMaterialId);
-      if (postMat) {
-        bomMaterials.push({
-          name: postMat.material_name,
-          sku: postMat.material_sku,
-          type: 'Post',
-          qty: posts,
-          cost: postMat.unit_cost,
-          total: posts * postMat.unit_cost,
-        });
-      }
-
-      // Brackets (Ameristar only)
-      if (style === 'Ameristar') {
-        const brackets = panels * ironStyle.rails * 2;
-        bomMaterials.push({
-          name: 'Ameristar Rail Bracket',
-          sku: 'IB01',
-          type: 'Bracket',
-          qty: brackets,
-          cost: 2.75,
-          total: brackets * 2.75,
-        });
-      }
-
-      // Post caps
-      bomMaterials.push({
-        name: 'Iron Post Cap 2x2',
-        sku: 'IPC01',
-        type: 'Post Cap',
-        qty: posts,
-        cost: 8.50,
-        total: posts * 8.50,
-      });
-
-      // Concrete
-      const sandGravel = Math.ceil(posts / 10);
-      const portland = Math.ceil(posts / 20);
-      const quickrock = Math.ceil(posts * 0.5);
-
-      bomMaterials.push(
-        { name: 'Sand & Gravel Mix', sku: 'CTS', type: 'Concrete', qty: sandGravel, cost: 4.25, total: sandGravel * 4.25 },
-        { name: 'Portland Cement', sku: 'CTP', type: 'Concrete', qty: portland, cost: 12.75, total: portland * 12.75 },
-        { name: 'QuickRock', sku: 'CTQ', type: 'Concrete', qty: quickrock, cost: 5.50, total: quickrock * 5.50 }
-      );
-
-      // Labor
-      const setPostCode = style === 'Ameristar' ? 'IR05' : 'IR01';
-      bomLabor.push({
-        code: setPostCode,
-        description: laborCodes.find(c => c.labor_sku === setPostCode)?.description || 'Set Post',
-        ratePerFt: getLaborRate(setPostCode),
-        qty: netLength,
-        total: netLength * getLaborRate(setPostCode),
-      });
-
-      const weldCode = style === 'Ameristar' ? 'IR06' : 'IR02';
-      bomLabor.push({
-        code: weldCode,
-        description: laborCodes.find(c => c.labor_sku === weldCode)?.description || 'Weld/Assembly',
-        ratePerFt: getLaborRate(weldCode),
-        qty: netLength,
-        total: netLength * getLaborRate(weldCode),
-      });
-
-      // Gate labor
-      if (gates > 0) {
-        bomLabor.push({
-          code: 'IR07',
-          description: 'Iron Gate - Single',
-          ratePerFt: getLaborRate('IR07'),
-          qty: gates,
-          total: gates * getLaborRate('IR07'),
-        });
-      }
+      return {
+        ...result,
+        totalMaterialCost,
+        totalLaborCost,
+        totalCost,
+        costPerFoot: netLength > 0 ? totalCost / netLength : 0,
+        materialCostPerFoot: netLength > 0 ? totalMaterialCost / netLength : 0,
+        laborCostPerFoot: netLength > 0 ? totalLaborCost / netLength : 0,
+      };
+    } catch (err) {
+      console.error('Calculation error:', err);
+      return null;
     }
-
-    const materialTotal = bomMaterials.reduce((sum, m) => sum + m.total, 0);
-    const laborTotal = bomLabor.reduce((sum, l) => sum + l.total, 0);
-    const projectTotal = materialTotal + laborTotal;
-    const costPerFoot = netLength > 0 ? projectTotal / netLength : 0;
-
-    return { materials: bomMaterials, labor: bomLabor, materialTotal, laborTotal, projectTotal, costPerFoot };
   }, [
     productType, style, height, railCount, postType, preview,
-    postMaterialId, picketMaterialId, railMaterialId, capMaterialId, trimMaterialId,
-    boardMaterialId, nailerMaterialId, panelMaterialId, materials, laborCodes, laborRates
+    postMaterialId, picketMaterialId, railMaterialId, capMaterialId, trimMaterialId, rotBoardMaterialId,
+    boardMaterialId, nailerMaterialId, verticalTrimMaterialId, panelMaterialId, bracketMaterialId,
+    materials, laborRates, calculator, hardwareMaterials, concreteMaterials
   ]);
 
   // Generate suggested SKU name
@@ -755,13 +572,16 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     setRailMaterialId('');
     setCapMaterialId('');
     setTrimMaterialId('');
+    setRotBoardMaterialId('');
     setBoardMaterialId('');
     setNailerMaterialId('');
+    setVerticalTrimMaterialId('');
     setPanelMaterialId('');
+    setBracketMaterialId('');
     onClearSelection?.();
   };
 
-  // Save SKU mutation (insert or update)
+  // Save SKU mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!skuCode) throw new Error('SKU code is required');
@@ -782,8 +602,9 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
           rail_material_id: railMaterialId || null,
           cap_material_id: capMaterialId || null,
           trim_material_id: trimMaterialId || null,
-          standard_material_cost: bomResult?.materialTotal || null,
-          standard_labor_cost: bomResult?.laborTotal || null,
+          rot_board_material_id: rotBoardMaterialId || null,
+          standard_material_cost: bomResult?.totalMaterialCost || null,
+          standard_labor_cost: bomResult?.totalLaborCost || null,
           standard_cost_per_foot: bomResult?.costPerFoot || null,
           standard_cost_calculated_at: new Date().toISOString(),
         };
@@ -814,8 +635,9 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
           board_material_id: boardMaterialId || null,
           nailer_material_id: nailerMaterialId || null,
           cap_material_id: capMaterialId || null,
-          standard_material_cost: bomResult?.materialTotal || null,
-          standard_labor_cost: bomResult?.laborTotal || null,
+          vertical_trim_material_id: verticalTrimMaterialId || null,
+          standard_material_cost: bomResult?.totalMaterialCost || null,
+          standard_labor_cost: bomResult?.totalLaborCost || null,
           standard_cost_per_foot: bomResult?.costPerFoot || null,
           standard_cost_calculated_at: new Date().toISOString(),
         };
@@ -844,8 +666,9 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
           rails_per_panel: ironStyle?.rails || 2,
           post_material_id: postMaterialId || null,
           panel_material_id: panelMaterialId || null,
-          standard_material_cost: bomResult?.materialTotal || null,
-          standard_labor_cost: bomResult?.laborTotal || null,
+          bracket_material_id: bracketMaterialId || null,
+          standard_material_cost: bomResult?.totalMaterialCost || null,
+          standard_labor_cost: bomResult?.totalLaborCost || null,
           standard_cost_per_foot: bomResult?.costPerFoot || null,
           standard_cost_calculated_at: new Date().toISOString(),
         };
@@ -873,7 +696,6 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
       queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
       if (editingId) {
-        // Stay on page after update, clear selection
         onClearSelection?.();
         setEditingId(null);
       }
@@ -889,10 +711,13 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     setProductType(type);
     if (type === 'wood-vertical') {
       setStyle('Standard');
+      setPostType('WOOD');
     } else if (type === 'wood-horizontal') {
       setStyle('Standard');
+      setPostType('WOOD');
     } else {
       setStyle('Standard 2 Rail');
+      setPostType('STEEL');
     }
     // Clear material selections
     setPostMaterialId('');
@@ -901,6 +726,11 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     setBoardMaterialId('');
     setNailerMaterialId('');
     setPanelMaterialId('');
+    setBracketMaterialId('');
+    setCapMaterialId('');
+    setTrimMaterialId('');
+    setRotBoardMaterialId('');
+    setVerticalTrimMaterialId('');
   };
 
   if (loadingMaterials) {
@@ -914,7 +744,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     );
   }
 
-  // Number formatting helper
+  // Number formatting helpers
   const formatNumber = (num: number, decimals: number = 2): string => {
     return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
@@ -924,12 +754,10 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
 
   const componentCount = bomResult?.materials.length || 0;
   const laborCount = bomResult?.labor.length || 0;
-  const materialCostPerFt = bomResult && preview.netLength > 0 ? bomResult.materialTotal / preview.netLength : 0;
-  const laborCostPerFt = bomResult && preview.netLength > 0 ? bomResult.laborTotal / preview.netLength : 0;
 
   return (
     <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
-      {/* Left Panel - Configuration (wider) */}
+      {/* Left Panel - Configuration */}
       <div className="w-[520px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
         {/* Header with save actions */}
         <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
@@ -974,7 +802,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
-          {/* SKU Code & Name - inline */}
+          {/* SKU Code & Name */}
           <div className="flex gap-2 mb-3">
             <div className="w-24 flex-shrink-0">
               <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU #</label>
@@ -997,7 +825,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
             </div>
           </div>
 
-          {/* Product Type Tabs - compact */}
+          {/* Product Type Tabs */}
           <div className="flex rounded border border-gray-200 overflow-hidden mb-3">
             <button
               onClick={() => handleProductTypeChange('wood-vertical')}
@@ -1028,7 +856,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
             </button>
           </div>
 
-          {/* Compact attribute row - Style, Height, Rails/PostType on one line */}
+          {/* Attributes row */}
           <div className="flex gap-2 mb-3">
             <div className="flex-1">
               <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Style</label>
@@ -1074,7 +902,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                   <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Post Type</label>
                   <select
                     value={postType}
-                    onChange={(e) => { setPostType(e.target.value as 'WOOD' | 'STEEL'); setPostMaterialId(''); }}
+                    onChange={(e) => { setPostType(e.target.value as PostType); setPostMaterialId(''); }}
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
                   >
                     <option value="WOOD">Wood</option>
@@ -1088,7 +916,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                 <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Post Type</label>
                 <select
                   value={postType}
-                  onChange={(e) => { setPostType(e.target.value as 'WOOD' | 'STEEL'); setPostMaterialId(''); }}
+                  onChange={(e) => { setPostType(e.target.value as PostType); setPostMaterialId(''); }}
                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500"
                 >
                   <option value="WOOD">Wood</option>
@@ -1098,11 +926,11 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
             )}
           </div>
 
-          {/* Materials Section - compact grid */}
+          {/* Materials Section */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Materials</h3>
 
-            {/* Post Material - inline label */}
+            {/* Post Material */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-600 w-14 flex-shrink-0">Post</span>
               <select
@@ -1206,71 +1034,99 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
-                  <select
-                    value={capMaterialId}
-                    onChange={(e) => setCapMaterialId(e.target.value)}
-                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
-                  >
-                    <option value="">None</option>
-                    {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
-                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
-                    ))}
-                  </select>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
+                    <select
+                      value={capMaterialId}
+                      onChange={(e) => setCapMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-10 flex-shrink-0">V-Trim</span>
+                    <select
+                      value={verticalTrimMaterialId}
+                      onChange={(e) => setVerticalTrimMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredCapTrimMaterials.filter(m => m.sub_category === 'Trim').map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </>
             )}
 
             {/* Iron Materials */}
             {productType === 'iron' && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-14 flex-shrink-0">Panel</span>
-                <select
-                  value={panelMaterialId}
-                  onChange={(e) => setPanelMaterialId(e.target.value)}
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
-                >
-                  <option value="">Select panel...</option>
-                  {filteredIronPanelMaterials.map(m => (
-                    <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Panel</span>
+                  <select
+                    value={panelMaterialId}
+                    onChange={(e) => setPanelMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                  >
+                    <option value="">Select panel...</option>
+                    {filteredIronPanelMaterials.map(m => (
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
+                    ))}
+                  </select>
+                </div>
+                {style === 'Ameristar' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Brackets</span>
+                    <select
+                      value={bracketMaterialId}
+                      onChange={(e) => setBracketMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                    >
+                      <option value="">Select brackets...</option>
+                      {materials.filter(m => m.category === '08-Hardware' || m.material_name.toLowerCase().includes('bracket')).map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Preview & BOM (narrower) */}
+      {/* Right Panel - Preview & BOM */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Key Stats Bar - Always visible at top */}
+        {/* Key Stats Bar */}
         <div className="bg-white border-b border-gray-200 px-3 py-2">
           <div className="grid grid-cols-4 gap-2">
-            {/* Cost Per Foot */}
             <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/Ft</div>
               <div className="text-lg font-bold">${formatNumber(bomResult?.costPerFoot || 0)}</div>
             </div>
-            {/* Total Project Cost */}
             <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Total Cost</div>
-              <div className="text-lg font-bold">${formatWholeNumber(bomResult?.projectTotal || 0)}</div>
+              <div className="text-lg font-bold">${formatWholeNumber(bomResult?.totalCost || 0)}</div>
             </div>
-            {/* Material Cost/Ft */}
             <div className="bg-amber-500 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Material/Ft</div>
-              <div className="text-lg font-bold">${formatNumber(materialCostPerFt)}</div>
+              <div className="text-lg font-bold">${formatNumber(bomResult?.materialCostPerFoot || 0)}</div>
             </div>
-            {/* Labor Cost/Ft */}
             <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Labor/Ft</div>
-              <div className="text-lg font-bold">${formatNumber(laborCostPerFt)}</div>
+              <div className="text-lg font-bold">${formatNumber(bomResult?.laborCostPerFoot || 0)}</div>
             </div>
           </div>
         </div>
 
-        {/* Test Parameters - Compact inline */}
+        {/* Test Parameters */}
         <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
           <div className="flex items-center gap-4">
             <span className="text-xs font-medium text-gray-600">Test:</span>
@@ -1327,7 +1183,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                   <h4 className="text-xs font-semibold text-gray-700">Materials (BOM) <span className="text-gray-400 font-normal">· {componentCount} items</span></h4>
-                  <span className="text-xs font-semibold text-green-600">${formatNumber(bomResult.materialTotal)}</span>
+                  <span className="text-xs font-semibold text-green-600">${formatNumber(bomResult.totalMaterialCost)}</span>
                 </div>
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50">
@@ -1342,12 +1198,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     {bomResult.materials.map((item, i) => (
                       <tr key={i} className="hover:bg-gray-50">
                         <td className="py-1.5 px-2">
-                          <div className="font-medium text-gray-900 truncate" title={item.name}>{item.name}</div>
-                          <div className="text-[10px] text-gray-400">{item.sku} · {item.type}</div>
+                          <div className="font-medium text-gray-900 truncate" title={item.material_name}>{item.material_name}</div>
+                          <div className="text-[10px] text-gray-400">{item.material_sku} · {item.category}</div>
                         </td>
-                        <td className="py-1.5 px-2 text-right text-gray-700">{item.qty.toLocaleString()}</td>
-                        <td className="py-1.5 px-2 text-right text-gray-500">${formatNumber(item.cost)}</td>
-                        <td className="py-1.5 px-2 text-right font-medium text-green-600">${formatNumber(item.total)}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-700">{Math.ceil(item.quantity).toLocaleString()}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-500">${formatNumber(item.unit_cost)}</td>
+                        <td className="py-1.5 px-2 text-right font-medium text-green-600">${formatNumber(Math.ceil(item.quantity) * item.unit_cost)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1358,7 +1214,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                   <h4 className="text-xs font-semibold text-gray-700">Labor (BOL) <span className="text-gray-400 font-normal">· {laborCount} items</span></h4>
-                  <span className="text-xs font-semibold text-blue-600">${formatNumber(bomResult.laborTotal)}</span>
+                  <span className="text-xs font-semibold text-blue-600">${formatNumber(bomResult.totalLaborCost)}</span>
                 </div>
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50">
@@ -1374,11 +1230,11 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                       <tr key={i} className="hover:bg-gray-50">
                         <td className="py-1.5 px-2">
                           <div className="font-medium text-gray-900 truncate" title={item.description}>{item.description}</div>
-                          <div className="text-[10px] text-gray-400">{item.code}</div>
+                          <div className="text-[10px] text-gray-400">{item.labor_sku}</div>
                         </td>
-                        <td className="py-1.5 px-2 text-right text-gray-500">${formatNumber(item.ratePerFt)}</td>
-                        <td className="py-1.5 px-2 text-right text-gray-700">{item.qty.toLocaleString()}</td>
-                        <td className="py-1.5 px-2 text-right font-medium text-blue-600">${formatNumber(item.total)}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-500">${formatNumber(item.rate)}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-700">{item.quantity.toLocaleString()}</td>
+                        <td className="py-1.5 px-2 text-right font-medium text-blue-600">${formatNumber(item.quantity * item.rate)}</td>
                       </tr>
                     ))}
                   </tbody>
