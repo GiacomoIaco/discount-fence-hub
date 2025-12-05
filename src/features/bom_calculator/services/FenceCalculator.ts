@@ -63,7 +63,7 @@ interface GatePostAdjustment {
   steelGatePosts: number; // Separate line item for wood-post fences
 }
 
-// Hardware materials for project-level calculations
+// Hardware materials for calculations
 export interface HardwareMaterials {
   picketNails?: Material; // HW08 - 300 nails per coil
   frameNails?: Material; // HW07 - 28 nails per box
@@ -73,6 +73,132 @@ export interface HardwareMaterials {
   brackets?: Material; // Brackets for steel posts
   selfTappingScrews?: Material; // Screws for steel post rails
 }
+
+// Concrete materials for calculations
+export interface ConcreteMaterials {
+  cts?: Material; // Sand & Gravel (3-part)
+  ctp?: Material; // Portland Cement (3-part)
+  ctq?: Material; // QuickRock (3-part)
+  cty?: Material; // Yellow bags
+  ctr?: Material; // Red bags
+}
+
+// Default fallback materials (used when not provided)
+const DEFAULT_HARDWARE: HardwareMaterials = {
+  frameNails: {
+    id: 'fallback-hw07',
+    material_sku: 'HW07',
+    material_name: 'Frame Nails (16d 3.5")',
+    category: '06-Hardware',
+    sub_category: 'Nails',
+    unit_type: 'lb',
+    unit_cost: 2.50,
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  picketNails: {
+    id: 'fallback-hw08',
+    material_sku: 'HW08',
+    material_name: 'Picket Nails (8d 2.5")',
+    category: '06-Hardware',
+    sub_category: 'Nails',
+    unit_type: 'lb',
+    unit_cost: 2.50,
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+};
+
+const DEFAULT_CONCRETE: ConcreteMaterials = {
+  cts: {
+    id: 'fallback-cts',
+    material_sku: 'CTS',
+    material_name: 'Sand & Gravel Mix (50lb)',
+    category: '05-Concrete',
+    sub_category: '3-Part',
+    unit_type: 'bag',
+    unit_cost: 4.25,
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  ctp: {
+    id: 'fallback-ctp',
+    material_sku: 'CTP',
+    material_name: 'Portland Cement (94lb)',
+    category: '05-Concrete',
+    sub_category: '3-Part',
+    unit_type: 'bag',
+    unit_cost: 12.75,
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  ctq: {
+    id: 'fallback-ctq',
+    material_sku: 'CTQ',
+    material_name: 'QuickRock (50lb)',
+    category: '05-Concrete',
+    sub_category: '3-Part',
+    unit_type: 'bag',
+    unit_cost: 5.50,
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+};
 
 // ============================================================================
 // FENCE CALCULATOR CLASS
@@ -91,10 +217,16 @@ export class FenceCalculator {
     product: WoodVerticalProductWithMaterials,
     input: CalculationInput,
     laborRates: LaborRateWithDetails[],
-    hardwareMaterials?: HardwareMaterials
+    hardwareMaterials?: HardwareMaterials,
+    concreteMaterials?: ConcreteMaterials,
+    concreteType: '3-part' | 'yellow-bags' | 'red-bags' = '3-part'
   ): CalculationResult {
     const materials: MaterialCalculation[] = [];
     const labor: LaborCalculation[] = [];
+
+    // Use defaults if not provided
+    const hw = { ...DEFAULT_HARDWARE, ...hardwareMaterials };
+    const concrete = { ...DEFAULT_CONCRETE, ...concreteMaterials };
 
     // 1. POSTS (base calculation)
     const basePosts = this.calculateWoodVerticalPosts(
@@ -285,6 +417,101 @@ export class FenceCalculator {
       }
     }
 
+    // 9. FRAME NAILS (for posts/rails/caps)
+    const totalPosts = gateAdjustment.adjustedPosts;
+    const hasCap = !!product.cap_material;
+    if (hw.frameNails) {
+      // Raw calculation: posts × rails × 4 nails, + if cap: posts × 6
+      let frameNailCount = totalPosts * product.rail_count * 4;
+      if (hasCap) frameNailCount += totalPosts * 6;
+      const frameNailBoxes = frameNailCount / 28; // RAW - no rounding
+
+      materials.push({
+        material_id: hw.frameNails.id,
+        material_sku: hw.frameNails.material_sku,
+        material_name: hw.frameNails.material_name,
+        quantity: frameNailBoxes,
+        unit_type: hw.frameNails.unit_type,
+        unit_cost: hw.frameNails.unit_cost,
+        category: hw.frameNails.category,
+      });
+    }
+
+    // 10. PICKET NAILS (for pickets to rails, + trim if present)
+    if (hw.picketNails) {
+      // Raw calculation: pickets × rails × 2 nails, + if trim: trims × 6
+      let picketNailCount = pickets * product.rail_count * 2;
+      if (trims > 0) picketNailCount += trims * 6;
+      const picketNailCoils = picketNailCount / 300; // RAW - no rounding
+
+      materials.push({
+        material_id: hw.picketNails.id,
+        material_sku: hw.picketNails.material_sku,
+        material_name: hw.picketNails.material_name,
+        quantity: picketNailCoils,
+        unit_type: hw.picketNails.unit_type,
+        unit_cost: hw.picketNails.unit_cost,
+        category: hw.picketNails.category,
+      });
+    }
+
+    // 11. CONCRETE (3-part system)
+    if (concreteType === '3-part') {
+      if (concrete.cts) {
+        materials.push({
+          material_id: concrete.cts.id,
+          material_sku: concrete.cts.material_sku,
+          material_name: concrete.cts.material_name,
+          quantity: totalPosts / 10, // RAW - no rounding
+          unit_type: concrete.cts.unit_type,
+          unit_cost: concrete.cts.unit_cost,
+          category: concrete.cts.category,
+        });
+      }
+      if (concrete.ctp) {
+        materials.push({
+          material_id: concrete.ctp.id,
+          material_sku: concrete.ctp.material_sku,
+          material_name: concrete.ctp.material_name,
+          quantity: totalPosts / 20, // RAW - no rounding
+          unit_type: concrete.ctp.unit_type,
+          unit_cost: concrete.ctp.unit_cost,
+          category: concrete.ctp.category,
+        });
+      }
+      if (concrete.ctq) {
+        materials.push({
+          material_id: concrete.ctq.id,
+          material_sku: concrete.ctq.material_sku,
+          material_name: concrete.ctq.material_name,
+          quantity: totalPosts * 0.5, // RAW - no rounding
+          unit_type: concrete.ctq.unit_type,
+          unit_cost: concrete.ctq.unit_cost,
+          category: concrete.ctq.category,
+        });
+      }
+    } else if (concreteType === 'yellow-bags' && concrete.cty) {
+      materials.push({
+        material_id: concrete.cty.id,
+        material_sku: concrete.cty.material_sku,
+        material_name: concrete.cty.material_name,
+        quantity: totalPosts * 0.65, // RAW - no rounding
+        unit_type: concrete.cty.unit_type,
+        unit_cost: concrete.cty.unit_cost,
+        category: concrete.cty.category,
+      });
+    } else if (concreteType === 'red-bags' && concrete.ctr) {
+      materials.push({
+        material_id: concrete.ctr.id,
+        material_sku: concrete.ctr.material_sku,
+        material_name: concrete.ctr.material_name,
+        quantity: totalPosts * 1, // RAW - no rounding
+        unit_type: concrete.ctr.unit_type,
+        unit_cost: concrete.ctr.unit_cost,
+        category: concrete.ctr.category,
+      });
+    }
+
     return this.aggregateResults(materials, labor);
   }
 
@@ -296,10 +523,16 @@ export class FenceCalculator {
     product: WoodHorizontalProductWithMaterials,
     input: CalculationInput,
     laborRates: LaborRateWithDetails[],
-    hardwareMaterials?: HardwareMaterials
+    hardwareMaterials?: HardwareMaterials,
+    concreteMaterials?: ConcreteMaterials,
+    concreteType: '3-part' | 'yellow-bags' | 'red-bags' = '3-part'
   ): CalculationResult {
     const materials: MaterialCalculation[] = [];
     const labor: LaborCalculation[] = [];
+
+    // Use defaults if not provided
+    const hw = { ...DEFAULT_HARDWARE, ...hardwareMaterials };
+    const concrete = { ...DEFAULT_CONCRETE, ...concreteMaterials };
 
     // 1. POSTS (base calculation)
     const basePosts = this.calculateWoodHorizontalPosts(
@@ -442,6 +675,104 @@ export class FenceCalculator {
       }
     }
 
+    // 7. FRAME NAILS (for nailer attachments)
+    const totalPosts = gateAdjustment.adjustedPosts;
+    const hasCap = !!product.cap_material;
+    const nailers = product.nailer_material
+      ? this.calculateMidNailers(boardsHigh, sections, product.style)
+      : 0;
+
+    if (hw.frameNails) {
+      // Raw calculation: nailers × 2 attachment points × 6 nails, + posts × 2 for top/bottom
+      let frameNailCount = nailers * 2 * 6 + totalPosts * 2 * 4;
+      if (hasCap) frameNailCount += totalPosts * 6;
+      const frameNailBoxes = frameNailCount / 28; // RAW - no rounding
+
+      materials.push({
+        material_id: hw.frameNails.id,
+        material_sku: hw.frameNails.material_sku,
+        material_name: hw.frameNails.material_name,
+        quantity: frameNailBoxes,
+        unit_type: hw.frameNails.unit_type,
+        unit_cost: hw.frameNails.unit_cost,
+        category: hw.frameNails.category,
+      });
+    }
+
+    // 8. BOARD NAILS (for horizontal boards)
+    if (hw.picketNails) {
+      // Raw calculation: boards × 4 nails per board (2 each end)
+      const boardNailCount = boards * 4;
+      const boardNailCoils = boardNailCount / 300; // RAW - no rounding
+
+      materials.push({
+        material_id: hw.picketNails.id,
+        material_sku: hw.picketNails.material_sku,
+        material_name: hw.picketNails.material_name,
+        quantity: boardNailCoils,
+        unit_type: hw.picketNails.unit_type,
+        unit_cost: hw.picketNails.unit_cost,
+        category: hw.picketNails.category,
+      });
+    }
+
+    // 9. CONCRETE (3-part system)
+    if (concreteType === '3-part') {
+      if (concrete.cts) {
+        materials.push({
+          material_id: concrete.cts.id,
+          material_sku: concrete.cts.material_sku,
+          material_name: concrete.cts.material_name,
+          quantity: totalPosts / 10, // RAW - no rounding
+          unit_type: concrete.cts.unit_type,
+          unit_cost: concrete.cts.unit_cost,
+          category: concrete.cts.category,
+        });
+      }
+      if (concrete.ctp) {
+        materials.push({
+          material_id: concrete.ctp.id,
+          material_sku: concrete.ctp.material_sku,
+          material_name: concrete.ctp.material_name,
+          quantity: totalPosts / 20, // RAW - no rounding
+          unit_type: concrete.ctp.unit_type,
+          unit_cost: concrete.ctp.unit_cost,
+          category: concrete.ctp.category,
+        });
+      }
+      if (concrete.ctq) {
+        materials.push({
+          material_id: concrete.ctq.id,
+          material_sku: concrete.ctq.material_sku,
+          material_name: concrete.ctq.material_name,
+          quantity: totalPosts * 0.5, // RAW - no rounding
+          unit_type: concrete.ctq.unit_type,
+          unit_cost: concrete.ctq.unit_cost,
+          category: concrete.ctq.category,
+        });
+      }
+    } else if (concreteType === 'yellow-bags' && concrete.cty) {
+      materials.push({
+        material_id: concrete.cty.id,
+        material_sku: concrete.cty.material_sku,
+        material_name: concrete.cty.material_name,
+        quantity: totalPosts * 0.65, // RAW - no rounding
+        unit_type: concrete.cty.unit_type,
+        unit_cost: concrete.cty.unit_cost,
+        category: concrete.cty.category,
+      });
+    } else if (concreteType === 'red-bags' && concrete.ctr) {
+      materials.push({
+        material_id: concrete.ctr.id,
+        material_sku: concrete.ctr.material_sku,
+        material_name: concrete.ctr.material_name,
+        quantity: totalPosts * 1, // RAW - no rounding
+        unit_type: concrete.ctr.unit_type,
+        unit_cost: concrete.ctr.unit_cost,
+        category: concrete.ctr.category,
+      });
+    }
+
     return this.aggregateResults(materials, labor);
   }
 
@@ -453,10 +784,15 @@ export class FenceCalculator {
     product: IronProductWithMaterials,
     input: CalculationInput,
     laborRates: LaborRateWithDetails[],
-    hardwareMaterials?: HardwareMaterials
+    hardwareMaterials?: HardwareMaterials,
+    concreteMaterials?: ConcreteMaterials,
+    concreteType: '3-part' | 'yellow-bags' | 'red-bags' = '3-part'
   ): CalculationResult {
     const materials: MaterialCalculation[] = [];
     const labor: LaborCalculation[] = [];
+
+    // Use defaults if not provided
+    const concrete = { ...DEFAULT_CONCRETE, ...concreteMaterials };
 
     // 1. POSTS (Iron always uses steel posts, gate adjustment adds to count)
     const basePosts = this.calculateIronPosts(
@@ -540,11 +876,69 @@ export class FenceCalculator {
       }
     }
 
+    // 6. CONCRETE (3-part system) - Iron doesn't use nails, uses screws/brackets
+    const totalPosts = gateAdjustment.adjustedPosts;
+    if (concreteType === '3-part') {
+      if (concrete.cts) {
+        materials.push({
+          material_id: concrete.cts.id,
+          material_sku: concrete.cts.material_sku,
+          material_name: concrete.cts.material_name,
+          quantity: totalPosts / 10, // RAW - no rounding
+          unit_type: concrete.cts.unit_type,
+          unit_cost: concrete.cts.unit_cost,
+          category: concrete.cts.category,
+        });
+      }
+      if (concrete.ctp) {
+        materials.push({
+          material_id: concrete.ctp.id,
+          material_sku: concrete.ctp.material_sku,
+          material_name: concrete.ctp.material_name,
+          quantity: totalPosts / 20, // RAW - no rounding
+          unit_type: concrete.ctp.unit_type,
+          unit_cost: concrete.ctp.unit_cost,
+          category: concrete.ctp.category,
+        });
+      }
+      if (concrete.ctq) {
+        materials.push({
+          material_id: concrete.ctq.id,
+          material_sku: concrete.ctq.material_sku,
+          material_name: concrete.ctq.material_name,
+          quantity: totalPosts * 0.5, // RAW - no rounding
+          unit_type: concrete.ctq.unit_type,
+          unit_cost: concrete.ctq.unit_cost,
+          category: concrete.ctq.category,
+        });
+      }
+    } else if (concreteType === 'yellow-bags' && concrete.cty) {
+      materials.push({
+        material_id: concrete.cty.id,
+        material_sku: concrete.cty.material_sku,
+        material_name: concrete.cty.material_name,
+        quantity: totalPosts * 0.65, // RAW - no rounding
+        unit_type: concrete.cty.unit_type,
+        unit_cost: concrete.cty.unit_cost,
+        category: concrete.cty.category,
+      });
+    } else if (concreteType === 'red-bags' && concrete.ctr) {
+      materials.push({
+        material_id: concrete.ctr.id,
+        material_sku: concrete.ctr.material_sku,
+        material_name: concrete.ctr.material_name,
+        quantity: totalPosts * 1, // RAW - no rounding
+        unit_type: concrete.ctr.unit_type,
+        unit_cost: concrete.ctr.unit_cost,
+        category: concrete.ctr.category,
+      });
+    }
+
     return this.aggregateResults(materials, labor);
   }
 
   // ==========================================================================
-  // CONCRETE CALCULATIONS (Project-Level)
+  // CONCRETE CALCULATIONS (Legacy - for backward compatibility)
   // ==========================================================================
 
   calculateConcrete(

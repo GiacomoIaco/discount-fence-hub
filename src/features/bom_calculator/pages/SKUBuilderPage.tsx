@@ -296,73 +296,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     };
   }, [materials, bracketMaterialId]);
 
-  // Get concrete materials - with fallback defaults if not in database
-  const concreteMaterials = useMemo((): Material[] => {
-    const dbConcrete = materials.filter(m => m.category === '05-Concrete');
-
-    // Check if we have the required SKUs, otherwise create defaults
-    const hasCTS = dbConcrete.some(m => m.material_sku === 'CTS');
-    const hasCTP = dbConcrete.some(m => m.material_sku === 'CTP');
-    const hasCTQ = dbConcrete.some(m => m.material_sku === 'CTQ');
-
-    const result: Material[] = [...dbConcrete];
-
-    // Add fallback materials if not found in database
-    const baseFallback = {
-      length_ft: null,
-      width_nominal: null,
-      actual_width: null,
-      thickness: null,
-      quantity_per_unit: 1,
-      fence_category_standard: [],
-      is_bom_default: false,
-      status: 'Active',
-      normally_stocked: true,
-      current_stock_qty: null,
-      notes: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    if (!hasCTS) {
-      result.push({
-        ...baseFallback,
-        id: 'fallback-cts',
-        material_sku: 'CTS',
-        material_name: 'Sand & Gravel Mix (50lb)',
-        category: '05-Concrete',
-        sub_category: '3-Part',
-        unit_type: 'bag',
-        unit_cost: 4.25,
-      });
-    }
-    if (!hasCTP) {
-      result.push({
-        ...baseFallback,
-        id: 'fallback-ctp',
-        material_sku: 'CTP',
-        material_name: 'Portland Cement (94lb)',
-        category: '05-Concrete',
-        sub_category: '3-Part',
-        unit_type: 'bag',
-        unit_cost: 12.75,
-      });
-    }
-    if (!hasCTQ) {
-      result.push({
-        ...baseFallback,
-        id: 'fallback-ctq',
-        material_sku: 'CTQ',
-        material_name: 'QuickRock (50lb)',
-        category: '05-Concrete',
-        sub_category: '3-Part',
-        unit_type: 'bag',
-        unit_cost: 5.50,
-      });
-    }
-
-    return result;
-  }, [materials]);
+  // Note: Concrete materials are now handled internally by FenceCalculator with built-in defaults
 
   // Build product object with materials for FenceCalculator
   const buildWoodVerticalProduct = (): WoodVerticalProductWithMaterials | null => {
@@ -498,90 +432,31 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     let result: CalculationResult | null = null;
 
     try {
+      // FenceCalculator now includes nails and concrete automatically
+      // All quantities are RAW (unrounded) - we apply Math.ceil() for SKU-level costing
       if (productType === 'wood-vertical') {
         const product = buildWoodVerticalProduct();
         if (!product) return null;
         result = calculator.calculateWoodVertical(product, input, laborRates, hardwareMaterials);
-
-        // SKU Builder: Add nails for this standalone SKU
-        const postQty = result.materials.find(m => m.category === '01-Post')?.quantity || 0;
-        const picketQty = result.materials.find(m => m.category === '02-Pickets')?.quantity || 0;
-        const trimQty = result.materials.find(m => m.category === '04-Cap/Trim' && m.material_name.toLowerCase().includes('trim'))?.quantity || 0;
-
-        // Add picket nails
-        if (hardwareMaterials.picketNails && picketQty > 0) {
-          const nailResult = calculator.calculatePicketNails(
-            picketQty,
-            railCount,
-            trimQty,
-            hardwareMaterials.picketNails
-          );
-          result.materials.push(nailResult);
-        }
-
-        // Add frame nails
-        if (hardwareMaterials.frameNails && postQty > 0) {
-          const hasCap = !!capMaterialId;
-          const nailResult = calculator.calculateFrameNails(
-            postQty,
-            railCount,
-            hasCap,
-            hardwareMaterials.frameNails
-          );
-          result.materials.push(nailResult);
-        }
-
-        // Add concrete for this SKU
-        const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
-        result.materials.push(...concreteMats);
 
       } else if (productType === 'wood-horizontal') {
         const product = buildWoodHorizontalProduct();
         if (!product) return null;
         result = calculator.calculateWoodHorizontal(product, input, laborRates, hardwareMaterials);
 
-        // SKU Builder: Add nails for horizontal
-        const postQty = result.materials.find(m => m.category === '01-Post')?.quantity || 0;
-        const boardQty = result.materials.find(m => m.category === '07-Horizontal Boards')?.quantity || 0;
-        const nailerQty = result.materials.find(m => m.category === '03-Rails')?.quantity || 0;
-
-        // Add board nails
-        if (hardwareMaterials.picketNails && boardQty > 0) {
-          const nailResult = calculator.calculateBoardNails(
-            boardQty,
-            hardwareMaterials.picketNails
-          );
-          result.materials.push(nailResult);
-        }
-
-        // Add structure nails
-        if (hardwareMaterials.frameNails && nailerQty > 0) {
-          const nailResult = calculator.calculateStructureNails(
-            nailerQty,
-            hardwareMaterials.frameNails
-          );
-          result.materials.push(nailResult);
-        }
-
-        // Add concrete
-        const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
-        result.materials.push(...concreteMats);
-
       } else if (productType === 'iron') {
         const product = buildIronProduct();
         if (!product) return null;
         result = calculator.calculateIron(product, input, laborRates, hardwareMaterials);
-
-        // SKU Builder: Add concrete for iron
-        const postQty = result.materials.find(m => m.category === '01-Post')?.quantity || 0;
-        const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
-        result.materials.push(...concreteMats);
       }
 
       if (!result) return null;
 
-      // Recalculate totals after adding nails/concrete
-      const totalMaterialCost = result.materials.reduce((sum, m) => sum + m.quantity * m.unit_cost, 0);
+      // SKU-level: Apply Math.ceil() to each material quantity for costing
+      const totalMaterialCost = result.materials.reduce(
+        (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
+        0
+      );
       const totalLaborCost = result.labor.reduce((sum, l) => sum + l.quantity * l.rate, 0);
       const totalCost = totalMaterialCost + totalLaborCost;
 
@@ -602,7 +477,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     productType, style, height, railCount, postType, preview,
     postMaterialId, picketMaterialId, railMaterialId, capMaterialId, trimMaterialId, rotBoardMaterialId,
     boardMaterialId, nailerMaterialId, verticalTrimMaterialId, panelMaterialId, bracketMaterialId,
-    materials, laborRates, calculator, hardwareMaterials, concreteMaterials
+    materials, laborRates, calculator, hardwareMaterials
   ]);
 
   // Generate suggested SKU name
