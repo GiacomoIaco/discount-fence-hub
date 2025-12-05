@@ -320,32 +320,43 @@ export default function ComponentConfiguratorPage() {
     }
   };
 
-  // Remove material (specific only)
+  // Remove material - handles both specific materials and category-based rules
   const removeSpecificMaterial = async (materialId: string) => {
     if (!selectedComponentId) return;
 
     setSaving(true);
     try {
-      // Build query for deletion
+      const attrFilter = buildAttributeFilter();
+
+      // First try to delete a specific material rule
       let query = supabase
         .from('component_material_eligibility')
         .delete()
         .eq('fence_type', activeTab)
         .eq('component_id', selectedComponentId)
         .eq('material_id', materialId)
-        .eq('selection_mode', 'specific');
+        .eq('selection_mode', 'specific')
+        .is('material_category', null)
+        .is('material_subcategory', null);
 
-      // Add attribute filter condition
-      const attrFilter = buildAttributeFilter();
       if (attrFilter) {
         query = query.eq('attribute_filter', attrFilter);
       } else {
         query = query.is('attribute_filter', null);
       }
 
-      const { error } = await query;
+      const { error, count } = await query;
 
       if (error) throw error;
+
+      // If nothing was deleted, this material might come from a category rule
+      // In that case, we can't remove it individually - show a message
+      if (count === 0) {
+        showError('This material comes from a category rule - remove the rule instead');
+        setSaving(false);
+        return;
+      }
+
       showSuccess('Material removed');
       queryClient.invalidateQueries({ queryKey: ['component-eligibility'] });
       queryClient.invalidateQueries({ queryKey: ['eligible-materials-view'] });
