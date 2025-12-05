@@ -67,10 +67,10 @@ export function useComponentMaterialRules(productTypeId: string | null) {
       if (!productTypeId) return [];
 
       const { data, error } = await supabase
-        .from('component_material_rules')
+        .from('component_material_rules_v2')
         .select(`
           *,
-          component:component_definitions(code, name),
+          component:component_definitions_v2(code, name),
           product_type:product_types(code, name),
           material:materials(material_sku, material_name)
         `)
@@ -96,7 +96,7 @@ export function useEligibleMaterials(productTypeId: string | null, componentCode
       if (!productTypeId || !componentCode) return [];
 
       const { data, error } = await supabase
-        .from('v_component_eligible_materials')
+        .from('v_component_eligible_materials_v2')
         .select('*')
         .eq('product_type_id', productTypeId)
         .eq('component_code', componentCode)
@@ -121,7 +121,7 @@ export function useAllEligibleMaterials(productTypeId: string | null) {
       if (!productTypeId) return new Map<string, EligibleMaterial[]>();
 
       const { data, error } = await supabase
-        .from('v_component_eligible_materials')
+        .from('v_component_eligible_materials_v2')
         .select('*')
         .eq('product_type_id', productTypeId)
         .order('component_code')
@@ -189,7 +189,7 @@ export function useCreateMaterialRule() {
   return useMutation({
     mutationFn: async (rule: Omit<ComponentMaterialRule, 'id' | 'created_at' | 'updated_at'>) => {
       const { data, error } = await supabase
-        .from('component_material_rules')
+        .from('component_material_rules_v2')
         .insert(rule)
         .select()
         .single();
@@ -214,7 +214,7 @@ export function useUpdateMaterialRule() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<ComponentMaterialRule> & { id: string }) => {
       const { data, error } = await supabase
-        .from('component_material_rules')
+        .from('component_material_rules_v2')
         .update(updates)
         .eq('id', id)
         .select()
@@ -240,7 +240,7 @@ export function useDeleteMaterialRule() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('component_material_rules')
+        .from('component_material_rules_v2')
         .delete()
         .eq('id', id);
 

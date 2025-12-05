@@ -84,10 +84,10 @@ export function useProductTypeWithComponents(productTypeId: string | null) {
       if (typeError) throw typeError;
 
       const { data: typeComponents, error: compError } = await supabase
-        .from('product_type_components')
+        .from('product_type_components_v2')
         .select(`
           *,
-          component:component_definitions(*)
+          component:component_definitions_v2(*)
         `)
         .eq('product_type_id', productTypeId)
         .order('display_order');
@@ -134,7 +134,7 @@ export function useComponentDefinitions() {
     queryKey: ['component-definitions'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('component_definitions')
+        .from('component_definitions_v2')
         .select('*')
         .order('display_order');
 
@@ -154,10 +154,10 @@ export function useProductTypeComponents(productTypeId: string | null) {
       if (!productTypeId) return [];
 
       const { data, error } = await supabase
-        .from('product_type_components')
+        .from('product_type_components_v2')
         .select(`
           *,
-          component:component_definitions(*)
+          component:component_definitions_v2(*)
         `)
         .eq('product_type_id', productTypeId)
         .order('display_order');

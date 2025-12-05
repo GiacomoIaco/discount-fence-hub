@@ -296,8 +296,8 @@ export function CalculatorPage({
             *,
             product_type:product_types(*),
             product_style:product_styles(*),
-            components:sku_components(
-              component:component_definitions(*),
+            components:sku_components_v2(
+              component:component_definitions_v2(*),
               material:materials(*)
             )
           `)

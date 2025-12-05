@@ -60,10 +60,10 @@ export function useProductSKUWithDetails(skuId: string | null) {
 
       // Fetch components with materials
       const { data: components, error: compError } = await supabase
-        .from('sku_components')
+        .from('sku_components_v2')
         .select(`
           *,
-          component:component_definitions(*),
+          component:component_definitions_v2(*),
           material:materials(id, material_sku, material_name, unit_cost, actual_width, length_ft)
         `)
         .eq('sku_id', skuId);
@@ -117,10 +117,10 @@ export function useAllProductSKUsWithDetails(productTypeCode?: string) {
       if (skuIds.length === 0) return [];
 
       const { data: allComponents, error: compError } = await supabase
-        .from('sku_components')
+        .from('sku_components_v2')
         .select(`
           *,
-          component:component_definitions(*),
+          component:component_definitions_v2(*),
           material:materials(id, material_sku, material_name, unit_cost, actual_width, length_ft)
         `)
         .in('sku_id', skuIds);
@@ -172,7 +172,7 @@ export function useCreateProductSKU() {
         }));
 
         const { error: compError } = await supabase
-          .from('sku_components')
+          .from('sku_components_v2')
           .insert(componentRows);
 
         if (compError) throw compError;
@@ -211,7 +211,7 @@ export function useUpdateProductSKU() {
       if (data.components) {
         // Delete existing components
         await supabase
-          .from('sku_components')
+          .from('sku_components_v2')
           .delete()
           .eq('sku_id', data.id);
 
@@ -224,7 +224,7 @@ export function useUpdateProductSKU() {
           }));
 
           const { error: compError } = await supabase
-            .from('sku_components')
+            .from('sku_components_v2')
             .insert(componentRows);
 
           if (compError) throw compError;

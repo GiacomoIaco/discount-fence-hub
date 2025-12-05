@@ -56,7 +56,7 @@ export abstract class BaseProductCalculator {
     const params = new Map<string, number>();
 
     const { data: dbParams } = await supabase
-      .from('formula_parameters')
+      .from('formula_parameters_v2')
       .select('*')
       .or(`product_type_id.is.null,product_type_id.eq.${sku.product_type_id}`)
       .order('product_type_id', { ascending: true, nullsFirst: true })
