@@ -270,14 +270,20 @@ export default function ComponentConfiguratorPage() {
 
     setSaving(true);
     try {
+      // Use upsert to handle duplicates gracefully
       const { error } = await supabase
         .from('component_material_eligibility')
-        .insert({
+        .upsert({
           fence_type: activeTab,
           component_id: selectedComponentId,
           selection_mode: 'specific',
           material_id: materialId,
+          material_category: null,
+          material_subcategory: null,
           attribute_filter: buildAttributeFilter(),
+        }, {
+          onConflict: 'fence_type,component_id,material_category,material_subcategory,material_id,attribute_filter',
+          ignoreDuplicates: true
         });
 
       if (error) throw error;
@@ -377,12 +383,18 @@ export default function ComponentConfiguratorPage() {
         component_id: selectedComponentId,
         selection_mode: 'specific' as const,
         material_id: m.id,
+        material_category: null,
+        material_subcategory: null,
         attribute_filter: buildAttributeFilter(),
       }));
 
+      // Use upsert to handle duplicates gracefully
       const { error } = await supabase
         .from('component_material_eligibility')
-        .insert(inserts);
+        .upsert(inserts, {
+          onConflict: 'fence_type,component_id,material_category,material_subcategory,material_id,attribute_filter',
+          ignoreDuplicates: true
+        });
 
       if (error) throw error;
       showSuccess(`Added ${newMaterials.length} materials`);
