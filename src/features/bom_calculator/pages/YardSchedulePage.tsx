@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
   Search,
-  Filter,
   Loader2,
   Package,
   MapPin,
@@ -11,7 +10,6 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
-  ChevronRight,
   Printer,
   Camera,
   MoreVertical,
@@ -20,6 +18,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import { fetchAndGeneratePickListPDF } from '../components/PickListPDF';
+import CrewSignoffModal from '../components/CrewSignoffModal';
 
 // Types
 interface Yard {
@@ -91,6 +91,21 @@ export default function YardSchedulePage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPickup, setSelectedPickup] = useState<ScheduledPickup | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const [signoffPickup, setSignoffPickup] = useState<ScheduledPickup | null>(null);
+
+  // Handle print pick list
+  const handlePrintPickList = async (projectId: string) => {
+    setPrintingId(projectId);
+    try {
+      await fetchAndGeneratePickListPDF(projectId, supabase, 3);
+      showSuccess('Pick list PDF generated (3 copies)');
+    } catch (err: any) {
+      showError(err.message || 'Failed to generate pick list');
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   // Fetch yards
   const { data: yards = [] } = useQuery({
@@ -455,13 +470,20 @@ export default function YardSchedulePage() {
                         {/* Actions Menu */}
                         <div className="flex items-center gap-1">
                           <button
-                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Print Pick List"
+                            onClick={() => handlePrintPickList(pickup.id)}
+                            disabled={printingId === pickup.id}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Print Pick List (3 copies)"
                           >
-                            <Printer className="w-4 h-4" />
+                            {printingId === pickup.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Printer className="w-4 h-4" />
+                            )}
                           </button>
                           <button
-                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            onClick={() => setSignoffPickup(pickup)}
+                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                             title="Capture Sign-off"
                           >
                             <Camera className="w-4 h-4" />
@@ -534,6 +556,19 @@ export default function YardSchedulePage() {
           </div>
         )}
       </div>
+
+      {/* Crew Sign-off Modal */}
+      {signoffPickup && (
+        <CrewSignoffModal
+          projectId={signoffPickup.id}
+          projectCode={signoffPickup.project_code}
+          projectName={signoffPickup.project_name}
+          onClose={() => setSignoffPickup(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['yard-schedule'] });
+          }}
+        />
+      )}
     </div>
   );
 }

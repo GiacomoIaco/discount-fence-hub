@@ -64,7 +64,8 @@
       "Bash(copy \"2025.08.10 GPT Fence Bom_labor System Suggestion – Data Model & Calculation Spec.docx\" \"C:\\Users\\giaco\\discount-fence-hub\\temp_doc.zip\")",
       "Bash(cmd /c \"copy \"\"C:\\Users\\giaco\\OneDrive - Discount Fence Enterprises USA\\01. Priorities\\01. System Update\\WebApp\\01. Back Ground Info for Claude\\Material And Labor Calculation Logic\\2025.08.10 GPT Fence Bom_labor System Suggestion – Data Model & Calculation Spec.docx\"\" \"\"C:\\Users\\giaco\\discount-fence-hub\\temp_doc.zip\"\"\")",
       "Bash(npx xlsx-cli:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []
