@@ -50,6 +50,12 @@ interface CustomBuilderPageProps {
   onClearSelection?: () => void;
 }
 
+// Helper to truncate text
+const truncate = (text: string, maxLength: number): string => {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+};
+
 export default function CustomBuilderPage({ selectedSKU, onClearSelection }: CustomBuilderPageProps) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -406,58 +412,106 @@ export default function CustomBuilderPage({ selectedSKU, onClearSelection }: Cus
   }
 
   return (
-    <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
-      {/* Left Panel - Configuration */}
-      <div className="w-[520px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {editingId && (
-              <button
-                onClick={resetForm}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                title="New Custom Product"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-purple-600" />
-              <div>
-                <h1 className="text-base font-bold text-gray-900">
-                  {editingId ? 'Edit Custom Product' : 'Custom Builder'}
-                </h1>
-                {editingId && <p className="text-xs text-purple-600">{skuCode}</p>}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden h-full">
+      {/* Header Bar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {editingId && (
             <button
               onClick={resetForm}
-              className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-xs font-medium flex items-center gap-1.5"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              title="New Custom Product"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset
+              <ArrowLeft className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || !skuCode || !skuName}
-              className={`px-3 py-1.5 text-white rounded text-xs font-medium flex items-center gap-1.5 disabled:bg-gray-400 ${
-                editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
-              }`}
-            >
-              {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              {editingId ? 'Update' : 'Save'}
-            </button>
+          )}
+          <div className="flex items-center gap-2">
+            <Wrench className="w-5 h-5 text-purple-600" />
+            <div>
+              <h1 className="text-base font-bold text-gray-900">
+                {editingId ? 'Edit Custom Product' : 'Custom Builder'}
+              </h1>
+              {editingId && <p className="text-xs text-purple-600">{skuCode}</p>}
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          {/* Basic Info */}
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <div className="w-24 flex-shrink-0">
-                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU #</label>
+        {/* Test Parameters & Actions */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-gray-500">Test:</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={previewQuantity}
+                onChange={(e) => setPreviewQuantity(Number(e.target.value) || 0)}
+                className="w-16 px-2 py-1 border border-gray-300 rounded text-xs"
+              />
+              <span className="text-gray-400">{unitBasis}</span>
+            </div>
+            <select
+              value={previewBusinessUnitId}
+              onChange={(e) => setPreviewBusinessUnitId(e.target.value)}
+              className="w-24 px-1 py-1 border border-gray-300 rounded text-xs"
+            >
+              {businessUnits.map(bu => (
+                <option key={bu.id} value={bu.id}>{bu.code}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="h-6 w-px bg-gray-300" />
+
+          <button
+            onClick={resetForm}
+            className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-xs font-medium flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset
+          </button>
+          <button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending || !skuCode || !skuName}
+            className={`px-3 py-1.5 text-white rounded text-xs font-medium flex items-center gap-1.5 disabled:bg-gray-400 ${
+              editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
+            }`}
+          >
+            {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {editingId ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* Cost Summary Bar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2">
+        <div className="flex gap-3">
+          <div className="bg-purple-600 text-white rounded-lg px-4 py-2 text-center min-w-[120px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/{unitBasis}</div>
+            <div className="text-xl font-bold">${formatNumber(costPreview.costPerUnit)}</div>
+          </div>
+          <div className="bg-green-600 text-white rounded-lg px-4 py-2 text-center min-w-[120px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Total ({previewQuantity} {unitBasis})</div>
+            <div className="text-xl font-bold">${formatNumber(costPreview.totalCost)}</div>
+          </div>
+          <div className="bg-amber-500 text-white rounded-lg px-4 py-2 text-center min-w-[100px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Material</div>
+            <div className="text-lg font-bold">${formatNumber(costPreview.materialCostPerUnit)}</div>
+          </div>
+          <div className="bg-blue-500 text-white rounded-lg px-4 py-2 text-center min-w-[100px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Labor</div>
+            <div className="text-lg font-bold">${formatNumber(costPreview.laborCostPerUnit)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-4xl mx-auto space-y-4">
+          {/* Basic Info Card */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-2">
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">SKU Code</label>
                 <input
                   type="text"
                   value={skuCode}
@@ -466,8 +520,8 @@ export default function CustomBuilderPage({ selectedSKU, onClearSelection }: Cus
                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
-              <div className="flex-1">
-                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU Name</label>
+              <div className="col-span-4">
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">SKU Name</label>
                 <input
                   type="text"
                   value={skuName}
@@ -476,11 +530,8 @@ export default function CustomBuilderPage({ selectedSKU, onClearSelection }: Cus
                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
-            </div>
-
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Unit Basis</label>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">Unit Basis</label>
                 <select
                   value={unitBasis}
                   onChange={(e) => setUnitBasis(e.target.value as UnitBasis)}
@@ -491,8 +542,8 @@ export default function CustomBuilderPage({ selectedSKU, onClearSelection }: Cus
                   ))}
                 </select>
               </div>
-              <div className="flex-1">
-                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Category</label>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">Category</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
@@ -503,310 +554,204 @@ export default function CustomBuilderPage({ selectedSKU, onClearSelection }: Cus
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional description..."
-                rows={2}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 resize-none"
-              />
+              <div className="col-span-2">
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Optional..."
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Materials Section */}
-          <div className="bg-amber-50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
+          {/* Materials Card */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
               <h3 className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
                 Materials (Optional)
               </h3>
-              <button
-                onClick={addMaterialItem}
-                className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Material
-              </button>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-amber-700">
+                  Subtotal: ${formatNumber(costPreview.totalMaterialCost)}
+                </span>
+                <button
+                  onClick={addMaterialItem}
+                  className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-amber-100"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add
+                </button>
+              </div>
             </div>
 
             {materialItems.length === 0 ? (
-              <p className="text-xs text-amber-600 italic">No materials - labor only product</p>
-            ) : (
-              <div className="space-y-2">
-                {materialItems.map((item, index) => (
-                  <div key={item.id} className="flex items-center gap-2 bg-white rounded p-2 border border-amber-200">
-                    <select
-                      value={item.material_id}
-                      onChange={(e) => updateMaterialItem(index, 'material_id', e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                    >
-                      <option value="">Select material...</option>
-                      {materials.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        value={item.quantity_per_unit}
-                        onChange={(e) => updateMaterialItem(index, 'quantity_per_unit', parseFloat(e.target.value) || 0)}
-                        className="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center"
-                        step="0.1"
-                        min="0"
-                      />
-                      <span className="text-[10px] text-gray-500">/{unitBasis}</span>
-                    </div>
-                    <button
-                      onClick={() => removeMaterialItem(index)}
-                      className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+              <div className="px-4 py-3 text-xs text-gray-500 italic">
+                No materials added - this will be a labor-only product
               </div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr className="text-[10px] text-gray-500 uppercase">
+                    <th className="text-left py-2 px-3">Material</th>
+                    <th className="text-right py-2 px-2 w-20">Qty/{unitBasis}</th>
+                    <th className="text-right py-2 px-2 w-20">Unit Cost</th>
+                    <th className="text-right py-2 px-2 w-24">Test Qty</th>
+                    <th className="text-right py-2 px-2 w-24">Total</th>
+                    <th className="w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {materialItems.map((item, index) => {
+                    const mat = getMaterial(item.material_id);
+                    const totalQty = item.quantity_per_unit * previewQuantity;
+                    const totalCost = mat ? totalQty * mat.unit_cost : 0;
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="py-2 px-3">
+                          <select
+                            value={item.material_id}
+                            onChange={(e) => updateMaterialItem(index, 'material_id', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs bg-white"
+                          >
+                            <option value="">Select material...</option>
+                            {materials.map(m => (
+                              <option key={m.id} value={m.id}>
+                                {m.material_sku} - {truncate(m.material_name, 35)} (${m.unit_cost.toFixed(2)})
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <input
+                            type="number"
+                            value={item.quantity_per_unit}
+                            onChange={(e) => updateMaterialItem(index, 'quantity_per_unit', parseFloat(e.target.value) || 0)}
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-right"
+                            step="0.1"
+                            min="0"
+                          />
+                        </td>
+                        <td className="py-2 px-2 text-right text-gray-600">
+                          {mat ? `$${mat.unit_cost.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-right text-gray-600">
+                          {mat ? Math.ceil(totalQty).toLocaleString() : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-right font-medium text-amber-600">
+                          {mat ? `$${formatNumber(totalCost)}` : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            onClick={() => removeMaterialItem(index)}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
 
-          {/* Labor Section */}
-          <div className="bg-blue-50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
+          {/* Labor Card */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
               <h3 className="text-xs font-semibold text-blue-800 uppercase tracking-wide">
                 Labor Codes
               </h3>
-              <button
-                onClick={addLaborItem}
-                className="text-xs text-blue-700 hover:text-blue-900 flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Labor
-              </button>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-blue-700">
+                  Subtotal: ${formatNumber(costPreview.totalLaborCost)}
+                </span>
+                <button
+                  onClick={addLaborItem}
+                  className="text-xs text-blue-700 hover:text-blue-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-100"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add
+                </button>
+              </div>
             </div>
 
             {laborItems.length === 0 ? (
-              <div className="flex items-center gap-2 text-xs text-amber-600">
+              <div className="px-4 py-3 flex items-center gap-2 text-xs text-amber-600">
                 <AlertTriangle className="w-4 h-4" />
-                Add at least one labor code
+                Add at least one labor code for this product
               </div>
             ) : (
-              <div className="space-y-2">
-                {laborItems.map((item, index) => {
-                  const laborCode = getLaborCode(item.labor_code_id);
-                  const rate = getLaborRate(item.labor_code_id);
-                  return (
-                    <div key={item.id} className="flex items-center gap-2 bg-white rounded p-2 border border-blue-200">
-                      <select
-                        value={item.labor_code_id}
-                        onChange={(e) => updateLaborItem(index, 'labor_code_id', e.target.value)}
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                      >
-                        <option value="">Select labor code...</option>
-                        {laborCodes.map(l => (
-                          <option key={l.id} value={l.id}>
-                            {l.labor_sku} - {l.description}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          value={item.quantity_per_unit}
-                          onChange={(e) => updateLaborItem(index, 'quantity_per_unit', parseFloat(e.target.value) || 0)}
-                          className="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center"
-                          step="0.1"
-                          min="0"
-                        />
-                        <span className="text-[10px] text-gray-500">/{unitBasis}</span>
-                      </div>
-                      {laborCode && rate > 0 && (
-                        <span className="text-[10px] text-blue-600 font-medium w-14 text-right">
-                          ${rate.toFixed(2)}/{laborCode.unit_type.replace('Per ', '')}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => removeLaborItem(index)}
-                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr className="text-[10px] text-gray-500 uppercase">
+                    <th className="text-left py-2 px-3">Labor Code</th>
+                    <th className="text-right py-2 px-2 w-20">Qty/{unitBasis}</th>
+                    <th className="text-right py-2 px-2 w-20">Rate</th>
+                    <th className="text-right py-2 px-2 w-24">Test Qty</th>
+                    <th className="text-right py-2 px-2 w-24">Total</th>
+                    <th className="w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {laborItems.map((item, index) => {
+                    const laborCode = getLaborCode(item.labor_code_id);
+                    const rate = getLaborRate(item.labor_code_id);
+                    const totalQty = item.quantity_per_unit * previewQuantity;
+                    const totalCost = totalQty * rate;
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="py-2 px-3">
+                          <select
+                            value={item.labor_code_id}
+                            onChange={(e) => updateLaborItem(index, 'labor_code_id', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs bg-white"
+                          >
+                            <option value="">Select labor code...</option>
+                            {laborCodes.map(l => (
+                              <option key={l.id} value={l.id}>
+                                {l.labor_sku} - {truncate(l.description, 40)}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <input
+                            type="number"
+                            value={item.quantity_per_unit}
+                            onChange={(e) => updateLaborItem(index, 'quantity_per_unit', parseFloat(e.target.value) || 0)}
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-right"
+                            step="0.1"
+                            min="0"
+                          />
+                        </td>
+                        <td className="py-2 px-2 text-right text-gray-600">
+                          {laborCode && rate > 0 ? `$${rate.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-right text-gray-600">
+                          {laborCode ? totalQty.toFixed(1) : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-right font-medium text-blue-600">
+                          {laborCode ? `$${formatNumber(totalCost)}` : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            onClick={() => removeLaborItem(index)}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Right Panel - Preview */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Key Stats */}
-        <div className="bg-white border-b border-gray-200 px-3 py-2">
-          <div className="grid grid-cols-4 gap-2">
-            <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/{unitBasis}</div>
-              <div className="text-lg font-bold">${formatNumber(costPreview.costPerUnit)}</div>
-            </div>
-            <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide opacity-80">Total Cost</div>
-              <div className="text-lg font-bold">${formatNumber(costPreview.totalCost)}</div>
-            </div>
-            <div className="bg-amber-500 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide opacity-80">Material/{unitBasis}</div>
-              <div className="text-lg font-bold">${formatNumber(costPreview.materialCostPerUnit)}</div>
-            </div>
-            <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide opacity-80">Labor/{unitBasis}</div>
-              <div className="text-lg font-bold">${formatNumber(costPreview.laborCostPerUnit)}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Test Parameters */}
-        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-medium text-gray-600">Test:</span>
-            <div className="flex items-center gap-1">
-              <label className="text-[10px] text-gray-500">Quantity</label>
-              <input
-                type="number"
-                value={previewQuantity}
-                onChange={(e) => setPreviewQuantity(Number(e.target.value) || 0)}
-                className="w-20 px-2 py-1 border border-gray-300 rounded text-xs"
-              />
-              <span className="text-[10px] text-gray-400">{unitBasis}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <label className="text-[10px] text-gray-500">BU</label>
-              <select
-                value={previewBusinessUnitId}
-                onChange={(e) => setPreviewBusinessUnitId(e.target.value)}
-                className="w-28 px-1 py-1 border border-gray-300 rounded text-xs"
-              >
-                {businessUnits.map(bu => (
-                  <option key={bu.id} value={bu.id}>{bu.code}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3">
-          {/* Warning if no items */}
-          {materialItems.length === 0 && laborItems.length === 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 mb-3">
-              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-medium text-amber-800">Add materials or labor codes to see preview</p>
-                <p className="text-[10px] text-amber-600">Custom products need at least one component</p>
-              </div>
-            </div>
-          )}
-
-          {/* Preview Tables */}
-          {(materialItems.length > 0 || laborItems.length > 0) && (
-            <div className="space-y-3">
-              {/* Materials Table */}
-              {materialItems.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-gray-700">
-                      Materials <span className="text-gray-400 font-normal">({materialItems.filter(m => m.material_id).length} items)</span>
-                    </h4>
-                    <span className="text-xs font-semibold text-amber-600">
-                      ${formatNumber(costPreview.totalMaterialCost)}
-                    </span>
-                  </div>
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
-                      <tr className="text-[10px] text-gray-500 uppercase">
-                        <th className="text-left py-1.5 px-2">Material</th>
-                        <th className="text-right py-1.5 px-2 w-16">Qty/{unitBasis}</th>
-                        <th className="text-right py-1.5 px-2 w-16">Unit Cost</th>
-                        <th className="text-right py-1.5 px-2 w-16">Total Qty</th>
-                        <th className="text-right py-1.5 px-2 w-20">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {materialItems
-                        .filter(item => item.material_id)
-                        .map((item, i) => {
-                          const mat = getMaterial(item.material_id);
-                          if (!mat) return null;
-                          const totalQty = item.quantity_per_unit * previewQuantity;
-                          const totalCost = totalQty * mat.unit_cost;
-                          return (
-                            <tr key={i} className="hover:bg-gray-50">
-                              <td className="py-1.5 px-2">
-                                <div className="font-medium text-gray-900">{mat.material_name}</div>
-                                <div className="text-[10px] text-gray-400">{mat.material_sku}</div>
-                              </td>
-                              <td className="py-1.5 px-2 text-right text-gray-600">{item.quantity_per_unit}</td>
-                              <td className="py-1.5 px-2 text-right text-gray-500">${mat.unit_cost.toFixed(2)}</td>
-                              <td className="py-1.5 px-2 text-right text-gray-700">{Math.ceil(totalQty)}</td>
-                              <td className="py-1.5 px-2 text-right font-medium text-amber-600">${formatNumber(totalCost)}</td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Labor Table */}
-              {laborItems.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-gray-700">
-                      Labor <span className="text-gray-400 font-normal">({laborItems.filter(l => l.labor_code_id).length} items)</span>
-                    </h4>
-                    <span className="text-xs font-semibold text-blue-600">
-                      ${formatNumber(costPreview.totalLaborCost)}
-                    </span>
-                  </div>
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
-                      <tr className="text-[10px] text-gray-500 uppercase">
-                        <th className="text-left py-1.5 px-2">Labor</th>
-                        <th className="text-right py-1.5 px-2 w-16">Qty/{unitBasis}</th>
-                        <th className="text-right py-1.5 px-2 w-16">Rate</th>
-                        <th className="text-right py-1.5 px-2 w-16">Total Qty</th>
-                        <th className="text-right py-1.5 px-2 w-20">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {laborItems
-                        .filter(item => item.labor_code_id)
-                        .map((item, i) => {
-                          const laborCode = getLaborCode(item.labor_code_id);
-                          const rate = getLaborRate(item.labor_code_id);
-                          if (!laborCode) return null;
-                          const totalQty = item.quantity_per_unit * previewQuantity;
-                          const totalCost = totalQty * rate;
-                          return (
-                            <tr key={i} className="hover:bg-gray-50">
-                              <td className="py-1.5 px-2">
-                                <div className="font-medium text-gray-900">{laborCode.description}</div>
-                                <div className="text-[10px] text-gray-400">{laborCode.labor_sku}</div>
-                              </td>
-                              <td className="py-1.5 px-2 text-right text-gray-600">{item.quantity_per_unit}</td>
-                              <td className="py-1.5 px-2 text-right text-gray-500">${rate.toFixed(2)}</td>
-                              <td className="py-1.5 px-2 text-right text-gray-700">{totalQty.toFixed(1)}</td>
-                              <td className="py-1.5 px-2 text-right font-medium text-blue-600">${formatNumber(totalCost)}</td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
