@@ -2,6 +2,7 @@ import {
   Calculator,
   FolderOpen,
   Wrench,
+  Sliders,
   Package,
   Boxes,
   DollarSign,
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'sku-catalog' | 'materials' | 'labor-rates';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'materials' | 'labor-rates';
 
 interface NavItem {
   id: BOMHubPage;
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'calculator', label: 'Calculator', icon: Calculator },
   { id: 'projects', label: 'Projects', icon: FolderOpen },
   { id: 'sku-builder', label: 'SKU Builder', icon: Wrench },
+  { id: 'custom-builder', label: 'Custom Builder', icon: Sliders },
   { id: 'sku-catalog', label: 'SKU Catalog', icon: Package },
 ];
 

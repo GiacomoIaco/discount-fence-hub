@@ -7,6 +7,7 @@ import LaborRatesPage from './pages/LaborRatesPage';
 import ProjectsPage from './pages/ProjectsPage';
 import SKUBuilderPage from './pages/SKUBuilderPage';
 import SKUCatalogPage from './pages/SKUCatalogPage';
+import CustomBuilderPage from './pages/CustomBuilderPage';
 
 // Lazy load Hub v2 for code splitting
 const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
@@ -21,7 +22,7 @@ interface BOMCalculatorHubProps {
 // SKU selection for navigation between Catalog and Builder
 export interface SelectedSKU {
   id: string;
-  type: 'wood-vertical' | 'wood-horizontal' | 'iron';
+  type: 'wood-vertical' | 'wood-horizontal' | 'iron' | 'custom';
   skuCode: string;
 }
 
@@ -47,7 +48,11 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
   // Navigate to SKU Builder with a selected SKU
   const handleEditSKU = (sku: SelectedSKU) => {
     setSelectedSKU(sku);
-    setActivePage('sku-builder');
+    if (sku.type === 'custom') {
+      setActivePage('custom-builder');
+    } else {
+      setActivePage('sku-builder');
+    }
   };
 
   // Navigate to calculator with a project to edit/duplicate
@@ -56,9 +61,9 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
     setActivePage('calculator');
   };
 
-  // Clear selected SKU when leaving SKU Builder
+  // Clear selected SKU when leaving SKU Builder or Custom Builder
   const handlePageChange = (page: BOMHubPage) => {
-    if (page !== 'sku-builder') {
+    if (page !== 'sku-builder' && page !== 'custom-builder') {
       setSelectedSKU(null);
     }
     // Clear project when navigating away from calculator
@@ -158,6 +163,17 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
         return (
           <SKUBuilderPage
             selectedSKU={selectedSKU}
+            onClearSelection={() => setSelectedSKU(null)}
+          />
+        );
+
+      case 'custom-builder':
+        if (!isAdmin) {
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
+        }
+        return (
+          <CustomBuilderPage
+            selectedSKU={selectedSKU?.type === 'custom' ? { id: selectedSKU.id, type: 'custom' } : null}
             onClearSelection={() => setSelectedSKU(null)}
           />
         );

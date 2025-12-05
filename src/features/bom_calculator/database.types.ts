@@ -326,14 +326,74 @@ export interface ProjectWithDetails extends BOMProject {
 }
 
 // ============================================================================
+// CUSTOM PRODUCTS (Flexible products/services)
+// ============================================================================
+
+export type UnitBasis = 'LF' | 'SF' | 'EA' | 'PROJECT';
+
+export interface CustomProduct {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+
+  unit_basis: UnitBasis;
+
+  // Cached costs (updated on save)
+  standard_material_cost: number;
+  standard_labor_cost: number;
+  standard_cost_per_unit: number;
+  standard_cost_calculated_at: string | null;
+
+  // Metadata
+  product_description: string | null;
+  category: string | null; // 'Service', 'Add-On', 'Repair', 'Upgrade'
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomProductMaterial {
+  id: string;
+  custom_product_id: string;
+  material_id: string;
+  quantity_per_unit: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface CustomProductLabor {
+  id: string;
+  custom_product_id: string;
+  labor_code_id: string;
+  quantity_per_unit: number;
+  notes: string | null;
+  created_at: string;
+}
+
+// With relations
+export interface CustomProductMaterialWithDetails extends CustomProductMaterial {
+  material: Material;
+}
+
+export interface CustomProductLaborWithDetails extends CustomProductLabor {
+  labor_code: LaborCode;
+}
+
+export interface CustomProductWithDetails extends CustomProduct {
+  materials: CustomProductMaterialWithDetails[];
+  labor: CustomProductLaborWithDetails[];
+}
+
+// ============================================================================
 // UTILITY TYPES
 // ============================================================================
 
-export type AnyProduct = WoodVerticalProduct | WoodHorizontalProduct | IronProduct;
+export type AnyProduct = WoodVerticalProduct | WoodHorizontalProduct | IronProduct | CustomProduct;
 export type AnyProductWithMaterials =
   | WoodVerticalProductWithMaterials
   | WoodHorizontalProductWithMaterials
-  | IronProductWithMaterials;
+  | IronProductWithMaterials
+  | CustomProductWithDetails;
 
 // Type guards
 export const isWoodVertical = (product: AnyProduct): product is WoodVerticalProduct => {
@@ -346,4 +406,8 @@ export const isWoodHorizontal = (product: AnyProduct): product is WoodHorizontal
 
 export const isIron = (product: AnyProduct): product is IronProduct => {
   return 'panel_material_id' in product || 'rails_per_panel' in product;
+};
+
+export const isCustomProduct = (product: AnyProduct): product is CustomProduct => {
+  return 'unit_basis' in product && !('post_material_id' in product);
 };

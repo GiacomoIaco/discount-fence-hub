@@ -8,9 +8,11 @@ import type {
   BusinessUnit,
   Material,
   LaborRateWithDetails,
+  LaborCode,
   WoodVerticalProductWithMaterials,
   WoodHorizontalProductWithMaterials,
   IronProductWithMaterials,
+  CustomProductWithDetails,
   BOMProject,
   ProjectWithDetails,
 } from '../database.types';
@@ -249,6 +251,127 @@ export function useIronProducts() {
   }, []);
 
   return { products, loading, error };
+}
+
+// ============================================================================
+// CUSTOM PRODUCTS
+// ============================================================================
+
+export function useCustomProducts() {
+  const [products, setProducts] = useState<CustomProductWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const { data, error } = await supabase
+          .from('custom_products')
+          .select(
+            `
+            *,
+            materials:custom_product_materials(
+              *,
+              material:materials(*)
+            ),
+            labor:custom_product_labor(
+              *,
+              labor_code:labor_codes(*)
+            )
+          `
+          )
+          .eq('is_active', true)
+          .order('sku_code');
+
+        if (error) throw error;
+        setProducts((data || []) as CustomProductWithDetails[]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch custom products');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProducts();
+  }, []);
+
+  return { products, loading, error };
+}
+
+export function useCustomProduct(productId: string | null) {
+  const [product, setProduct] = useState<CustomProductWithDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!productId) {
+      setProduct(null);
+      setLoading(false);
+      return;
+    }
+
+    async function fetchProduct() {
+      try {
+        const { data, error } = await supabase
+          .from('custom_products')
+          .select(
+            `
+            *,
+            materials:custom_product_materials(
+              *,
+              material:materials(*)
+            ),
+            labor:custom_product_labor(
+              *,
+              labor_code:labor_codes(*)
+            )
+          `
+          )
+          .eq('id', productId)
+          .single();
+
+        if (error) throw error;
+        setProduct((data || null) as CustomProductWithDetails | null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch custom product');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProduct();
+  }, [productId]);
+
+  return { product, loading, error };
+}
+
+export function useLaborCodes() {
+  const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchLaborCodes() {
+      try {
+        const { data, error } = await supabase
+          .from('labor_codes')
+          .select('*')
+          .eq('is_active', true)
+          .order('labor_sku');
+
+        if (error) throw error;
+        setLaborCodes(data || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch labor codes');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLaborCodes();
+  }, []);
+
+  return { laborCodes, loading, error };
 }
 
 // ============================================================================
