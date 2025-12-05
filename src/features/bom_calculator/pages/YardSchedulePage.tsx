@@ -90,7 +90,6 @@ export default function YardSchedulePage() {
   const [dateFilter, setDateFilter] = useState('today');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPickup, setSelectedPickup] = useState<ScheduledPickup | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [signoffPickup, setSignoffPickup] = useState<ScheduledPickup | null>(null);
 

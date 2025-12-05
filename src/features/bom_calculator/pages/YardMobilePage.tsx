@@ -12,7 +12,6 @@ import {
   ChevronDown,
   Search,
   Layers,
-  Users,
   ArrowLeft,
   Loader2,
   RefreshCw,
