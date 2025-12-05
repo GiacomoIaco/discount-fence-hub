@@ -540,6 +540,60 @@ export function BOMCalculator({
     loadProject();
   }, [initialProjectId, duplicateMode]);
 
+  // Helper: Get concrete materials with fallback defaults
+  const getConcreteMaterials = useCallback((): any[] => {
+    const dbConcrete = allMaterials.filter(m => m.category === '05-Concrete');
+    const result: any[] = [...dbConcrete];
+
+    if (!result.some(m => m.material_sku === 'CTS')) {
+      result.push({
+        id: 'fallback-cts',
+        material_sku: 'CTS',
+        material_name: 'Sand & Gravel Mix (50lb)',
+        category: '05-Concrete',
+        unit_type: 'bag',
+        unit_cost: 4.25,
+      });
+    }
+    if (!result.some(m => m.material_sku === 'CTP')) {
+      result.push({
+        id: 'fallback-ctp',
+        material_sku: 'CTP',
+        material_name: 'Portland Cement (94lb)',
+        category: '05-Concrete',
+        unit_type: 'bag',
+        unit_cost: 12.75,
+      });
+    }
+    if (!result.some(m => m.material_sku === 'CTQ')) {
+      result.push({
+        id: 'fallback-ctq',
+        material_sku: 'CTQ',
+        material_name: 'QuickRock (50lb)',
+        category: '05-Concrete',
+        unit_type: 'bag',
+        unit_cost: 5.50,
+      });
+    }
+
+    return result;
+  }, [allMaterials]);
+
+  // Helper: Get hardware material with fallback
+  const getHardwareMaterial = useCallback((sku: string, name: string, cost: number): any => {
+    const found = allMaterials.find(m => m.material_sku === sku);
+    if (found) return found;
+
+    return {
+      id: `fallback-${sku.toLowerCase()}`,
+      material_sku: sku,
+      material_name: name,
+      category: '08-Hardware',
+      unit_type: sku === 'HW08' ? 'coil' : 'box',
+      unit_cost: cost,
+    };
+  }, [allMaterials]);
+
   // Auto-calculate when inputs change
   const calculate = useCallback(() => {
     if (!businessUnitId || loading) return;
@@ -547,6 +601,16 @@ export function BOMCalculator({
     const calculator = new FenceCalculator('project');
     const allMaterials: any[] = [];
     const allLabor: any[] = [];
+
+    // Track aggregates for project-level calculations
+    let totalPosts = 0;
+    let totalPickets = 0;
+    let totalBoards = 0;
+    let totalNailers = 0;
+    let totalRailCount = 0;
+    let hasCap = false;
+    let hasWoodVertical = false;
+    let hasWoodHorizontal = false;
 
     for (const item of lineItems) {
       if (!item.productId || item.netLength <= 0) continue;
@@ -560,10 +624,18 @@ export function BOMCalculator({
       let result;
       if (item.fenceType === 'wood_vertical') {
         const product = products.woodVertical.find(p => p.id === item.productId);
-        if (product) result = calculator.calculateWoodVertical(product, input, laborRates);
+        if (product) {
+          result = calculator.calculateWoodVertical(product, input, laborRates);
+          hasWoodVertical = true;
+          totalRailCount = Math.max(totalRailCount, product.rail_count);
+          if (product.cap_material_id) hasCap = true;
+        }
       } else if (item.fenceType === 'wood_horizontal') {
         const product = products.woodHorizontal.find(p => p.id === item.productId);
-        if (product) result = calculator.calculateWoodHorizontal(product, input, laborRates);
+        if (product) {
+          result = calculator.calculateWoodHorizontal(product, input, laborRates);
+          hasWoodHorizontal = true;
+        }
       } else if (item.fenceType === 'iron') {
         const product = products.iron.find(p => p.id === item.productId);
         if (product) result = calculator.calculateIron(product, input, laborRates);
@@ -572,6 +644,68 @@ export function BOMCalculator({
       if (result) {
         allMaterials.push(...result.materials);
         allLabor.push(...result.labor);
+
+        // Aggregate quantities for project-level calculations
+        for (const mat of result.materials) {
+          if (mat.category === '01-Post') totalPosts += mat.quantity;
+          if (mat.category === '02-Pickets') totalPickets += mat.quantity;
+          if (mat.category === '07-Horizontal Boards') totalBoards += mat.quantity;
+          if (mat.category === '03-Rails') totalNailers += mat.quantity;
+        }
+      }
+    }
+
+    // PROJECT-LEVEL: Add concrete (calculated on aggregated posts)
+    if (totalPosts > 0) {
+      const concreteMaterials = getConcreteMaterials();
+      const concreteMats = calculator.calculateConcrete(Math.ceil(totalPosts), '3-part', concreteMaterials);
+      allMaterials.push(...concreteMats);
+    }
+
+    // PROJECT-LEVEL: Add nails for wood vertical (calculated on aggregated totals)
+    if (hasWoodVertical && totalPickets > 0) {
+      const picketNailMat = allMaterials.find(m => m.material_sku === 'HW08')
+        || getHardwareMaterial('HW08', 'Picket Nails (300/coil)', 8.50);
+      if (picketNailMat) {
+        const trimQty = allMaterials
+          .filter(m => m.category === '04-Cap/Trim' && m.material_name?.toLowerCase().includes('trim'))
+          .reduce((sum, m) => sum + m.quantity, 0);
+        const nailResult = calculator.calculatePicketNails(
+          Math.ceil(totalPickets),
+          totalRailCount || 2,
+          Math.ceil(trimQty),
+          picketNailMat
+        );
+        allMaterials.push(nailResult);
+      }
+
+      const frameNailMat = allMaterials.find(m => m.material_sku === 'HW07')
+        || getHardwareMaterial('HW07', 'Frame Nails (28/box)', 12.00);
+      if (frameNailMat) {
+        const nailResult = calculator.calculateFrameNails(
+          Math.ceil(totalPosts),
+          totalRailCount || 2,
+          hasCap,
+          frameNailMat
+        );
+        allMaterials.push(nailResult);
+      }
+    }
+
+    // PROJECT-LEVEL: Add nails for wood horizontal
+    if (hasWoodHorizontal && totalBoards > 0) {
+      const boardNailMat = getHardwareMaterial('HW08', 'Picket Nails (300/coil)', 8.50);
+      if (boardNailMat) {
+        const nailResult = calculator.calculateBoardNails(Math.ceil(totalBoards), boardNailMat);
+        allMaterials.push(nailResult);
+      }
+
+      if (totalNailers > 0) {
+        const structNailMat = getHardwareMaterial('HW07', 'Frame Nails (28/box)', 12.00);
+        if (structNailMat) {
+          const nailResult = calculator.calculateStructureNails(Math.ceil(totalNailers), structNailMat);
+          allMaterials.push(nailResult);
+        }
       }
     }
 
@@ -651,7 +785,7 @@ export function BOMCalculator({
         return row;
       }).concat(prev.filter(p => p.is_manual));
     });
-  }, [businessUnitId, lineItems, products, laborRates, loading]);
+  }, [businessUnitId, lineItems, products, laborRates, loading, getConcreteMaterials, getHardwareMaterial]);
 
   // Debounced auto-calculate
   useEffect(() => {
