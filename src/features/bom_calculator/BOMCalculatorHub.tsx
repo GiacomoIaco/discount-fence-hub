@@ -10,6 +10,7 @@ import SKUCatalogPage from './pages/SKUCatalogPage';
 import CustomBuilderPage from './pages/CustomBuilderPage';
 import SKUImportPage from './pages/SKUImportPage';
 import SKUQueuePage from './pages/SKUQueuePage';
+import AnalyticsPage from './pages/AnalyticsPage';
 
 // Lazy load Hub v2 for code splitting
 const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
@@ -214,6 +215,12 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
             }}
           />
         );
+
+      case 'analytics':
+        if (!isAdmin) {
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
+        }
+        return <AnalyticsPage />;
 
       default:
         return null;

@@ -11,11 +11,12 @@ import {
   PanelLeftClose,
   FlaskConical,
   Upload,
-  ListTodo
+  ListTodo,
+  BarChart3
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics';
 
 interface NavItem {
   id: BOMHubPage;
@@ -38,6 +39,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'sku-queue', label: 'SKU Queue', icon: ListTodo, adminOnly: true },
   { id: 'materials', label: 'Materials', icon: Boxes, adminOnly: true },
   { id: 'labor-rates', label: 'Labor Rates', icon: DollarSign, adminOnly: true },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3, adminOnly: true },
 ];
 
 interface HubSidebarProps {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, X, Save, Loader2, Upload, Download, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Save, Loader2, Upload, Download, AlertTriangle, CheckCircle, History } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import PriceHistoryModal from '../components/PriceHistoryModal';
 
 interface Material {
   id: string;
@@ -101,6 +102,9 @@ export default function MaterialsPage() {
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Price History modal state
+  const [historyMaterial, setHistoryMaterial] = useState<Material | null>(null);
 
   useEffect(() => {
     loadMaterials();
@@ -569,6 +573,13 @@ export default function MaterialsPage() {
                     <td className="px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => setHistoryMaterial(material)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                          title="View price history"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => openEditModal(material)}
                           className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
                           title="Edit"
@@ -978,6 +989,18 @@ export default function MaterialsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Price History Modal */}
+      {historyMaterial && (
+        <PriceHistoryModal
+          type="material"
+          itemId={historyMaterial.id}
+          itemName={historyMaterial.material_name}
+          itemCode={historyMaterial.material_sku}
+          currentPrice={historyMaterial.unit_cost}
+          onClose={() => setHistoryMaterial(null)}
+        />
       )}
     </div>
   );

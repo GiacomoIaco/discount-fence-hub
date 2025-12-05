@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Loader2, AlertCircle, Upload, Download, CheckCircle, X, AlertTriangle, Plus, Pencil } from 'lucide-react';
+import { Save, Loader2, AlertCircle, Upload, Download, CheckCircle, X, AlertTriangle, Plus, Pencil, History } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import PriceHistoryModal from '../components/PriceHistoryModal';
 
 interface BusinessUnit {
   id: string;
@@ -782,6 +783,13 @@ function LaborCodeModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // History modal state
+  const [historyRateInfo, setHistoryRateInfo] = useState<{
+    rateId: string;
+    buCode: string;
+    rate: number;
+  } | null>(null);
+
   // Rate inputs for each BU
   const [rates, setRates] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -793,6 +801,12 @@ function LaborCodeModal({
     }
     return initial;
   });
+
+  // Get rate record for a business unit
+  const getRateRecord = (buId: string): LaborRate | undefined => {
+    if (!code) return undefined;
+    return laborRates.find(r => r.labor_code_id === code.id && r.business_unit_id === buId);
+  };
 
   const handleSave = async () => {
     if (!laborSku.trim() || !description.trim()) {
@@ -997,20 +1011,39 @@ function LaborCodeModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Rates by Business Unit ($)</label>
             <div className="grid grid-cols-4 gap-3">
-              {businessUnits.map(bu => (
-                <div key={bu.id}>
-                  <label className="block text-xs text-gray-500 mb-0.5" title={bu.name}>{bu.code}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={rates[bu.id] || ''}
-                    onChange={(e) => setRates(prev => ({ ...prev, [bu.id]: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-right"
-                  />
-                </div>
-              ))}
+              {businessUnits.map(bu => {
+                const rateRecord = getRateRecord(bu.id);
+                return (
+                  <div key={bu.id}>
+                    <label className="block text-xs text-gray-500 mb-0.5" title={bu.name}>{bu.code}</label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={rates[bu.id] || ''}
+                        onChange={(e) => setRates(prev => ({ ...prev, [bu.id]: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-right"
+                      />
+                      {rateRecord && (
+                        <button
+                          type="button"
+                          onClick={() => setHistoryRateInfo({
+                            rateId: rateRecord.id,
+                            buCode: bu.code,
+                            rate: rateRecord.rate,
+                          })}
+                          className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                          title="View rate history"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1055,6 +1088,18 @@ function LaborCodeModal({
           </div>
         </div>
       </div>
+
+      {/* Rate History Modal */}
+      {historyRateInfo && code && (
+        <PriceHistoryModal
+          type="labor"
+          itemId={historyRateInfo.rateId}
+          itemName={`${description} (${historyRateInfo.buCode})`}
+          itemCode={laborSku}
+          currentPrice={historyRateInfo.rate}
+          onClose={() => setHistoryRateInfo(null)}
+        />
+      )}
     </div>
   );
 }
