@@ -8,6 +8,8 @@ import ProjectsPage from './pages/ProjectsPage';
 import SKUBuilderPage from './pages/SKUBuilderPage';
 import SKUCatalogPage from './pages/SKUCatalogPage';
 import CustomBuilderPage from './pages/CustomBuilderPage';
+import SKUImportPage from './pages/SKUImportPage';
+import SKUQueuePage from './pages/SKUQueuePage';
 
 // Lazy load Hub v2 for code splitting
 const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
@@ -63,7 +65,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
 
   // Clear selected SKU when leaving SKU Builder or Custom Builder
   const handlePageChange = (page: BOMHubPage) => {
-    if (page !== 'sku-builder' && page !== 'custom-builder') {
+    if (page !== 'sku-builder' && page !== 'custom-builder' && page !== 'sku-queue') {
       setSelectedSKU(null);
     }
     // Clear project when navigating away from calculator
@@ -183,6 +185,33 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
           <SKUCatalogPage
             onEditSKU={handleEditSKU}
             isAdmin={isAdmin}
+          />
+        );
+
+      case 'sku-import':
+        if (!isAdmin) {
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
+        }
+        return <SKUImportPage />;
+
+      case 'sku-queue':
+        if (!isAdmin) {
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
+        }
+        return (
+          <SKUQueuePage
+            onEditSKU={(id, type) => {
+              // Navigate to the appropriate builder based on type
+              if (type === 'custom') {
+                setSelectedSKU({ id, type: 'custom', skuCode: '' });
+                setActivePage('custom-builder');
+              } else {
+                const skuType = type === 'wood_vertical' ? 'wood-vertical' :
+                               type === 'wood_horizontal' ? 'wood-horizontal' : 'iron';
+                setSelectedSKU({ id, type: skuType as 'wood-vertical' | 'wood-horizontal' | 'iron', skuCode: '' });
+                setActivePage('sku-builder');
+              }
+            }}
           />
         );
 

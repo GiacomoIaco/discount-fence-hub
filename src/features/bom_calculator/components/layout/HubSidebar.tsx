@@ -9,11 +9,13 @@ import {
   ArrowLeft,
   ChevronRight,
   PanelLeftClose,
-  FlaskConical
+  FlaskConical,
+  Upload,
+  ListTodo
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'materials' | 'labor-rates';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates';
 
 interface NavItem {
   id: BOMHubPage;
@@ -32,6 +34,8 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { id: 'sku-import', label: 'SKU Import', icon: Upload, adminOnly: true },
+  { id: 'sku-queue', label: 'SKU Queue', icon: ListTodo, adminOnly: true },
   { id: 'materials', label: 'Materials', icon: Boxes, adminOnly: true },
   { id: 'labor-rates', label: 'Labor Rates', icon: DollarSign, adminOnly: true },
 ];

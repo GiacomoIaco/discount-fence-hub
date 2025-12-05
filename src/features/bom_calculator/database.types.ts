@@ -14,6 +14,7 @@ export type PostType = 'WOOD' | 'STEEL';
 export type ConcreteType = '3-part' | 'yellow-bags' | 'red-bags';
 export type ProjectStatus = 'draft' | 'quoted' | 'approved' | 'completed';
 export type FenceTypeDB = 'wood_vertical' | 'wood_horizontal' | 'iron';
+export type SKUStatus = 'draft' | 'complete' | 'archived';
 
 // ============================================================================
 // REFERENCE TABLES
@@ -116,6 +117,13 @@ export interface WoodVerticalProduct {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // SKU Import tracking
+  sku_status: SKUStatus;
+  imported_at: string | null;
+  populated_at: string | null;
+  populated_by: string | null;
+  import_notes: string | null;
 }
 
 export interface WoodHorizontalProduct {
@@ -144,6 +152,13 @@ export interface WoodHorizontalProduct {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // SKU Import tracking
+  sku_status: SKUStatus;
+  imported_at: string | null;
+  populated_at: string | null;
+  populated_by: string | null;
+  import_notes: string | null;
 }
 
 export interface IronProduct {
@@ -172,6 +187,13 @@ export interface IronProduct {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // SKU Import tracking
+  sku_status: SKUStatus;
+  imported_at: string | null;
+  populated_at: string | null;
+  populated_by: string | null;
+  import_notes: string | null;
 }
 
 // ============================================================================
@@ -350,6 +372,13 @@ export interface CustomProduct {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // SKU Import tracking
+  sku_status: SKUStatus;
+  imported_at: string | null;
+  populated_at: string | null;
+  populated_by: string | null;
+  import_notes: string | null;
 }
 
 export interface CustomProductMaterial {

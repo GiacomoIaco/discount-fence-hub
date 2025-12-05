@@ -331,6 +331,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // SKU Import tracking
+      sku_status: 'complete',
+      imported_at: null,
+      populated_at: null,
+      populated_by: null,
+      import_notes: null,
       // Material relations
       post_material: postMat,
       picket_material: picketMat,
@@ -371,6 +377,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // SKU Import tracking
+      sku_status: 'complete',
+      imported_at: null,
+      populated_at: null,
+      populated_by: null,
+      import_notes: null,
       // Material relations
       post_material: postMat,
       board_material: boardMat,
@@ -409,6 +421,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // SKU Import tracking
+      sku_status: 'complete',
+      imported_at: null,
+      populated_at: null,
+      populated_by: null,
+      import_notes: null,
       // Material relations
       post_material: postMat,
       panel_material: getMaterial(panelMaterialId),
