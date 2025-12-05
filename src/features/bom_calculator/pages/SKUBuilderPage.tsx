@@ -7,8 +7,6 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import type { SelectedSKU } from '../BOMCalculatorHub';
-import ComponentConfigPanel from '../components/ComponentConfigPanel';
-import type { FenceTypeDB } from '../database.types';
 import {
   FenceCalculator,
   type CalculationInput,
@@ -1058,13 +1056,6 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
             )}
           </div>
 
-          {/* Component Configuration Panel */}
-          <div className="mt-3">
-            <ComponentConfigPanel
-              fenceType={(productType === 'wood-vertical' ? 'wood_vertical' : productType === 'wood-horizontal' ? 'wood_horizontal' : 'iron') as FenceTypeDB}
-              productId={editingId}
-            />
-          </div>
         </div>
       </div>
 

@@ -12,11 +12,12 @@ import {
   FlaskConical,
   Upload,
   ListTodo,
-  BarChart3
+  BarChart3,
+  Settings2
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config';
 
 interface NavItem {
   id: BOMHubPage;
@@ -39,6 +40,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'sku-queue', label: 'SKU Queue', icon: ListTodo, adminOnly: true },
   { id: 'materials', label: 'Materials', icon: Boxes, adminOnly: true },
   { id: 'labor-rates', label: 'Labor Rates', icon: DollarSign, adminOnly: true },
+  { id: 'component-config', label: 'Components', icon: Settings2, adminOnly: true },
   { id: 'analytics', label: 'Analytics', icon: BarChart3, adminOnly: true },
 ];
 

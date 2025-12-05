@@ -11,6 +11,7 @@ import CustomBuilderPage from './pages/CustomBuilderPage';
 import SKUImportPage from './pages/SKUImportPage';
 import SKUQueuePage from './pages/SKUQueuePage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import ComponentConfiguratorPage from './pages/ComponentConfiguratorPage';
 
 // Lazy load Hub v2 for code splitting
 const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
@@ -221,6 +222,12 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
           return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
         }
         return <AnalyticsPage />;
+
+      case 'component-config':
+        if (!isAdmin) {
+          return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
+        }
+        return <ComponentConfiguratorPage />;
 
       default:
         return null;
