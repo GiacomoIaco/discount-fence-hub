@@ -8,6 +8,7 @@ import {
   Plus,
   Loader2,
   ChevronRight,
+  ChevronDown,
   Filter,
   Package,
   Layers,
@@ -15,7 +16,23 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import type { Material, FenceTypeDB, ComponentDefinition } from '../database.types';
+import type { Material, FenceTypeDB } from '../database.types';
+
+// Extended ComponentDefinition with filter attributes
+interface ComponentDefinitionWithFilters {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  fence_types: FenceTypeDB[];
+  default_category: string | null;
+  default_sub_category: string | null;
+  display_order: number;
+  is_required: boolean;
+  is_active: boolean;
+  filter_attribute: string | null;
+  filter_values: string[] | null;
+}
 
 // Types
 interface ComponentMaterialEligibility {
@@ -26,6 +43,7 @@ interface ComponentMaterialEligibility {
   material_category: string | null;
   material_subcategory: string | null;
   material_id: string | null;
+  attribute_filter: Record<string, string> | null;
   min_length_ft: number | null;
   max_length_ft: number | null;
   notes: string | null;
@@ -38,6 +56,9 @@ interface EligibleMaterial {
   component_id: string;
   component_code: string;
   component_name: string;
+  filter_attribute: string | null;
+  filter_values: string[] | null;
+  attribute_filter: Record<string, string> | null;
   material_id: string;
   material_sku: string;
   material_name: string;
@@ -59,14 +80,16 @@ export default function ComponentConfiguratorPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<FenceTab>('wood_vertical');
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [selectedAttributeValue, setSelectedAttributeValue] = useState<string | null>(null);
   const [materialSearch, setMaterialSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [subcategoryFilter, setSubcategoryFilter] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
 
   // Fetch component definitions for active fence type
   const { data: components = [] } = useQuery({
-    queryKey: ['component-definitions', activeTab],
+    queryKey: ['component-definitions-with-filters', activeTab],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('component_definitions')
@@ -76,7 +99,7 @@ export default function ComponentConfiguratorPage() {
         .order('display_order');
 
       if (error) throw error;
-      return data as ComponentDefinition[];
+      return data as ComponentDefinitionWithFilters[];
     },
   });
 
@@ -147,13 +170,40 @@ export default function ComponentConfiguratorPage() {
   // Get selected component
   const selectedComponent = components.find(c => c.id === selectedComponentId);
 
-  // Get rules for selected component
-  const componentRules = eligibilityRules.filter(r => r.component_id === selectedComponentId);
+  // Get rules for selected component and attribute value
+  const componentRules = eligibilityRules.filter(r => {
+    if (r.component_id !== selectedComponentId) return false;
 
-  // Get eligible materials for selected component
-  const componentEligibleMaterials = eligibleMaterials.filter(
-    m => m.component_id === selectedComponentId
-  );
+    // If component has filter attribute, match by attribute value
+    if (selectedComponent?.filter_attribute && selectedAttributeValue) {
+      if (!r.attribute_filter) return false;
+      return r.attribute_filter[selectedComponent.filter_attribute] === selectedAttributeValue;
+    }
+
+    // If no filter attribute or no value selected, show rules without attribute filter
+    return !r.attribute_filter;
+  });
+
+  // Get eligible materials for selected component and attribute value
+  const componentEligibleMaterials = useMemo(() => {
+    return eligibleMaterials.filter(m => {
+      if (m.component_id !== selectedComponentId) return false;
+
+      // If component has filter attribute, match by attribute value
+      if (selectedComponent?.filter_attribute && selectedAttributeValue) {
+        if (!m.attribute_filter) return false;
+        return m.attribute_filter[selectedComponent.filter_attribute] === selectedAttributeValue;
+      }
+
+      // If no filter attribute, show all materials for this component
+      if (!selectedComponent?.filter_attribute) {
+        return true;
+      }
+
+      // If filter attribute exists but no value selected, show nothing
+      return false;
+    });
+  }, [eligibleMaterials, selectedComponentId, selectedComponent, selectedAttributeValue]);
 
   // Filter all materials for the browser
   const filteredMaterials = useMemo(() => {
@@ -178,6 +228,14 @@ export default function ComponentConfiguratorPage() {
     return componentEligibleMaterials.some(m => m.material_id === materialId);
   };
 
+  // Build attribute filter for current selection
+  const buildAttributeFilter = (): Record<string, string> | null => {
+    if (!selectedComponent?.filter_attribute || !selectedAttributeValue) {
+      return null;
+    }
+    return { [selectedComponent.filter_attribute]: selectedAttributeValue };
+  };
+
   // Add category/subcategory rule
   const addCategoryRule = async (category: string, subcategory?: string) => {
     if (!selectedComponentId) return;
@@ -192,6 +250,7 @@ export default function ComponentConfiguratorPage() {
           selection_mode: subcategory ? 'subcategory' : 'category',
           material_category: category,
           material_subcategory: subcategory || null,
+          attribute_filter: buildAttributeFilter(),
         });
 
       if (error) throw error;
@@ -219,6 +278,7 @@ export default function ComponentConfiguratorPage() {
           component_id: selectedComponentId,
           selection_mode: 'specific',
           material_id: materialId,
+          attribute_filter: buildAttributeFilter(),
         });
 
       if (error) throw error;
@@ -239,13 +299,24 @@ export default function ComponentConfiguratorPage() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Build query for deletion
+      let query = supabase
         .from('component_material_eligibility')
         .delete()
         .eq('fence_type', activeTab)
         .eq('component_id', selectedComponentId)
         .eq('material_id', materialId)
         .eq('selection_mode', 'specific');
+
+      // Add attribute filter condition
+      const attrFilter = buildAttributeFilter();
+      if (attrFilter) {
+        query = query.eq('attribute_filter', attrFilter);
+      } else {
+        query = query.is('attribute_filter', null);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
       showSuccess('Material removed');
@@ -298,6 +369,7 @@ export default function ComponentConfiguratorPage() {
       const newMaterials = filteredMaterials.filter(m => !isMaterialEligible(m.id));
       if (newMaterials.length === 0) {
         showSuccess('All visible materials already added');
+        setSaving(false);
         return;
       }
 
@@ -306,6 +378,7 @@ export default function ComponentConfiguratorPage() {
         component_id: selectedComponentId,
         selection_mode: 'specific' as const,
         material_id: m.id,
+        attribute_filter: buildAttributeFilter(),
       }));
 
       const { error } = await supabase
@@ -324,9 +397,61 @@ export default function ComponentConfiguratorPage() {
     }
   };
 
-  // Count eligible materials per component
-  const getComponentMaterialCount = (componentId: string) => {
+  // Count eligible materials per component (and optionally per attribute value)
+  const getComponentMaterialCount = (componentId: string, attributeValue?: string) => {
+    const component = components.find(c => c.id === componentId);
+
+    return eligibleMaterials.filter(m => {
+      if (m.component_id !== componentId) return false;
+
+      if (component?.filter_attribute && attributeValue) {
+        if (!m.attribute_filter) return false;
+        return m.attribute_filter[component.filter_attribute] === attributeValue;
+      }
+
+      if (!component?.filter_attribute) {
+        return true;
+      }
+
+      return false;
+    }).length;
+  };
+
+  // Get total count for component (all attribute values)
+  const getTotalComponentMaterialCount = (componentId: string) => {
     return eligibleMaterials.filter(m => m.component_id === componentId).length;
+  };
+
+  // Toggle component expansion
+  const toggleComponentExpansion = (componentId: string) => {
+    const newExpanded = new Set(expandedComponents);
+    if (newExpanded.has(componentId)) {
+      newExpanded.delete(componentId);
+    } else {
+      newExpanded.add(componentId);
+    }
+    setExpandedComponents(newExpanded);
+  };
+
+  // Handle component selection
+  const handleSelectComponent = (componentId: string, attributeValue?: string) => {
+    setSelectedComponentId(componentId);
+    setSelectedAttributeValue(attributeValue || null);
+
+    // Auto-expand if has filter values
+    const component = components.find(c => c.id === componentId);
+    if (component?.filter_values && !expandedComponents.has(componentId)) {
+      setExpandedComponents(new Set([...expandedComponents, componentId]));
+    }
+  };
+
+  // Check if a component+attribute is selected
+  const isSelected = (componentId: string, attributeValue?: string) => {
+    if (selectedComponentId !== componentId) return false;
+    if (attributeValue) {
+      return selectedAttributeValue === attributeValue;
+    }
+    return !selectedAttributeValue;
   };
 
   return (
@@ -351,6 +476,7 @@ export default function ComponentConfiguratorPage() {
               onClick={() => {
                 setActiveTab(tab.key);
                 setSelectedComponentId(null);
+                setSelectedAttributeValue(null);
               }}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.key
@@ -368,42 +494,88 @@ export default function ComponentConfiguratorPage() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Components */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+        <div className="w-72 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
           <div className="px-3 py-2 border-b border-gray-100">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Components</h3>
           </div>
           <div className="flex-1 overflow-y-auto">
             {components.map(comp => {
-              const count = getComponentMaterialCount(comp.id);
-              const isSelected = selectedComponentId === comp.id;
+              const hasFilterValues = comp.filter_values && comp.filter_values.length > 0;
+              const isExpanded = expandedComponents.has(comp.id);
+              const totalCount = getTotalComponentMaterialCount(comp.id);
 
               return (
-                <button
-                  key={comp.id}
-                  onClick={() => setSelectedComponentId(comp.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors ${
-                    isSelected
-                      ? 'bg-green-50 border-l-2 border-green-600'
-                      : 'hover:bg-gray-50 border-l-2 border-transparent'
-                  }`}
-                >
-                  <div>
-                    <div className={`text-sm font-medium ${isSelected ? 'text-green-700' : 'text-gray-900'}`}>
-                      {comp.name}
+                <div key={comp.id}>
+                  {/* Component Header */}
+                  <button
+                    onClick={() => {
+                      if (hasFilterValues) {
+                        toggleComponentExpansion(comp.id);
+                      } else {
+                        handleSelectComponent(comp.id);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors ${
+                      isSelected(comp.id) && !hasFilterValues
+                        ? 'bg-green-50 border-l-2 border-green-600'
+                        : 'hover:bg-gray-50 border-l-2 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {hasFilterValues && (
+                        <span className="text-gray-400">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </span>
+                      )}
+                      <div>
+                        <div className={`text-sm font-medium ${
+                          isSelected(comp.id) && !hasFilterValues ? 'text-green-700' : 'text-gray-900'
+                        }`}>
+                          {comp.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {comp.filter_attribute ? `By ${comp.filter_attribute.replace('_', ' ')}` : comp.default_category || 'All materials'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {comp.default_category || 'No default category'}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                      totalCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      {count}
+                      {totalCount}
                     </span>
-                    <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-green-600' : 'text-gray-400'}`} />
-                  </div>
-                </button>
+                  </button>
+
+                  {/* Attribute Value Sub-items */}
+                  {hasFilterValues && isExpanded && (
+                    <div className="bg-gray-50 border-t border-gray-100">
+                      {comp.filter_values!.map(value => {
+                        const count = getComponentMaterialCount(comp.id, value);
+                        const isValueSelected = isSelected(comp.id, value);
+
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => handleSelectComponent(comp.id, value)}
+                            className={`w-full flex items-center justify-between pl-10 pr-3 py-2 text-left transition-colors ${
+                              isValueSelected
+                                ? 'bg-green-100 border-l-2 border-green-600'
+                                : 'hover:bg-gray-100 border-l-2 border-transparent'
+                            }`}
+                          >
+                            <span className={`text-sm ${isValueSelected ? 'text-green-700 font-medium' : 'text-gray-700'}`}>
+                              {value}
+                            </span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                              count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -417,9 +589,14 @@ export default function ComponentConfiguratorPage() {
               <div className="bg-white border-b border-gray-200 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-gray-900">{selectedComponent.name}</h2>
+                    <h2 className="text-base font-semibold text-gray-900">
+                      {selectedComponent.name}
+                      {selectedAttributeValue && (
+                        <span className="text-green-600 ml-2">→ {selectedAttributeValue}</span>
+                      )}
+                    </h2>
                     <p className="text-xs text-gray-500">
-                      {componentEligibleMaterials.length} materials eligible for {FENCE_TABS.find(t => t.key === activeTab)?.label}
+                      {componentEligibleMaterials.length} materials eligible
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -518,57 +695,68 @@ export default function ComponentConfiguratorPage() {
 
               {/* Material List */}
               <div className="flex-1 overflow-y-auto p-2">
-                <div className="grid grid-cols-1 gap-1">
-                  {filteredMaterials.map(material => {
-                    const isEligible = isMaterialEligible(material.id);
+                {/* Show message if filter attribute required but not selected */}
+                {selectedComponent.filter_attribute && !selectedAttributeValue ? (
+                  <div className="flex-1 flex items-center justify-center text-gray-500 py-12">
+                    <div className="text-center">
+                      <ChevronRight className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">Select a {selectedComponent.filter_attribute.replace('_', ' ')} value</p>
+                      <p className="text-xs text-gray-400 mt-1">from the left panel to configure materials</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-1">
+                    {filteredMaterials.map(material => {
+                      const isEligible = isMaterialEligible(material.id);
 
-                    return (
-                      <div
-                        key={material.id}
-                        onClick={() => toggleMaterial(material.id)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-colors ${
-                          isEligible
-                            ? 'bg-green-50 border border-green-200'
-                            : 'bg-white border border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                          isEligible
-                            ? 'bg-green-600 border-green-600'
-                            : 'border-gray-300'
-                        }`}>
-                          {isEligible && <Check className="w-3 h-3 text-white" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
-                            <span className="text-sm font-medium text-gray-900 truncate">{material.material_name}</span>
+                      return (
+                        <div
+                          key={material.id}
+                          onClick={() => toggleMaterial(material.id)}
+                          className={`flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-colors ${
+                            isEligible
+                              ? 'bg-green-50 border border-green-200'
+                              : 'bg-white border border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                            isEligible
+                              ? 'bg-green-600 border-green-600'
+                              : 'border-gray-300'
+                          }`}>
+                            {isEligible && <Check className="w-3 h-3 text-white" />}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span>{material.category}</span>
-                            {material.sub_category && (
-                              <>
-                                <span>•</span>
-                                <span>{material.sub_category}</span>
-                              </>
-                            )}
-                            {material.length_ft && (
-                              <>
-                                <span>•</span>
-                                <span>{material.length_ft}ft</span>
-                              </>
-                            )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
+                              <span className="text-sm font-medium text-gray-900 truncate">{material.material_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span>{material.category}</span>
+                              {material.sub_category && (
+                                <>
+                                  <span>•</span>
+                                  <span>{material.sub_category}</span>
+                                </>
+                              )}
+                              {material.length_ft && (
+                                <>
+                                  <span>•</span>
+                                  <span>{material.length_ft}ft</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs font-medium text-gray-600">
+                            ${material.unit_cost.toFixed(2)}
                           </div>
                         </div>
-                        <div className="text-xs font-medium text-gray-600">
-                          ${material.unit_cost.toFixed(2)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                {filteredMaterials.length === 0 && (
+                {selectedAttributeValue && filteredMaterials.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <p className="text-sm">No materials match your filters</p>
                   </div>
