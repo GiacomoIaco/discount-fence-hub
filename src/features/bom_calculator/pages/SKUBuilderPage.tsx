@@ -42,6 +42,32 @@ const IRON_STYLES = [
 ];
 
 type ProductType = 'wood-vertical' | 'wood-horizontal' | 'iron';
+type FenceTypeDB = 'wood_vertical' | 'wood_horizontal' | 'iron';
+
+// Map UI product type to DB fence type
+const productTypeToFenceType: Record<ProductType, FenceTypeDB> = {
+  'wood-vertical': 'wood_vertical',
+  'wood-horizontal': 'wood_horizontal',
+  'iron': 'iron',
+};
+
+// Eligible material from the view
+interface EligibleMaterial {
+  fence_type: FenceTypeDB;
+  component_id: string;
+  component_code: string;
+  component_name: string;
+  filter_attribute: string | null;
+  filter_values: string[] | null;
+  attribute_filter: Record<string, string> | null;
+  material_id: string;
+  material_sku: string;
+  material_name: string;
+  category: string;
+  sub_category: string | null;
+  unit_cost: number;
+  length_ft: number | null;
+}
 
 // Preview test parameters
 interface PreviewParams {
@@ -188,6 +214,45 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     },
   });
 
+  // Fetch eligible materials from Component Configurator
+  const fenceType = productTypeToFenceType[productType];
+  const { data: eligibleMaterials = [] } = useQuery({
+    queryKey: ['eligible-materials-sku-builder', fenceType],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_component_eligible_materials')
+        .select('*')
+        .eq('fence_type', fenceType);
+      if (error) throw error;
+      return data as EligibleMaterial[];
+    },
+  });
+
+  // Helper to get eligible materials for a component with optional attribute filter
+  const getEligibleMaterialsForComponent = (
+    componentCode: string,
+    attributeFilter?: Record<string, string>
+  ): Material[] => {
+    // Filter eligible materials by component code
+    let eligible = eligibleMaterials.filter(em => em.component_code === componentCode);
+
+    // If attribute filter provided, match it
+    if (attributeFilter) {
+      eligible = eligible.filter(em => {
+        if (!em.attribute_filter) return false;
+        return Object.entries(attributeFilter).every(
+          ([key, value]) => em.attribute_filter?.[key] === value
+        );
+      });
+    }
+
+    // Get material IDs
+    const materialIds = new Set(eligible.map(em => em.material_id));
+
+    // Return full material objects
+    return materials.filter(m => materialIds.has(m.id));
+  };
+
   // Fetch business units
   const { data: businessUnits = [] } = useQuery({
     queryKey: ['business-units-sku'],
@@ -239,8 +304,26 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     }
   };
 
-  // Filter materials based on fence type and configuration
+  // Filter materials based on Component Configurator data, with fallback to legacy logic
   const filteredPostMaterials = useMemo(() => {
+    // For wood fences, use post_type attribute filter
+    if (productType !== 'iron') {
+      const configured = getEligibleMaterialsForComponent('post', { post_type: postType });
+      if (configured.length > 0) {
+        // Apply height-based length filter for wood posts
+        if (postType === 'WOOD') {
+          const requiredLength = height <= 6 ? 8 : 10;
+          return configured.filter(m => m.length_ft === null || m.length_ft >= requiredLength);
+        }
+        return configured;
+      }
+    } else {
+      // Iron posts - no attribute filter
+      const configured = getEligibleMaterialsForComponent('post');
+      if (configured.length > 0) return configured;
+    }
+
+    // Fallback to legacy logic if no configured materials
     const posts = materials.filter(m => m.category === '01-Post');
     if (productType === 'iron') {
       return posts.filter(m => m.sub_category === 'Iron' || m.material_name.toLowerCase().includes('iron'));
@@ -258,30 +341,95 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
         (m.length_ft === null || m.length_ft >= requiredLength)
       );
     }
-  }, [materials, postType, height, productType]);
+  }, [materials, eligibleMaterials, postType, height, productType]);
 
   const filteredPicketMaterials = useMemo(() => {
+    // Try configured materials first
+    const configured = getEligibleMaterialsForComponent('picket');
+    if (configured.length > 0) {
+      return configured.filter(m => m.length_ft === null || m.length_ft === height);
+    }
+    // Fallback
     const pickets = materials.filter(m => m.category === '02-Pickets');
     return pickets.filter(m => m.length_ft === null || m.length_ft === height);
-  }, [materials, height]);
+  }, [materials, eligibleMaterials, height]);
 
   const filteredRailMaterials = useMemo(() => {
+    // Try configured materials first
+    const configured = getEligibleMaterialsForComponent('rail');
+    if (configured.length > 0) return configured;
+    // Fallback
     return materials.filter(m => m.category === '03-Rails');
-  }, [materials]);
+  }, [materials, eligibleMaterials]);
 
   const filteredCapTrimMaterials = useMemo(() => {
+    // Try configured cap materials
+    const configuredCap = getEligibleMaterialsForComponent('cap');
+    const configuredTrim = getEligibleMaterialsForComponent('trim');
+    if (configuredCap.length > 0 || configuredTrim.length > 0) {
+      return [...configuredCap, ...configuredTrim];
+    }
+    // Fallback
     return materials.filter(m => m.category === '04-Cap/Trim');
-  }, [materials]);
+  }, [materials, eligibleMaterials]);
 
   const filteredHorizontalBoardMaterials = useMemo(() => {
+    // Try configured materials first
+    const configured = getEligibleMaterialsForComponent('board');
+    if (configured.length > 0) {
+      return configured.filter(m => m.length_ft === null || m.length_ft === 6 || m.length_ft === 8);
+    }
+    // Fallback
     const boards = materials.filter(m => m.category === '07-Horizontal Boards');
     return boards.filter(m => m.length_ft === null || m.length_ft === 6 || m.length_ft === 8);
-  }, [materials]);
+  }, [materials, eligibleMaterials]);
 
   const filteredIronPanelMaterials = useMemo(() => {
+    // Try configured materials with style filter
+    const configured = getEligibleMaterialsForComponent('panel', { style });
+    if (configured.length > 0) return configured;
+    // Try without style filter
+    const allPanels = getEligibleMaterialsForComponent('panel');
+    if (allPanels.length > 0) return allPanels;
+    // Fallback
     const panels = materials.filter(m => m.category === '09-Iron' && m.sub_category === 'Panel');
     return panels.filter(m => m.length_ft === null || m.length_ft === 8);
-  }, [materials]);
+  }, [materials, eligibleMaterials, style]);
+
+  const filteredBracketMaterials = useMemo(() => {
+    // Try configured materials with style filter (brackets are for Ameristar)
+    const configured = getEligibleMaterialsForComponent('bracket', { style: 'Ameristar' });
+    if (configured.length > 0) return configured;
+    // Fallback
+    return materials.filter(m => m.category === '08-Hardware' || m.material_name.toLowerCase().includes('bracket'));
+  }, [materials, eligibleMaterials]);
+
+  // Nailer materials for wood horizontal (use configured or fall back to rails)
+  const filteredNailerMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('nailer');
+    if (configured.length > 0) return configured;
+    // Fallback to rails category
+    return materials.filter(m => m.category === '03-Rails');
+  }, [materials, eligibleMaterials]);
+
+  // Rot board materials for wood vertical
+  const filteredRotBoardMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('rot_board');
+    if (configured.length > 0) return configured;
+    // Fallback - rot boards are typically in pickets or a special category
+    return materials.filter(m =>
+      m.material_name.toLowerCase().includes('rot') ||
+      m.sub_category?.toLowerCase().includes('rot')
+    );
+  }, [materials, eligibleMaterials]);
+
+  // Vertical trim materials for wood horizontal
+  const filteredVerticalTrimMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('vertical_trim');
+    if (configured.length > 0) return configured;
+    // Fallback to trim materials
+    return materials.filter(m => m.category === '04-Cap/Trim' && m.sub_category === 'Trim');
+  }, [materials, eligibleMaterials]);
 
   // Get hardware materials for calculations
   const hardwareMaterials = useMemo((): HardwareMaterials => {
@@ -958,6 +1106,21 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     </select>
                   </div>
                 </div>
+                {filteredRotBoardMaterials.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Rot Board</span>
+                    <select
+                      value={rotBoardMaterialId}
+                      onChange={(e) => setRotBoardMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredRotBoardMaterials.map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
 
@@ -985,7 +1148,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                   >
                     <option value="">Select nailer...</option>
-                    {filteredRailMaterials.map(m => (
+                    {filteredNailerMaterials.map(m => (
                       <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
                     ))}
                   </select>
@@ -1012,7 +1175,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                       className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
                       <option value="">None</option>
-                      {filteredCapTrimMaterials.filter(m => m.sub_category === 'Trim').map(m => (
+                      {filteredVerticalTrimMaterials.map(m => (
                         <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
                       ))}
                     </select>
@@ -1046,7 +1209,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                       className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
                       <option value="">Select brackets...</option>
-                      {materials.filter(m => m.category === '08-Hardware' || m.material_name.toLowerCase().includes('bracket')).map(m => (
+                      {filteredBracketMaterials.map(m => (
                         <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
                       ))}
                     </select>
