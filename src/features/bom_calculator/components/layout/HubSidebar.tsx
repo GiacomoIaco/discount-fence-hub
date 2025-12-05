@@ -13,11 +13,14 @@ import {
   Upload,
   ListTodo,
   BarChart3,
-  Settings2
+  Settings2,
+  Warehouse,
+  CalendarDays,
+  MapPin
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config' | 'yard-schedule' | 'yard-spots';
 
 interface NavItem {
   id: BOMHubPage;
@@ -33,6 +36,11 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'sku-builder', label: 'SKU Builder', icon: Wrench },
   { id: 'custom-builder', label: 'Custom Builder', icon: Sliders },
   { id: 'sku-catalog', label: 'SKU Catalog', icon: Package },
+];
+
+const YARD_NAV_ITEMS: NavItem[] = [
+  { id: 'yard-schedule', label: 'Pick Lists', icon: CalendarDays },
+  { id: 'yard-spots', label: 'Yard Spots', icon: MapPin },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
@@ -101,6 +109,16 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
       {/* Main Navigation */}
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {NAV_ITEMS.map(renderNavItem)}
+
+        {/* Yard Section */}
+        <div className="my-2 border-t border-blue-700" />
+        <div className="px-3 pb-1 flex items-center gap-1.5">
+          <Warehouse className="w-3 h-3 text-amber-400" />
+          <span className="text-[10px] font-semibold text-blue-300 uppercase tracking-wider">
+            Yard
+          </span>
+        </div>
+        {YARD_NAV_ITEMS.map(renderNavItem)}
 
         {/* Admin Section Divider */}
         {isAdmin && (
