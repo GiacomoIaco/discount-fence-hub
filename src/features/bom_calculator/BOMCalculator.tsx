@@ -1059,45 +1059,39 @@ export function BOMCalculator({
           </div>
 
           {/* Second Row - Concrete Type */}
-          <div className="flex items-center gap-4 mt-2">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-600 font-medium">Concrete Type:</label>
-              <div className="flex bg-gray-100 rounded-lg p-0.5">
-                <button
-                  onClick={() => setConcreteType('3-part')}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    concreteType === '3-part'
-                      ? 'bg-white text-green-700 font-medium shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  3-Part Mix
-                </button>
-                <button
-                  onClick={() => setConcreteType('yellow-bags')}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    concreteType === 'yellow-bags'
-                      ? 'bg-white text-yellow-700 font-medium shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Yellow Bags
-                </button>
-                <button
-                  onClick={() => setConcreteType('red-bags')}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    concreteType === 'red-bags'
-                      ? 'bg-white text-red-700 font-medium shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Red Bags
-                </button>
-              </div>
-              <span className="text-[10px] text-gray-400">
-                {concreteType === '3-part' ? '(Cheapest)' :
-                 concreteType === 'yellow-bags' ? '(Mid-range)' : '(Premium)'}
-              </span>
+          <div className="mt-2">
+            <label className="block text-xs text-gray-600 mb-1">Concrete Type</label>
+            <div className="flex bg-gray-100 rounded-lg p-0.5 w-fit">
+              <button
+                onClick={() => setConcreteType('3-part')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  concreteType === '3-part'
+                    ? 'bg-white text-green-700 font-medium shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                3-Part Mix
+              </button>
+              <button
+                onClick={() => setConcreteType('yellow-bags')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  concreteType === 'yellow-bags'
+                    ? 'bg-white text-yellow-700 font-medium shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Yellow Bags
+              </button>
+              <button
+                onClick={() => setConcreteType('red-bags')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  concreteType === 'red-bags'
+                    ? 'bg-white text-red-700 font-medium shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Red Bags
+              </button>
             </div>
           </div>
 
