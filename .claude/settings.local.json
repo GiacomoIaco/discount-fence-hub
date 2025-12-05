@@ -58,7 +58,13 @@
       "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\067_sku_labor_costs_table.sql'' | Set-Clipboard\")",
       "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\068_add_labor_rates_unique_constraint.sql'' | Set-Clipboard\")",
       "Bash(powershell -Command \"Get-Content ''C:\\Users\\giaco\\discount-fence-hub\\migrations\\069_calculator_enhancements.sql'' | Set-Clipboard\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(dir:*)",
+      "Bash($null)",
+      "Bash(copy \"2025.08.10 GPT Fence Bom_labor System Suggestion – Data Model & Calculation Spec.docx\" \"C:\\Users\\giaco\\discount-fence-hub\\temp_doc.zip\")",
+      "Bash(cmd /c \"copy \"\"C:\\Users\\giaco\\OneDrive - Discount Fence Enterprises USA\\01. Priorities\\01. System Update\\WebApp\\01. Back Ground Info for Claude\\Material And Labor Calculation Logic\\2025.08.10 GPT Fence Bom_labor System Suggestion – Data Model & Calculation Spec.docx\"\" \"\"C:\\Users\\giaco\\discount-fence-hub\\temp_doc.zip\"\"\")",
+      "Bash(npx xlsx-cli:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

@@ -70,7 +70,7 @@ interface Yard {
   city: string;
 }
 
-// SKU Search Component
+// SKU Search Component - supports searching all product types
 function SKUSearch({
   value,
   onChange,
@@ -78,8 +78,8 @@ function SKUSearch({
   products,
 }: {
   value: string;
-  onChange: (productId: string, productName: string, postType: 'WOOD' | 'STEEL', skuCode: string) => void;
-  fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron';
+  onChange: (productId: string, productName: string, postType: 'WOOD' | 'STEEL', skuCode: string, detectedFenceType?: 'wood_vertical' | 'wood_horizontal' | 'iron') => void;
+  fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron' | 'all';
   products: {
     woodVertical: WoodVerticalProductWithMaterials[];
     woodHorizontal: WoodHorizontalProductWithMaterials[];
@@ -89,10 +89,40 @@ function SKUSearch({
   const [searchTerm, setSearchTerm] = useState('');
   const [isFocused, setIsFocused] = useState(false);
 
-  const productList =
-    fenceType === 'wood_vertical' ? products.woodVertical :
-    fenceType === 'wood_horizontal' ? products.woodHorizontal :
-    products.iron;
+  // Build combined product list with fence type info
+  const allProducts = useMemo(() => {
+    const combined: Array<{
+      id: string;
+      sku_code: string;
+      sku_name: string;
+      post_type: 'WOOD' | 'STEEL';
+      fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron';
+      typeLabel: string;
+    }> = [];
+
+    products.woodVertical.forEach(p => combined.push({
+      ...p,
+      fenceType: 'wood_vertical',
+      typeLabel: 'WV',
+    }));
+    products.woodHorizontal.forEach(p => combined.push({
+      ...p,
+      fenceType: 'wood_horizontal',
+      typeLabel: 'WH',
+    }));
+    products.iron.forEach(p => combined.push({
+      ...p,
+      fenceType: 'iron',
+      typeLabel: 'IR',
+    }));
+
+    return combined;
+  }, [products]);
+
+  const productList = fenceType === 'all' ? allProducts :
+    fenceType === 'wood_vertical' ? products.woodVertical.map(p => ({ ...p, fenceType: 'wood_vertical' as const, typeLabel: 'WV' })) :
+    fenceType === 'wood_horizontal' ? products.woodHorizontal.map(p => ({ ...p, fenceType: 'wood_horizontal' as const, typeLabel: 'WH' })) :
+    products.iron.map(p => ({ ...p, fenceType: 'iron' as const, typeLabel: 'IR' }));
 
   const filteredProducts = productList.filter(p =>
     p.sku_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -119,14 +149,17 @@ function SKUSearch({
             <div
               key={product.id}
               onMouseDown={() => {
-                onChange(product.id, product.sku_name, product.post_type, product.sku_code);
+                onChange(product.id, product.sku_name, product.post_type, product.sku_code, product.fenceType);
                 setSearchTerm('');
                 setIsFocused(false);
               }}
               className="px-3 py-2 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-0"
             >
-              <div className="font-mono text-sm font-medium text-gray-900">{product.sku_code}</div>
-              <div className="text-xs text-gray-600 truncate">{product.sku_name}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 font-medium">{product.typeLabel}</span>
+                <span className="font-mono text-sm font-medium text-gray-900">{product.sku_code}</span>
+              </div>
+              <div className="text-xs text-gray-600 truncate ml-7">{product.sku_name}</div>
             </div>
           ))}
         </div>
@@ -348,11 +381,12 @@ export function BOMCalculator({
   const [yardId, setYardId] = useState('');
   const [expectedPickupDate, setExpectedPickupDate] = useState('');
   const [projectNotes, setProjectNotes] = useState('');
+  const [concreteType, setConcreteType] = useState<'3-part' | 'yellow-bags' | 'red-bags'>('3-part');
 
   // Line items
   const [lineItems, setLineItems] = useState<LineItem[]>([{
     id: `line-${Date.now()}`,
-    fenceType: 'wood_vertical',
+    fenceType: 'all', // Default to 'all' - auto-detects when product selected
     productId: '',
     productName: '',
     postType: 'WOOD',
@@ -564,17 +598,17 @@ export function BOMCalculator({
         const product = products.woodVertical.find(p => p.id === item.productId);
         if (product) {
           // Calculator returns all materials including nails & concrete (raw quantities)
-          result = calculator.calculateWoodVertical(product, input, laborRates);
+          result = calculator.calculateWoodVertical(product, input, laborRates, undefined, undefined, concreteType);
         }
       } else if (item.fenceType === 'wood_horizontal') {
         const product = products.woodHorizontal.find(p => p.id === item.productId);
         if (product) {
-          result = calculator.calculateWoodHorizontal(product, input, laborRates);
+          result = calculator.calculateWoodHorizontal(product, input, laborRates, undefined, undefined, concreteType);
         }
       } else if (item.fenceType === 'iron') {
         const product = products.iron.find(p => p.id === item.productId);
         if (product) {
-          result = calculator.calculateIron(product, input, laborRates);
+          result = calculator.calculateIron(product, input, laborRates, undefined, undefined, concreteType);
         }
       }
 
@@ -660,7 +694,7 @@ export function BOMCalculator({
         return row;
       }).concat(prev.filter(p => p.is_manual));
     });
-  }, [businessUnitId, lineItems, products, laborRates, loading]);
+  }, [businessUnitId, lineItems, products, laborRates, loading, concreteType]);
 
   // Debounced auto-calculate
   useEffect(() => {
@@ -693,7 +727,7 @@ export function BOMCalculator({
   const handleAddLine = () => {
     setLineItems([...lineItems, {
       id: `line-${Date.now()}`,
-      fenceType: 'wood_vertical',
+      fenceType: 'all', // Default to 'all' - auto-detects when product selected
       productId: '',
       productName: '',
       postType: 'WOOD',
@@ -1024,6 +1058,49 @@ export function BOMCalculator({
             </div>
           </div>
 
+          {/* Second Row - Concrete Type */}
+          <div className="flex items-center gap-4 mt-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-600 font-medium">Concrete Type:</label>
+              <div className="flex bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setConcreteType('3-part')}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    concreteType === '3-part'
+                      ? 'bg-white text-green-700 font-medium shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  3-Part Mix
+                </button>
+                <button
+                  onClick={() => setConcreteType('yellow-bags')}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    concreteType === 'yellow-bags'
+                      ? 'bg-white text-yellow-700 font-medium shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Yellow Bags
+                </button>
+                <button
+                  onClick={() => setConcreteType('red-bags')}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    concreteType === 'red-bags'
+                      ? 'bg-white text-red-700 font-medium shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Red Bags
+                </button>
+              </div>
+              <span className="text-[10px] text-gray-400">
+                {concreteType === '3-part' ? '(Cheapest)' :
+                 concreteType === 'yellow-bags' ? '(Mid-range)' : '(Premium)'}
+              </span>
+            </div>
+          </div>
+
           {/* Save Buttons */}
           <div className="flex gap-2 items-end">
             <button
@@ -1075,10 +1152,10 @@ export function BOMCalculator({
         </div>
       </div>
 
-      {/* BOTTOM SECTION - SKU Lines (Left 50%) & BOM/BOL (Right 50%) */}
+      {/* BOTTOM SECTION - SKU Lines (Left 45%) & BOM/BOL (Right 55%) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - SKU Lines */}
-        <div className="w-1/2 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+        <div className="w-[45%] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
             <h3 className="font-semibold text-gray-900 text-sm">SKU Lines</h3>
             <button
@@ -1095,37 +1172,42 @@ export function BOMCalculator({
               <div key={item.id} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-gray-500 w-4">{idx + 1}</span>
-                  <select
-                    value={item.fenceType}
-                    onChange={(e) => handleUpdateLine(item.id, {
-                      fenceType: e.target.value as any,
-                      productId: '',
-                      productName: '',
-                    })}
-                    className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
-                  >
-                    <option value="wood_vertical">Wood Vert</option>
-                    <option value="wood_horizontal">Wood Horiz</option>
-                    <option value="iron">Iron</option>
-                  </select>
+                  {/* Type badge - shows detected type or "All" for search */}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                    item.fenceType === 'wood_vertical' ? 'bg-green-100 text-green-700' :
+                    item.fenceType === 'wood_horizontal' ? 'bg-blue-100 text-blue-700' :
+                    item.fenceType === 'iron' ? 'bg-gray-200 text-gray-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {item.fenceType === 'wood_vertical' ? 'WV' :
+                     item.fenceType === 'wood_horizontal' ? 'WH' :
+                     item.fenceType === 'iron' ? 'IR' : 'ALL'}
+                  </span>
+                  <div className="flex-1">
+                    <SKUSearch
+                      value={item.productId}
+                      onChange={(productId, productName, postType, _skuCode, detectedFenceType) => {
+                        // Auto-detect fence type from selected product
+                        handleUpdateLine(item.id, {
+                          productId,
+                          productName,
+                          postType,
+                          fenceType: detectedFenceType || item.fenceType,
+                        });
+                      }}
+                      fenceType={item.fenceType}
+                      products={products}
+                    />
+                  </div>
                   {lineItems.length > 1 && (
                     <button
                       onClick={() => handleRemoveLine(item.id)}
-                      className="ml-auto p-1 text-red-500 hover:bg-red-50 rounded"
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
-
-                <SKUSearch
-                  value={item.productId}
-                  onChange={(productId, productName, postType) => {
-                    handleUpdateLine(item.id, { productId, productName, postType });
-                  }}
-                  fenceType={item.fenceType}
-                  products={products}
-                />
 
                 <div className="grid grid-cols-4 gap-1.5">
                   <div>
@@ -1191,7 +1273,7 @@ export function BOMCalculator({
         </div>
 
         {/* Right Panel - BOM & BOL */}
-        <div className="w-1/2 flex flex-col overflow-hidden">
+        <div className="w-[55%] flex flex-col overflow-hidden">
 
         {/* BOM & BOL Tables */}
         <div className="flex-1 overflow-auto p-4 space-y-4">

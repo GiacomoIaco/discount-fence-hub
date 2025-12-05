@@ -8,6 +8,7 @@
 // ============================================================================
 
 export type FenceType = 'wood_vertical' | 'wood_horizontal' | 'iron';
+export type FenceTypeWithAll = FenceType | 'all'; // For SKU search UI
 export type PostType = 'WOOD' | 'STEEL';
 
 // ============================================================================
@@ -75,7 +76,7 @@ export type Product = WoodVerticalProduct | WoodHorizontalProduct | IronProduct;
 export interface LineItem {
   id: string;
   projectId?: string;
-  fenceType: FenceType;
+  fenceType: FenceTypeWithAll; // Can be 'all' for UI search, set to actual type when product selected
   productId: string;
   productName: string; // denormalized for display
   postType: PostType; // CRITICAL: stored at line item level
