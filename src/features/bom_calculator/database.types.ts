@@ -414,6 +414,66 @@ export interface CustomProductWithDetails extends CustomProduct {
 }
 
 // ============================================================================
+// COMPONENT SYSTEM
+// ============================================================================
+
+export interface ComponentDefinition {
+  id: string;
+  code: string; // 'post', 'picket', 'rail', etc.
+  name: string;
+  description: string | null;
+  fence_types: FenceTypeDB[]; // Which fence types can use this component
+  default_category: string | null; // Material category filter
+  default_sub_category: string | null;
+  display_order: number;
+  is_required: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComponentFilterConfig {
+  category?: string;
+  sub_category?: string;
+  min_length?: number;
+  max_length?: number;
+  min_width?: number;
+  max_width?: number;
+}
+
+export interface ComponentVisibilityRule {
+  when: string; // Field name to check (e.g., 'post_type')
+  equals?: string | number; // Value that triggers the rule
+  not_equals?: string | number;
+  then: 'show' | 'hide';
+}
+
+export interface SKUComponent {
+  id: string;
+  fence_type: FenceTypeDB | 'custom';
+  product_id: string;
+  component_id: string;
+  filter_config: ComponentFilterConfig;
+  default_material_id: string | null;
+  display_name: string | null;
+  display_order: number;
+  is_required: boolean;
+  is_visible: boolean;
+  visibility_rule: ComponentVisibilityRule | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// View type with joined data
+export interface SKUComponentWithDetails extends SKUComponent {
+  component_code: string;
+  component_name: string;
+  component_description: string | null;
+  default_material_sku: string | null;
+  default_material_name: string | null;
+}
+
+// ============================================================================
 // UTILITY TYPES
 // ============================================================================
 
