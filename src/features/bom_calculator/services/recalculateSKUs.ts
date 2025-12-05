@@ -15,12 +15,13 @@
  */
 
 import { supabase } from '../../../lib/supabase';
-import { FenceCalculator } from './FenceCalculator';
+import { FenceCalculator, type HardwareMaterials } from './FenceCalculator';
 import type {
   WoodVerticalProductWithMaterials,
   WoodHorizontalProductWithMaterials,
   IronProductWithMaterials,
   LaborRateWithDetails,
+  Material,
 } from '../database.types';
 
 // Standard assumptions for SKU cost calculations
@@ -48,17 +49,144 @@ export interface LaborCostResult {
 }
 
 /**
+ * Create fallback concrete materials for calculations
+ * These are used when concrete materials aren't in the database
+ */
+function createFallbackConcreteMaterials(): Material[] {
+  const baseFallback = {
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  return [
+    {
+      ...baseFallback,
+      id: 'fallback-cts',
+      material_sku: 'CTS',
+      material_name: 'Sand & Gravel Mix (50lb)',
+      category: '05-Concrete',
+      sub_category: '3-Part',
+      unit_type: 'bag',
+      unit_cost: 4.25,
+    },
+    {
+      ...baseFallback,
+      id: 'fallback-ctp',
+      material_sku: 'CTP',
+      material_name: 'Portland Cement (94lb)',
+      category: '05-Concrete',
+      sub_category: '3-Part',
+      unit_type: 'bag',
+      unit_cost: 12.75,
+    },
+    {
+      ...baseFallback,
+      id: 'fallback-ctq',
+      material_sku: 'CTQ',
+      material_name: 'QuickRock (50lb)',
+      category: '05-Concrete',
+      sub_category: '3-Part',
+      unit_type: 'bag',
+      unit_cost: 5.50,
+    },
+  ];
+}
+
+/**
+ * Create fallback hardware materials for calculations
+ */
+function createFallbackHardwareMaterials(): HardwareMaterials {
+  const baseFallback = {
+    length_ft: null,
+    width_nominal: null,
+    actual_width: null,
+    thickness: null,
+    quantity_per_unit: 1,
+    fence_category_standard: [],
+    is_bom_default: false,
+    status: 'Active',
+    normally_stocked: true,
+    current_stock_qty: null,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  return {
+    frameNails: {
+      ...baseFallback,
+      id: 'fallback-hw07',
+      material_sku: 'HW07',
+      material_name: 'Frame Nails (16d 3.5")',
+      category: '06-Hardware',
+      sub_category: 'Nails',
+      unit_type: 'lb',
+      unit_cost: 2.50,
+    },
+    picketNails: {
+      ...baseFallback,
+      id: 'fallback-hw08',
+      material_sku: 'HW08',
+      material_name: 'Picket Nails (8d 2.5")',
+      category: '06-Hardware',
+      sub_category: 'Nails',
+      unit_type: 'lb',
+      unit_cost: 2.50,
+    },
+  };
+}
+
+/**
  * Calculate material costs only for a Wood Vertical SKU
+ * Includes base materials, nails, and concrete
  */
 export function calculateWoodVerticalMaterialCost(
   product: WoodVerticalProductWithMaterials
 ): MaterialCostResult {
   const calculator = new FenceCalculator('sku-builder');
+  const hardwareMaterials = createFallbackHardwareMaterials();
+  const concreteMaterials = createFallbackConcreteMaterials();
+
+  // Get base calculation with hardware materials (nails)
   const result = calculator.calculateWoodVertical(
     product,
     SKU_STANDARD_ASSUMPTIONS,
-    []
+    [],
+    hardwareMaterials
   );
+
+  // Get post count for concrete calculation
+  const postMaterial = result.materials.find(m =>
+    m.material_sku === product.post_material.material_sku
+  );
+  const postQty = postMaterial ? Math.ceil(postMaterial.quantity) : 0;
+
+  // Add frame nails if we have posts
+  if (hardwareMaterials.frameNails && postQty > 0) {
+    const hasCap = !!product.cap_material;
+    const nailResult = calculator.calculateFrameNails(
+      postQty,
+      product.rail_count,
+      hasCap,
+      hardwareMaterials.frameNails
+    );
+    result.materials.push(nailResult);
+  }
+
+  // Add concrete
+  const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
+  result.materials.push(...concreteMats);
 
   const materialCost = result.materials.reduce(
     (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
@@ -73,16 +201,64 @@ export function calculateWoodVerticalMaterialCost(
 
 /**
  * Calculate material costs only for a Wood Horizontal SKU
+ * Includes base materials, nails, and concrete
  */
 export function calculateWoodHorizontalMaterialCost(
   product: WoodHorizontalProductWithMaterials
 ): MaterialCostResult {
   const calculator = new FenceCalculator('sku-builder');
+  const hardwareMaterials = createFallbackHardwareMaterials();
+  const concreteMaterials = createFallbackConcreteMaterials();
+
+  // Get base calculation with hardware materials (nails)
   const result = calculator.calculateWoodHorizontal(
     product,
     SKU_STANDARD_ASSUMPTIONS,
-    []
+    [],
+    hardwareMaterials
   );
+
+  // Get post count for concrete calculation
+  const postMaterial = result.materials.find(m =>
+    m.material_sku === product.post_material.material_sku
+  );
+  const postQty = postMaterial ? Math.ceil(postMaterial.quantity) : 0;
+
+  // Calculate board count for nailer nails
+  const boardsPerBay = Math.floor((product.height * 12) / product.board_width_actual);
+  const boardMaterial = result.materials.find(m =>
+    m.material_sku === product.board_material.material_sku
+  );
+  const boardQty = boardMaterial ? Math.ceil(boardMaterial.quantity) : 0;
+
+  // Add frame nails for horizontal (nails for nailer attachments)
+  if (hardwareMaterials.frameNails && postQty > 0) {
+    const hasCap = !!product.cap_material;
+    // Use boardsPerBay as proxy for "rails" in horizontal fence
+    const nailResult = calculator.calculateFrameNails(
+      postQty,
+      boardsPerBay,
+      hasCap,
+      hardwareMaterials.frameNails
+    );
+    result.materials.push(nailResult);
+  }
+
+  // Add board nails (similar to picket nails for vertical)
+  // For horizontal: boards attach to 2 nailers per bay (one per post)
+  if (hardwareMaterials.picketNails && boardQty > 0) {
+    const boardNailResult = calculator.calculatePicketNails(
+      boardQty,       // totalPickets (boards in this case)
+      2,              // railsPerSection (nailers per bay)
+      0,              // totalTrimBoards
+      hardwareMaterials.picketNails
+    );
+    result.materials.push(boardNailResult);
+  }
+
+  // Add concrete
+  const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
+  result.materials.push(...concreteMats);
 
   const materialCost = result.materials.reduce(
     (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
@@ -97,16 +273,30 @@ export function calculateWoodHorizontalMaterialCost(
 
 /**
  * Calculate material costs only for an Iron SKU
+ * Includes base materials and concrete (iron uses screws, not nails)
  */
 export function calculateIronMaterialCost(
   product: IronProductWithMaterials
 ): MaterialCostResult {
   const calculator = new FenceCalculator('sku-builder');
+  const concreteMaterials = createFallbackConcreteMaterials();
+
+  // Get base calculation
   const result = calculator.calculateIron(
     product,
     SKU_STANDARD_ASSUMPTIONS,
     []
   );
+
+  // Get post count for concrete calculation
+  const postMaterial = result.materials.find(m =>
+    m.material_sku === product.post_material.material_sku
+  );
+  const postQty = postMaterial ? Math.ceil(postMaterial.quantity) : 0;
+
+  // Add concrete
+  const concreteMats = calculator.calculateConcrete(postQty, '3-part', concreteMaterials);
+  result.materials.push(...concreteMats);
 
   const materialCost = result.materials.reduce(
     (sum, m) => sum + Math.ceil(m.quantity) * m.unit_cost,
