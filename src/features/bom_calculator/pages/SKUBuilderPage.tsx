@@ -1078,13 +1078,13 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex items-center gap-2 flex-1">
+                <div className="flex gap-2 overflow-hidden">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
                     <select
                       value={capMaterialId}
                       onChange={(e) => setCapMaterialId(e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
                       <option value="">None</option>
                       {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
@@ -1092,12 +1092,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-xs text-gray-600 w-10 flex-shrink-0">Trim</span>
                     <select
                       value={trimMaterialId}
                       onChange={(e) => setTrimMaterialId(e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
                       <option value="">None</option>
                       {filteredCapTrimMaterials.filter(m => m.sub_category === 'Trim').map(m => (
@@ -1106,21 +1106,19 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     </select>
                   </div>
                 </div>
-                {filteredRotBoardMaterials.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Rot Board</span>
-                    <select
-                      value={rotBoardMaterialId}
-                      onChange={(e) => setRotBoardMaterialId(e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
-                    >
-                      <option value="">None</option>
-                      {filteredRotBoardMaterials.map(m => (
-                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Rot Board</span>
+                  <select
+                    value={rotBoardMaterialId}
+                    onChange={(e) => setRotBoardMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                  >
+                    <option value="">None</option>
+                    {filteredRotBoardMaterials.map(m => (
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})</option>
+                    ))}
+                  </select>
+                </div>
               </>
             )}
 
@@ -1153,13 +1151,13 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex items-center gap-2 flex-1">
+                <div className="flex gap-2 overflow-hidden">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
                     <select
                       value={capMaterialId}
                       onChange={(e) => setCapMaterialId(e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
                       <option value="">None</option>
                       {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
@@ -1167,12 +1165,12 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-xs text-gray-600 w-10 flex-shrink-0">V-Trim</span>
                     <select
                       value={verticalTrimMaterialId}
                       onChange={(e) => setVerticalTrimMaterialId(e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white"
                     >
                       <option value="">None</option>
                       {filteredVerticalTrimMaterials.map(m => (
