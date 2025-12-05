@@ -18,20 +18,20 @@ import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import type { Material, FenceTypeDB } from '../database.types';
 
-// Extended ComponentDefinition with filter attributes
-interface ComponentDefinitionWithFilters {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  fence_types: FenceTypeDB[];
+// Fence type component configuration (from v_fence_type_components view)
+interface FenceTypeComponent {
+  fence_type: FenceTypeDB;
+  component_id: string;
+  component_code: string;
+  component_name: string;
+  component_description: string | null;
   default_category: string | null;
   default_sub_category: string | null;
-  display_order: number;
   is_required: boolean;
-  is_active: boolean;
   filter_attribute: string | null;
   filter_values: string[] | null;
+  display_order: number;
+  is_visible: boolean;
 }
 
 // Types
@@ -87,19 +87,18 @@ export default function ComponentConfiguratorPage() {
   const [saving, setSaving] = useState(false);
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
 
-  // Fetch component definitions for active fence type
+  // Fetch component configurations for active fence type (from new view)
   const { data: components = [] } = useQuery({
-    queryKey: ['component-definitions-with-filters', activeTab],
+    queryKey: ['fence-type-components', activeTab],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('component_definitions')
+        .from('v_fence_type_components')
         .select('*')
-        .eq('is_active', true)
-        .contains('fence_types', [activeTab])
+        .eq('fence_type', activeTab)
         .order('display_order');
 
       if (error) throw error;
-      return data as ComponentDefinitionWithFilters[];
+      return data as FenceTypeComponent[];
     },
   });
 
@@ -168,7 +167,7 @@ export default function ComponentConfiguratorPage() {
   }, [allMaterials, categoryFilter]);
 
   // Get selected component
-  const selectedComponent = components.find(c => c.id === selectedComponentId);
+  const selectedComponent = components.find(c => c.component_id === selectedComponentId);
 
   // Get rules for selected component and attribute value
   const componentRules = eligibilityRules.filter(r => {
@@ -254,7 +253,7 @@ export default function ComponentConfiguratorPage() {
         });
 
       if (error) throw error;
-      showSuccess(`Added ${subcategory || category} to ${selectedComponent?.name}`);
+      showSuccess(`Added ${subcategory || category} to ${selectedComponent?.component_name}`);
       queryClient.invalidateQueries({ queryKey: ['component-eligibility'] });
       queryClient.invalidateQueries({ queryKey: ['eligible-materials-view'] });
     } catch (err) {
@@ -399,7 +398,7 @@ export default function ComponentConfiguratorPage() {
 
   // Count eligible materials per component (and optionally per attribute value)
   const getComponentMaterialCount = (componentId: string, attributeValue?: string) => {
-    const component = components.find(c => c.id === componentId);
+    const component = components.find(c => c.component_id === componentId);
 
     return eligibleMaterials.filter(m => {
       if (m.component_id !== componentId) return false;
@@ -439,7 +438,7 @@ export default function ComponentConfiguratorPage() {
     setSelectedAttributeValue(attributeValue || null);
 
     // Auto-expand if has filter values
-    const component = components.find(c => c.id === componentId);
+    const component = components.find(c => c.component_id === componentId);
     if (component?.filter_values && !expandedComponents.has(componentId)) {
       setExpandedComponents(new Set([...expandedComponents, componentId]));
     }
@@ -501,22 +500,22 @@ export default function ComponentConfiguratorPage() {
           <div className="flex-1 overflow-y-auto">
             {components.map(comp => {
               const hasFilterValues = comp.filter_values && comp.filter_values.length > 0;
-              const isExpanded = expandedComponents.has(comp.id);
-              const totalCount = getTotalComponentMaterialCount(comp.id);
+              const isExpanded = expandedComponents.has(comp.component_id);
+              const totalCount = getTotalComponentMaterialCount(comp.component_id);
 
               return (
-                <div key={comp.id}>
+                <div key={comp.component_id}>
                   {/* Component Header */}
                   <button
                     onClick={() => {
                       if (hasFilterValues) {
-                        toggleComponentExpansion(comp.id);
+                        toggleComponentExpansion(comp.component_id);
                       } else {
-                        handleSelectComponent(comp.id);
+                        handleSelectComponent(comp.component_id);
                       }
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors ${
-                      isSelected(comp.id) && !hasFilterValues
+                      isSelected(comp.component_id) && !hasFilterValues
                         ? 'bg-green-50 border-l-2 border-green-600'
                         : 'hover:bg-gray-50 border-l-2 border-transparent'
                     }`}
@@ -529,9 +528,9 @@ export default function ComponentConfiguratorPage() {
                       )}
                       <div>
                         <div className={`text-sm font-medium ${
-                          isSelected(comp.id) && !hasFilterValues ? 'text-green-700' : 'text-gray-900'
+                          isSelected(comp.component_id) && !hasFilterValues ? 'text-green-700' : 'text-gray-900'
                         }`}>
-                          {comp.name}
+                          {comp.component_name}
                         </div>
                         <div className="text-xs text-gray-500">
                           {comp.filter_attribute ? `By ${comp.filter_attribute.replace('_', ' ')}` : comp.default_category || 'All materials'}
@@ -549,13 +548,13 @@ export default function ComponentConfiguratorPage() {
                   {hasFilterValues && isExpanded && (
                     <div className="bg-gray-50 border-t border-gray-100">
                       {comp.filter_values!.map(value => {
-                        const count = getComponentMaterialCount(comp.id, value);
-                        const isValueSelected = isSelected(comp.id, value);
+                        const count = getComponentMaterialCount(comp.component_id, value);
+                        const isValueSelected = isSelected(comp.component_id, value);
 
                         return (
                           <button
                             key={value}
-                            onClick={() => handleSelectComponent(comp.id, value)}
+                            onClick={() => handleSelectComponent(comp.component_id, value)}
                             className={`w-full flex items-center justify-between pl-10 pr-3 py-2 text-left transition-colors ${
                               isValueSelected
                                 ? 'bg-green-100 border-l-2 border-green-600'
@@ -590,7 +589,7 @@ export default function ComponentConfiguratorPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-base font-semibold text-gray-900">
-                      {selectedComponent.name}
+                      {selectedComponent.component_name}
                       {selectedAttributeValue && (
                         <span className="text-green-600 ml-2">→ {selectedAttributeValue}</span>
                       )}
