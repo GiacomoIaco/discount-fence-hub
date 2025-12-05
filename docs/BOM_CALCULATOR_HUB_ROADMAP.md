@@ -19,7 +19,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 | Phase 0 | Foundation & Formula Corrections | Completed | Dec 4, 2024 |
 | Phase 1 | Price History & Analytics Dashboard | Completed | Dec 4, 2024 |
 | Phase 2 | Component System & Configurator | Completed | Dec 5, 2024 |
-| Phase 3 | Yard Workflow | In Progress | - |
+| Phase 3 | Yard Workflow | Completed | Dec 5, 2024 |
 | Phase 4 | Advanced Analytics | Planned | - |
 | Phase 5 | Price Book | Planned | - |
 | Phase 6 | ServiceTitan Export | Planned | - |
@@ -64,20 +64,56 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [x] All material dropdowns use configured rules with fallback
 - [x] Rot Board dropdown for Wood Vertical
 
+### Phase 3: Yard Workflow
+**Completed:** December 5, 2024
+
+- [x] Database migration (085_yard_workflow.sql)
+  - yard_spots table with default 5 spots per yard
+  - project_code field (ABC-123 format) with auto-generation
+  - project_signoffs table for crew sign-off photos
+  - project_status_history for audit trail
+  - Views: v_yard_schedule, v_pick_list
+- [x] Yard section in BOM Hub sidebar
+- [x] YardSchedulePage (Pick Lists)
+  - Filter by yard, date, status
+  - Search by project code, name, customer
+  - Status workflow: To Stage → Staged → Loaded → Complete
+  - Spot assignment when staging
+- [x] YardSpotsPage
+  - Manage spots per yard
+  - Add/edit/remove spots
+  - View occupancy status
+- [x] PickListPDF generator
+  - 3-copy PDF with large project code
+  - Materials grouped by category (2-column for 10+ items)
+  - QR code, signature line, partial pickup checkbox
+- [x] CrewSignoffModal
+  - Camera capture or file upload
+  - GPS location capture
+  - Partial pickup checkbox with notes
+  - Photo uploaded to Supabase storage
+- [x] YardMobilePage
+  - Tablet-friendly simplified UI
+  - Large touch targets
+  - Auto-refresh every 30 seconds
+  - Quick actions: Print, Sign-off, Stage, Mark Loaded
+
 ---
 
-## Phase 3: Yard Workflow
-**Status:** In Progress
+## Planned Phases
+
+### Phase 4: Advanced Analytics
+**Status:** Planned
 
 ### Overview
-Mobile-friendly workflow for yard operations to manage pick lists, track staging status, and capture crew sign-offs for material pickups.
+Comprehensive analytics dashboard with multiple tabs for deep insights into materials, labor, projects, and business performance.
 
 ### Core Features
 
-#### 3.1 Pick List Management
-- [ ] View BOM without costs/labor for scheduled projects
-- [ ] Filter by date (today, tomorrow, date range)
-- [ ] Filter by yard location (ATX, SA, HOU)
+#### 4.1 Pick List Management (Legacy - Moved to Phase 3)
+- [x] View BOM without costs/labor for scheduled projects
+- [x] Filter by date (today, tomorrow, date range)
+- [x] Filter by yard location (ATX, SA, HOU)
 - [ ] Sort by pick sequence (optimized for yard layout)
 - [ ] Search by project name, customer, or project ID
 

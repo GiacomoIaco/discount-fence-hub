@@ -14,6 +14,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import ComponentConfiguratorPage from './pages/ComponentConfiguratorPage';
 import YardSchedulePage from './pages/YardSchedulePage';
 import YardSpotsPage from './pages/YardSpotsPage';
+import YardMobilePage from './pages/YardMobilePage';
 
 // Lazy load Hub v2 for code splitting
 const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
@@ -236,6 +237,9 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
 
       case 'yard-spots':
         return <YardSpotsPage />;
+
+      case 'yard-mobile':
+        return <YardMobilePage onBack={() => handlePageChange('yard-schedule')} />;
 
       default:
         return null;
