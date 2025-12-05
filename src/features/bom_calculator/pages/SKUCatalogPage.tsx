@@ -48,6 +48,19 @@ interface IronProduct {
   standard_cost_calculated_at: string | null;
 }
 
+interface CustomProduct {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  unit_basis: 'LF' | 'SF' | 'EA' | 'PROJECT';
+  category: string | null;
+  is_active: boolean;
+  standard_material_cost: number | null;
+  standard_labor_cost: number | null;
+  standard_cost_per_unit: number | null;
+  standard_cost_calculated_at: string | null;
+}
+
 // Labor cost from junction table
 interface SKULaborCost {
   product_type: 'wood-vertical' | 'wood-horizontal' | 'iron';
@@ -62,12 +75,13 @@ interface SKURow {
   id: string;
   sku_code: string;
   sku_name: string;
-  category: 'Wood Vertical' | 'Wood Horizontal' | 'Iron';
-  categoryKey: 'wood-vertical' | 'wood-horizontal' | 'iron';
+  category: 'Wood Vertical' | 'Wood Horizontal' | 'Iron' | 'Custom';
+  categoryKey: 'wood-vertical' | 'wood-horizontal' | 'iron' | 'custom';
   style: string;
-  height: number;
+  height: number | null;
   rails: number | null;
-  post_type: string;
+  post_type: string | null;
+  unit_basis: string | null;
   material_cost_per_foot: number;
   labor_cost_per_foot: number;
   total_cost_per_foot: number;
@@ -86,7 +100,7 @@ interface SKUCatalogPageProps {
   isAdmin: boolean;
 }
 
-type CategoryFilter = 'all' | 'wood-vertical' | 'wood-horizontal' | 'iron';
+type CategoryFilter = 'all' | 'wood-vertical' | 'wood-horizontal' | 'iron' | 'custom';
 type StyleFilter = 'all' | string;
 type HeightFilter = 'all' | number;
 
@@ -183,7 +197,19 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     },
   });
 
-  const isLoading = loadingWV || loadingWH || loadingIron;
+  const { data: custom = [], isLoading: loadingCustom } = useQuery({
+    queryKey: ['custom-products-catalog'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('custom_products')
+        .select('id, sku_code, sku_name, unit_basis, category, is_active, standard_material_cost, standard_labor_cost, standard_cost_per_unit, standard_cost_calculated_at')
+        .order('sku_code');
+      if (error) throw error;
+      return data as CustomProduct[];
+    },
+  });
+
+  const isLoading = loadingWV || loadingWH || loadingIron || loadingCustom;
 
   // Combine all products into unified rows with labor from stored values
   const allRows: SKURow[] = useMemo(() => {
@@ -203,6 +229,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
         height: p.height,
         rails: p.rail_count,
         post_type: p.post_type,
+        unit_basis: null,
         material_cost_per_foot: materialCostPerFoot,
         labor_cost_per_foot: laborCostPerFoot,
         total_cost_per_foot: materialCostPerFoot + laborCostPerFoot,
@@ -225,6 +252,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
         height: p.height,
         rails: null,
         post_type: p.post_type,
+        unit_basis: null,
         material_cost_per_foot: materialCostPerFoot,
         labor_cost_per_foot: laborCostPerFoot,
         total_cost_per_foot: materialCostPerFoot + laborCostPerFoot,
@@ -247,6 +275,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
         height: p.height,
         rails: p.rails_per_panel,
         post_type: 'STEEL',
+        unit_basis: null,
         material_cost_per_foot: materialCostPerFoot,
         labor_cost_per_foot: laborCostPerFoot,
         total_cost_per_foot: materialCostPerFoot + laborCostPerFoot,
@@ -255,8 +284,33 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
       });
     });
 
+    // Custom products (services, add-ons, repairs, etc.)
+    custom.forEach(p => {
+      const materialCost = p.standard_material_cost || 0;
+      const laborCost = p.standard_labor_cost || 0;
+      const totalCost = p.standard_cost_per_unit || (materialCost + laborCost);
+
+      rows.push({
+        id: p.id,
+        sku_code: p.sku_code,
+        sku_name: p.sku_name,
+        category: 'Custom',
+        categoryKey: 'custom',
+        style: p.category || '-',
+        height: null,
+        rails: null,
+        post_type: null,
+        unit_basis: p.unit_basis,
+        material_cost_per_foot: materialCost,
+        labor_cost_per_foot: laborCost,
+        total_cost_per_foot: totalCost,
+        is_active: p.is_active,
+        calculated_at: p.standard_cost_calculated_at,
+      });
+    });
+
     return rows.sort((a, b) => a.sku_code.localeCompare(b.sku_code));
-  }, [woodVertical, woodHorizontal, iron, laborCostMap]);
+  }, [woodVertical, woodHorizontal, iron, custom, laborCostMap]);
 
   // Get unique styles and heights for filter dropdowns
   const uniqueStyles = useMemo(() => {
@@ -269,7 +323,9 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
 
   const uniqueHeights = useMemo(() => {
     const heights = new Set<number>();
-    allRows.forEach(r => heights.add(r.height));
+    allRows.forEach(r => {
+      if (r.height !== null) heights.add(r.height);
+    });
     return Array.from(heights).sort((a, b) => a - b);
   }, [allRows]);
 
@@ -330,6 +386,8 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
         return 'bg-blue-100 text-blue-800';
       case 'Iron':
         return 'bg-gray-200 text-gray-800';
+      case 'Custom':
+        return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-yellow-100 text-yellow-800';
     }
@@ -373,6 +431,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
       queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['custom-products-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['sku-labor-costs'] });
     } catch (error) {
       console.error('Recalculation failed:', error);
@@ -471,6 +530,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
               <option value="wood-vertical">Wood Vertical</option>
               <option value="wood-horizontal">Wood Horizontal</option>
               <option value="iron">Iron</option>
+              <option value="custom">Custom</option>
             </select>
           </div>
 
@@ -580,9 +640,11 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
                   </span>
                 </td>
                 <td className="py-2 px-3 text-gray-600">{row.style}</td>
-                <td className="py-2 px-3 text-center text-gray-600">{row.height}'</td>
+                <td className="py-2 px-3 text-center text-gray-600">
+                  {row.height !== null ? `${row.height}'` : (row.unit_basis || '-')}
+                </td>
                 <td className="py-2 px-3 text-center text-gray-600">{row.rails ?? '-'}</td>
-                <td className="py-2 px-3 text-center text-gray-600">{row.post_type}</td>
+                <td className="py-2 px-3 text-center text-gray-600">{row.post_type ?? '-'}</td>
                 <td className={`py-2 px-3 text-right ${row.material_cost_per_foot > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                   {formatCurrency(row.material_cost_per_foot)}
                 </td>
