@@ -370,7 +370,7 @@ SELECT
   m.category,
   m.sub_category,
   m.unit_type,
-  SUM(pm.quantity) as total_quantity,
+  SUM(pm.final_quantity) as total_quantity,
 
   -- Project context
   bp.yard_id,

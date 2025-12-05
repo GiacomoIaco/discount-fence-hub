@@ -503,7 +503,7 @@ export async function fetchAndGeneratePickListPDF(
   const { data: materials, error: matError } = await supabase
     .from('project_materials')
     .select(`
-      quantity,
+      final_quantity,
       materials (
         material_sku,
         material_name,
@@ -523,7 +523,7 @@ export async function fetchAndGeneratePickListPDF(
     const mat = pm.materials;
     const key = mat.material_sku;
     if (materialMap.has(key)) {
-      materialMap.get(key)!.total_quantity += pm.quantity || 0;
+      materialMap.get(key)!.total_quantity += pm.final_quantity || 0;
     } else {
       materialMap.set(key, {
         material_sku: mat.material_sku,
@@ -531,7 +531,7 @@ export async function fetchAndGeneratePickListPDF(
         category: mat.category,
         sub_category: mat.sub_category,
         unit_type: mat.unit_type,
-        total_quantity: pm.quantity || 0,
+        total_quantity: pm.final_quantity || 0,
       });
     }
   });
