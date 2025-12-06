@@ -984,18 +984,15 @@ export function BOMCalculator({
         if (lineError) throw lineError;
       }
 
-      // 3. Create project materials
+      // 3. Create project materials (only using base columns)
       const materialInserts = materialRows.map(mat => ({
         project_id: projectId,
         material_id: mat.material_id,
         calculated_quantity: mat.calculated_qty,
-        rounded_quantity: mat.rounded_qty,
-        manual_quantity: mat.adjustment !== 0 ? mat.total_qty : null,
+        rounded_quantity: Math.round(mat.rounded_qty),
+        manual_quantity: mat.adjustment !== 0 ? Math.round(mat.total_qty) : null,
         unit_cost: mat.unit_cost,
-        adjustment_amount: mat.adjustment,
-        calculated_extended_cost: mat.rounded_qty * mat.unit_cost,
-        adjusted_extended_cost: mat.total_cost,
-        is_manual_addition: mat.is_manual,
+        is_manual_addition: mat.is_manual || false,
       }));
 
       if (materialInserts.length > 0) {
@@ -1005,17 +1002,14 @@ export function BOMCalculator({
         if (matError) throw matError;
       }
 
-      // 4. Create project labor
+      // 4. Create project labor (only using base columns)
       const laborInserts = laborRows.map(lab => ({
         project_id: projectId,
         labor_code_id: lab.labor_code_id,
         calculated_quantity: lab.quantity,
-        manual_quantity: null,
+        manual_quantity: lab.adjustment !== 0 ? lab.quantity + lab.adjustment : null,
         labor_rate: lab.rate,
-        adjustment_amount: lab.adjustment,
-        calculated_extended_cost: lab.calculated_cost,
-        adjusted_extended_cost: lab.total_cost,
-        is_manual_addition: lab.is_manual,
+        is_manual_addition: lab.is_manual || false,
       }));
 
       if (laborInserts.length > 0) {
