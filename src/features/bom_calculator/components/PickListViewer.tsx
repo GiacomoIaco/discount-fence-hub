@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { fetchAndGeneratePickListPDF } from './PickListPDF';
-import { showError } from '../../../lib/toast';
+import { showSuccess, showError } from '../../../lib/toast';
 
 interface PickListViewerProps {
   projectId: string;
