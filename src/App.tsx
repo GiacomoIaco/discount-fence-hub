@@ -193,8 +193,27 @@ function App() {
 
   const navigationItems = getNavigationItems();
 
-  // Current platform based on viewMode
-  const currentPlatform = viewMode === 'mobile' ? 'mobile' : 'desktop';
+  // Detect current platform based on actual screen size
+  // mobile: < 640px, tablet: 640-1024px, desktop: >= 1024px
+  const [currentPlatform, setCurrentPlatform] = useState<'desktop' | 'tablet' | 'mobile'>(() => {
+    if (typeof window === 'undefined') return 'desktop';
+    const width = window.innerWidth;
+    if (width < 640) return 'mobile';
+    if (width < 1024) return 'tablet';
+    return 'desktop';
+  });
+
+  // Update platform on resize
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (width < 640) setCurrentPlatform('mobile');
+      else if (width < 1024) setCurrentPlatform('tablet');
+      else setCurrentPlatform('desktop');
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Filter navigation items based on menu visibility settings AND platform availability
   const visibleNavigationItems = navigationItems.filter(item =>

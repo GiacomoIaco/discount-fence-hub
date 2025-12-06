@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useMenuVisibility } from '../../../hooks/useMenuVisibility';
+import type { Platform } from '../../../hooks/useMenuVisibility';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import { X, Users, Check } from 'lucide-react';
+import { X, Users, Check, Monitor, Tablet, Smartphone } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -15,6 +16,7 @@ const MenuVisibilitySettings = () => {
   const {
     menuVisibility,
     toggleRoleVisibility,
+    togglePlatformVisibility,
     addUserOverride,
     removeUserOverride,
     loading,
@@ -56,6 +58,15 @@ const MenuVisibilitySettings = () => {
       showSuccess('Menu visibility updated');
     } else {
       showError('Failed to update menu visibility');
+    }
+  };
+
+  const handleTogglePlatform = async (menuId: string, platform: Platform) => {
+    const success = await togglePlatformVisibility(menuId, platform);
+    if (success) {
+      showSuccess('Platform visibility updated');
+    } else {
+      showError('Failed to update platform visibility');
     }
   };
 
@@ -138,7 +149,13 @@ const MenuVisibilitySettings = () => {
             <thead>
               <tr className="border-b-2 border-gray-200">
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Menu Item</th>
-                <th className="text-center py-3 px-2 font-semibold text-gray-700">Platform</th>
+                <th className="text-center py-3 px-2 font-semibold text-gray-700">
+                  <div className="flex items-center justify-center gap-1">
+                    <Monitor className="w-4 h-4" />
+                    <Tablet className="w-4 h-4" />
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                </th>
                 {roles.map(role => (
                   <th key={role} className="text-center py-3 px-2 font-semibold text-gray-700 min-w-[60px]">
                     {getRoleLabel(role)}
@@ -148,19 +165,54 @@ const MenuVisibilitySettings = () => {
               </tr>
             </thead>
             <tbody>
-              {menuVisibility.map(item => (
+              {menuVisibility.map(item => {
+                // Get platform visibility (use new columns or fallback to legacy)
+                const showDesktop = item.show_on_desktop ?? (item.available_on !== 'mobile');
+                const showTablet = item.show_on_tablet ?? true;
+                const showMobile = item.show_on_mobile ?? (item.available_on !== 'desktop');
+
+                return (
                 <tr key={item.menu_id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{item.menu_name}</td>
                   <td className="text-center py-3 px-2">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                      item.available_on === 'both'
-                        ? 'bg-green-100 text-green-700'
-                        : item.available_on === 'mobile'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {item.available_on === 'both' ? 'Both' : item.available_on === 'mobile' ? 'Mobile' : 'Desktop'}
-                    </span>
+                    <div className="flex items-center justify-center gap-1">
+                      {/* Desktop icon */}
+                      <button
+                        onClick={() => handleTogglePlatform(item.menu_id, 'desktop')}
+                        className={`p-1.5 rounded transition-colors ${
+                          showDesktop
+                            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                            : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                        }`}
+                        title={showDesktop ? 'Visible on desktop (click to hide)' : 'Hidden on desktop (click to show)'}
+                      >
+                        <Monitor className="w-4 h-4" />
+                      </button>
+                      {/* Tablet icon */}
+                      <button
+                        onClick={() => handleTogglePlatform(item.menu_id, 'tablet')}
+                        className={`p-1.5 rounded transition-colors ${
+                          showTablet
+                            ? 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                            : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                        }`}
+                        title={showTablet ? 'Visible on tablet (click to hide)' : 'Hidden on tablet (click to show)'}
+                      >
+                        <Tablet className="w-4 h-4" />
+                      </button>
+                      {/* Phone icon */}
+                      <button
+                        onClick={() => handleTogglePlatform(item.menu_id, 'mobile')}
+                        className={`p-1.5 rounded transition-colors ${
+                          showMobile
+                            ? 'bg-green-100 text-green-600 hover:bg-green-200'
+                            : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                        }`}
+                        title={showMobile ? 'Visible on phone (click to hide)' : 'Hidden on phone (click to show)'}
+                      >
+                        <Smartphone className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                   {roles.map(role => {
                     const isVisible = item.visible_for_roles?.includes(role);
@@ -192,7 +244,8 @@ const MenuVisibilitySettings = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

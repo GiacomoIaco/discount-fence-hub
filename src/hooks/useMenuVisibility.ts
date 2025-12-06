@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-export type Platform = 'desktop' | 'mobile' | 'both';
+export type Platform = 'desktop' | 'tablet' | 'mobile';
+export type LegacyPlatform = 'desktop' | 'mobile' | 'both';
 
 export interface MenuVisibilityItem {
   id: string;
@@ -11,10 +12,31 @@ export interface MenuVisibilityItem {
   visible_for_roles: string[];
   enabled_users: string[];
   disabled_users: string[];
-  available_on: Platform;
+  // Legacy field (kept for backward compatibility)
+  available_on: LegacyPlatform;
+  // New granular platform controls
+  show_on_desktop: boolean;
+  show_on_tablet: boolean;
+  show_on_mobile: boolean;
   updated_at: string;
   updated_by?: string;
 }
+
+// Screen size breakpoints
+export const BREAKPOINTS = {
+  mobile: 640,    // < 640px = phone
+  tablet: 1024,   // 640px - 1024px = tablet
+  desktop: 1024,  // >= 1024px = desktop
+};
+
+// Detect current platform based on screen width
+export const detectPlatform = (): Platform => {
+  if (typeof window === 'undefined') return 'desktop';
+  const width = window.innerWidth;
+  if (width < BREAKPOINTS.mobile) return 'mobile';
+  if (width < BREAKPOINTS.tablet) return 'tablet';
+  return 'desktop';
+};
 
 export const useMenuVisibility = () => {
   const { user, profile } = useAuth();
@@ -53,7 +75,7 @@ export const useMenuVisibility = () => {
    */
   const canSeeMenuItem = (
     menuId: string,
-    optionsOrRole?: string | { overrideRole?: string; platform?: 'desktop' | 'mobile' }
+    optionsOrRole?: string | { overrideRole?: string; platform?: Platform }
   ): boolean => {
     const item = menuVisibility.get(menuId);
 
@@ -71,8 +93,7 @@ export const useMenuVisibility = () => {
 
     // Check platform availability first (if platform specified)
     if (platform) {
-      const availableOn = item.available_on || 'desktop';
-      if (availableOn !== 'both' && availableOn !== platform) {
+      if (!isAvailableOnPlatform(menuId, platform)) {
         return false; // Feature not available on this platform
       }
     }
@@ -92,16 +113,34 @@ export const useMenuVisibility = () => {
 
   /**
    * Check if a menu item is available on a specific platform
+   * Uses the new granular columns (show_on_desktop, show_on_tablet, show_on_mobile)
+   * Falls back to legacy available_on if new columns not set
    * @param menuId - The menu item ID
-   * @param platform - The platform to check
+   * @param platform - The platform to check ('desktop' | 'tablet' | 'mobile')
    * @returns boolean - Whether the feature is available on this platform
    */
-  const isAvailableOnPlatform = (menuId: string, platform: 'desktop' | 'mobile'): boolean => {
+  const isAvailableOnPlatform = (menuId: string, platform: Platform): boolean => {
     const item = menuVisibility.get(menuId);
     if (!item) return true; // Default to available if no rules
 
+    // Use new granular columns if available
+    if (item.show_on_desktop !== undefined) {
+      switch (platform) {
+        case 'desktop': return item.show_on_desktop ?? true;
+        case 'tablet': return item.show_on_tablet ?? true;
+        case 'mobile': return item.show_on_mobile ?? true;
+        default: return true;
+      }
+    }
+
+    // Fallback to legacy available_on
     const availableOn = item.available_on || 'desktop';
-    return availableOn === 'both' || availableOn === platform;
+    if (availableOn === 'both') return true;
+    if (platform === 'tablet') {
+      // Tablets fall back to desktop behavior in legacy mode
+      return availableOn === 'desktop';
+    }
+    return availableOn === platform;
   };
 
   /**
@@ -109,11 +148,27 @@ export const useMenuVisibility = () => {
    * @param platform - The platform to filter by
    * @returns MenuVisibilityItem[] - Menu items available on the platform
    */
-  const getMenuItemsForPlatform = (platform: 'desktop' | 'mobile'): MenuVisibilityItem[] => {
-    return Array.from(menuVisibility.values()).filter(item => {
-      const availableOn = item.available_on || 'desktop';
-      return availableOn === 'both' || availableOn === platform;
-    });
+  const getMenuItemsForPlatform = (platform: Platform): MenuVisibilityItem[] => {
+    return Array.from(menuVisibility.values()).filter(item =>
+      isAvailableOnPlatform(item.menu_id, platform)
+    );
+  };
+
+  /**
+   * Toggle platform visibility for a menu item
+   * @param menuId - The menu item ID
+   * @param platform - The platform to toggle
+   * @returns boolean - Success status
+   */
+  const togglePlatformVisibility = async (menuId: string, platform: Platform): Promise<boolean> => {
+    const item = menuVisibility.get(menuId);
+    if (!item) return false;
+
+    const columnName = `show_on_${platform}` as const;
+    const currentValue = item[columnName] ?? true;
+    const newValue = !currentValue;
+
+    return updateMenuVisibility(menuId, { [columnName]: newValue });
   };
 
   const updateMenuVisibility = async (
@@ -200,6 +255,7 @@ export const useMenuVisibility = () => {
     isAvailableOnPlatform,
     getMenuItemsForPlatform,
     toggleRoleVisibility,
+    togglePlatformVisibility,
     addUserOverride,
     removeUserOverride,
     loadMenuVisibility,
