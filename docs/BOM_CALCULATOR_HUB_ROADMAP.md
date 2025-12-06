@@ -145,8 +145,11 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [x] Add custom_products query to SKU Catalog
 - [x] Custom filter option in category dropdown
 - [x] Purple badge for Custom category
-- [ ] Fix Custom SKU labor cost/ft not loading in Catalog
-- [ ] Add Custom SKUs to Calculator product selection
+- [x] Fix Custom SKU labor cost/ft not loading in Catalog - VERIFIED WORKING
+- [x] Add Custom SKUs to Calculator product selection - VERIFIED WORKING
+  - Purple "CU" badge in SKU search dropdown
+  - Calculation based on unit_basis (LF, SF, EA, PROJECT)
+  - Materials and labor calculated correctly
 
 #### 3.2.2 Projects Management
 - [x] Status change (Ready → Sent to Yard) - VERIFIED WORKING
