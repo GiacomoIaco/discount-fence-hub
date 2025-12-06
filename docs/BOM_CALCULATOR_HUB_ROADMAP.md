@@ -107,14 +107,20 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 ### Phase 3.1: Yard Workflow Enhancements
 **Status:** In Progress
 
-#### 3.1.1 Stocking Areas with Colors
-- [x] Create `yard_areas` table (sections of the yard)
+#### 3.1.1 Stocking Areas (Physical Warehouse Locations)
+- [x] Create `yard_areas` table (physical sections of the warehouse)
   - area_code, area_name, color_hex, color_name
-  - Link spots to areas via `area_id`
-- [x] Add `default_area_id` to materials table
-- [x] Create YardAreasPage to manage stocking areas
-- [x] Color-coded pick lists by stocking area
-- [ ] Two pick list views: by Category | by Stocking Area
+  - User-defined areas with custom names and colors
+- [x] Create `yard_slots` table (bins/spots within areas)
+  - Numbered slots (#1, #2, etc.) or custom names
+- [x] Create `material_locations` table (SKU assignments)
+  - Assign SKUs to specific area/slot combinations
+  - v_material_locations view for easy lookup
+- [x] Create YardAreasPage with 3-column layout (like Component Configurator)
+  - Left: Areas list with add/edit/delete
+  - Middle: Selected area details, slots, assigned materials
+  - Right: Material browser to search and assign SKUs
+- [x] Two pick list views: by Category | by Stocking Area
 - [x] Color backgrounds on category headers based on area
 
 #### 3.1.2 Mobile Yard Access
@@ -125,10 +131,17 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [ ] Sound feedback for picked/error states
 
 #### 3.1.3 Interactive Pick List in App
-- [ ] Pick list view in app (not just PDF)
-- [ ] Tap to mark items as picked/staged
-- [ ] Large checkboxes (48x48dp minimum)
-- [ ] Progress indicator (5 of 12 items staged)
+- [x] Pick list view in app (not just PDF)
+  - PickListViewer component with modal display
+  - Category view and Location view toggle
+- [x] Tap to mark items as picked/staged
+  - Click-to-toggle checkboxes on each item
+  - Visual strike-through for picked items
+- [x] Large checkboxes for touch interaction
+- [x] Progress indicator (X of Y items picked)
+  - Progress bar at bottom of viewer
+- [x] 3-dot menu fixed with dropdown options
+  - View, Print, Sign-off, Copy Project Code
 - [ ] Partial pickup support with notes
 
 #### 3.1.4 Additional Yard Features
