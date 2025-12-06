@@ -44,6 +44,13 @@ interface YardSpot {
   occupied_by_project_id: string | null;
 }
 
+interface YardWorker {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
+
 interface ScheduledPickup {
   id: string;
   project_code: string;
@@ -165,6 +172,21 @@ export default function YardSchedulePage() {
       const { data, error } = await query;
       if (error) throw error;
       return data as YardSpot[];
+    },
+  });
+
+  // Fetch yard workers for assignment (operations role or all active users)
+  const { data: yardWorkers = [] } = useQuery({
+    queryKey: ['yard-workers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, role')
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (error) throw error;
+      return data as YardWorker[];
     },
   });
 
@@ -294,6 +316,32 @@ export default function YardSchedulePage() {
     },
     onError: (err: Error) => {
       showError(err.message || 'Failed to update status');
+    },
+  });
+
+  // Assign worker mutation
+  const assignWorkerMutation = useMutation({
+    mutationFn: async ({ projectId, workerId }: { projectId: string; workerId: string | null }) => {
+      const updates: Record<string, unknown> = {
+        claimed_by: workerId,
+        claimed_at: workerId ? new Date().toISOString() : null,
+        status: workerId ? 'picking' : 'sent_to_yard',
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('bom_projects')
+        .update(updates)
+        .eq('id', projectId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['yard-schedule'] });
+      showSuccess('Worker assigned');
+    },
+    onError: (err: Error) => {
+      showError(err.message || 'Failed to assign worker');
     },
   });
 
@@ -608,32 +656,51 @@ export default function YardSchedulePage() {
                     </div>
 
                     {/* Status Change Buttons */}
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+                      {/* Assign Worker - available for sent_to_yard and picking status */}
+                      {(pickup.status === 'sent_to_yard' || pickup.status === 'picking') && (
+                        <select
+                          value={pickup.claimed_by || ''}
+                          onChange={(e) => {
+                            assignWorkerMutation.mutate({
+                              projectId: pickup.id,
+                              workerId: e.target.value || null,
+                            });
+                          }}
+                          className="px-2 py-1 text-xs border border-orange-300 rounded bg-orange-50 text-orange-800"
+                        >
+                          <option value="">Assign worker...</option>
+                          {yardWorkers.map(worker => (
+                            <option key={worker.id} value={worker.id}>
+                              {worker.full_name || worker.email}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
                       {pickup.status === 'sent_to_yard' && (
-                        <>
-                          <select
-                            className="px-2 py-1 text-xs border border-gray-300 rounded"
-                            defaultValue=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                updateStatusMutation.mutate({
-                                  projectId: pickup.id,
-                                  newStatus: 'staged',
-                                  spotId: e.target.value,
-                                });
-                              }
-                            }}
-                          >
-                            <option value="">Assign spot & mark staged...</option>
-                            {yardSpots
-                              .filter(s => s.yard_id === pickup.yard_id && !s.is_occupied)
-                              .map(spot => (
-                                <option key={spot.id} value={spot.id}>
-                                  Spot {spot.spot_code} {spot.spot_name ? `(${spot.spot_name})` : ''}
-                                </option>
-                              ))}
-                          </select>
-                        </>
+                        <select
+                          className="px-2 py-1 text-xs border border-gray-300 rounded"
+                          defaultValue=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              updateStatusMutation.mutate({
+                                projectId: pickup.id,
+                                newStatus: 'staged',
+                                spotId: e.target.value,
+                              });
+                            }
+                          }}
+                        >
+                          <option value="">Assign spot & mark staged...</option>
+                          {yardSpots
+                            .filter(s => s.yard_id === pickup.yard_id && !s.is_occupied)
+                            .map(spot => (
+                              <option key={spot.id} value={spot.id}>
+                                Spot {spot.spot_code} {spot.spot_name ? `(${spot.spot_name})` : ''}
+                              </option>
+                            ))}
+                        </select>
                       )}
                       {pickup.status === 'staged' && (
                         <button

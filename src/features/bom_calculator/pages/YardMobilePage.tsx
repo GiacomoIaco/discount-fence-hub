@@ -153,15 +153,11 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
     enabled: !!selectedYardId,
   });
 
-  // Fetch today's pickups
+  // Fetch active pickups for the yard
   const { data: pickups = [], isLoading, refetch } = useQuery({
     queryKey: ['yard-mobile-schedule', selectedYardId],
     queryFn: async () => {
       if (!selectedYardId) return [];
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
 
       // Get all active pickups: sent_to_yard, picking, staged, loaded
       // Include all sent_to_yard regardless of date so workers can see upcoming jobs
