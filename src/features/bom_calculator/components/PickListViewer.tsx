@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   X,
   Loader2,
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { fetchAndGeneratePickListPDF } from './PickListPDF';
-import { showSuccess, showError } from '../../../lib/toast';
+import { showError } from '../../../lib/toast';
 
 interface PickListViewerProps {
   projectId: string;
@@ -24,6 +24,7 @@ interface PickListViewerProps {
 
 interface BOMItem {
   id: string;
+  material_id: string;
   material_sku: string;
   material_name: string;
   category: string;
@@ -31,6 +32,14 @@ interface BOMItem {
   quantity: number;
   unit: string;
   notes: string | null;
+}
+
+interface PickProgress {
+  id: string;
+  project_id: string;
+  material_id: string;
+  is_complete: boolean;
+  picked_quantity: number;
 }
 
 interface MaterialLocation {
@@ -54,9 +63,18 @@ export default function PickListViewer({
   isBundle,
   onClose,
 }: PickListViewerProps) {
+  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('category');
   const [printing, setPrinting] = useState(false);
   const [pickedItems, setPickedItems] = useState<Set<string>>(new Set());
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Get current user ID
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id || null);
+    });
+  }, []);
 
   // Fetch BOM items for the project
   const { data: bomItems = [], isLoading: loadingBOM } = useQuery({
@@ -66,6 +84,7 @@ export default function PickListViewer({
         .from('project_materials')
         .select(`
           id,
+          material_id,
           final_quantity,
           materials (
             id,
@@ -83,6 +102,7 @@ export default function PickListViewer({
 
       return data.map((item: any) => ({
         id: item.id,
+        material_id: item.material_id,
         material_sku: item.materials?.material_sku || 'Unknown',
         material_name: item.materials?.material_name || 'Unknown Material',
         category: item.materials?.category || 'Other',
@@ -93,6 +113,34 @@ export default function PickListViewer({
       })) as BOMItem[];
     },
   });
+
+  // Fetch existing pick progress
+  const { data: pickProgress = [] } = useQuery({
+    queryKey: ['pick-progress', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pick_progress')
+        .select('*')
+        .eq('project_id', projectId);
+
+      if (error) throw error;
+      return data as PickProgress[];
+    },
+  });
+
+  // Initialize picked items from database
+  useEffect(() => {
+    if (pickProgress.length > 0) {
+      const completedMaterialIds = new Set(
+        pickProgress.filter(p => p.is_complete).map(p => p.material_id)
+      );
+      // Map material_ids to item ids
+      const pickedItemIds = new Set(
+        bomItems.filter(item => completedMaterialIds.has(item.material_id)).map(item => item.id)
+      );
+      setPickedItems(pickedItemIds);
+    }
+  }, [pickProgress, bomItems]);
 
   // Fetch material locations
   const { data: locations = [] } = useQuery({
@@ -158,8 +206,45 @@ export default function PickListViewer({
     return result;
   }, [bomItems, locationMap]);
 
+  // Mutation to save pick progress
+  const savePickProgressMutation = useMutation({
+    mutationFn: async ({ materialId, quantity, isComplete }: { materialId: string; quantity: number; isComplete: boolean }) => {
+      // Upsert the pick progress record
+      const { error } = await supabase
+        .from('pick_progress')
+        .upsert({
+          project_id: projectId,
+          material_id: materialId,
+          required_quantity: quantity,
+          picked_quantity: isComplete ? quantity : 0,
+          is_complete: isComplete,
+          picked_by: isComplete ? currentUserId : null,
+          picked_at: isComplete ? new Date().toISOString() : null,
+        }, {
+          onConflict: 'project_id,material_id',
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['pick-progress', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['yard-mobile-schedule'] });
+      queryClient.invalidateQueries({ queryKey: ['my-claimed-jobs'] });
+    },
+    onError: (error: any) => {
+      showError(`Failed to save: ${error.message}`);
+    },
+  });
+
   // Toggle picked item
   const togglePicked = (itemId: string) => {
+    const item = bomItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const newIsComplete = !pickedItems.has(itemId);
+
+    // Update local state immediately for responsive UI
     setPickedItems(prev => {
       const next = new Set(prev);
       if (next.has(itemId)) {
@@ -168,6 +253,13 @@ export default function PickListViewer({
         next.add(itemId);
       }
       return next;
+    });
+
+    // Save to database
+    savePickProgressMutation.mutate({
+      materialId: item.material_id,
+      quantity: item.quantity,
+      isComplete: newIsComplete,
     });
   };
 
