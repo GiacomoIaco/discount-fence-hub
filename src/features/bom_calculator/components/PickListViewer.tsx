@@ -66,10 +66,8 @@ export default function PickListViewer({
         .from('project_materials')
         .select(`
           id,
-          calculated_quantity,
-          rounded_quantity,
-          manual_quantity,
-          material:material_id (
+          final_quantity,
+          materials (
             id,
             material_sku,
             material_name,
@@ -85,12 +83,12 @@ export default function PickListViewer({
 
       return data.map((item: any) => ({
         id: item.id,
-        material_sku: item.material?.material_sku || 'Unknown',
-        material_name: item.material?.material_name || 'Unknown Material',
-        category: item.material?.category || 'Other',
-        sub_category: item.material?.sub_category || null,
-        quantity: item.manual_quantity ?? item.rounded_quantity ?? item.calculated_quantity ?? 0,
-        unit: item.material?.uom || 'EA',
+        material_sku: item.materials?.material_sku || 'Unknown',
+        material_name: item.materials?.material_name || 'Unknown Material',
+        category: item.materials?.category || 'Other',
+        sub_category: item.materials?.sub_category || null,
+        quantity: item.final_quantity ?? 0,
+        unit: item.materials?.uom || 'EA',
         notes: null,
       })) as BOMItem[];
     },

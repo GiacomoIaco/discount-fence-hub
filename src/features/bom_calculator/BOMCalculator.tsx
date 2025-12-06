@@ -507,13 +507,13 @@ export function BOMCalculator({
         // Fetch materials with material details
         const { data: materialsData } = await supabase
           .from('project_materials')
-          .select('*, material:material_id(material_sku, material_name)')
+          .select('id, material_id, calculated_quantity, rounded_quantity, manual_quantity, final_quantity, unit_cost, is_manual_addition, materials(material_sku, material_name)')
           .eq('project_id', initialProjectId);
 
         // Fetch labor with labor code details
         const { data: laborData } = await supabase
           .from('project_labor')
-          .select('*, labor_code:labor_code_id(labor_sku, description)')
+          .select('id, labor_code_id, calculated_quantity, manual_quantity, final_quantity, labor_rate, is_manual_addition, labor_codes(labor_sku, description)')
           .eq('project_id', initialProjectId);
 
         // Populate project info
@@ -544,35 +544,44 @@ export function BOMCalculator({
           })));
         }
 
-        // Populate material rows (with adjustments preserved)
+        // Populate material rows
         if (materialsData && materialsData.length > 0) {
-          setMaterialRows(materialsData.map((mat: any) => ({
-            material_id: mat.material_id,
-            material_sku: mat.material?.material_sku || '',
-            material_name: mat.material?.material_name || '',
-            unit_cost: mat.unit_cost,
-            calculated_qty: mat.calculated_quantity,
-            rounded_qty: mat.rounded_quantity,
-            adjustment: mat.adjustment_amount || 0,
-            total_qty: mat.manual_quantity || mat.rounded_quantity,
-            total_cost: mat.adjusted_extended_cost,
-            is_manual: mat.is_manual_addition || false,
-          })));
+          setMaterialRows(materialsData.map((mat: any) => {
+            const roundedQty = mat.rounded_quantity || Math.ceil(mat.calculated_quantity);
+            const finalQty = mat.final_quantity || mat.manual_quantity || roundedQty;
+            const adjustment = mat.manual_quantity ? (mat.manual_quantity - roundedQty) : 0;
+            return {
+              material_id: mat.material_id,
+              material_sku: mat.materials?.material_sku || '',
+              material_name: mat.materials?.material_name || '',
+              unit_cost: mat.unit_cost,
+              calculated_qty: mat.calculated_quantity,
+              rounded_qty: roundedQty,
+              adjustment: adjustment,
+              total_qty: finalQty,
+              total_cost: finalQty * mat.unit_cost,
+              is_manual: mat.is_manual_addition || false,
+            };
+          }));
         }
 
-        // Populate labor rows (with adjustments preserved)
+        // Populate labor rows
         if (laborData && laborData.length > 0) {
-          setLaborRows(laborData.map((lab: any) => ({
-            labor_code_id: lab.labor_code_id,
-            labor_sku: lab.labor_code?.labor_sku || '',
-            description: lab.labor_code?.description || '',
-            rate: lab.labor_rate,
-            quantity: lab.calculated_quantity,
-            calculated_cost: lab.calculated_extended_cost,
-            adjustment: lab.adjustment_amount || 0,
-            total_cost: lab.adjusted_extended_cost,
-            is_manual: lab.is_manual_addition || false,
-          })));
+          setLaborRows(laborData.map((lab: any) => {
+            const qty = lab.final_quantity || lab.manual_quantity || lab.calculated_quantity;
+            const adjustment = lab.manual_quantity ? (lab.manual_quantity - lab.calculated_quantity) : 0;
+            return {
+              labor_code_id: lab.labor_code_id,
+              labor_sku: lab.labor_codes?.labor_sku || '',
+              description: lab.labor_codes?.description || '',
+              rate: lab.labor_rate,
+              quantity: lab.calculated_quantity,
+              calculated_cost: lab.calculated_quantity * lab.labor_rate,
+              adjustment: adjustment,
+              total_cost: qty * lab.labor_rate,
+              is_manual: lab.is_manual_addition || false,
+            };
+          }));
         }
 
         showSuccess(duplicateMode ? 'Project loaded for duplication' : 'Project loaded');
