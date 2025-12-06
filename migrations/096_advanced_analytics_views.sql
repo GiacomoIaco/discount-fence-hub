@@ -85,7 +85,7 @@ GRANT SELECT ON v_material_category_summary TO authenticated;
 CREATE OR REPLACE VIEW v_labor_rate_comparison AS
 SELECT
   lc.id as labor_code_id,
-  lc.code as labor_code,
+  lc.labor_sku as labor_code,
   lc.description as labor_description,
   bu.id as business_unit_id,
   bu.code as bu_code,
@@ -109,7 +109,7 @@ SELECT
 FROM labor_codes lc
 CROSS JOIN business_units bu
 LEFT JOIN labor_rates lr ON lr.labor_code_id = lc.id AND lr.business_unit_id = bu.id
-ORDER BY lc.code, bu.code;
+ORDER BY lc.labor_sku, bu.code;
 
 GRANT SELECT ON v_labor_rate_comparison TO authenticated;
 
