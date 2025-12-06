@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
+export type Platform = 'desktop' | 'mobile' | 'both';
+
 export interface MenuVisibilityItem {
   id: string;
   menu_id: string;
@@ -9,6 +11,7 @@ export interface MenuVisibilityItem {
   visible_for_roles: string[];
   enabled_users: string[];
   disabled_users: string[];
+  available_on: Platform;
   updated_at: string;
   updated_by?: string;
 }
@@ -42,16 +45,39 @@ export const useMenuVisibility = () => {
     }
   };
 
-  const canSeeMenuItem = (menuId: string, overrideRole?: string): boolean => {
+  /**
+   * Check if user can see a menu item
+   * @param menuId - The menu item ID
+   * @param optionsOrRole - Either an options object or a role string (for backward compatibility)
+   * @returns boolean - Whether the user can see the menu item
+   */
+  const canSeeMenuItem = (
+    menuId: string,
+    optionsOrRole?: string | { overrideRole?: string; platform?: 'desktop' | 'mobile' }
+  ): boolean => {
     const item = menuVisibility.get(menuId);
 
     // If no visibility rules defined, default to visible
     if (!item) return true;
 
+    // Handle backward compatibility: if string passed, treat as overrideRole
+    const options = typeof optionsOrRole === 'string'
+      ? { overrideRole: optionsOrRole }
+      : optionsOrRole || {};
+
+    const { overrideRole, platform } = options;
     const userRole = overrideRole || profile?.role || 'sales';
     const userId = user?.id;
 
-    // Check user-level overrides first (only if not using override role)
+    // Check platform availability first (if platform specified)
+    if (platform) {
+      const availableOn = item.available_on || 'desktop';
+      if (availableOn !== 'both' && availableOn !== platform) {
+        return false; // Feature not available on this platform
+      }
+    }
+
+    // Check user-level overrides (only if not using override role)
     if (userId && !overrideRole) {
       // If user is explicitly disabled, hide the menu
       if (item.disabled_users?.includes(userId)) return false;
@@ -62,6 +88,32 @@ export const useMenuVisibility = () => {
 
     // Check role-level visibility
     return item.visible_for_roles?.includes(userRole) ?? true;
+  };
+
+  /**
+   * Check if a menu item is available on a specific platform
+   * @param menuId - The menu item ID
+   * @param platform - The platform to check
+   * @returns boolean - Whether the feature is available on this platform
+   */
+  const isAvailableOnPlatform = (menuId: string, platform: 'desktop' | 'mobile'): boolean => {
+    const item = menuVisibility.get(menuId);
+    if (!item) return true; // Default to available if no rules
+
+    const availableOn = item.available_on || 'desktop';
+    return availableOn === 'both' || availableOn === platform;
+  };
+
+  /**
+   * Get all menu items available on a specific platform
+   * @param platform - The platform to filter by
+   * @returns MenuVisibilityItem[] - Menu items available on the platform
+   */
+  const getMenuItemsForPlatform = (platform: 'desktop' | 'mobile'): MenuVisibilityItem[] => {
+    return Array.from(menuVisibility.values()).filter(item => {
+      const availableOn = item.available_on || 'desktop';
+      return availableOn === 'both' || availableOn === platform;
+    });
   };
 
   const updateMenuVisibility = async (
@@ -145,6 +197,8 @@ export const useMenuVisibility = () => {
   return {
     menuVisibility: Array.from(menuVisibility.values()),
     canSeeMenuItem,
+    isAvailableOnPlatform,
+    getMenuItemsForPlatform,
     toggleRoleVisibility,
     addUserOverride,
     removeUserOverride,

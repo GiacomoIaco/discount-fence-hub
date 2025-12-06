@@ -20,7 +20,7 @@ const MenuVisibilitySettings = () => {
     loading,
   } = useMenuVisibility();
 
-  const roles = ['sales', 'operations', 'sales-manager', 'admin'];
+  const roles = ['sales', 'operations', 'yard', 'sales-manager', 'admin'];
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<string | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -62,7 +62,8 @@ const MenuVisibilitySettings = () => {
   const getRoleLabel = (role: string): string => {
     const labels: Record<string, string> = {
       'sales': 'Sales',
-      'operations': 'Operations',
+      'operations': 'Ops',
+      'yard': 'Yard',
       'sales-manager': 'Sales Mgr',
       'admin': 'Admin',
     };
@@ -137,18 +138,30 @@ const MenuVisibilitySettings = () => {
             <thead>
               <tr className="border-b-2 border-gray-200">
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Menu Item</th>
+                <th className="text-center py-3 px-2 font-semibold text-gray-700">Platform</th>
                 {roles.map(role => (
-                  <th key={role} className="text-center py-3 px-2 font-semibold text-gray-700 min-w-[80px]">
+                  <th key={role} className="text-center py-3 px-2 font-semibold text-gray-700 min-w-[60px]">
                     {getRoleLabel(role)}
                   </th>
                 ))}
-                <th className="text-center py-3 px-4 font-semibold text-gray-700">User Overrides</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Overrides</th>
               </tr>
             </thead>
             <tbody>
               {menuVisibility.map(item => (
                 <tr key={item.menu_id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{item.menu_name}</td>
+                  <td className="text-center py-3 px-2">
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                      item.available_on === 'both'
+                        ? 'bg-green-100 text-green-700'
+                        : item.available_on === 'mobile'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {item.available_on === 'both' ? 'Both' : item.available_on === 'mobile' ? 'Mobile' : 'Desktop'}
+                    </span>
+                  </td>
                   {roles.map(role => {
                     const isVisible = item.visible_for_roles?.includes(role);
                     return (
@@ -158,7 +171,7 @@ const MenuVisibilitySettings = () => {
                             type="checkbox"
                             checked={isVisible}
                             onChange={() => handleToggleRole(item.menu_id, role)}
-                            className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
                           />
                         </label>
                       </td>
