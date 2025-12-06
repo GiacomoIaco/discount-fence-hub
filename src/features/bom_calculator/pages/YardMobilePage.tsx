@@ -10,6 +10,7 @@ import {
   Printer,
   Camera,
   ChevronDown,
+  ChevronUp,
   Layers,
   ArrowLeft,
   Loader2,
@@ -104,11 +105,18 @@ interface YardMobilePageProps {
   initialClaimCode?: string; // From QR code scan
 }
 
+// Storage key for yard selection
+const YARD_STORAGE_KEY = 'yard-mobile-selected-yard';
+
 export default function YardMobilePage({ onBack, initialClaimCode }: YardMobilePageProps) {
   const queryClient = useQueryClient();
-  const [selectedYardId, setSelectedYardId] = useState<string>('');
+  // Initialize from localStorage
+  const [selectedYardId, setSelectedYardId] = useState<string>(() => {
+    return localStorage.getItem(YARD_STORAGE_KEY) || '';
+  });
   const [searchQuery] = useState('');
   const [expandedPickupId, setExpandedPickupId] = useState<string | null>(null);
+  const [headerExpanded, setHeaderExpanded] = useState(false); // Collapsed by default on phones
   const [signoffPickup, setSignoffPickup] = useState<ScheduledPickup | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -202,6 +210,13 @@ export default function YardMobilePage({ onBack, initialClaimCode }: YardMobileP
     }
   };
 
+  // Save yard selection to localStorage
+  useEffect(() => {
+    if (selectedYardId) {
+      localStorage.setItem(YARD_STORAGE_KEY, selectedYardId);
+    }
+  }, [selectedYardId]);
+
   // Fetch yards
   const { data: yards = [] } = useQuery({
     queryKey: ['yards'],
@@ -212,9 +227,11 @@ export default function YardMobilePage({ onBack, initialClaimCode }: YardMobileP
         .eq('is_active', true)
         .order('code');
       if (error) throw error;
-      // Auto-select first yard
+      // Auto-select first yard only if no saved selection or saved selection invalid
       if (data.length > 0 && !selectedYardId) {
-        setSelectedYardId(data[0].id);
+        const savedId = localStorage.getItem(YARD_STORAGE_KEY);
+        const validSaved = savedId && data.some(y => y.id === savedId);
+        setSelectedYardId(validSaved ? savedId : data[0].id);
       }
       return data as Yard[];
     },
@@ -544,44 +561,52 @@ export default function YardMobilePage({ onBack, initialClaimCode }: YardMobileP
     }
   };
 
-  const selectedYard = yards.find(y => y.id === selectedYardId);
-
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Header - Large touch targets */}
-      <div className="bg-gradient-to-r from-amber-600 to-amber-500 text-white px-4 py-3 sticky top-0 z-10 shadow-lg">
+      {/* Header - Compact for phones, expandable */}
+      <div className="bg-gradient-to-r from-amber-600 to-amber-500 text-white px-3 sm:px-4 py-2 sm:py-3 sticky top-0 z-10 shadow-lg">
+        {/* Top row - always visible */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {onBack && (
               <button
                 onClick={onBack}
-                className="p-2 -ml-2 hover:bg-white/10 rounded-lg"
+                className="p-1.5 sm:p-2 -ml-1 hover:bg-white/10 rounded-lg"
               >
-                <ArrowLeft className="w-6 h-6" />
+                <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             )}
             <div>
-              <h1 className="text-xl font-bold">Yard View</h1>
-              <p className="text-amber-100 text-sm">{selectedYard?.name || 'Select yard'}</p>
+              <h1 className="text-lg sm:text-xl font-bold">Yard</h1>
             </div>
           </div>
 
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="p-3 hover:bg-white/10 rounded-lg"
-          >
-            <RefreshCw className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Expand/Collapse toggle */}
+            <button
+              onClick={() => setHeaderExpanded(!headerExpanded)}
+              className="p-2 hover:bg-white/10 rounded-lg flex items-center gap-1 text-sm"
+            >
+              {headerExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              <span className="hidden sm:inline">{headerExpanded ? 'Less' : 'More'}</span>
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 sm:p-3 hover:bg-white/10 rounded-lg"
+            >
+              <RefreshCw className={`w-5 h-5 sm:w-6 sm:h-6 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        {/* Yard Selector */}
-        <div className="mt-3 flex gap-2">
+        {/* Yard Selector - always visible but compact */}
+        <div className="mt-2 flex gap-1.5 sm:gap-2">
           {yards.map(yard => (
             <button
               key={yard.id}
               onClick={() => setSelectedYardId(yard.id)}
-              className={`flex-1 py-3 rounded-lg font-bold text-lg transition-all ${
+              className={`flex-1 py-2 sm:py-3 rounded-lg font-bold text-sm sm:text-lg transition-all ${
                 selectedYardId === yard.id
                   ? 'bg-white text-amber-600 shadow-lg'
                   : 'bg-white/20 hover:bg-white/30'
@@ -592,76 +617,81 @@ export default function YardMobilePage({ onBack, initialClaimCode }: YardMobileP
           ))}
         </div>
 
-        {/* Urgency Filter Buttons */}
-        <div className="mt-2 flex gap-1 overflow-x-auto">
-          <button
-            onClick={() => setUrgencyFilter('all')}
-            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
-              urgencyFilter === 'all'
-                ? 'bg-white text-amber-600'
-                : 'bg-white/20 hover:bg-white/30'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setUrgencyFilter('urgent')}
-            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
-              urgencyFilter === 'urgent'
-                ? 'bg-red-500 text-white'
-                : 'bg-white/20 hover:bg-white/30'
-            }`}
-          >
-            <AlertCircle className="w-4 h-4" />
-            Urgent
-          </button>
-          <button
-            onClick={() => setUrgencyFilter('today')}
-            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
-              urgencyFilter === 'today'
-                ? 'bg-orange-500 text-white'
-                : 'bg-white/20 hover:bg-white/30'
-            }`}
-          >
-            Stage Today
-          </button>
-          <button
-            onClick={() => setUrgencyFilter('tomorrow')}
-            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
-              urgencyFilter === 'tomorrow'
-                ? 'bg-yellow-500 text-white'
-                : 'bg-white/20 hover:bg-white/30'
-            }`}
-          >
-            Tomorrow
-          </button>
-        </div>
+        {/* Collapsible section - Urgency Filters & Code Entry */}
+        {headerExpanded && (
+          <div className="mt-2 space-y-2 animate-in slide-in-from-top-2 duration-200">
+            {/* Urgency Filter Buttons */}
+            <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+              <button
+                onClick={() => setUrgencyFilter('all')}
+                className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all ${
+                  urgencyFilter === 'all'
+                    ? 'bg-white text-amber-600'
+                    : 'bg-white/20 hover:bg-white/30'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setUrgencyFilter('urgent')}
+                className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
+                  urgencyFilter === 'urgent'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-white/20 hover:bg-white/30'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Urgent
+              </button>
+              <button
+                onClick={() => setUrgencyFilter('today')}
+                className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all ${
+                  urgencyFilter === 'today'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white/20 hover:bg-white/30'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => setUrgencyFilter('tomorrow')}
+                className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all ${
+                  urgencyFilter === 'tomorrow'
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-white/20 hover:bg-white/30'
+                }`}
+              >
+                Tomorrow
+              </button>
+            </div>
 
-        {/* Code Entry - Primary Action */}
-        <div className="mt-3 bg-white/10 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Clipboard className="w-5 h-5" />
-            <span className="font-medium">Enter Project Code from Pick List</span>
+            {/* Code Entry */}
+            <div className="bg-white/10 rounded-xl p-2 sm:p-3">
+              <div className="flex items-center gap-2 mb-1.5 sm:mb-2 text-sm">
+                <Clipboard className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="font-medium">Enter Code</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="AAA-000"
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && handleClaimCode()}
+                  className="flex-1 px-3 py-2 sm:px-4 sm:py-3 bg-white rounded-lg text-gray-900 font-mono text-lg sm:text-xl font-bold text-center placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  maxLength={7}
+                />
+                <button
+                  onClick={handleClaimCode}
+                  disabled={!codeInput.trim()}
+                  className="px-4 py-2 sm:px-6 sm:py-3 bg-white text-amber-600 rounded-lg font-bold text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-50 active:bg-amber-100"
+                >
+                  GO
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="AAA-000"
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleClaimCode()}
-              className="flex-1 px-4 py-3 bg-white rounded-lg text-gray-900 font-mono text-xl font-bold text-center placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
-              maxLength={7}
-            />
-            <button
-              onClick={handleClaimCode}
-              disabled={!codeInput.trim()}
-              className="px-6 py-3 bg-white text-amber-600 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-50 active:bg-amber-100"
-            >
-              GO
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Content */}
@@ -1328,14 +1358,17 @@ function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardPro
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-md overflow-hidden ${
-      pickup.staging_urgency === 'overdue' ? 'ring-2 ring-red-400' :
-      pickup.staging_urgency === 'today' ? 'ring-2 ring-orange-400' : ''
-    }`}>
+    <div
+      onClick={onView}
+      className={`bg-white rounded-xl shadow-md overflow-hidden cursor-pointer active:bg-gray-50 transition-colors ${
+        pickup.staging_urgency === 'overdue' ? 'ring-2 ring-red-400' :
+        pickup.staging_urgency === 'today' ? 'ring-2 ring-orange-400' : ''
+      }`}
+    >
       {/* Urgency Banner */}
       {urgencyConfig && (pickup.staging_urgency === 'overdue' || pickup.staging_urgency === 'today') && (
-        <div className={`px-4 py-1.5 ${urgencyConfig.bgColor} ${urgencyConfig.textColor} flex items-center justify-between text-sm font-bold`}>
-          <div className="flex items-center gap-2">
+        <div className={`px-3 py-1 sm:px-4 sm:py-1.5 ${urgencyConfig.bgColor} ${urgencyConfig.textColor} flex items-center justify-between text-xs sm:text-sm font-bold`}>
+          <div className="flex items-center gap-1 sm:gap-2">
             {urgencyConfig.icon}
             <span>STAGE {urgencyConfig.label}</span>
           </div>
@@ -1345,13 +1378,13 @@ function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardPro
         </div>
       )}
 
-      <div className="p-4 flex items-center gap-4">
-        <div className={`w-16 h-12 rounded-lg flex items-center justify-center ${
+      <div className="p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
+        <div className={`w-14 h-10 sm:w-16 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
           pickup.staging_urgency === 'overdue' ? 'bg-red-100' :
           pickup.staging_urgency === 'today' ? 'bg-orange-100' :
           pickup.staging_urgency === 'tomorrow' ? 'bg-yellow-100' : 'bg-amber-100'
         }`}>
-          <span className={`font-mono font-bold text-sm ${
+          <span className={`font-mono font-bold text-xs sm:text-sm ${
             pickup.staging_urgency === 'overdue' ? 'text-red-700' :
             pickup.staging_urgency === 'today' ? 'text-orange-700' :
             pickup.staging_urgency === 'tomorrow' ? 'text-yellow-700' : 'text-amber-700'
@@ -1360,45 +1393,38 @@ function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardPro
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-gray-900 truncate">{pickup.project_name}</h3>
+          <h3 className="font-bold text-gray-900 text-sm sm:text-base truncate">{pickup.project_name}</h3>
           {pickup.customer_name && (
-            <p className="text-sm text-gray-500 truncate">{pickup.customer_name}</p>
+            <p className="text-xs sm:text-sm text-gray-500 truncate">{pickup.customer_name}</p>
           )}
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
             <span>{pickup.total_linear_feet} LF</span>
             {urgencyConfig && pickup.staging_urgency !== 'overdue' && pickup.staging_urgency !== 'today' && (
-              <span className={`px-1.5 py-0.5 rounded ${urgencyConfig.bgColor} ${urgencyConfig.textColor}`}>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${urgencyConfig.bgColor} ${urgencyConfig.textColor}`}>
                 {urgencyConfig.label}
               </span>
             )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onView}
-            className="px-3 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold flex items-center gap-1 active:bg-gray-200"
-          >
-            <Eye className="w-5 h-5" />
-          </button>
-          <button
-            onClick={onClaim}
-            disabled={isClaiming}
-            className={`px-4 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 active:brightness-90 ${
-              pickup.staging_urgency === 'overdue' ? 'bg-red-500 text-white' :
-              pickup.staging_urgency === 'today' ? 'bg-orange-500 text-white' :
-              'bg-amber-500 text-white'
-            }`}
-          >
-            {isClaiming ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Play className="w-5 h-5" />
-                Claim
-              </>
-            )}
-          </button>
-        </div>
+        {/* Claim button - stops propagation to prevent card tap */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onClaim(); }}
+          disabled={isClaiming}
+          className={`px-3 py-2 sm:px-4 sm:py-3 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1 sm:gap-2 disabled:opacity-50 active:brightness-90 flex-shrink-0 ${
+            pickup.staging_urgency === 'overdue' ? 'bg-red-500 text-white' :
+            pickup.staging_urgency === 'today' ? 'bg-orange-500 text-white' :
+            'bg-amber-500 text-white'
+          }`}
+        >
+          {isClaiming ? (
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+          ) : (
+            <>
+              <Play className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Claim</span>
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
