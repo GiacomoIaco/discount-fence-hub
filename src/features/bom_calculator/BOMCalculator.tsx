@@ -1238,11 +1238,13 @@ export function BOMCalculator({
                     item.fenceType === 'wood_vertical' ? 'bg-green-100 text-green-700' :
                     item.fenceType === 'wood_horizontal' ? 'bg-blue-100 text-blue-700' :
                     item.fenceType === 'iron' ? 'bg-gray-200 text-gray-700' :
+                    item.fenceType === 'custom' ? 'bg-purple-100 text-purple-700' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
                     {item.fenceType === 'wood_vertical' ? 'WV' :
                      item.fenceType === 'wood_horizontal' ? 'WH' :
-                     item.fenceType === 'iron' ? 'IR' : 'ALL'}
+                     item.fenceType === 'iron' ? 'IR' :
+                     item.fenceType === 'custom' ? 'CU' : 'ALL'}
                   </span>
                   <div className="flex-1">
                     <SKUSearch

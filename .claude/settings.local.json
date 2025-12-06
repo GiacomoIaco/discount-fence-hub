@@ -67,7 +67,8 @@
       "Bash(ls:*)",
       "Bash(npm install:*)",
       "WebSearch",
-      "mcp__chrome-devtools__list_network_requests"
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__press_key"
     ],
     "deny": [],
     "ask": []
