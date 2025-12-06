@@ -70,6 +70,21 @@ interface SKULaborCost {
   labor_cost_per_foot: number;
 }
 
+// Custom product labor association
+interface CustomProductLabor {
+  id: string;
+  custom_product_id: string;
+  labor_code_id: string;
+  quantity_per_unit: number;
+}
+
+// Labor rate for a code
+interface LaborRate {
+  id: string;
+  labor_code_id: string;
+  rate: number;
+}
+
 // Unified SKU row for table display (with per-foot costs)
 interface SKURow {
   id: string;
@@ -209,6 +224,33 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     },
   });
 
+  // Fetch custom product labor associations
+  const { data: customProductLabor = [] } = useQuery({
+    queryKey: ['custom-product-labor-catalog'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('custom_product_labor')
+        .select('id, custom_product_id, labor_code_id, quantity_per_unit');
+      if (error) throw error;
+      return data as CustomProductLabor[];
+    },
+  });
+
+  // Fetch labor rates for selected BU (for custom product labor cost calculation)
+  const { data: laborRates = [] } = useQuery({
+    queryKey: ['labor-rates-for-catalog', businessUnitId],
+    queryFn: async () => {
+      if (!businessUnitId) return [];
+      const { data, error } = await supabase
+        .from('labor_rates')
+        .select('id, labor_code_id, rate')
+        .eq('business_unit_id', businessUnitId);
+      if (error) throw error;
+      return data as LaborRate[];
+    },
+    enabled: !!businessUnitId,
+  });
+
   const isLoading = loadingWV || loadingWH || loadingIron || loadingCustom;
 
   // Combine all products into unified rows with labor from stored values
@@ -284,11 +326,28 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
       });
     });
 
+    // Create a map for labor rates by labor_code_id
+    const laborRateMap = new Map<string, number>();
+    laborRates.forEach(lr => laborRateMap.set(lr.labor_code_id, lr.rate));
+
     // Custom products (services, add-ons, repairs, etc.)
     custom.forEach(p => {
       const materialCost = p.standard_material_cost || 0;
-      const laborCost = p.standard_labor_cost || 0;
-      const totalCost = p.standard_cost_per_unit || (materialCost + laborCost);
+
+      // Calculate labor cost dynamically from associations and BU rates
+      let laborCost = 0;
+      const productLabor = customProductLabor.filter(cpl => cpl.custom_product_id === p.id);
+      for (const labor of productLabor) {
+        const rate = laborRateMap.get(labor.labor_code_id) || 0;
+        laborCost += labor.quantity_per_unit * rate;
+      }
+
+      // Fall back to stored standard_labor_cost if no associations or rates
+      if (laborCost === 0 && p.standard_labor_cost) {
+        laborCost = p.standard_labor_cost;
+      }
+
+      const totalCost = materialCost + laborCost;
 
       rows.push({
         id: p.id,
@@ -310,7 +369,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     });
 
     return rows.sort((a, b) => a.sku_code.localeCompare(b.sku_code));
-  }, [woodVertical, woodHorizontal, iron, custom, laborCostMap]);
+  }, [woodVertical, woodHorizontal, iron, custom, laborCostMap, customProductLabor, laborRates]);
 
   // Get unique styles and heights for filter dropdowns
   const uniqueStyles = useMemo(() => {

@@ -19,7 +19,9 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 | Phase 0 | Foundation & Formula Corrections | Completed | Dec 4, 2024 |
 | Phase 1 | Price History & Analytics Dashboard | Completed | Dec 4, 2024 |
 | Phase 2 | Component System & Configurator | Completed | Dec 5, 2024 |
-| Phase 3 | Yard Workflow | Completed | Dec 5, 2024 |
+| Phase 3 | Yard Workflow (Core) | Completed | Dec 5, 2024 |
+| Phase 3.1 | Yard Workflow Enhancements | In Progress | - |
+| Phase 3.2 | Bug Fixes & Improvements | In Progress | - |
 | Phase 4 | Advanced Analytics | Planned | - |
 | Phase 5 | Price Book | Planned | - |
 | Phase 6 | ServiceTitan Export | Planned | - |
@@ -64,7 +66,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [x] All material dropdowns use configured rules with fallback
 - [x] Rot Board dropdown for Wood Vertical
 
-### Phase 3: Yard Workflow
+### Phase 3: Yard Workflow (Core)
 **Completed:** December 5, 2024
 
 - [x] Database migration (085_yard_workflow.sql)
@@ -100,143 +102,67 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 
 ---
 
+## In Progress Phases
+
+### Phase 3.1: Yard Workflow Enhancements
+**Status:** In Progress
+
+#### 3.1.1 Stocking Areas with Colors
+- [ ] Create `yard_areas` table (sections of the yard)
+  - area_code, area_name, color_hex, color_name
+  - Link spots to areas via `area_id`
+- [ ] Add `default_area_id` to materials table
+- [ ] Update YardSpotsPage to manage areas
+- [ ] Color-coded pick lists by stocking area
+- [ ] Two pick list views: by Category | by Stocking Area
+- [ ] Color backgrounds on items based on area
+
+#### 3.1.2 Mobile Yard Access
+- [ ] Add "yard" user role
+- [ ] For yard users: mobile app shows only Yard section + Chat
+- [ ] Bypass desktop-only restriction for Yard pages
+- [ ] High contrast mode for outdoor use
+- [ ] Sound feedback for picked/error states
+
+#### 3.1.3 Interactive Pick List in App
+- [ ] Pick list view in app (not just PDF)
+- [ ] Tap to mark items as picked/staged
+- [ ] Large checkboxes (48x48dp minimum)
+- [ ] Progress indicator (5 of 12 items staged)
+- [ ] Partial pickup support with notes
+
+#### 3.1.4 Additional Yard Features
+- [ ] Sort by pick sequence (optimized for yard layout)
+- [ ] Calendar view of scheduled pickups
+- [ ] Damage/shortage reporting with photo capture
+- [ ] Notifications (alert yard when project scheduled)
+- [ ] Daily summary of upcoming pickups
+
+### Phase 3.2: Bug Fixes & Improvements
+**Status:** In Progress
+
+#### 3.2.1 Custom SKUs
+- [x] Add custom_products query to SKU Catalog
+- [x] Custom filter option in category dropdown
+- [x] Purple badge for Custom category
+- [ ] Fix Custom SKU labor cost/ft not loading in Catalog
+- [ ] Add Custom SKUs to Calculator product selection
+
+#### 3.2.2 Projects Management
+- [x] Status change (Ready → Sent to Yard) - VERIFIED WORKING
+- [ ] Test and fix project save error in Calculator
+- [ ] Add Archive projects feature (admin only)
+- [ ] Add view archived projects option
+
+#### 3.2.3 SKU Builder
+- [x] New SKUs appearing in catalog - VERIFIED WORKING
+
+---
+
 ## Planned Phases
 
 ### Phase 4: Advanced Analytics
 **Status:** Planned
-
-### Overview
-Comprehensive analytics dashboard with multiple tabs for deep insights into materials, labor, projects, and business performance.
-
-### Core Features
-
-#### 4.1 Pick List Management (Legacy - Moved to Phase 3)
-- [x] View BOM without costs/labor for scheduled projects
-- [x] Filter by date (today, tomorrow, date range)
-- [x] Filter by yard location (ATX, SA, HOU)
-- [ ] Sort by pick sequence (optimized for yard layout)
-- [ ] Search by project name, customer, or project ID
-
-#### 3.2 Print Pick List
-- [ ] Generate 1-page pick list PDF
-- [ ] Print 3 identical copies
-- [ ] Include: Project info, materials, quantities, QR code
-- [ ] QR code links to digital version for quick lookup
-- [ ] Organized by material category for efficient picking
-
-#### 3.3 Status Tracking
-- [ ] Status workflow: To Be Staged → Staged → Loaded
-- [ ] Additional statuses: Partially Loaded, Issue
-- [ ] "Issue" status includes notes field for problems
-- [ ] Status change history with timestamps
-- [ ] Color-coded status indicators
-
-#### 3.4 Crew Sign-off (Photo Capture)
-- [ ] Capture photo of signed pick list
-- [ ] Auto-capture metadata: date, time, user, GPS
-- [ ] Store crew name (text input, not OCR)
-- [ ] Photo stored in Supabase storage
-- [ ] View sign-off history for any project
-
-#### 3.5 Yard Spot Management
-- [ ] Define staging spots per yard
-- [ ] Assign project/bundle to spot
-- [ ] Visual yard map showing spot assignments
-- [ ] View all spots and their current status
-- [ ] Clear spot when project is loaded
-
-### Additional Features (Phase 3)
-
-#### 3.6 Schedule Dashboard
-- [ ] Calendar view of scheduled pickups
-- [ ] Color-coded by status
-- [ ] Filter by yard, date range, status
-- [ ] Quick stats: projects due today, staged, loaded
-
-#### 3.7 Mobile-First "Yard" Role
-- [ ] New user role: "yard"
-- [ ] Simplified UI for tablet/outdoor use
-- [ ] Large touch targets, high contrast
-- [ ] Offline capability (sync when connected)
-- [ ] QR/barcode scanner for quick lookup
-
-#### 3.8 Notifications
-- [ ] Alert yard when new project scheduled
-- [ ] Alert operations when project loaded
-- [ ] Daily summary of upcoming pickups
-
-#### 3.9 Damage/Shortage Reporting
-- [ ] Report damaged materials during staging
-- [ ] Report shortages
-- [ ] Photo capture of issues
-- [ ] Auto-notify purchasing (future)
-
-### Deferred to Future Phase
-- Material Availability Check (requires Inventory system)
-- Crew Assignment (requires Crew Management system)
-
-### Database Changes (Planned)
-```sql
--- Yard spots table
-CREATE TABLE yard_spots (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  yard_id UUID REFERENCES business_units(id),
-  spot_code TEXT NOT NULL,
-  spot_name TEXT,
-  spot_type TEXT, -- 'staging', 'loading', 'storage'
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Project yard status tracking
-CREATE TABLE project_yard_status (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID REFERENCES bom_projects(id),
-  yard_id UUID REFERENCES business_units(id),
-  status TEXT NOT NULL, -- 'to_be_staged', 'staged', 'loaded', 'partially_loaded', 'issue'
-  spot_id UUID REFERENCES yard_spots(id),
-  scheduled_date DATE,
-  status_changed_at TIMESTAMPTZ DEFAULT now(),
-  status_changed_by UUID REFERENCES auth.users(id),
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Crew sign-off records
-CREATE TABLE project_signoffs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID REFERENCES bom_projects(id),
-  crew_name TEXT NOT NULL,
-  signed_at TIMESTAMPTZ DEFAULT now(),
-  photo_url TEXT,
-  photo_path TEXT,
-  gps_latitude DECIMAL,
-  gps_longitude DECIMAL,
-  uploaded_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Status change history
-CREATE TABLE project_status_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID REFERENCES bom_projects(id),
-  old_status TEXT,
-  new_status TEXT NOT NULL,
-  changed_by UUID REFERENCES auth.users(id),
-  changed_at TIMESTAMPTZ DEFAULT now(),
-  notes TEXT
-);
-```
-
----
-
-## Phase 4: Advanced Analytics
-**Status:** Planned
-
-### Overview
-Comprehensive analytics dashboard with multiple tabs for deep insights into materials, labor, projects, and business performance.
-
-### Tabs
 
 #### 4.1 Material Price History
 - [ ] Recent cost changes table
@@ -281,13 +207,8 @@ Comprehensive analytics dashboard with multiple tabs for deep insights into mate
 
 ---
 
-## Phase 5: Price Book
+### Phase 5: Price Book
 **Status:** Planned
-
-### Overview
-Multiple pricing tiers for SKUs based on customer type, enabling margin visibility and consistent pricing.
-
-### Features
 
 #### 5.1 Price Book Tiers
 - [ ] Retail (standard markup)
@@ -318,13 +239,8 @@ Multiple pricing tiers for SKUs based on customer type, enabling margin visibili
 
 ---
 
-## Phase 6: ServiceTitan Export
+### Phase 6: ServiceTitan Export
 **Status:** Planned
-
-### Overview
-Generate Excel files matching ServiceTitan import template for seamless data transfer.
-
-### Features
 
 #### 6.1 Template Management
 - [ ] Store ST import template structure
@@ -348,13 +264,8 @@ Generate Excel files matching ServiceTitan import template for seamless data tra
 
 ---
 
-## Phase 7: QuickBooks Online Integration
+### Phase 7: QuickBooks Online Integration
 **Status:** Planned
-
-### Overview
-Sync material prices from QBO to maintain accurate, up-to-date costs.
-
-### Features
 
 #### 7.1 Product Sync
 - [ ] Map materials to QBO products
@@ -382,11 +293,12 @@ Sync material prices from QBO to maintain accurate, up-to-date costs.
 
 | Priority | Phase | Complexity | Business Value | Dependencies |
 |----------|-------|------------|----------------|--------------|
-| 1 | Phase 3: Yard Workflow | High | High | None |
-| 2 | Phase 5: Price Book | Medium | High | None |
-| 3 | Phase 6: ST Export | Low-Medium | High | None |
-| 4 | Phase 4: Advanced Analytics | Medium | Medium | Price History (done) |
-| 5 | Phase 7: QBO Integration | High | Medium | QBO API access |
+| 1 | Phase 3.2: Bug Fixes | Low | High | None |
+| 2 | Phase 3.1: Yard Enhancements | Medium | High | Phase 3 |
+| 3 | Phase 5: Price Book | Medium | High | None |
+| 4 | Phase 6: ST Export | Low-Medium | High | None |
+| 5 | Phase 4: Advanced Analytics | Medium | Medium | Price History (done) |
+| 6 | Phase 7: QBO Integration | High | Medium | QBO API access |
 
 ---
 
@@ -397,6 +309,8 @@ Sync material prices from QBO to maintain accurate, up-to-date costs.
 - Phase 3 (Yard Workflow): Deferred Material Availability Check and Crew Assignment to future phases (require Inventory and Crew Management systems)
 - Removed OCR for signature extraction (crew signs with scribble, name entered manually)
 - Three yards confirmed: ATX, SA, HOU (mapped to existing Business Units)
+- Added Phase 3.1 for Yard Enhancements (stocking areas, mobile access, interactive pick list)
+- Added Phase 3.2 for Bug Fixes (custom SKUs, project archive, save errors)
 
 ---
 
@@ -404,6 +318,8 @@ Sync material prices from QBO to maintain accurate, up-to-date costs.
 
 | Date | Change | Author |
 |------|--------|--------|
+| Dec 5, 2024 | Added Phase 3.1 (Yard Enhancements) and Phase 3.2 (Bug Fixes) | Claude |
+| Dec 5, 2024 | Completed Phase 3 (Yard Workflow Core) | Claude |
 | Dec 5, 2024 | Created roadmap document | Claude |
 | Dec 5, 2024 | Completed Phase 2 | Claude |
 | Dec 4, 2024 | Completed Phase 0, 1 | Claude |
