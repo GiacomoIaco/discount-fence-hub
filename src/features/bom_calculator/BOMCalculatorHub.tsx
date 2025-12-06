@@ -16,6 +16,7 @@ import YardSchedulePage from './pages/YardSchedulePage';
 import YardSpotsPage from './pages/YardSpotsPage';
 import YardMobilePage from './pages/YardMobilePage';
 import YardAreasPage from './pages/YardAreasPage';
+import YardAnalyticsPage from './pages/YardAnalyticsPage';
 
 // Lazy load Hub v2 for code splitting
 const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({ default: m.BOMCalculatorHub2 })));
@@ -258,6 +259,9 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
 
       case 'yard-areas':
         return <YardAreasPage />;
+
+      case 'yard-analytics':
+        return <YardAnalyticsPage />;
 
       case 'yard-mobile':
         return (

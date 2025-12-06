@@ -190,6 +190,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [ ] Damage/shortage reporting with photo capture
 - [ ] Notifications (alert yard when project scheduled)
 - [ ] Daily summary of upcoming pickups
+- [ ] Stale projects banner on Pick Lists page (3+ days in yard)
 
 ### Phase 3.2: Bug Fixes & Improvements
 **Status:** In Progress
@@ -219,6 +220,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 
 ### Phase 4: Advanced Analytics
 **Status:** Planned
+**Detailed Plan:** See [PHASE_4_ANALYTICS_PLAN.md](./PHASE_4_ANALYTICS_PLAN.md)
 
 #### 4.1 Material Price History
 - [ ] Recent cost changes table
@@ -260,6 +262,13 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [ ] Export to Excel/PDF
 - [ ] Scheduled automated reports
 - [ ] Custom date ranges
+
+#### 4.8 Yard Operations Analytics (NEW)
+- [ ] Worker leaderboard (orders staged by person)
+- [ ] Daily/weekly staging volume charts
+- [ ] Average time metrics (staged→loaded, loaded→complete)
+- [ ] Stale projects alert (3+ business days in yard)
+- [ ] Yard performance comparison by location
 
 ---
 

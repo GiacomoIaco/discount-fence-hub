@@ -345,6 +345,22 @@ export default function YardSchedulePage() {
     },
   });
 
+  // Fetch stale projects count (3+ business days in yard)
+  const { data: staleProjects = [] } = useQuery({
+    queryKey: ['stale-yard-projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_stale_yard_projects')
+        .select('id, project_code, project_name, business_days_staged, yard_code');
+
+      if (error) {
+        console.error('Error fetching stale projects:', error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
   // Format date for display
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Not scheduled';
@@ -447,6 +463,34 @@ export default function YardSchedulePage() {
           </div>
         </div>
       </div>
+
+      {/* Stale Projects Banner */}
+      {staleProjects.length > 0 && (
+        <div className="mx-4 mt-3 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-800">
+                {staleProjects.length} project{staleProjects.length !== 1 ? 's have' : ' has'} been in the yard for 3+ business days
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {staleProjects.slice(0, 5).map((p: any) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-amber-200 rounded text-sm"
+                  >
+                    <span className="font-mono font-bold text-amber-700">{p.project_code}</span>
+                    <span className="text-amber-600">({p.business_days_staged}d)</span>
+                  </span>
+                ))}
+                {staleProjects.length > 5 && (
+                  <span className="text-sm text-amber-600">+{staleProjects.length - 5} more</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
