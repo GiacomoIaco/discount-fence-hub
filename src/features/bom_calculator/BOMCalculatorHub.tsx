@@ -99,8 +99,8 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
     setActivePage(page);
   };
 
-  // Desktop-only check
-  if (!isDesktop) {
+  // Desktop-only check (skip if startOnMobile is true - allows yard-mobile page on mobile devices)
+  if (!isDesktop && !startOnMobile && activePage !== 'yard-mobile') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
@@ -272,6 +272,16 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
         return null;
     }
   };
+
+  // On mobile with startOnMobile, render YardMobilePage directly (no HubLayout)
+  if (!isDesktop && startOnMobile) {
+    return (
+      <YardMobilePage
+        onBack={onBack}
+        initialClaimCode={claimCode}
+      />
+    );
+  }
 
   return (
     <HubLayout
