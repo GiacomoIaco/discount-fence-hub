@@ -10,6 +10,10 @@ interface PickListMaterial {
   sub_category: string | null;
   unit_type: string;
   total_quantity: number;
+  // Stocking area info
+  area_code: string | null;
+  area_name: string | null;
+  area_color_hex: string | null;
 }
 
 interface BundleProject {
@@ -62,6 +66,41 @@ async function generateQRCode(url: string): Promise<string> {
     console.error('Failed to generate QR code:', err);
     return '';
   }
+}
+
+// Convert hex color to RGB array for jsPDF
+function hexToRgb(hex: string): [number, number, number] {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (result) {
+    return [
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16),
+    ];
+  }
+  return [240, 240, 240]; // Default gray
+}
+
+// Get lighter version of color for background
+function getLighterColor(hex: string): [number, number, number] {
+  const [r, g, b] = hexToRgb(hex);
+  // Mix with white (80% white, 20% color)
+  return [
+    Math.round(r * 0.25 + 255 * 0.75),
+    Math.round(g * 0.25 + 255 * 0.75),
+    Math.round(b * 0.25 + 255 * 0.75),
+  ];
+}
+
+// Get text color (darker version of the area color)
+function getDarkerColor(hex: string): [number, number, number] {
+  const [r, g, b] = hexToRgb(hex);
+  // Darken by 40%
+  return [
+    Math.round(r * 0.6),
+    Math.round(g * 0.6),
+    Math.round(b * 0.6),
+  ];
 }
 
 // Format date for display
@@ -311,10 +350,15 @@ export async function generatePickListPDF(data: PickListData, copies: number = 3
 
         const shortName = CATEGORY_ORDER[category]?.shortName || category;
 
+        // Get area color from first material in category
+        const areaColor = categoryMaterials[0]?.area_color_hex;
+        const bgColor = areaColor ? getLighterColor(areaColor) : [240, 240, 240] as [number, number, number];
+        const textColor = areaColor ? getDarkerColor(areaColor) : [60, 60, 60] as [number, number, number];
+
         autoTable(doc, {
           startY: leftY,
           margin: { left: leftTableX, right: pageWidth - leftTableX - colWidth },
-          head: [[{ content: shortName, colSpan: 3, styles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: 'bold', fontSize: 8 } }]],
+          head: [[{ content: shortName, colSpan: 3, styles: { fillColor: bgColor, textColor: textColor, fontStyle: 'bold', fontSize: 8 } }]],
           body: categoryMaterials.map(m => [
             { content: '☐', styles: { cellWidth: 6, halign: 'center' } },
             m.material_name.length > 30 ? m.material_name.slice(0, 30) + '...' : m.material_name,
@@ -340,10 +384,15 @@ export async function generatePickListPDF(data: PickListData, copies: number = 3
 
         const shortName = CATEGORY_ORDER[category]?.shortName || category;
 
+        // Get area color from first material in category
+        const areaColor = categoryMaterials[0]?.area_color_hex;
+        const bgColor = areaColor ? getLighterColor(areaColor) : [240, 240, 240] as [number, number, number];
+        const textColor = areaColor ? getDarkerColor(areaColor) : [60, 60, 60] as [number, number, number];
+
         autoTable(doc, {
           startY: rightY,
           margin: { left: rightTableX, right: margin },
-          head: [[{ content: shortName, colSpan: 3, styles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: 'bold', fontSize: 8 } }]],
+          head: [[{ content: shortName, colSpan: 3, styles: { fillColor: bgColor, textColor: textColor, fontStyle: 'bold', fontSize: 8 } }]],
           body: categoryMaterials.map(m => [
             { content: '☐', styles: { cellWidth: 6, halign: 'center' } },
             m.material_name.length > 30 ? m.material_name.slice(0, 30) + '...' : m.material_name,
@@ -370,10 +419,15 @@ export async function generatePickListPDF(data: PickListData, copies: number = 3
 
         const shortName = CATEGORY_ORDER[category]?.shortName || category;
 
+        // Get area color from first material in category (they should all have same area)
+        const areaColor = categoryMaterials[0]?.area_color_hex;
+        const bgColor = areaColor ? getLighterColor(areaColor) : [240, 240, 240] as [number, number, number];
+        const textColor = areaColor ? getDarkerColor(areaColor) : [60, 60, 60] as [number, number, number];
+
         autoTable(doc, {
           startY: yPos,
           margin: { left: margin, right: margin },
-          head: [[{ content: shortName, colSpan: 3, styles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: 'bold', fontSize: 9 } }]],
+          head: [[{ content: shortName, colSpan: 3, styles: { fillColor: bgColor, textColor: textColor, fontStyle: 'bold', fontSize: 9 } }]],
           body: categoryMaterials.map(m => [
             { content: '☐', styles: { cellWidth: 8, halign: 'center' } },
             m.material_name,
@@ -509,7 +563,12 @@ export async function fetchAndGeneratePickListPDF(
         material_name,
         category,
         sub_category,
-        unit_type
+        unit_type,
+        default_area:yard_areas (
+          area_code,
+          area_name,
+          color_hex
+        )
       )
     `)
     .in('project_id', projectIds);
@@ -532,6 +591,9 @@ export async function fetchAndGeneratePickListPDF(
         sub_category: mat.sub_category,
         unit_type: mat.unit_type,
         total_quantity: pm.final_quantity || 0,
+        area_code: mat.default_area?.area_code || null,
+        area_name: mat.default_area?.area_name || null,
+        area_color_hex: mat.default_area?.color_hex || null,
       });
     }
   });
