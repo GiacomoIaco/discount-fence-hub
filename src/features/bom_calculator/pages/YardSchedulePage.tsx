@@ -18,6 +18,8 @@ import {
   Eye,
   RotateCcw,
   Copy,
+  Play,
+  User,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -69,11 +71,19 @@ interface ScheduledPickup {
     project_name: string;
     customer_name: string | null;
   }> | null;
+  // Claim fields
+  claimed_by: string | null;
+  claimed_at: string | null;
+  claimed_by_name: string | null;
+  claimed_by_email: string | null;
+  picking_started_at: string | null;
+  pick_progress: { total: number; picked: number } | null;
 }
 
 // Status configuration
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
   sent_to_yard: { label: 'To Stage', color: 'text-amber-700', bgColor: 'bg-amber-100', icon: <Clock className="w-4 h-4" /> },
+  picking: { label: 'Picking', color: 'text-orange-700', bgColor: 'bg-orange-100', icon: <Play className="w-4 h-4" /> },
   staged: { label: 'Staged', color: 'text-blue-700', bgColor: 'bg-blue-100', icon: <MapPin className="w-4 h-4" /> },
   loaded: { label: 'Loaded', color: 'text-green-700', bgColor: 'bg-green-100', icon: <Truck className="w-4 h-4" /> },
   completed: { label: 'Complete', color: 'text-gray-700', bgColor: 'bg-gray-100', icon: <CheckCircle2 className="w-4 h-4" /> },
@@ -232,6 +242,7 @@ export default function YardSchedulePage() {
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
       sent_to_yard: 0,
+      picking: 0,
       staged: 0,
       loaded: 0,
       ready: 0,
@@ -318,7 +329,7 @@ export default function YardSchedulePage() {
 
           {/* Quick Stats */}
           <div className="flex items-center gap-2">
-            {Object.entries(STATUS_CONFIG).slice(0, 3).map(([status, config]) => (
+            {Object.entries(STATUS_CONFIG).slice(0, 4).map(([status, config]) => (
               <div
                 key={status}
                 className={`px-3 py-1.5 rounded-lg ${config.bgColor} flex items-center gap-2`}
@@ -461,6 +472,17 @@ export default function YardSchedulePage() {
                             <div className="flex items-center gap-1 text-gray-500 justify-end mt-1">
                               <Users className="w-3.5 h-3.5" />
                               <span className="text-xs">{pickup.crew_name}</span>
+                            </div>
+                          )}
+                          {pickup.claimed_by_name && (
+                            <div className="flex items-center gap-1 text-orange-600 justify-end mt-1">
+                              <User className="w-3.5 h-3.5" />
+                              <span className="text-xs font-medium">{pickup.claimed_by_name}</span>
+                              {pickup.pick_progress && pickup.pick_progress.total > 0 && (
+                                <span className="text-xs">
+                                  ({pickup.pick_progress.picked}/{pickup.pick_progress.total})
+                                </span>
+                              )}
                             </div>
                           )}
                           {pickup.spot_code && (
