@@ -4,12 +4,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { LineItem } from './types';
 import { useBOMCalculatorData } from './hooks';
 import { FenceCalculator } from './services/FenceCalculator';
+import type { HardwareMaterials, ConcreteMaterials } from './services/FenceCalculator';
 import { supabase } from '../../lib/supabase';
 import { showSuccess, showError } from '../../lib/toast';
-import type { WoodVerticalProductWithMaterials, WoodHorizontalProductWithMaterials, IronProductWithMaterials, CustomProductWithDetails } from './database.types';
+import type { WoodVerticalProductWithMaterials, WoodHorizontalProductWithMaterials, IronProductWithMaterials, CustomProductWithDetails, Material as FullMaterial } from './database.types';
 
-// Material from database
-interface Material {
+// Simplified material for dropdowns
+interface MaterialOption {
   id: string;
   material_sku: string;
   material_name: string;
@@ -190,9 +191,9 @@ function AddMaterialModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  materials: Material[];
+  materials: MaterialOption[];
   existingMaterialIds: Set<string>;
-  onAdd: (material: Material) => void;
+  onAdd: (material: MaterialOption) => void;
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -425,20 +426,55 @@ export function BOMCalculator({
   // Fetch data
   const { businessUnits, laborRates, products, loading } = useBOMCalculatorData(businessUnitId);
 
-  // Fetch all materials for manual addition
-  const { data: allMaterials = [] } = useQuery({
-    queryKey: ['all-materials'],
+  // Fetch all materials for manual addition and hardware/concrete lookups
+  const { data: allMaterialsFull = [] } = useQuery({
+    queryKey: ['all-materials-full'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, material_sku, material_name, category, unit_cost, unit_type')
+        .select('*')
         .eq('status', 'Active')
         .order('category')
         .order('material_name');
       if (error) throw error;
-      return data as Material[];
+      return data as FullMaterial[];
     },
   });
+
+  // Simplified list for dropdowns
+  const allMaterials: MaterialOption[] = allMaterialsFull.map(m => ({
+    id: m.id,
+    material_sku: m.material_sku,
+    material_name: m.material_name,
+    category: m.category,
+    unit_cost: m.unit_cost,
+    unit_type: m.unit_type,
+  }));
+
+  // Build hardware and concrete materials for calculator
+  const { hardwareMaterials, concreteMaterials } = useMemo(() => {
+    const findBySku = (sku: string) => allMaterialsFull.find(m => m.material_sku === sku);
+
+    const hw: HardwareMaterials = {
+      frameNails: findBySku('HW07'),
+      picketNails: findBySku('HW08'),
+      steelGatePost: findBySku('PS14') || findBySku('PS15'), // Steel gate posts
+      postCapDome: findBySku('HW01'),
+      postCapPlug: findBySku('HW02'),
+      brackets: findBySku('HW03'),
+      selfTappingScrews: findBySku('HW04'),
+    };
+
+    const concrete: ConcreteMaterials = {
+      cts: findBySku('CTS'),
+      ctp: findBySku('CTP'),
+      ctq: findBySku('CTQ'),
+      cty: findBySku('CTY'),
+      ctr: findBySku('CTR'),
+    };
+
+    return { hardwareMaterials: hw, concreteMaterials: concrete };
+  }, [allMaterialsFull]);
 
   // Fetch all labor codes for manual addition
   const { data: allLaborCodes = [] } = useQuery({
@@ -602,8 +638,8 @@ export function BOMCalculator({
     if (!businessUnitId || loading) return;
 
     const calculator = new FenceCalculator('project');
-    const allMaterials: any[] = [];
-    const allLabor: any[] = [];
+    const aggregatedMaterials: any[] = [];
+    const aggregatedLabor: any[] = [];
 
     for (const item of lineItems) {
       if (!item.productId || item.netLength <= 0) continue;
@@ -619,17 +655,17 @@ export function BOMCalculator({
         const product = products.woodVertical.find(p => p.id === item.productId);
         if (product) {
           // Calculator returns all materials including nails & concrete (raw quantities)
-          result = calculator.calculateWoodVertical(product, input, laborRates, undefined, undefined, concreteType);
+          result = calculator.calculateWoodVertical(product, input, laborRates, hardwareMaterials, concreteMaterials, concreteType);
         }
       } else if (item.fenceType === 'wood_horizontal') {
         const product = products.woodHorizontal.find(p => p.id === item.productId);
         if (product) {
-          result = calculator.calculateWoodHorizontal(product, input, laborRates, undefined, undefined, concreteType);
+          result = calculator.calculateWoodHorizontal(product, input, laborRates, hardwareMaterials, concreteMaterials, concreteType);
         }
       } else if (item.fenceType === 'iron') {
         const product = products.iron.find(p => p.id === item.productId);
         if (product) {
-          result = calculator.calculateIron(product, input, laborRates, undefined, undefined, concreteType);
+          result = calculator.calculateIron(product, input, laborRates, hardwareMaterials, concreteMaterials, concreteType);
         }
       } else if (item.fenceType === 'custom') {
         // Custom products: multiply materials and labor by quantity based on unit_basis
@@ -653,7 +689,7 @@ export function BOMCalculator({
           if (customProduct.materials) {
             for (const matAssoc of customProduct.materials) {
               if (matAssoc.material) {
-                allMaterials.push({
+                aggregatedMaterials.push({
                   material_id: matAssoc.material.id,
                   material_sku: matAssoc.material.material_sku,
                   material_name: matAssoc.material.material_name,
@@ -674,7 +710,7 @@ export function BOMCalculator({
                 const rateEntry = laborRates.find(r => r.labor_code_id === laborAssoc.labor_code_id);
                 const rate = rateEntry?.rate || 0;
 
-                allLabor.push({
+                aggregatedLabor.push({
                   labor_code_id: laborAssoc.labor_code_id,
                   labor_sku: laborAssoc.labor_code.labor_sku,
                   description: laborAssoc.labor_code.description,
@@ -689,14 +725,14 @@ export function BOMCalculator({
       }
 
       if (result) {
-        allMaterials.push(...result.materials);
-        allLabor.push(...result.labor);
+        aggregatedMaterials.push(...result.materials);
+        aggregatedLabor.push(...result.labor);
       }
     }
 
     // Aggregate materials (raw quantities) - Math.ceil() applied once at end
     const materialMap = new Map<string, MaterialRow>();
-    for (const mat of allMaterials) {
+    for (const mat of aggregatedMaterials) {
       if (materialMap.has(mat.material_id)) {
         const existing = materialMap.get(mat.material_id)!;
         existing.calculated_qty += mat.quantity;
@@ -736,7 +772,7 @@ export function BOMCalculator({
 
     // Aggregate labor
     const laborMap = new Map<string, LaborRow>();
-    for (const lab of allLabor) {
+    for (const lab of aggregatedLabor) {
       if (laborMap.has(lab.labor_code_id)) {
         const existing = laborMap.get(lab.labor_code_id)!;
         existing.quantity += lab.quantity;
@@ -770,7 +806,7 @@ export function BOMCalculator({
         return row;
       }).concat(prev.filter(p => p.is_manual));
     });
-  }, [businessUnitId, lineItems, products, laborRates, loading, concreteType]);
+  }, [businessUnitId, lineItems, products, laborRates, loading, concreteType, hardwareMaterials, concreteMaterials]);
 
   // Debounced auto-calculate
   useEffect(() => {
@@ -864,7 +900,7 @@ export function BOMCalculator({
   };
 
   // Add manual material
-  const handleAddManualMaterial = (material: Material) => {
+  const handleAddManualMaterial = (material: MaterialOption) => {
     const newRow: MaterialRow = {
       material_id: material.id,
       material_sku: material.material_sku,
