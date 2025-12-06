@@ -109,6 +109,11 @@ Sent to Yard → Picking → Staged → Loaded → Complete
 
 ### Accessing Mobile View
 
+**For Yard Role Users:**
+- Log in with your yard account - you'll automatically land on Mobile View
+- No navigation needed!
+
+**For Other Users:**
 1. Go to **BOM Calculator** > **Mobile View**
 2. Or access directly on your phone at the app URL
 
@@ -116,21 +121,47 @@ The mobile view is optimized for phones with large touch targets.
 
 ---
 
+### Understanding Staging Priority
+
+The system automatically calculates when materials need to be staged based on the job pickup date (2 business days before, skipping weekends).
+
+**Urgency Badges:**
+| Badge | Meaning | Action |
+|-------|---------|--------|
+| 🔴 **OVERDUE** | Past staging target date | Stage immediately! |
+| 🟠 **TODAY** | Stage today | High priority |
+| 🟡 **TOMORROW** | Stage tomorrow | Plan ahead |
+| 🟢 **FUTURE** | 2+ days out | Lower priority |
+
+**Filter Buttons** at the top let you focus on:
+- **All** - See everything
+- **Urgent** - Overdue + Today only
+- **Stage Today** - Just today's staging
+- **Tomorrow** - Tomorrow's staging
+
+Projects are automatically sorted by urgency (overdue first).
+
+---
+
 ### Step 1: Claiming a Job
 
-**Paper-First Workflow:**
-1. Yard manager prints pick lists and places in a folder
-2. Grab a paper pick list from the folder
-3. Note the **Project Code** (e.g., "AAA-028") at the top
-
-**In the Mobile App:**
-1. Enter the project code in the "Enter Project Code" field
-2. Tap **GO**
-3. Review the project details in the popup:
-   - Project name
-   - Customer
-   - Total footage
+**Option A: Scan QR Code (Fastest)**
+1. Grab a printed pick list from the folder
+2. Scan the **QR code** with your phone camera
+3. The app opens directly to that project
 4. Tap **Claim & Pick** to start
+
+**Option B: Enter Code Manually**
+1. Note the **Project Code** (e.g., "AAA-028") on the pick list
+2. Enter the code in the "Enter Project Code" field
+3. Tap **GO**
+4. Review the project details in the popup
+5. Tap **Claim & Pick** to start
+
+**Option C: Select from List**
+1. Browse the unclaimed jobs list
+2. Look for urgent items (red/orange badges)
+3. Tap **Claim** on any job
 
 **Important:** Claiming a job prevents others from working on the same project simultaneously.
 
@@ -224,11 +255,14 @@ Once materials are staged:
 
 ## Tips for Yard Workers
 
-1. **Always claim before picking** - This prevents duplicate work
-2. **Check items as you go** - Progress saves automatically
-3. **Release if you can't finish** - Your progress is saved for the next person
-4. **Use Location view** - Walk the yard efficiently by area
-5. **Paper backup** - The printed list works if the app has issues
+1. **Check urgency badges first** - Red/orange items need immediate attention
+2. **Use QR code scanning** - Fastest way to claim a job from printed pick list
+3. **Always claim before picking** - This prevents duplicate work
+4. **Check items as you go** - Progress saves automatically
+5. **Release if you can't finish** - Your progress is saved for the next person
+6. **Use Location view** - Walk the yard efficiently by area
+7. **Use filters** - "Urgent" button shows only what needs staging now
+8. **Paper backup** - The printed list works if the app has issues
 
 ---
 
@@ -262,5 +296,11 @@ Contact your supervisor or IT support.
 
 ---
 
-*Document Version: 1.0*
+*Document Version: 1.1*
 *Last Updated: December 2024*
+
+**Version 1.1 Changes:**
+- Added staging priority system (urgency badges)
+- Added QR code scanning for quick job claiming
+- Added yard role with automatic Mobile View access
+- Added urgency filter buttons
