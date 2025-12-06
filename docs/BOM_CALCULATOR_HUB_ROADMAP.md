@@ -113,9 +113,9 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
   - Link spots to areas via `area_id`
 - [x] Add `default_area_id` to materials table
 - [x] Create YardAreasPage to manage stocking areas
-- [ ] Color-coded pick lists by stocking area
+- [x] Color-coded pick lists by stocking area
 - [ ] Two pick list views: by Category | by Stocking Area
-- [ ] Color backgrounds on items based on area
+- [x] Color backgrounds on category headers based on area
 
 #### 3.1.2 Mobile Yard Access
 - [ ] Add "yard" user role
