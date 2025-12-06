@@ -153,7 +153,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 
 #### 3.2.2 Projects Management
 - [x] Status change (Ready → Sent to Yard) - VERIFIED WORKING
-- [ ] Test and fix project save error in Calculator
+- [x] Test project save in Calculator - VERIFIED WORKING (no error found)
 - [ ] Add Archive projects feature (admin only)
 - [ ] Add view archived projects option
 
