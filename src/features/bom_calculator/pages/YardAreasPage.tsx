@@ -215,6 +215,9 @@ export default function YardAreasPage() {
   // Add area
   const addAreaMutation = useMutation({
     mutationFn: async () => {
+      if (!selectedYardId) {
+        throw new Error('Please select a yard first');
+      }
       if (!newArea.area_code.trim() || !newArea.area_name.trim()) {
         throw new Error('Area code and name are required');
       }
