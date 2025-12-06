@@ -18,6 +18,7 @@ import {
   Play,
   RotateCcw,
   User,
+  Eye,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -552,6 +553,7 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
                       key={pickup.id}
                       pickup={pickup}
                       onClaim={() => claimProjectMutation.mutate(pickup.id)}
+                      onView={() => setPickListViewerProject(pickup)}
                       isClaiming={claimProjectMutation.isPending}
                     />
                   ))}
@@ -614,6 +616,7 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
                       )}
                       onPrint={() => handlePrint(pickup.id)}
                       onSignoff={() => setSignoffPickup(pickup)}
+                      onView={() => setPickListViewerProject(pickup)}
                       onStatusChange={(newStatus, spotId) => {
                         updateStatusMutation.mutate({ projectId: pickup.id, newStatus, spotId });
                       }}
@@ -792,6 +795,7 @@ interface PickupCardProps {
   onToggleExpand: () => void;
   onPrint: () => void;
   onSignoff: () => void;
+  onView: () => void;
   onStatusChange: (newStatus: string, spotId?: string) => void;
   isPrinting: boolean;
   isUpdating: boolean;
@@ -804,6 +808,7 @@ function PickupCard({
   onToggleExpand,
   onPrint,
   onSignoff,
+  onView,
   onStatusChange,
   isPrinting,
   isUpdating,
@@ -863,6 +868,13 @@ function PickupCard({
         <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
           {/* Action Buttons */}
           <div className="flex gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); onView(); }}
+              className="flex-1 py-4 bg-amber-500 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 active:bg-amber-600"
+            >
+              <Eye className="w-6 h-6" />
+              View
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onPrint(); }}
               disabled={isPrinting}
@@ -1142,10 +1154,11 @@ function MyJobCard({
 interface UnclaimedCardProps {
   pickup: ScheduledPickup;
   onClaim: () => void;
+  onView: () => void;
   isClaiming: boolean;
 }
 
-function UnclaimedCard({ pickup, onClaim, isClaiming }: UnclaimedCardProps) {
+function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardProps) {
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden">
       <div className="p-4 flex items-center gap-4">
@@ -1161,20 +1174,28 @@ function UnclaimedCard({ pickup, onClaim, isClaiming }: UnclaimedCardProps) {
           )}
           <p className="text-xs text-gray-400">{pickup.total_linear_feet} LF</p>
         </div>
-        <button
-          onClick={onClaim}
-          disabled={isClaiming}
-          className="px-4 py-3 bg-amber-500 text-white rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 active:bg-amber-600"
-        >
-          {isClaiming ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              <Play className="w-5 h-5" />
-              Claim
-            </>
-          )}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onView}
+            className="px-3 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold flex items-center gap-1 active:bg-gray-200"
+          >
+            <Eye className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onClaim}
+            disabled={isClaiming}
+            className="px-4 py-3 bg-amber-500 text-white rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 active:bg-amber-600"
+          >
+            {isClaiming ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Play className="w-5 h-5" />
+                Claim
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
