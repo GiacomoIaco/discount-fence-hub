@@ -36,6 +36,9 @@ interface BOMProject {
   created_by: string | null;
   partial_pickup: boolean | null;
   partial_pickup_notes: string | null;
+  is_archived: boolean | null;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
   business_unit: {
@@ -93,6 +96,7 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set());
   const [showBundleModal, setShowBundleModal] = useState(false);
   const [completionModal, setCompletionModal] = useState<{ projectId: string; projectName: string; isChildOfBundle?: boolean } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Fetch projects
   const { data: projects = [], isLoading } = useQuery({
@@ -166,6 +170,9 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
   // Filter and organize projects
   const { filteredProjects, bundles, standaloneProjects } = useMemo(() => {
     let filtered = projects.filter(p => {
+      // Archive filter - hide archived unless showArchived is true
+      if (!showArchived && p.is_archived) return false;
+      if (showArchived && !p.is_archived) return false;
       // Status filter - special handling for partial_pickup
       if (statusFilter === 'partial_pickup') {
         if (!p.partial_pickup) return false;
@@ -215,7 +222,7 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
       })),
       standaloneProjects: standalone,
     };
-  }, [projects, statusFilter, yardFilter, creatorFilter, searchTerm]);
+  }, [projects, statusFilter, yardFilter, creatorFilter, searchTerm, showArchived]);
 
   // Status change mutation - handles bundle auto-breaking for child projects
   const statusMutation = useMutation({
@@ -432,6 +439,26 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
     onError: (err: Error) => showError(err.message),
   });
 
+  // Archive/Unarchive mutation
+  const archiveMutation = useMutation({
+    mutationFn: async ({ projectId, archive }: { projectId: string; archive: boolean }) => {
+      const { error } = await supabase
+        .from('bom_projects')
+        .update({
+          is_archived: archive,
+          archived_at: archive ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      showSuccess(variables.archive ? 'Project archived' : 'Project restored');
+      queryClient.invalidateQueries({ queryKey: ['bom-projects'] });
+    },
+    onError: (err: Error) => showError(err.message),
+  });
+
   const toggleProjectSelection = (projectId: string) => {
     const newSet = new Set(selectedProjects);
     if (newSet.has(projectId)) {
@@ -556,6 +583,19 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+
+            {/* Show Archived Toggle */}
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-2 transition-colors ${
+                showArchived
+                  ? 'bg-gray-700 text-white'
+                  : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Archive className="w-4 h-4" />
+              {showArchived ? 'Viewing Archived' : 'Show Archived'}
+            </button>
 
             {/* Bundle Button */}
             {selectedProjects.size >= 2 && (
@@ -720,6 +760,7 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
                       onStatusChange={(status) => statusMutation.mutate({ projectIds: [child.id], newStatus: status, isChildOfBundle: true })}
                       onOpenCompletionModal={() => setCompletionModal({ projectId: child.id, projectName: child.project_name, isChildOfBundle: true })}
                       onClearPartial={() => clearPartialPickupMutation.mutate(child.id)}
+                      onArchive={() => archiveMutation.mutate({ projectId: child.id, archive: !child.is_archived })}
                       onEdit={onEditProject ? () => onEditProject(child.id) : undefined}
                       onDuplicate={onDuplicateProject ? () => onDuplicateProject(child.id) : undefined}
                       formatPickupDate={formatPickupDate}
@@ -744,6 +785,7 @@ export default function ProjectsPage({ onEditProject, onDuplicateProject }: Proj
                   onStatusChange={(status) => statusMutation.mutate({ projectIds: [project.id], newStatus: status })}
                   onOpenCompletionModal={() => setCompletionModal({ projectId: project.id, projectName: project.project_name })}
                   onClearPartial={() => clearPartialPickupMutation.mutate(project.id)}
+                  onArchive={() => archiveMutation.mutate({ projectId: project.id, archive: !project.is_archived })}
                   onEdit={onEditProject ? () => onEditProject(project.id) : undefined}
                   onDuplicate={onDuplicateProject ? () => onDuplicateProject(project.id) : undefined}
                   formatPickupDate={formatPickupDate}
@@ -811,6 +853,7 @@ function ProjectRow({
   onStatusChange,
   onOpenCompletionModal,
   onClearPartial,
+  onArchive,
   onEdit,
   onDuplicate,
   formatPickupDate,
@@ -824,6 +867,7 @@ function ProjectRow({
   onStatusChange: (status: string) => void;
   onOpenCompletionModal: () => void;
   onClearPartial: () => void;
+  onArchive: () => void;
   onEdit?: () => void;
   onDuplicate?: () => void;
   formatPickupDate: (date: string | null) => string | null;
@@ -1027,6 +1071,16 @@ function ProjectRow({
                   </>
                 )}
                 <hr className="my-1" />
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    onArchive();
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Archive className="w-4 h-4" />
+                  {project.is_archived ? 'Restore from Archive' : 'Archive'}
+                </button>
                 <button
                   onClick={() => {
                     setShowMenu(false);

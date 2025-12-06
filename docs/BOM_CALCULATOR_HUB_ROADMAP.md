@@ -154,8 +154,8 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 #### 3.2.2 Projects Management
 - [x] Status change (Ready → Sent to Yard) - VERIFIED WORKING
 - [x] Test project save in Calculator - VERIFIED WORKING (no error found)
-- [ ] Add Archive projects feature (admin only)
-- [ ] Add view archived projects option
+- [x] Add Archive projects feature
+- [x] Add "Show Archived" toggle to view archived projects
 
 #### 3.2.3 SKU Builder
 - [x] New SKUs appearing in catalog - VERIFIED WORKING
