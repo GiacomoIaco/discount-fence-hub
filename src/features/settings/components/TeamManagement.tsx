@@ -263,6 +263,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       case 'admin': return 'bg-purple-100 text-purple-800';
       case 'sales-manager': return 'bg-blue-100 text-blue-800';
       case 'operations': return 'bg-green-100 text-green-800';
+      case 'yard': return 'bg-amber-100 text-amber-800';
       case 'sales': return 'bg-gray-100 text-gray-800';
     }
   };
@@ -272,6 +273,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       case 'admin': return 'Admin';
       case 'sales-manager': return 'Sales Mgr';
       case 'operations': return 'Operations';
+      case 'yard': return 'Yard';
       case 'sales': return 'Sales';
     }
   };
@@ -351,6 +353,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
             <option value="admin">Admin</option>
             <option value="sales-manager">Sales Manager</option>
             <option value="operations">Operations</option>
+            <option value="yard">Yard</option>
             <option value="sales">Sales</option>
           </select>
         </div>
@@ -473,6 +476,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                         >
                           <option value="sales">Sales</option>
                           <option value="operations">Operations</option>
+                          <option value="yard">Yard</option>
                           <option value="sales-manager">Sales Mgr</option>
                           <option value="admin">Admin</option>
                         </select>
@@ -557,6 +561,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                 >
                   <option value="sales">Sales</option>
                   <option value="operations">Operations</option>
+                  <option value="yard">Yard</option>
                   <option value="sales-manager">Sales Manager</option>
                   {userRole === 'admin' && <option value="admin">Admin</option>}
                 </select>
