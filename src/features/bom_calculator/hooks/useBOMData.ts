@@ -483,10 +483,11 @@ export function useBOMCalculatorData(businessUnitId?: string) {
   const { products: woodVertical, loading: wvLoading, error: wvError } = useWoodVerticalProducts();
   const { products: woodHorizontal, loading: whLoading, error: whError } = useWoodHorizontalProducts();
   const { products: iron, loading: ironLoading, error: ironError } = useIronProducts();
+  const { products: custom, loading: customLoading, error: customError } = useCustomProducts();
 
   const loading =
-    buLoading || matLoading || lrLoading || wvLoading || whLoading || ironLoading;
-  const error = buError || matError || lrError || wvError || whError || ironError;
+    buLoading || matLoading || lrLoading || wvLoading || whLoading || ironLoading || customLoading;
+  const error = buError || matError || lrError || wvError || whError || ironError || customError;
 
   return {
     businessUnits,
@@ -496,6 +497,7 @@ export function useBOMCalculatorData(businessUnitId?: string) {
       woodVertical,
       woodHorizontal,
       iron,
+      custom,
     },
     loading,
     error,

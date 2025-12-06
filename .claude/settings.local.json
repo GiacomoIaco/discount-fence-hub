@@ -66,7 +66,8 @@
       "Bash(npx xlsx-cli:*)",
       "Bash(ls:*)",
       "Bash(npm install:*)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__chrome-devtools__list_network_requests"
     ],
     "deny": [],
     "ask": []

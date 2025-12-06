@@ -6,7 +6,7 @@ import { useBOMCalculatorData } from './hooks';
 import { FenceCalculator } from './services/FenceCalculator';
 import { supabase } from '../../lib/supabase';
 import { showSuccess, showError } from '../../lib/toast';
-import type { WoodVerticalProductWithMaterials, WoodHorizontalProductWithMaterials, IronProductWithMaterials } from './database.types';
+import type { WoodVerticalProductWithMaterials, WoodHorizontalProductWithMaterials, IronProductWithMaterials, CustomProductWithDetails } from './database.types';
 
 // Material from database
 interface Material {
@@ -78,12 +78,13 @@ function SKUSearch({
   products,
 }: {
   value: string;
-  onChange: (productId: string, productName: string, postType: 'WOOD' | 'STEEL', skuCode: string, detectedFenceType?: 'wood_vertical' | 'wood_horizontal' | 'iron') => void;
-  fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron' | 'all';
+  onChange: (productId: string, productName: string, postType: 'WOOD' | 'STEEL', skuCode: string, detectedFenceType?: 'wood_vertical' | 'wood_horizontal' | 'iron' | 'custom') => void;
+  fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron' | 'custom' | 'all';
   products: {
     woodVertical: WoodVerticalProductWithMaterials[];
     woodHorizontal: WoodHorizontalProductWithMaterials[];
     iron: IronProductWithMaterials[];
+    custom: CustomProductWithDetails[];
   };
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,7 +97,7 @@ function SKUSearch({
       sku_code: string;
       sku_name: string;
       post_type: 'WOOD' | 'STEEL';
-      fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron';
+      fenceType: 'wood_vertical' | 'wood_horizontal' | 'iron' | 'custom';
       typeLabel: string;
     }> = [];
 
@@ -115,6 +116,15 @@ function SKUSearch({
       fenceType: 'iron',
       typeLabel: 'IR',
     }));
+    // Custom products (services, add-ons, etc.)
+    products.custom.forEach(p => combined.push({
+      id: p.id,
+      sku_code: p.sku_code,
+      sku_name: p.sku_name,
+      post_type: 'WOOD' as const, // Not applicable but required
+      fenceType: 'custom',
+      typeLabel: 'CU',
+    }));
 
     return combined;
   }, [products]);
@@ -122,7 +132,9 @@ function SKUSearch({
   const productList = fenceType === 'all' ? allProducts :
     fenceType === 'wood_vertical' ? products.woodVertical.map(p => ({ ...p, fenceType: 'wood_vertical' as const, typeLabel: 'WV' })) :
     fenceType === 'wood_horizontal' ? products.woodHorizontal.map(p => ({ ...p, fenceType: 'wood_horizontal' as const, typeLabel: 'WH' })) :
-    products.iron.map(p => ({ ...p, fenceType: 'iron' as const, typeLabel: 'IR' }));
+    fenceType === 'iron' ? products.iron.map(p => ({ ...p, fenceType: 'iron' as const, typeLabel: 'IR' })) :
+    fenceType === 'custom' ? products.custom.map(p => ({ id: p.id, sku_code: p.sku_code, sku_name: p.sku_name, post_type: 'WOOD' as const, fenceType: 'custom' as const, typeLabel: 'CU' })) :
+    allProducts;
 
   const filteredProducts = productList.filter(p =>
     p.sku_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -609,6 +621,61 @@ export function BOMCalculator({
         const product = products.iron.find(p => p.id === item.productId);
         if (product) {
           result = calculator.calculateIron(product, input, laborRates, undefined, undefined, concreteType);
+        }
+      } else if (item.fenceType === 'custom') {
+        // Custom products: multiply materials and labor by quantity based on unit_basis
+        const customProduct = products.custom.find(p => p.id === item.productId);
+        if (customProduct) {
+          // Determine quantity based on unit_basis
+          let quantity = 1;
+          if (customProduct.unit_basis === 'LF') {
+            quantity = item.netLength;
+          } else if (customProduct.unit_basis === 'SF') {
+            // For square feet, use netLength (assuming 6ft height for estimation)
+            quantity = item.netLength * 6;
+          } else if (customProduct.unit_basis === 'EA') {
+            // For each/unit, use 1 per line (user can adjust in footage)
+            quantity = item.totalFootage || 1;
+          } else if (customProduct.unit_basis === 'PROJECT') {
+            quantity = 1; // Flat rate per project
+          }
+
+          // Add materials from custom product
+          if (customProduct.materials) {
+            for (const matAssoc of customProduct.materials) {
+              if (matAssoc.material) {
+                allMaterials.push({
+                  material_id: matAssoc.material.id,
+                  material_sku: matAssoc.material.material_sku,
+                  material_name: matAssoc.material.material_name,
+                  quantity: matAssoc.quantity_per_unit * quantity,
+                  unit_type: matAssoc.material.unit_type,
+                  unit_cost: matAssoc.material.unit_cost,
+                  category: matAssoc.material.category,
+                });
+              }
+            }
+          }
+
+          // Add labor from custom product
+          if (customProduct.labor) {
+            for (const laborAssoc of customProduct.labor) {
+              if (laborAssoc.labor_code) {
+                // Find rate for this labor code from laborRates
+                const rateEntry = laborRates.find(r => r.labor_code_id === laborAssoc.labor_code_id);
+                const rate = rateEntry?.rate || 0;
+
+                allLabor.push({
+                  labor_code_id: laborAssoc.labor_code_id,
+                  labor_sku: laborAssoc.labor_code.labor_sku,
+                  description: laborAssoc.labor_code.description,
+                  quantity: laborAssoc.quantity_per_unit * quantity,
+                  rate: rate,
+                  unit_type: laborAssoc.labor_code.unit_type,
+                });
+              }
+            }
+          }
         }
       }
 

@@ -7,7 +7,7 @@
 // ENUM TYPES
 // ============================================================================
 
-export type FenceType = 'wood_vertical' | 'wood_horizontal' | 'iron';
+export type FenceType = 'wood_vertical' | 'wood_horizontal' | 'iron' | 'custom';
 export type FenceTypeWithAll = FenceType | 'all'; // For SKU search UI
 export type PostType = 'WOOD' | 'STEEL';
 
