@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Palette,
@@ -109,12 +109,16 @@ export default function YardAreasPage() {
         .eq('is_active', true)
         .order('code');
       if (error) throw error;
-      if (data.length > 0 && !selectedYardId) {
-        setSelectedYardId(data[0].id);
-      }
       return data as Yard[];
     },
   });
+
+  // Set initial selectedYardId when yards load
+  useEffect(() => {
+    if (yards.length > 0 && !selectedYardId) {
+      setSelectedYardId(yards[0].id);
+    }
+  }, [yards, selectedYardId]);
 
   // Fetch areas for selected yard
   const { data: areas = [], isLoading: loadingAreas } = useQuery({
