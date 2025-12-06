@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
@@ -64,13 +64,16 @@ export default function YardSpotsPage() {
         .eq('is_active', true)
         .order('code');
       if (error) throw error;
-      // Auto-select first yard if none selected
-      if (data.length > 0 && !selectedYardId) {
-        setSelectedYardId(data[0].id);
-      }
       return data as Yard[];
     },
   });
+
+  // Set initial selectedYardId when yards load
+  useEffect(() => {
+    if (yards.length > 0 && !selectedYardId) {
+      setSelectedYardId(yards[0].id);
+    }
+  }, [yards, selectedYardId]);
 
   // Fetch spots for selected yard with occupied project details
   const { data: spots = [], isLoading: loadingSpots } = useQuery({
@@ -117,6 +120,7 @@ export default function YardSpotsPage() {
   // Add spot mutation
   const addSpotMutation = useMutation({
     mutationFn: async () => {
+      if (!selectedYardId) throw new Error('Please select a yard first');
       if (!newSpotCode.trim()) throw new Error('Spot code is required');
 
       const maxOrder = spots.length > 0 ? Math.max(...spots.map(s => s.display_order)) : 0;
