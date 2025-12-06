@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config' | 'yard-schedule' | 'yard-spots' | 'yard-areas' | 'yard-mobile' | 'yard-analytics';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config' | 'yard-schedule' | 'yard-spots' | 'yard-areas' | 'yard-mobile';
 
 interface NavItem {
   id: BOMHubPage;
@@ -44,7 +44,6 @@ const YARD_NAV_ITEMS: NavItem[] = [
   { id: 'yard-schedule', label: 'Pick Lists', icon: CalendarDays },
   { id: 'yard-spots', label: 'Yard Spots', icon: MapPin },
   { id: 'yard-areas', label: 'Stocking Areas', icon: Palette },
-  { id: 'yard-analytics', label: 'Yard Analytics', icon: BarChart3 },
   { id: 'yard-mobile', label: 'Mobile View', icon: Smartphone },
 ];
 

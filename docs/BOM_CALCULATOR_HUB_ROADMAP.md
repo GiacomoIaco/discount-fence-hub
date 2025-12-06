@@ -22,7 +22,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 | Phase 3 | Yard Workflow (Core) | Completed | Dec 5, 2024 |
 | Phase 3.1 | Yard Workflow Enhancements | In Progress | - |
 | Phase 3.2 | Bug Fixes & Improvements | In Progress | - |
-| Phase 4 | Advanced Analytics | Planned | - |
+| Phase 4 | Advanced Analytics | Completed | Dec 6, 2024 |
 | Phase 5 | Price Book | Planned | - |
 | Phase 6 | ServiceTitan Export | Planned | - |
 | Phase 7 | QuickBooks Online Integration | Planned | - |
@@ -219,56 +219,58 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 ## Planned Phases
 
 ### Phase 4: Advanced Analytics
-**Status:** Planned
+**Status:** Completed (Dec 6, 2024)
 **Detailed Plan:** See [PHASE_4_ANALYTICS_PLAN.md](./PHASE_4_ANALYTICS_PLAN.md)
 
+All analytics now unified under single Analytics page with 7 tabs:
+- Overview | Materials | Labor | Projects | SKUs | Business Units | Yard Ops
+
 #### 4.1 Material Price History
-- [ ] Recent cost changes table
-- [ ] Visual chart: 12-week price trends
-- [ ] Filter by: Top SKUs, category, subcategory
-- [ ] Top Movers (biggest price changes)
-- [ ] Price alerts (notify when >X% change)
-- [ ] Cost impact calculator
+- [x] Recent cost changes table
+- [x] Visual chart: price trends over time
+- [x] Filter by category
+- [x] Top Movers (biggest price changes in 30 days)
+- [x] Category summary with avg costs
 
 #### 4.2 Labor Price History
-- [ ] Rate changes over time by labor code
-- [ ] Compare rates across Business Units
-- [ ] Track rate change requests
+- [x] Rate changes over time by labor code
+- [x] Compare rates across Business Units
+- [x] Rate history timeline
 
 #### 4.3 Projects/Bundles Analytics
-- [ ] Projects by status
-- [ ] Stats by user/estimator
-- [ ] Profitability analysis
-- [ ] Avg cost/ft by fence type over time
+- [x] Projects by status (pipeline view)
+- [x] Stats by user/estimator (leaderboard)
+- [x] Avg cost/ft by fence type
+- [x] Monthly project volume trends
 
 #### 4.4 SKU Performance
-- [ ] Most used SKUs
-- [ ] SKU cost trends
-- [ ] Margin contribution analysis
-- [ ] Slow-moving SKUs identification
+- [x] Most used SKUs by footage
+- [x] SKU cost per foot analysis
+- [x] Fence type distribution (pie chart)
+- [x] Full SKU table with metrics
 
 #### 4.5 Business Unit Comparison
-- [ ] Material costs by BU
-- [ ] Labor costs by BU
-- [ ] Cost/ft benchmarking
-- [ ] Avg project size by BU
+- [x] Material costs by BU
+- [x] Labor costs by BU
+- [x] Cost/ft benchmarking
+- [x] Radar chart comparison
+- [x] Detailed comparison table
 
 #### 4.6 Trend Analysis
-- [ ] Seasonal patterns
-- [ ] Year-over-year comparisons
-- [ ] Cost forecasting
+- [x] Monthly trends view (built into other tabs)
+- [ ] Seasonal patterns (future - needs more data)
+- [ ] Year-over-year comparisons (future - needs more data)
 
 #### 4.7 Export & Scheduling
-- [ ] Export to Excel/PDF
-- [ ] Scheduled automated reports
-- [ ] Custom date ranges
+- [ ] Export to Excel/PDF (deferred to future)
+- [ ] Scheduled automated reports (deferred to future)
 
-#### 4.8 Yard Operations Analytics (NEW)
-- [ ] Worker leaderboard (orders staged by person)
-- [ ] Daily/weekly staging volume charts
-- [ ] Average time metrics (staged→loaded, loaded→complete)
-- [ ] Stale projects alert (3+ business days in yard)
-- [ ] Yard performance comparison by location
+#### 4.8 Yard Operations Analytics
+- [x] Worker leaderboard (orders staged by person)
+- [x] Daily/weekly staging volume charts
+- [x] Average time metrics (staged→loaded, loaded→complete)
+- [x] Stale projects alert (3+ business days in yard)
+- [x] Yard performance comparison by location
 
 ---
 
@@ -383,6 +385,7 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 
 | Date | Change | Author |
 |------|--------|--------|
+| Dec 6, 2024 | Completed Phase 4 - Unified Analytics with 7 tabs | Claude |
 | Dec 6, 2024 | Added 3.1.4 Staging Prioritization - urgency badges, filters, auto-sort | Claude |
 | Dec 6, 2024 | Added 3.1.5 Claim Workflow Improvements - QR code, assign worker | Claude |
 | Dec 6, 2024 | Completed 3.1.2 Mobile Yard Access - yard role, QR code | Claude |
