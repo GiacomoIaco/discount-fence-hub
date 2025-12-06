@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
@@ -15,11 +15,15 @@ import {
   MoreVertical,
   Users,
   Layers,
+  Eye,
+  RotateCcw,
+  Copy,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import { fetchAndGeneratePickListPDF } from '../components/PickListPDF';
 import CrewSignoffModal from '../components/CrewSignoffModal';
+import PickListViewer from '../components/PickListViewer';
 
 // Types
 interface Yard {
@@ -92,6 +96,20 @@ export default function YardSchedulePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [signoffPickup, setSignoffPickup] = useState<ScheduledPickup | null>(null);
+  const [viewerPickup, setViewerPickup] = useState<ScheduledPickup | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Handle print pick list
   const handlePrintPickList = async (projectId: string) => {
@@ -469,6 +487,13 @@ export default function YardSchedulePage() {
                         {/* Actions Menu */}
                         <div className="flex items-center gap-1">
                           <button
+                            onClick={() => setViewerPickup(pickup)}
+                            className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            title="View Pick List"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handlePrintPickList(pickup.id)}
                             disabled={printingId === pickup.id}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
@@ -487,9 +512,75 @@ export default function YardSchedulePage() {
                           >
                             <Camera className="w-4 h-4" />
                           </button>
-                          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
+
+                          {/* 3-dot menu */}
+                          <div className="relative" ref={openMenuId === pickup.id ? menuRef : undefined}>
+                            <button
+                              onClick={() => setOpenMenuId(openMenuId === pickup.id ? null : pickup.id)}
+                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+
+                            {openMenuId === pickup.id && (
+                              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                <button
+                                  onClick={() => {
+                                    setViewerPickup(pickup);
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  View Pick List
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    handlePrintPickList(pickup.id);
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                  <Printer className="w-4 h-4" />
+                                  Print PDF (3 copies)
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSignoffPickup(pickup);
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                  <Camera className="w-4 h-4" />
+                                  Crew Sign-off
+                                </button>
+                                <div className="border-t border-gray-100 my-1" />
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(pickup.project_code || '');
+                                    showSuccess('Project code copied');
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                  Copy Project Code
+                                </button>
+                                {pickup.status === 'completed' && (
+                                  <button
+                                    onClick={() => {
+                                      updateStatusMutation.mutate({ projectId: pickup.id, newStatus: 'loaded' });
+                                      setOpenMenuId(null);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-amber-600 hover:bg-amber-50"
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                    Revert to Loaded
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -566,6 +657,17 @@ export default function YardSchedulePage() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['yard-schedule'] });
           }}
+        />
+      )}
+
+      {/* Pick List Viewer Modal */}
+      {viewerPickup && (
+        <PickListViewer
+          projectId={viewerPickup.id}
+          projectCode={viewerPickup.project_code || '---'}
+          projectName={viewerPickup.project_name}
+          isBundle={viewerPickup.is_bundle}
+          onClose={() => setViewerPickup(null)}
         />
       )}
     </div>
