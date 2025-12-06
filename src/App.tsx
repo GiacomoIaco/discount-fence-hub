@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -57,7 +57,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -85,8 +85,8 @@ function App() {
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
-  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Leadership)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'leadership';
+  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership)
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'yard' || activeSection === 'leadership';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -102,10 +102,10 @@ function App() {
     }
   }, []);
 
-  // Auto-redirect yard role users to BOM Calculator (Mobile View)
+  // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {
-    if (userRole === 'yard' && activeSection !== 'bom-calculator') {
-      setActiveSection('bom-calculator');
+    if (userRole === 'yard' && activeSection !== 'yard' && activeSection !== 'bom-calculator') {
+      setActiveSection('yard');
     }
   }, [userRole, activeSection]);
 
@@ -167,22 +167,24 @@ function App() {
   }, [activeSection]);
 
   // Universal navigation items - same for all roles (permissions controlled inside each component)
+  // menuId allows mapping navigation section to different menu_visibility entries
   const getNavigationItems = () => {
     const items = [
-      { id: 'dashboard' as Section, name: 'Dashboard', icon: Home },
-      { id: 'team-communication' as Section, name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
-      { id: 'direct-messages' as Section, name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
-      { id: 'presentation' as Section, name: 'Client Presentation', icon: BookOpen },
-      { id: 'sales-coach' as Section, name: 'AI Sales Coach', icon: BookOpen },
-      { id: 'photo-gallery' as Section, name: 'Photo Gallery', icon: Image },
-      { id: 'stain-calculator' as Section, name: 'Pre-Stain Calculator', icon: DollarSign },
-      { id: 'bom-calculator' as Section, name: 'BOM Calculator', icon: Calculator },
-      { id: 'my-requests' as Section, name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
-      { id: 'analytics' as Section, name: 'Analytics', icon: DollarSign },
-      { id: 'sales-resources' as Section, name: 'Sales Resources', icon: BookOpen },
-      { id: 'leadership' as Section, name: 'Leadership', icon: Target },
-      { id: 'my-todos' as Section, name: 'My To-Dos', icon: ListTodo },
-      { id: 'team' as Section, name: 'Settings', icon: SettingsIcon, separator: true },
+      { id: 'dashboard' as Section, menuId: 'dashboard', name: 'Dashboard', icon: Home },
+      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
+      { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
+      { id: 'presentation' as Section, menuId: 'presentation', name: 'Client Presentation', icon: BookOpen },
+      { id: 'sales-coach' as Section, menuId: 'sales-coach', name: 'AI Sales Coach', icon: BookOpen },
+      { id: 'photo-gallery' as Section, menuId: 'photo-gallery', name: 'Photo Gallery', icon: Image },
+      { id: 'stain-calculator' as Section, menuId: 'stain-calculator', name: 'Pre-Stain Calculator', icon: DollarSign },
+      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'BOM Calculator', icon: Calculator },
+      { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
+      { id: 'my-requests' as Section, menuId: 'my-requests', name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
+      { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
+      { id: 'sales-resources' as Section, menuId: 'sales-resources', name: 'Sales Resources', icon: BookOpen },
+      { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target },
+      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo },
+      { id: 'team' as Section, menuId: 'team', name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
     return items;
@@ -190,8 +192,13 @@ function App() {
 
   const navigationItems = getNavigationItems();
 
-  // Filter navigation items based on menu visibility settings
-  const visibleNavigationItems = navigationItems.filter(item => canSeeMenuItem(item.id, userRole));
+  // Current platform based on viewMode
+  const currentPlatform = viewMode === 'mobile' ? 'mobile' : 'desktop';
+
+  // Filter navigation items based on menu visibility settings AND platform availability
+  const visibleNavigationItems = navigationItems.filter(item =>
+    canSeeMenuItem(item.menuId, { overrideRole: userRole, platform: currentPlatform })
+  );
 
   const renderContent = () => {
     // Wrap all lazy-loaded components with Suspense
@@ -348,6 +355,27 @@ function App() {
                 userId={user?.id}
                 userName={profile?.full_name}
                 startOnMobile={userRole === 'yard'}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        );
+      }
+      // Redirect non-authorized users
+      setActiveSection('home');
+      return null;
+    }
+    if (activeSection === 'yard') {
+      // Direct entry to Yard Mobile View - for mobile users with bom-yard access
+      if (userRole === 'operations' || userRole === 'admin' || userRole === 'yard') {
+        return (
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <BOMCalculatorHub
+                onBack={() => setActiveSection('home')}
+                userRole={userRole === 'yard' ? 'operations' : userRole}
+                userId={user?.id}
+                userName={profile?.full_name}
+                startOnMobile={true}
               />
             </Suspense>
           </ErrorBoundary>

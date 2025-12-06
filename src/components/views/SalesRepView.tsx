@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { DollarSign, Ticket, Image, BookOpen, FileText, Mic, MessageCircle, MessageSquare } from 'lucide-react';
 import CustomPricingRequest from './CustomPricingRequest';
 
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard';
 
 // Lazy load components
 const StainCalculator = lazy(() => import('../../features/sales-tools').then(module => ({ default: module.StainCalculator })));
