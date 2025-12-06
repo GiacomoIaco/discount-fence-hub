@@ -10,12 +10,10 @@ import {
   Printer,
   Camera,
   ChevronDown,
-  Search,
   Layers,
   ArrowLeft,
   Loader2,
   RefreshCw,
-  QrCode,
   Clipboard,
   Play,
   RotateCcw,
@@ -95,7 +93,7 @@ interface YardMobilePageProps {
 export default function YardMobilePage({ onBack }: YardMobilePageProps) {
   const queryClient = useQueryClient();
   const [selectedYardId, setSelectedYardId] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
   const [expandedPickupId, setExpandedPickupId] = useState<string | null>(null);
   const [signoffPickup, setSignoffPickup] = useState<ScheduledPickup | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -181,7 +179,7 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
   });
 
   // Fetch MY claimed jobs (across all yards)
-  const { data: myClaimedJobs = [], refetch: refetchMyJobs } = useQuery({
+  const { data: myClaimedJobs = [] } = useQuery({
     queryKey: ['my-claimed-jobs', currentUserId],
     queryFn: async () => {
       if (!currentUserId) return [];
