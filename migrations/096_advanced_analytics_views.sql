@@ -14,10 +14,10 @@
 CREATE OR REPLACE VIEW v_material_price_trends AS
 SELECT
   m.id as material_id,
-  m.material_code,
+  m.material_sku as material_code,
   m.material_name,
   m.category,
-  m.subcategory,
+  m.sub_category as subcategory,
   m.unit_cost as current_price,
   mph.id as history_id,
   mph.old_price,
@@ -40,7 +40,7 @@ GRANT SELECT ON v_material_price_trends TO authenticated;
 CREATE OR REPLACE VIEW v_material_top_movers AS
 SELECT
   m.id as material_id,
-  m.material_code,
+  m.material_sku as material_code,
   m.material_name,
   m.category,
   m.unit_cost as current_price,
@@ -54,7 +54,7 @@ FROM materials m
 JOIN material_price_history mph ON m.id = mph.material_id
 WHERE mph.changed_at >= NOW() - INTERVAL '30 days'
   AND m.status = 'Active'
-GROUP BY m.id, m.material_code, m.material_name, m.category, m.unit_cost
+GROUP BY m.id, m.material_sku, m.material_name, m.category, m.unit_cost
 ORDER BY ABS(SUM(mph.price_change)) DESC;
 
 GRANT SELECT ON v_material_top_movers TO authenticated;
