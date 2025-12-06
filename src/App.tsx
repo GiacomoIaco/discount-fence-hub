@@ -177,6 +177,7 @@ function App() {
       { id: 'sales-coach' as Section, menuId: 'sales-coach', name: 'AI Sales Coach', icon: BookOpen },
       { id: 'photo-gallery' as Section, menuId: 'photo-gallery', name: 'Photo Gallery', icon: Image },
       { id: 'stain-calculator' as Section, menuId: 'stain-calculator', name: 'Pre-Stain Calculator', icon: DollarSign },
+      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket },
       { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'BOM Calculator', icon: Calculator },
       { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
       { id: 'my-requests' as Section, menuId: 'my-requests', name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
@@ -460,6 +461,8 @@ function App() {
                 onUnreadCountChange={setUnreadAnnouncementsCount}
                 onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
                 teamCommunicationRefresh={teamCommunicationRefresh}
+                navigationItems={visibleNavigationItems}
+                userRole={userRole}
               />
             </ErrorBoundary>
           </div>

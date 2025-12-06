@@ -1,8 +1,16 @@
 import { lazy, Suspense } from 'react';
-import { DollarSign, Ticket, Image, BookOpen, FileText, Mic, MessageCircle, MessageSquare } from 'lucide-react';
 import CustomPricingRequest from './CustomPricingRequest';
 
 type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard';
+
+interface NavigationItem {
+  id: Section;
+  menuId: string;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+  separator?: boolean;
+}
 
 // Lazy load components
 const StainCalculator = lazy(() => import('../../features/sales-tools').then(module => ({ default: module.StainCalculator })));
@@ -38,6 +46,8 @@ interface SalesRepViewProps {
   onUnreadCountChange?: (count: number) => void;
   onTeamCommunicationUnreadCountChange?: (count: number) => void;
   teamCommunicationRefresh?: number;
+  navigationItems?: NavigationItem[];
+  userRole?: string;
 }
 
 export default function SalesRepView({
@@ -51,7 +61,9 @@ export default function SalesRepView({
   onMarkAsRead,
   onUnreadCountChange,
   onTeamCommunicationUnreadCountChange,
-  teamCommunicationRefresh
+  teamCommunicationRefresh,
+  navigationItems = [],
+  userRole: _userRole
 }: SalesRepViewProps) {
   if (activeSection === 'requests') {
     return (
@@ -137,156 +149,230 @@ export default function SalesRepView({
     );
   }
 
+  // Define styling and descriptions for each menu item
+  const getItemStyle = (menuId: string): {
+    gradient?: string;
+    bgColor?: string;
+    iconBg: string;
+    iconColor?: string;
+    description: string;
+    textColor?: string;
+    subtextColor?: string;
+    extra?: React.ReactNode;
+  } => {
+    const styles: Record<string, ReturnType<typeof getItemStyle>> = {
+      'presentation': {
+        gradient: 'from-blue-600 to-blue-700',
+        iconBg: 'bg-white/20',
+        description: "Show customers why we're #1",
+        subtextColor: 'text-blue-100'
+      },
+      'sales-coach': {
+        gradient: 'from-purple-600 to-purple-700',
+        iconBg: 'bg-white/20',
+        description: 'Record & analyze meetings',
+        subtextColor: 'text-purple-100'
+      },
+      'photo-gallery': {
+        bgColor: 'bg-white border-2 border-gray-200',
+        iconBg: 'bg-green-100',
+        iconColor: 'text-green-600',
+        description: 'Browse & capture job photos',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'stain-calculator': {
+        bgColor: 'bg-white border-2 border-gray-200',
+        iconBg: 'bg-orange-100',
+        iconColor: 'text-orange-600',
+        description: 'Show ROI vs DIY staining',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'direct-messages': {
+        gradient: 'from-blue-600 to-blue-700',
+        iconBg: 'bg-white/20',
+        description: 'Direct messages with team',
+        subtextColor: 'text-blue-100'
+      },
+      'team-communication': {
+        gradient: 'from-indigo-600 to-indigo-700',
+        iconBg: 'bg-white/20',
+        description: 'Team updates & announcements',
+        subtextColor: 'text-indigo-100'
+      },
+      'requests': {
+        gradient: 'from-green-600 to-green-700',
+        iconBg: 'bg-white/20',
+        description: 'Submit & track all requests',
+        subtextColor: 'text-green-100'
+      },
+      'my-requests': {
+        bgColor: 'bg-white border-2 border-gray-200',
+        iconBg: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+        description: 'Track your submitted requests',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'bom-yard': {
+        gradient: 'from-amber-600 to-amber-700',
+        iconBg: 'bg-white/20',
+        description: 'Manage pick lists & staging',
+        subtextColor: 'text-amber-100'
+      },
+      'sales-resources': {
+        bgColor: 'bg-white border border-gray-200',
+        iconBg: 'bg-indigo-100',
+        iconColor: 'text-indigo-600',
+        description: 'Guides, catalogs & training',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'my-todos': {
+        bgColor: 'bg-white border-2 border-gray-200',
+        iconBg: 'bg-purple-100',
+        iconColor: 'text-purple-600',
+        description: 'Your tasks and to-do items',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'team': {
+        bgColor: 'bg-white border border-gray-200',
+        iconBg: 'bg-gray-100',
+        iconColor: 'text-gray-600',
+        description: 'App settings & preferences',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'analytics': {
+        bgColor: 'bg-white border-2 border-gray-200',
+        iconBg: 'bg-teal-100',
+        iconColor: 'text-teal-600',
+        description: 'View reports & metrics',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'leadership': {
+        gradient: 'from-slate-700 to-slate-800',
+        iconBg: 'bg-white/20',
+        description: 'Goals, targets & team overview',
+        subtextColor: 'text-slate-200'
+      },
+      'bom-calculator': {
+        bgColor: 'bg-white border-2 border-gray-200',
+        iconBg: 'bg-cyan-100',
+        iconColor: 'text-cyan-600',
+        description: 'Bill of materials calculator',
+        textColor: 'text-gray-900',
+        subtextColor: 'text-gray-600'
+      },
+      'dashboard': {
+        gradient: 'from-gray-700 to-gray-800',
+        iconBg: 'bg-white/20',
+        description: 'Overview & quick stats',
+        subtextColor: 'text-gray-200'
+      },
+    };
+    return styles[menuId] || {
+      bgColor: 'bg-white border border-gray-200',
+      iconBg: 'bg-gray-100',
+      iconColor: 'text-gray-600',
+      description: '',
+      textColor: 'text-gray-900',
+      subtextColor: 'text-gray-600'
+    };
+  };
+
+  // Get badge count for specific items
+  const getBadgeCount = (menuId: string): number => {
+    if (menuId === 'direct-messages') return unreadAnnouncementsCount;
+    if (menuId === 'team-communication') return announcementEngagementCount;
+    return 0;
+  };
+
+  // Render a single navigation button
+  const renderNavButton = (item: NavigationItem) => {
+    const style = getItemStyle(item.menuId);
+    const Icon = item.icon;
+    const isGradient = !!style.gradient;
+    const badgeCount = item.badge || getBadgeCount(item.menuId);
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => setActiveSection(item.id)}
+        className={`w-full ${isGradient ? `bg-gradient-to-r ${style.gradient} text-white` : style.bgColor} p-5 rounded-xl shadow-sm active:scale-98 transition-transform relative`}
+      >
+        <div className="flex items-center space-x-4">
+          <div className={`${style.iconBg} p-3 rounded-lg`}>
+            <Icon className={`w-7 h-7 ${style.iconColor || ''}`} />
+          </div>
+          <div className="flex-1 text-left">
+            <div className={`font-bold ${isGradient ? 'text-lg' : 'text-base'} ${style.textColor || ''}`}>{item.name}</div>
+            <div className={`text-sm ${style.subtextColor}`}>{style.description}</div>
+          </div>
+          {item.menuId === 'requests' && (
+            <div className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
+              Voice
+            </div>
+          )}
+        </div>
+        {badgeCount > 0 && (
+          <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  // Group navigation items by category
+  const mainItems = navigationItems.filter(item =>
+    ['presentation', 'sales-coach', 'photo-gallery', 'stain-calculator', 'direct-messages', 'team-communication', 'dashboard'].includes(item.menuId)
+  );
+  const requestItems = navigationItems.filter(item =>
+    ['requests', 'my-requests'].includes(item.menuId)
+  );
+  const yardItems = navigationItems.filter(item =>
+    ['bom-yard', 'bom-calculator'].includes(item.menuId)
+  );
+  const toolItems = navigationItems.filter(item =>
+    ['sales-resources', 'analytics', 'leadership', 'my-todos', 'team'].includes(item.menuId)
+  );
+
   return (
     <div className="space-y-4 p-4">
-      {/* Sales Tools Section - No Title */}
-      <div className="space-y-3">
-        <button
-          onClick={() => setActiveSection('presentation')}
-          onTouchStart={(e) => e.currentTarget.classList.add('scale-95')}
-          onTouchEnd={(e) => e.currentTarget.classList.remove('scale-95')}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg transition-transform touch-manipulation"
-          style={{ WebkitTapHighlightColor: 'transparent' }}
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/20 p-3 rounded-lg">
-              <FileText className="w-8 h-8" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Client Presentation</div>
-              <div className="text-sm text-blue-100">Show customers why we're #1</div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveSection('sales-coach')}
-          className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/20 p-3 rounded-lg">
-              <Mic className="w-8 h-8" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-lg">AI Sales Coach</div>
-              <div className="text-sm text-purple-100">Record & analyze meetings</div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveSection('photo-gallery')}
-          className="w-full bg-white border-2 border-gray-200 p-5 rounded-xl shadow-sm active:scale-98 transition-transform"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-green-100 p-3 rounded-lg">
-              <Image className="w-7 h-7 text-green-600" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-gray-900">Photo Gallery</div>
-              <div className="text-sm text-gray-600">Browse & capture job photos</div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveSection('stain-calculator')}
-          className="w-full bg-white border-2 border-gray-200 p-5 rounded-xl shadow-sm active:scale-98 transition-transform"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-orange-100 p-3 rounded-lg">
-              <DollarSign className="w-7 h-7 text-orange-600" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-gray-900">Pre-Stain Calculator</div>
-              <div className="text-sm text-gray-600">Show ROI vs DIY staining</div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveSection('direct-messages')}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/20 p-3 rounded-lg">
-              <MessageCircle className="w-8 h-8" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Chat</div>
-              <div className="text-sm text-blue-100">Direct messages with team</div>
-            </div>
-            {unreadAnnouncementsCount > 0 && (
-              <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                {unreadAnnouncementsCount > 99 ? '99+' : unreadAnnouncementsCount}
-              </div>
-            )}
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveSection('team-communication')}
-          className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform relative"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/20 p-3 rounded-lg">
-              <MessageSquare className="w-8 h-8" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Announcements</div>
-              <div className="text-sm text-indigo-100">Team updates & announcements</div>
-            </div>
-            {announcementEngagementCount > 0 && (
-              <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                {announcementEngagementCount > 99 ? '99+' : announcementEngagementCount}
-              </div>
-            )}
-          </div>
-        </button>
-      </div>
+      {/* Main Tools Section */}
+      {mainItems.length > 0 && (
+        <div className="space-y-3">
+          {mainItems.map(renderNavButton)}
+        </div>
+      )}
 
       {/* Requests Section */}
-      <div className="space-y-3 pt-4">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Requests</h2>
+      {requestItems.length > 0 && (
+        <div className="space-y-3 pt-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Requests</h2>
+          {requestItems.map(renderNavButton)}
+        </div>
+      )}
 
-        <button
-          onClick={() => setActiveSection('requests')}
-          className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white p-6 rounded-xl shadow-lg active:scale-98 transition-transform"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/20 p-3 rounded-lg">
-              <Ticket className="w-8 h-8" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-bold text-lg">Requests</div>
-              <div className="text-sm text-green-100">Submit & track all requests</div>
-            </div>
-            <div className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
-              🎤 Voice
-            </div>
-          </div>
-        </button>
-      </div>
+      {/* Yard Section */}
+      {yardItems.length > 0 && (
+        <div className="space-y-3 pt-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Yard</h2>
+          {yardItems.map(renderNavButton)}
+        </div>
+      )}
 
       {/* Other Tools Section */}
-      <div className="space-y-3 pt-4 pb-8">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Other Tools</h2>
-
-        <button
-          onClick={() => setActiveSection('sales-resources')}
-          className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm active:bg-gray-50"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="bg-indigo-100 p-2 rounded-lg">
-              <BookOpen className="w-6 h-6 text-indigo-600" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-semibold text-gray-900">Sales Resources</div>
-              <div className="text-xs text-gray-600">Guides, catalogs & training</div>
-            </div>
-          </div>
-        </button>
-      </div>
+      {toolItems.length > 0 && (
+        <div className="space-y-3 pt-4 pb-8">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Other Tools</h2>
+          {toolItems.map(renderNavButton)}
+        </div>
+      )}
     </div>
   );
 }
