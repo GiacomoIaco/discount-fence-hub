@@ -140,7 +140,7 @@ SELECT
   p.project_code,
   p.customer_name,
   p.status,
-  p.is_archived,
+  COALESCE(p.is_archived, false) as is_archived,
   p.created_at,
   p.updated_at,
   p.created_by,
@@ -151,21 +151,15 @@ SELECT
   DATE_TRUNC('week', p.created_at)::date as created_week,
   DATE_TRUNC('month', p.created_at)::date as created_month,
   (
-    SELECT COUNT(*) FROM bom_project_lines pl WHERE pl.project_id = p.id
+    SELECT COUNT(*) FROM project_line_items pl WHERE pl.project_id = p.id
   ) as line_count,
-  (
-    SELECT COALESCE(SUM(pl.footage), 0) FROM bom_project_lines pl WHERE pl.project_id = p.id
-  ) as total_footage,
-  (
-    SELECT COALESCE(SUM(pl.material_cost), 0) FROM bom_project_lines pl WHERE pl.project_id = p.id
-  ) as total_material_cost,
-  (
-    SELECT COALESCE(SUM(pl.labor_cost), 0) FROM bom_project_lines pl WHERE pl.project_id = p.id
-  ) as total_labor_cost
+  COALESCE(p.total_linear_feet, 0) as total_footage,
+  COALESCE(p.total_material_cost, 0) as total_material_cost,
+  COALESCE(p.total_labor_cost, 0) as total_labor_cost
 FROM bom_projects p
 LEFT JOIN business_units bu ON p.business_unit_id = bu.id
 LEFT JOIN auth.users u ON p.created_by = u.id
-WHERE p.is_archived = false;
+WHERE COALESCE(p.is_archived, false) = false;
 
 GRANT SELECT ON v_project_analytics TO authenticated;
 
@@ -179,7 +173,7 @@ SELECT
   DATE_TRUNC('week', created_at)::date as week,
   DATE_TRUNC('month', created_at)::date as month
 FROM bom_projects
-WHERE is_archived = false
+WHERE COALESCE(is_archived, false) = false
 GROUP BY status, DATE_TRUNC('week', created_at)::date, DATE_TRUNC('month', created_at)::date
 ORDER BY month DESC, week DESC, status;
 
@@ -198,15 +192,11 @@ SELECT
   COUNT(*) FILTER (WHERE p.status IN ('sent_to_yard', 'staged', 'loaded', 'complete')) as completed_count,
   COUNT(*) FILTER (WHERE p.created_at >= DATE_TRUNC('week', CURRENT_DATE)) as projects_this_week,
   COUNT(*) FILTER (WHERE p.created_at >= DATE_TRUNC('month', CURRENT_DATE)) as projects_this_month,
-  ROUND(COALESCE(SUM(
-    (SELECT SUM(pl.footage) FROM bom_project_lines pl WHERE pl.project_id = p.id)
-  ), 0)::numeric, 0) as total_footage,
-  ROUND(COALESCE(AVG(
-    (SELECT SUM(pl.footage) FROM bom_project_lines pl WHERE pl.project_id = p.id)
-  ), 0)::numeric, 0) as avg_footage_per_project
+  ROUND(COALESCE(SUM(p.total_linear_feet), 0)::numeric, 0) as total_footage,
+  ROUND(COALESCE(AVG(p.total_linear_feet), 0)::numeric, 0) as avg_footage_per_project
 FROM bom_projects p
 LEFT JOIN auth.users u ON p.created_by = u.id
-WHERE p.is_archived = false
+WHERE COALESCE(p.is_archived, false) = false
   AND p.created_by IS NOT NULL
 GROUP BY p.created_by, u.raw_user_meta_data->>'name'
 ORDER BY total_projects DESC;
@@ -218,21 +208,21 @@ GRANT SELECT ON v_estimator_leaderboard TO authenticated;
 -- ============================================
 CREATE OR REPLACE VIEW v_sku_usage_analytics AS
 SELECT
-  pl.sku_code,
-  pl.sku_name,
+  pl.product_sku_code as sku_code,
+  pl.product_name as sku_name,
   pl.fence_type,
   COUNT(DISTINCT pl.project_id) as project_count,
-  ROUND(SUM(pl.footage)::numeric, 0) as total_footage,
-  ROUND(SUM(pl.material_cost)::numeric, 2) as total_material_cost,
-  ROUND(SUM(pl.labor_cost)::numeric, 2) as total_labor_cost,
-  ROUND(AVG(pl.material_cost / NULLIF(pl.footage, 0))::numeric, 2) as avg_material_per_ft,
-  ROUND(AVG(pl.labor_cost / NULLIF(pl.footage, 0))::numeric, 2) as avg_labor_per_ft,
-  ROUND(AVG((pl.material_cost + pl.labor_cost) / NULLIF(pl.footage, 0))::numeric, 2) as avg_total_per_ft,
+  ROUND(SUM(pl.total_footage)::numeric, 0) as total_footage,
+  ROUND(COALESCE(SUM(p.total_material_cost), 0)::numeric, 2) as total_material_cost,
+  ROUND(COALESCE(SUM(p.total_labor_cost), 0)::numeric, 2) as total_labor_cost,
+  ROUND(COALESCE(AVG(p.total_material_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_material_per_ft,
+  ROUND(COALESCE(AVG(p.total_labor_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_labor_per_ft,
+  ROUND(COALESCE(AVG(p.cost_per_foot), 0)::numeric, 2) as avg_total_per_ft,
   MAX(p.created_at) as last_used
-FROM bom_project_lines pl
+FROM project_line_items pl
 JOIN bom_projects p ON pl.project_id = p.id
-WHERE p.is_archived = false
-GROUP BY pl.sku_code, pl.sku_name, pl.fence_type
+WHERE COALESCE(p.is_archived, false) = false
+GROUP BY pl.product_sku_code, pl.product_name, pl.fence_type
 ORDER BY total_footage DESC;
 
 GRANT SELECT ON v_sku_usage_analytics TO authenticated;
@@ -245,14 +235,14 @@ SELECT
   pl.fence_type,
   COUNT(DISTINCT pl.project_id) as project_count,
   COUNT(*) as line_count,
-  ROUND(SUM(pl.footage)::numeric, 0) as total_footage,
-  ROUND(AVG(pl.footage)::numeric, 0) as avg_footage_per_line,
-  ROUND(AVG(pl.material_cost / NULLIF(pl.footage, 0))::numeric, 2) as avg_material_per_ft,
-  ROUND(AVG(pl.labor_cost / NULLIF(pl.footage, 0))::numeric, 2) as avg_labor_per_ft,
-  ROUND(AVG((pl.material_cost + pl.labor_cost) / NULLIF(pl.footage, 0))::numeric, 2) as avg_total_per_ft
-FROM bom_project_lines pl
+  ROUND(SUM(pl.total_footage)::numeric, 0) as total_footage,
+  ROUND(AVG(pl.total_footage)::numeric, 0) as avg_footage_per_line,
+  ROUND(COALESCE(AVG(p.total_material_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_material_per_ft,
+  ROUND(COALESCE(AVG(p.total_labor_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_labor_per_ft,
+  ROUND(COALESCE(AVG(p.cost_per_foot), 0)::numeric, 2) as avg_total_per_ft
+FROM project_line_items pl
 JOIN bom_projects p ON pl.project_id = p.id
-WHERE p.is_archived = false
+WHERE COALESCE(p.is_archived, false) = false
 GROUP BY pl.fence_type
 ORDER BY total_footage DESC;
 
@@ -271,20 +261,19 @@ SELECT
   COUNT(DISTINCT p.id) FILTER (WHERE p.status = 'complete') as completed_projects,
   COUNT(DISTINCT p.id) FILTER (WHERE p.created_at >= DATE_TRUNC('month', CURRENT_DATE)) as projects_this_month,
   -- Footage
-  ROUND(COALESCE(SUM(pl.footage), 0)::numeric, 0) as total_footage,
-  ROUND(COALESCE(AVG(pl.footage), 0)::numeric, 0) as avg_footage_per_line,
+  ROUND(COALESCE(SUM(p.total_linear_feet), 0)::numeric, 0) as total_footage,
+  ROUND(COALESCE(AVG(p.total_linear_feet), 0)::numeric, 0) as avg_footage_per_line,
   -- Costs
-  ROUND(COALESCE(SUM(pl.material_cost), 0)::numeric, 2) as total_material_cost,
-  ROUND(COALESCE(SUM(pl.labor_cost), 0)::numeric, 2) as total_labor_cost,
-  ROUND(COALESCE(AVG(pl.material_cost / NULLIF(pl.footage, 0)), 0)::numeric, 2) as avg_material_per_ft,
-  ROUND(COALESCE(AVG(pl.labor_cost / NULLIF(pl.footage, 0)), 0)::numeric, 2) as avg_labor_per_ft,
-  ROUND(COALESCE(AVG((pl.material_cost + pl.labor_cost) / NULLIF(pl.footage, 0)), 0)::numeric, 2) as avg_total_per_ft,
+  ROUND(COALESCE(SUM(p.total_material_cost), 0)::numeric, 2) as total_material_cost,
+  ROUND(COALESCE(SUM(p.total_labor_cost), 0)::numeric, 2) as total_labor_cost,
+  ROUND(COALESCE(AVG(p.total_material_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_material_per_ft,
+  ROUND(COALESCE(AVG(p.total_labor_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_labor_per_ft,
+  ROUND(COALESCE(AVG(p.cost_per_foot), 0)::numeric, 2) as avg_total_per_ft,
   -- Labor rate stats
   (SELECT ROUND(AVG(lr.rate)::numeric, 2) FROM labor_rates lr WHERE lr.business_unit_id = bu.id) as avg_labor_rate,
   (SELECT COUNT(*) FROM labor_rates lr WHERE lr.business_unit_id = bu.id) as labor_rate_count
 FROM business_units bu
-LEFT JOIN bom_projects p ON p.business_unit_id = bu.id AND p.is_archived = false
-LEFT JOIN bom_project_lines pl ON pl.project_id = p.id
+LEFT JOIN bom_projects p ON p.business_unit_id = bu.id AND COALESCE(p.is_archived, false) = false
 GROUP BY bu.id, bu.code, bu.name
 ORDER BY total_footage DESC;
 
@@ -297,15 +286,14 @@ CREATE OR REPLACE VIEW v_monthly_trends AS
 SELECT
   DATE_TRUNC('month', p.created_at)::date as month,
   COUNT(DISTINCT p.id) as project_count,
-  ROUND(SUM(pl.footage)::numeric, 0) as total_footage,
-  ROUND(SUM(pl.material_cost)::numeric, 2) as total_material_cost,
-  ROUND(SUM(pl.labor_cost)::numeric, 2) as total_labor_cost,
-  ROUND(AVG(pl.material_cost / NULLIF(pl.footage, 0))::numeric, 2) as avg_material_per_ft,
-  ROUND(AVG(pl.labor_cost / NULLIF(pl.footage, 0))::numeric, 2) as avg_labor_per_ft,
-  ROUND(AVG((pl.material_cost + pl.labor_cost) / NULLIF(pl.footage, 0))::numeric, 2) as avg_total_per_ft
+  ROUND(COALESCE(SUM(p.total_linear_feet), 0)::numeric, 0) as total_footage,
+  ROUND(COALESCE(SUM(p.total_material_cost), 0)::numeric, 2) as total_material_cost,
+  ROUND(COALESCE(SUM(p.total_labor_cost), 0)::numeric, 2) as total_labor_cost,
+  ROUND(COALESCE(AVG(p.total_material_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_material_per_ft,
+  ROUND(COALESCE(AVG(p.total_labor_cost / NULLIF(p.total_linear_feet, 0)), 0)::numeric, 2) as avg_labor_per_ft,
+  ROUND(COALESCE(AVG(p.cost_per_foot), 0)::numeric, 2) as avg_total_per_ft
 FROM bom_projects p
-JOIN bom_project_lines pl ON pl.project_id = p.id
-WHERE p.is_archived = false
+WHERE COALESCE(p.is_archived, false) = false
   AND p.created_at >= NOW() - INTERVAL '12 months'
 GROUP BY DATE_TRUNC('month', p.created_at)::date
 ORDER BY month DESC;
