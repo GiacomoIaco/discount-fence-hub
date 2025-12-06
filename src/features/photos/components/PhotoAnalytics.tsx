@@ -6,7 +6,7 @@ import { fixAllPhotoAttribution, fixMyPhotoAttribution } from '../lib/fixPhotoAt
 
 interface PhotoAnalyticsProps {
   onBack: () => void;
-  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 }
 
 interface UploaderStats {

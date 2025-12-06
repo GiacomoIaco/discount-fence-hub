@@ -17,7 +17,7 @@ interface ViewFlagsModalProps {
   show: boolean;
   photo: Photo | null;
   flags: PhotoFlag[];
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   onClose: () => void;
   onResolveFlag: (flagId: string) => void;
   onDismissFlag: (flagId: string) => void;

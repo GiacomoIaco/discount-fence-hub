@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Monitor } from 'lucide-react';
 import { HubLayout, type BOMHubPage } from './components/layout';
 import { BOMCalculator } from './BOMCalculator';
@@ -25,6 +25,7 @@ interface BOMCalculatorHubProps {
   userRole: 'operations' | 'admin';
   userId?: string;
   userName?: string;
+  startOnMobile?: boolean; // For yard role - auto-opens Mobile View
 }
 
 // SKU selection for navigation between Catalog and Builder
@@ -45,13 +46,29 @@ export interface ProjectToOpen {
   mode: 'edit' | 'duplicate';
 }
 
-export default function BOMCalculatorHub({ onBack, userRole, userId, userName }: BOMCalculatorHubProps) {
-  const [activePage, setActivePage] = useState<BOMHubPage>('calculator');
+export default function BOMCalculatorHub({ onBack, userRole, userId, userName, startOnMobile }: BOMCalculatorHubProps) {
+  // If startOnMobile is true (yard role), start on mobile view
+  const [activePage, setActivePage] = useState<BOMHubPage>(startOnMobile ? 'yard-mobile' : 'calculator');
   const [selectedSKU, setSelectedSKU] = useState<SelectedSKU | null>(null);
   const [projectToOpen, setProjectToOpen] = useState<ProjectToOpen | null>(null);
   const [showV2, setShowV2] = useState(false);
+  const [claimCode, setClaimCode] = useState<string | undefined>(undefined);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
+
+  // Check for claim parameter in URL (from QR code scan)
+  // This auto-navigates to mobile view with the project code pre-filled
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const claim = params.get('claim');
+    if (claim) {
+      setClaimCode(claim);
+      setActivePage('yard-mobile');
+      // Clear the URL param
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   // Navigate to SKU Builder with a selected SKU
   const handleEditSKU = (sku: SelectedSKU) => {
@@ -243,7 +260,12 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName }:
         return <YardAreasPage />;
 
       case 'yard-mobile':
-        return <YardMobilePage onBack={() => handlePageChange('yard-schedule')} />;
+        return (
+          <YardMobilePage
+            onBack={() => handlePageChange('yard-schedule')}
+            initialClaimCode={claimCode}
+          />
+        );
 
       default:
         return null;

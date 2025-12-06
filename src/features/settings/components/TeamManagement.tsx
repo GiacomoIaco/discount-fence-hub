@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { showInfo, showSuccess, showError } from '../../../lib/toast';
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
+type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 
 interface TeamMember {
   id: string;

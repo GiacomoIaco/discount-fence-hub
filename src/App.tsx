@@ -56,7 +56,7 @@ const LoadingFallback = () => (
   </div>
 );
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
+type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos';
 
 function App() {
@@ -92,6 +92,22 @@ function App() {
       setSidebarOpen(false);
     }
   }, [isHubSection]);
+
+  // Handle QR code claim parameter - auto-navigate to BOM Calculator
+  // The BOMCalculatorHub will then handle opening the mobile view with the claim code
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('claim')) {
+      setActiveSection('bom-calculator');
+    }
+  }, []);
+
+  // Auto-redirect yard role users to BOM Calculator (Mobile View)
+  useEffect(() => {
+    if (userRole === 'yard' && activeSection !== 'bom-calculator') {
+      setActiveSection('bom-calculator');
+    }
+  }, [userRole, activeSection]);
 
   // Enable escalation engine for operations/admin roles
   const isOperationsRole = ['operations', 'sales-manager', 'admin'].includes(userRole);
@@ -321,16 +337,17 @@ function App() {
       );
     }
     if (activeSection === 'bom-calculator') {
-      // Only show to operations and admin roles
-      if (userRole === 'operations' || userRole === 'admin') {
+      // Show to operations, admin, and yard roles
+      if (userRole === 'operations' || userRole === 'admin' || userRole === 'yard') {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
               <BOMCalculatorHub
                 onBack={() => setActiveSection('home')}
-                userRole={userRole}
+                userRole={userRole === 'yard' ? 'operations' : userRole}
                 userId={user?.id}
                 userName={profile?.full_name}
+                startOnMobile={userRole === 'yard'}
               />
             </Suspense>
           </ErrorBoundary>

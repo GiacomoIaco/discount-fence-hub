@@ -4,7 +4,7 @@ interface BulkEditToolbarProps {
   show: boolean;
   viewMode: 'mobile' | 'desktop';
   activeTab: 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   selectedCount: number;
   isEnhancing: boolean;
   onSelectAll: () => void;

@@ -12,7 +12,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.j
 
 interface SalesCoachAdminProps {
   onBack: () => void;
-  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 }
 
 export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoachAdminProps) {

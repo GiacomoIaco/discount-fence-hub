@@ -1,6 +1,6 @@
 import { Menu, X, User, LogOut } from 'lucide-react';
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
+type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos';
 
 interface NavigationItem {

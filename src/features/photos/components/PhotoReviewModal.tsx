@@ -5,7 +5,7 @@ import type { Photo } from '../lib/photos';
 interface PhotoReviewModalProps {
   photo: Photo | null;
   activeTab: 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   uploaderName: string;
   editingTags: string[];
   editingScore: number;

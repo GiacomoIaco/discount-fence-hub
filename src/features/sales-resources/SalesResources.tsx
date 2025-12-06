@@ -20,7 +20,7 @@ import { showError } from '../../lib/toast';
 
 interface SalesResourcesProps {
   onBack: () => void;
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   viewMode?: 'mobile' | 'desktop'; // Reserved for future use
 }
 

@@ -1,6 +1,6 @@
 import { Ticket, CheckCircle, DollarSign } from 'lucide-react';
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin';
+type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 
 interface DashboardProps {
   userRole: UserRole;

@@ -45,7 +45,7 @@ import {
 
 interface PhotoGalleryProps {
   onBack?: () => void;
-  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin';
+  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   viewMode?: 'mobile' | 'desktop';
   userId?: string;
   userName?: string;

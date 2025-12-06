@@ -19,6 +19,8 @@ import {
   RotateCcw,
   User,
   Eye,
+  AlertCircle,
+  Calendar,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -49,6 +51,8 @@ interface ScheduledPickup {
   customer_name: string | null;
   customer_address: string | null;
   expected_pickup_date: string | null;
+  staging_target_date: string | null;
+  staging_urgency: 'overdue' | 'today' | 'tomorrow' | 'future' | 'none' | 'unknown' | null;
   status: string;
   crew_name: string | null;
   is_bundle: boolean;
@@ -77,6 +81,14 @@ interface ScheduledPickup {
   pick_progress: { total: number; picked: number } | null;
 }
 
+// Urgency badge configuration
+const URGENCY_CONFIG: Record<string, { label: string; bgColor: string; textColor: string; icon: React.ReactNode }> = {
+  overdue: { label: 'OVERDUE', bgColor: 'bg-red-500', textColor: 'text-white', icon: <AlertCircle className="w-4 h-4" /> },
+  today: { label: 'TODAY', bgColor: 'bg-orange-500', textColor: 'text-white', icon: <AlertTriangle className="w-4 h-4" /> },
+  tomorrow: { label: 'TOMORROW', bgColor: 'bg-yellow-500', textColor: 'text-white', icon: <Calendar className="w-4 h-4" /> },
+  future: { label: 'FUTURE', bgColor: 'bg-green-100', textColor: 'text-green-700', icon: <Calendar className="w-4 h-4" /> },
+};
+
 // Status configuration with mobile-friendly colors
 const STATUS_CONFIG: Record<string, { label: string; bgColor: string; textColor: string; icon: React.ReactNode }> = {
   sent_to_yard: { label: 'UNCLAIMED', bgColor: 'bg-amber-500', textColor: 'text-white', icon: <Clock className="w-5 h-5" /> },
@@ -89,9 +101,10 @@ const STATUS_CONFIG: Record<string, { label: string; bgColor: string; textColor:
 
 interface YardMobilePageProps {
   onBack?: () => void;
+  initialClaimCode?: string; // From QR code scan
 }
 
-export default function YardMobilePage({ onBack }: YardMobilePageProps) {
+export default function YardMobilePage({ onBack, initialClaimCode }: YardMobilePageProps) {
   const queryClient = useQueryClient();
   const [selectedYardId, setSelectedYardId] = useState<string>('');
   const [searchQuery] = useState('');
@@ -99,6 +112,7 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
   const [signoffPickup, setSignoffPickup] = useState<ScheduledPickup | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [urgencyFilter, setUrgencyFilter] = useState<string>('all'); // 'all', 'today', 'tomorrow', 'overdue'
 
   // Claim workflow state
   const [codeInput, setCodeInput] = useState('');
@@ -110,6 +124,7 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
   } | null>(null);
   const [pickListViewerProject, setPickListViewerProject] = useState<ScheduledPickup | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [autoClaimProcessed, setAutoClaimProcessed] = useState(false);
 
   // Get current user ID
   useEffect(() => {
@@ -117,6 +132,75 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
       setCurrentUserId(data.user?.id || null);
     });
   }, []);
+
+  // Handle auto-claim from QR code (passed via initialClaimCode prop)
+  useEffect(() => {
+    if (initialClaimCode && currentUserId && !autoClaimProcessed) {
+      setAutoClaimProcessed(true);
+      // Set the code and trigger claim
+      setCodeInput(initialClaimCode.toUpperCase());
+      // Small delay to ensure state is set
+      setTimeout(() => {
+        handleClaimCodeDirect(initialClaimCode.toUpperCase());
+      }, 100);
+    }
+  }, [initialClaimCode, currentUserId, autoClaimProcessed]);
+
+  // Direct claim handler for auto-claim (doesn't depend on codeInput state)
+  const handleClaimCodeDirect = async (code: string) => {
+    if (!code) return;
+
+    setClaimModalData({ project: null, status: 'searching' });
+
+    try {
+      const { data, error } = await supabase
+        .from('v_yard_schedule')
+        .select('*')
+        .eq('project_code', code)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        setClaimModalData({
+          project: null,
+          status: 'error',
+          error: 'Project not found',
+        });
+        return;
+      }
+
+      const project = data as ScheduledPickup;
+
+      if (project.claimed_by && project.claimed_by !== currentUserId) {
+        setClaimModalData({
+          project,
+          status: 'error',
+          error: 'already_claimed',
+          claimedByName: project.claimed_by_name || 'Someone',
+        });
+        return;
+      }
+
+      if (project.claimed_by === currentUserId) {
+        setClaimModalData(null);
+        setCodeInput('');
+        setPickListViewerProject(project);
+        return;
+      }
+
+      setClaimModalData({
+        project,
+        status: 'found',
+      });
+    } catch (err: any) {
+      setClaimModalData({
+        project: null,
+        status: 'error',
+        error: err.message || 'Failed to search',
+      });
+    }
+  };
 
   // Fetch yards
   const { data: yards = [] } = useQuery({
@@ -196,16 +280,49 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
     refetchInterval: 30000,
   });
 
-  // Filter by search
+  // Filter by search and urgency, then sort by urgency priority
   const filteredPickups = useMemo(() => {
-    if (!searchQuery.trim()) return pickups;
-    const q = searchQuery.toLowerCase();
-    return pickups.filter(p =>
-      p.project_code?.toLowerCase().includes(q) ||
-      p.project_name?.toLowerCase().includes(q) ||
-      p.customer_name?.toLowerCase().includes(q)
-    );
-  }, [pickups, searchQuery]);
+    let filtered = pickups;
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.project_code?.toLowerCase().includes(q) ||
+        p.project_name?.toLowerCase().includes(q) ||
+        p.customer_name?.toLowerCase().includes(q)
+      );
+    }
+
+    // Urgency filter (only affects unclaimed jobs)
+    if (urgencyFilter !== 'all') {
+      filtered = filtered.filter(p => {
+        // Don't filter out jobs that are already being worked on
+        if (p.status !== 'sent_to_yard') return true;
+        // Filter by urgency
+        if (urgencyFilter === 'urgent') {
+          return p.staging_urgency === 'overdue' || p.staging_urgency === 'today';
+        }
+        return p.staging_urgency === urgencyFilter;
+      });
+    }
+
+    // Sort by urgency priority (overdue first, then today, tomorrow, future)
+    const urgencyOrder: Record<string, number> = {
+      overdue: 0,
+      today: 1,
+      tomorrow: 2,
+      future: 3,
+      unknown: 4,
+      none: 5,
+    };
+
+    return [...filtered].sort((a, b) => {
+      const aUrgency = urgencyOrder[a.staging_urgency || 'none'] ?? 5;
+      const bUrgency = urgencyOrder[b.staging_urgency || 'none'] ?? 5;
+      return aUrgency - bUrgency;
+    });
+  }, [pickups, searchQuery, urgencyFilter]);
 
   // Group pickups by status
   const groupedPickups = useMemo(() => {
@@ -473,6 +590,51 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
               {yard.code}
             </button>
           ))}
+        </div>
+
+        {/* Urgency Filter Buttons */}
+        <div className="mt-2 flex gap-1 overflow-x-auto">
+          <button
+            onClick={() => setUrgencyFilter('all')}
+            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+              urgencyFilter === 'all'
+                ? 'bg-white text-amber-600'
+                : 'bg-white/20 hover:bg-white/30'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setUrgencyFilter('urgent')}
+            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
+              urgencyFilter === 'urgent'
+                ? 'bg-red-500 text-white'
+                : 'bg-white/20 hover:bg-white/30'
+            }`}
+          >
+            <AlertCircle className="w-4 h-4" />
+            Urgent
+          </button>
+          <button
+            onClick={() => setUrgencyFilter('today')}
+            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
+              urgencyFilter === 'today'
+                ? 'bg-orange-500 text-white'
+                : 'bg-white/20 hover:bg-white/30'
+            }`}
+          >
+            Stage Today
+          </button>
+          <button
+            onClick={() => setUrgencyFilter('tomorrow')}
+            className={`px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
+              urgencyFilter === 'tomorrow'
+                ? 'bg-yellow-500 text-white'
+                : 'bg-white/20 hover:bg-white/30'
+            }`}
+          >
+            Tomorrow
+          </button>
         </div>
 
         {/* Code Entry - Primary Action */}
@@ -1156,11 +1318,44 @@ interface UnclaimedCardProps {
 }
 
 function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardProps) {
+  const urgencyConfig = pickup.staging_urgency ? URGENCY_CONFIG[pickup.staging_urgency] : null;
+
+  // Format pickup date for display
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden">
+    <div className={`bg-white rounded-xl shadow-md overflow-hidden ${
+      pickup.staging_urgency === 'overdue' ? 'ring-2 ring-red-400' :
+      pickup.staging_urgency === 'today' ? 'ring-2 ring-orange-400' : ''
+    }`}>
+      {/* Urgency Banner */}
+      {urgencyConfig && (pickup.staging_urgency === 'overdue' || pickup.staging_urgency === 'today') && (
+        <div className={`px-4 py-1.5 ${urgencyConfig.bgColor} ${urgencyConfig.textColor} flex items-center justify-between text-sm font-bold`}>
+          <div className="flex items-center gap-2">
+            {urgencyConfig.icon}
+            <span>STAGE {urgencyConfig.label}</span>
+          </div>
+          <span className="text-xs opacity-80">
+            Job: {formatDate(pickup.expected_pickup_date)}
+          </span>
+        </div>
+      )}
+
       <div className="p-4 flex items-center gap-4">
-        <div className="w-16 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-          <span className="font-mono font-bold text-amber-700 text-sm">
+        <div className={`w-16 h-12 rounded-lg flex items-center justify-center ${
+          pickup.staging_urgency === 'overdue' ? 'bg-red-100' :
+          pickup.staging_urgency === 'today' ? 'bg-orange-100' :
+          pickup.staging_urgency === 'tomorrow' ? 'bg-yellow-100' : 'bg-amber-100'
+        }`}>
+          <span className={`font-mono font-bold text-sm ${
+            pickup.staging_urgency === 'overdue' ? 'text-red-700' :
+            pickup.staging_urgency === 'today' ? 'text-orange-700' :
+            pickup.staging_urgency === 'tomorrow' ? 'text-yellow-700' : 'text-amber-700'
+          }`}>
             {pickup.project_code}
           </span>
         </div>
@@ -1169,7 +1364,14 @@ function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardPro
           {pickup.customer_name && (
             <p className="text-sm text-gray-500 truncate">{pickup.customer_name}</p>
           )}
-          <p className="text-xs text-gray-400">{pickup.total_linear_feet} LF</p>
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span>{pickup.total_linear_feet} LF</span>
+            {urgencyConfig && pickup.staging_urgency !== 'overdue' && pickup.staging_urgency !== 'today' && (
+              <span className={`px-1.5 py-0.5 rounded ${urgencyConfig.bgColor} ${urgencyConfig.textColor}`}>
+                {urgencyConfig.label}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -1181,7 +1383,11 @@ function UnclaimedCard({ pickup, onClaim, onView, isClaiming }: UnclaimedCardPro
           <button
             onClick={onClaim}
             disabled={isClaiming}
-            className="px-4 py-3 bg-amber-500 text-white rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 active:bg-amber-600"
+            className={`px-4 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 active:brightness-90 ${
+              pickup.staging_urgency === 'overdue' ? 'bg-red-500 text-white' :
+              pickup.staging_urgency === 'today' ? 'bg-orange-500 text-white' :
+              'bg-amber-500 text-white'
+            }`}
           >
             {isClaiming ? (
               <Loader2 className="w-5 h-5 animate-spin" />

@@ -10,7 +10,7 @@ type GalleryTab = 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';
  * Coordinates photos list, active tab, and data loading
  */
 export function usePhotoGallery(
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin',
+  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard',
   viewMode: 'mobile' | 'desktop'
 ) {
   const [activeTab, setActiveTab] = useState<GalleryTab>('gallery');
