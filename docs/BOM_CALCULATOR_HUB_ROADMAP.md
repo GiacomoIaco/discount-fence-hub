@@ -1,7 +1,7 @@
 # BOM Calculator HUB - Roadmap (Phases 0-7)
 
 **Created:** December 5, 2024
-**Last Updated:** December 5, 2024
+**Last Updated:** December 6, 2024
 **Status:** Active Development
 
 ---
@@ -124,8 +124,13 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 - [x] Color backgrounds on category headers based on area
 
 #### 3.1.2 Mobile Yard Access
-- [ ] Add "yard" user role
-- [ ] For yard users: mobile app shows only Yard section + Chat
+- [x] Add "yard" user role (Dec 6, 2024)
+  - Yard users auto-redirect to BOM Calculator on login
+  - BOM Hub auto-opens Mobile View for yard role
+  - Yard role treated as 'operations' for permissions
+- [x] For yard users: mobile app shows only Yard section (Dec 6, 2024)
+- [x] QR code on printed pick list links directly to project (Dec 6, 2024)
+  - Scan QR → App opens → Auto-fills project code → Claim modal appears
 - [ ] Bypass desktop-only restriction for Yard pages
 - [ ] High contrast mode for outdoor use
 - [ ] Sound feedback for picked/error states
@@ -142,9 +147,44 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
   - Progress bar at bottom of viewer
 - [x] 3-dot menu fixed with dropdown options
   - View, Print, Sign-off, Copy Project Code
+- [x] Pick progress persistence (Dec 6, 2024)
+  - pick_progress table tracks checked items
+  - Progress saved to database automatically
+  - Can continue where you left off
 - [ ] Partial pickup support with notes
 
-#### 3.1.4 Additional Yard Features
+#### 3.1.4 Staging Prioritization (NEW - Dec 6, 2024)
+- [x] Staging target date calculation (migration 094)
+  - Auto-calculated as pickup date - 2 business days
+  - Skips weekends (Sat/Sun)
+  - Editable by operations if needed
+- [x] Urgency badges in Mobile View
+  - 🔴 OVERDUE - Past staging target date
+  - 🟠 TODAY - Stage today
+  - 🟡 TOMORROW - Stage tomorrow
+  - 🟢 FUTURE - 2+ days out
+- [x] Urgency filter buttons
+  - All | Urgent | Stage Today | Tomorrow
+- [x] Auto-sort by urgency (overdue first)
+- [x] Color-coded cards (red/orange ring for urgent)
+- [x] Job date shown on urgent item banners
+
+#### 3.1.5 Claim Workflow Improvements (NEW - Dec 6, 2024)
+- [x] Paper-first workflow support
+  - Enter project code manually or scan QR
+  - Claim confirmation modal with project details
+- [x] Claim/Release functionality
+  - claim_project() and release_project() RPC functions
+  - "Picking" status when claimed
+  - Reverts to "Sent to Yard" when released
+- [x] Show claimed status on Desktop Pick Lists
+  - Picker name and progress displayed
+  - "Picking" status in Quick Stats
+- [x] Assign Worker from Desktop Pick Lists (Dec 6, 2024)
+  - Dropdown to assign yard workers to jobs
+  - Available for sent_to_yard and picking status
+
+#### 3.1.6 Additional Yard Features (Future)
 - [ ] Sort by pick sequence (optimized for yard layout)
 - [ ] Calendar view of scheduled pickups
 - [ ] Damage/shortage reporting with photo capture
@@ -334,6 +374,10 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 
 | Date | Change | Author |
 |------|--------|--------|
+| Dec 6, 2024 | Added 3.1.4 Staging Prioritization - urgency badges, filters, auto-sort | Claude |
+| Dec 6, 2024 | Added 3.1.5 Claim Workflow Improvements - QR code, assign worker | Claude |
+| Dec 6, 2024 | Completed 3.1.2 Mobile Yard Access - yard role, QR code | Claude |
+| Dec 6, 2024 | Added pick progress persistence (3.1.3) | Claude |
 | Dec 5, 2024 | Added Phase 3.1 (Yard Enhancements) and Phase 3.2 (Bug Fixes) | Claude |
 | Dec 5, 2024 | Completed Phase 3 (Yard Workflow Core) | Claude |
 | Dec 5, 2024 | Created roadmap document | Claude |
