@@ -73,7 +73,7 @@ export default function PickListViewer({
             material_name,
             category,
             sub_category,
-            uom
+            unit_type
           )
         `)
         .eq('project_id', projectId)
@@ -88,7 +88,7 @@ export default function PickListViewer({
         category: item.materials?.category || 'Other',
         sub_category: item.materials?.sub_category || null,
         quantity: item.final_quantity ?? 0,
-        unit: item.materials?.uom || 'EA',
+        unit: item.materials?.unit_type || 'EA',
         notes: null,
       })) as BOMItem[];
     },
