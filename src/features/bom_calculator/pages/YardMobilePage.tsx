@@ -163,14 +163,15 @@ export default function YardMobilePage({ onBack }: YardMobilePageProps) {
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
 
-      // Get today's pickups plus any staged/loaded/picking from previous days
+      // Get all active pickups: sent_to_yard, picking, staged, loaded
+      // Include all sent_to_yard regardless of date so workers can see upcoming jobs
       const { data, error } = await supabase
         .from('v_yard_schedule')
         .select('*')
         .eq('yard_id', selectedYardId)
-        .or(`expected_pickup_date.eq.${todayStr},status.in.(staged,loaded,picking)`)
-        .order('status')
-        .order('expected_pickup_date', { ascending: true, nullsFirst: false });
+        .in('status', ['sent_to_yard', 'picking', 'staged', 'loaded'])
+        .order('expected_pickup_date', { ascending: true, nullsFirst: false })
+        .order('status');
 
       if (error) throw error;
       return data as ScheduledPickup[];
