@@ -63,18 +63,19 @@ export default function PickListViewer({
     queryKey: ['pick-list-items', projectId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('bom_items')
+        .from('project_materials')
         .select(`
           id,
-          quantity,
-          unit,
-          notes,
-          materials (
+          calculated_quantity,
+          rounded_quantity,
+          manual_quantity,
+          material:material_id (
             id,
             material_sku,
             material_name,
             category,
-            sub_category
+            sub_category,
+            uom
           )
         `)
         .eq('project_id', projectId)
@@ -84,13 +85,13 @@ export default function PickListViewer({
 
       return data.map((item: any) => ({
         id: item.id,
-        material_sku: item.materials?.material_sku || 'Unknown',
-        material_name: item.materials?.material_name || 'Unknown Material',
-        category: item.materials?.category || 'Other',
-        sub_category: item.materials?.sub_category || null,
-        quantity: item.quantity,
-        unit: item.unit || 'EA',
-        notes: item.notes,
+        material_sku: item.material?.material_sku || 'Unknown',
+        material_name: item.material?.material_name || 'Unknown Material',
+        category: item.material?.category || 'Other',
+        sub_category: item.material?.sub_category || null,
+        quantity: item.manual_quantity ?? item.rounded_quantity ?? item.calculated_quantity ?? 0,
+        unit: item.material?.uom || 'EA',
+        notes: null,
       })) as BOMItem[];
     },
   });
