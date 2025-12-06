@@ -71,7 +71,17 @@
       "mcp__chrome-devtools__press_key",
       "mcp__chrome-devtools__fill_form",
       "mcp__chrome-devtools__get_network_request",
-      "Bash(timeout /t 90 /nobreak)"
+      "Bash(timeout /t 90 /nobreak)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub status)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub add src/App.tsx src/components/views/SalesRepView.tsx migrations/098_add_requests_menu_item.sql)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub commit -m \"$(cat <<''EOF''\nFix mobile navigation to use menu visibility system\n\n- SalesRepView now accepts navigationItems prop and renders dynamically\n- Mobile navigation respects platform availability settings (desktop/mobile/both)\n- Yard section, Settings, My To-Dos now appear on mobile when configured\n- Pre-Stain Calculator respects desktop-only setting\n- Add migration 098 for requests menu item\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub push)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub add src/components/views/SalesRepView.tsx migrations/099_fix_mobile_menu_visibility.sql)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub commit -m \"$(cat <<''EOF''\nFix mobile navigation bugs\n\n- Add handlers for Yard, My To-Dos, Settings sections in SalesRepView\n- Migration 099: Set AI Sales Coach and Pre-Stain Calculator to ''both'' platforms\n- Migration 099: Set My Requests to desktop-only (mobile Requests hub includes it)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub add src/features/bom_calculator/BOMCalculatorHub.tsx)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub commit -m \"$(cat <<''EOF''\nFix Yard mobile access - bypass desktop check for startOnMobile\n\n- Skip desktop-only check when startOnMobile=true or activePage=''yard-mobile''\n- Render YardMobilePage directly on mobile (skip HubLayout)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub add src/features/bom_calculator/pages/YardMobilePage.tsx)",
+      "Bash(git -C C:/Users/giaco/discount-fence-hub commit -m \"$(cat <<''EOF''\nImprove Yard mobile UX for phone screens\n\n- Sticky yard selection (saved to localStorage)\n- Make cards tappable to view pick list (removed separate eye icon)\n- Collapsible header - shows only title & yard by default, expand for filters/code entry\n- Responsive sizing with sm: breakpoints for phone vs tablet\n- Smaller padding/fonts on phones, larger on tablets\n- Claim button shows icon only on phones, text on tablets\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

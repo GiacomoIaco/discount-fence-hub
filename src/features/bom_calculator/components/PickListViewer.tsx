@@ -287,8 +287,8 @@ export default function PickListViewer({
           {/* Top row: code, name, close */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-              <div className="w-12 h-8 sm:w-16 sm:h-12 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-mono font-bold text-sm sm:text-lg">{projectCode}</span>
+              <div className="min-w-12 h-8 sm:min-w-16 sm:h-12 px-1.5 sm:px-2 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-mono font-bold text-xs sm:text-lg leading-none text-center">{projectCode}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-900 truncate">{projectName}</h2>
