@@ -23,6 +23,9 @@ const RequestHub = lazy(() => import('../../features/requests').then(module => (
 const MyRequestsView = lazy(() => import('../../features/requests').then(module => ({ default: module.MyRequestsView })));
 const TeamCommunication = lazy(() => import('../../features/communication').then(module => ({ default: module.TeamCommunication })));
 const DirectMessages = lazy(() => import('../../features/communication').then(module => ({ default: module.DirectMessages })));
+const Settings = lazy(() => import('../../features/settings').then(module => ({ default: module.Settings })));
+const MyTodos = lazy(() => import('../../features/my-todos').then(m => ({ default: m.MyTodos })));
+const BOMCalculatorHub = lazy(() => import('../../features/bom_calculator/BOMCalculatorHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -145,6 +148,36 @@ export default function SalesRepView({
     return (
       <Suspense fallback={<LoadingFallback />}>
         <DirectMessages onUnreadCountChange={onUnreadCountChange} />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'team') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <Settings onBack={() => setActiveSection('home')} userRole="sales" />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'my-todos') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <MyTodos onBack={() => setActiveSection('home')} />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'yard') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BOMCalculatorHub
+          onBack={() => setActiveSection('home')}
+          userRole="operations"
+          userId={userId}
+          userName={userName}
+          startOnMobile={true}
+        />
       </Suspense>
     );
   }
