@@ -108,11 +108,11 @@ This document tracks the implementation phases for the BOM Calculator HUB featur
 **Status:** In Progress
 
 #### 3.1.1 Stocking Areas with Colors
-- [ ] Create `yard_areas` table (sections of the yard)
+- [x] Create `yard_areas` table (sections of the yard)
   - area_code, area_name, color_hex, color_name
   - Link spots to areas via `area_id`
-- [ ] Add `default_area_id` to materials table
-- [ ] Update YardSpotsPage to manage areas
+- [x] Add `default_area_id` to materials table
+- [x] Create YardAreasPage to manage stocking areas
 - [ ] Color-coded pick lists by stocking area
 - [ ] Two pick list views: by Category | by Stocking Area
 - [ ] Color backgrounds on items based on area

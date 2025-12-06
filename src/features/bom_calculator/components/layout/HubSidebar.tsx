@@ -18,10 +18,11 @@ import {
   CalendarDays,
   MapPin,
   Smartphone,
+  Palette,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config' | 'yard-schedule' | 'yard-spots' | 'yard-mobile';
+export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config' | 'yard-schedule' | 'yard-spots' | 'yard-areas' | 'yard-mobile';
 
 interface NavItem {
   id: BOMHubPage;
@@ -42,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
 const YARD_NAV_ITEMS: NavItem[] = [
   { id: 'yard-schedule', label: 'Pick Lists', icon: CalendarDays },
   { id: 'yard-spots', label: 'Yard Spots', icon: MapPin },
+  { id: 'yard-areas', label: 'Stocking Areas', icon: Palette },
   { id: 'yard-mobile', label: 'Mobile View', icon: Smartphone },
 ];
 
