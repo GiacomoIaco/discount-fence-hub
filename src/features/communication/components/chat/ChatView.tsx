@@ -49,6 +49,8 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
   const [uploading, setUploading] = useState(false);
   const [participants, setParticipants] = useState<ParticipantWithDetails[]>([]);
   const [showParticipants, setShowParticipants] = useState(false);
+  // Cache of sender profiles for name resolution (user_id -> full_name)
+  const [senderProfiles, setSenderProfiles] = useState<Map<string, string>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,9 +77,25 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
           table: 'direct_messages',
           filter: `conversation_id=eq.${conversation.conversation_id}`
         },
-        (payload) => {
+        async (payload) => {
           const newMsg = payload.new as DirectMessage;
-          const senderName = getSenderName(newMsg.sender_id);
+          let senderName = getSenderName(newMsg.sender_id);
+
+          // If sender not in cache, fetch their profile
+          if (senderName === 'Unknown' && newMsg.sender_id !== user?.id) {
+            const { data: profileData } = await supabase
+              .from('user_profiles')
+              .select('full_name')
+              .eq('id', newMsg.sender_id)
+              .single();
+
+            if (profileData?.full_name) {
+              senderName = profileData.full_name;
+              // Update cache
+              setSenderProfiles(prev => new Map(prev).set(newMsg.sender_id, senderName));
+            }
+          }
+
           const messageWithInfo: MessageWithSenderInfo = {
             ...newMsg,
             sender_name: senderName,
@@ -99,26 +117,26 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
     scrollToBottom();
   }, [messages]);
 
-  // Re-resolve sender names when participants load (fixes race condition)
+  // Re-resolve sender names when senderProfiles cache updates
   useEffect(() => {
-    if (conversation.is_group && participants.length > 0 && messages.length > 0) {
+    if (conversation.is_group && senderProfiles.size > 0 && messages.length > 0) {
       // Check if any messages have "Unknown" sender that can now be resolved
       const needsUpdate = messages.some(
-        msg => !msg.is_own_message && msg.sender_name === 'Unknown'
+        msg => !msg.is_own_message && msg.sender_name === 'Unknown' && senderProfiles.has(msg.sender_id)
       );
 
       if (needsUpdate) {
         setMessages(prev => prev.map(msg => {
           if (msg.is_own_message) return msg;
-          const participant = participants.find(p => p.user_id === msg.sender_id);
+          const cachedName = senderProfiles.get(msg.sender_id);
           return {
             ...msg,
-            sender_name: participant?.full_name || msg.sender_name
+            sender_name: cachedName || msg.sender_name
           };
         }));
       }
     }
-  }, [participants]);
+  }, [senderProfiles]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -136,15 +154,29 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
     }
   };
 
-  const getSenderName = (senderId: string): string => {
+  const getSenderName = (senderId: string, profilesCache?: Map<string, string>): string => {
     if (senderId === user?.id) return 'You';
 
-    if (conversation.is_group) {
-      const participant = participants.find(p => p.user_id === senderId);
-      return participant?.full_name || 'Unknown';
+    // Use provided cache or state cache
+    const cache = profilesCache || senderProfiles;
+
+    // Check sender profiles cache first (most reliable)
+    if (cache.has(senderId)) {
+      return cache.get(senderId)!;
     }
 
-    return conversation.other_user_name || 'Unknown';
+    // Fallback to participants list
+    if (conversation.is_group) {
+      const participant = participants.find(p => p.user_id === senderId);
+      if (participant?.full_name) return participant.full_name;
+    }
+
+    // For direct messages, use the other user name
+    if (!conversation.is_group) {
+      return conversation.other_user_name || 'Unknown';
+    }
+
+    return 'Unknown';
   };
 
   const loadMessages = async () => {
@@ -160,7 +192,48 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
 
       if (error) throw error;
 
-      const messagesWithInfo: MessageWithSenderInfo[] = (data || []).map((msg) => ({
+      const messagesList = data || [];
+
+      // For group conversations, fetch sender profiles directly
+      if (conversation.is_group && messagesList.length > 0) {
+        // Get unique sender IDs (excluding current user)
+        const senderIds = [...new Set(
+          messagesList
+            .map(msg => msg.sender_id)
+            .filter(id => id !== user?.id)
+        )];
+
+        if (senderIds.length > 0) {
+          // Fetch profiles directly from user_profiles
+          const { data: profiles, error: profilesError } = await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .in('id', senderIds);
+
+          if (!profilesError && profiles) {
+            // Build the cache
+            const newCache = new Map<string, string>();
+            profiles.forEach(p => {
+              if (p.full_name) {
+                newCache.set(p.id, p.full_name);
+              }
+            });
+            setSenderProfiles(newCache);
+
+            // Map messages with the fresh cache
+            const messagesWithInfo: MessageWithSenderInfo[] = messagesList.map((msg) => ({
+              ...msg,
+              sender_name: getSenderName(msg.sender_id, newCache),
+              is_own_message: msg.sender_id === user?.id
+            }));
+            setMessages(messagesWithInfo);
+            return;
+          }
+        }
+      }
+
+      // Fallback: map without cache
+      const messagesWithInfo: MessageWithSenderInfo[] = messagesList.map((msg) => ({
         ...msg,
         sender_name: getSenderName(msg.sender_id),
         is_own_message: msg.sender_id === user?.id
