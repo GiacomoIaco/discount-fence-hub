@@ -14,10 +14,14 @@ export interface MenuVisibilityItem {
   disabled_users: string[];
   // Legacy field (kept for backward compatibility)
   available_on: LegacyPlatform;
-  // New granular platform controls
+  // New granular platform controls (enabled/disabled)
   show_on_desktop: boolean;
   show_on_tablet: boolean;
   show_on_mobile: boolean;
+  // Platform support (does the feature have a UI for this platform?)
+  supported_on_desktop: boolean;
+  supported_on_tablet: boolean;
+  supported_on_mobile: boolean;
   updated_at: string;
   updated_by?: string;
 }
@@ -155,7 +159,26 @@ export const useMenuVisibility = () => {
   };
 
   /**
+   * Check if a platform is supported for a menu item
+   * @param menuId - The menu item ID
+   * @param platform - The platform to check
+   * @returns boolean - Whether the platform is supported (has a UI)
+   */
+  const isPlatformSupported = (menuId: string, platform: Platform): boolean => {
+    const item = menuVisibility.get(menuId);
+    if (!item) return true; // Default to supported if no rules
+
+    switch (platform) {
+      case 'desktop': return item.supported_on_desktop ?? true;
+      case 'tablet': return item.supported_on_tablet ?? true;
+      case 'mobile': return item.supported_on_mobile ?? true;
+      default: return true;
+    }
+  };
+
+  /**
    * Toggle platform visibility for a menu item
+   * Only works if the platform is supported
    * @param menuId - The menu item ID
    * @param platform - The platform to toggle
    * @returns boolean - Success status
@@ -163,6 +186,11 @@ export const useMenuVisibility = () => {
   const togglePlatformVisibility = async (menuId: string, platform: Platform): Promise<boolean> => {
     const item = menuVisibility.get(menuId);
     if (!item) return false;
+
+    // Don't allow toggling unsupported platforms
+    if (!isPlatformSupported(menuId, platform)) {
+      return false;
+    }
 
     const columnName = `show_on_${platform}` as const;
     const currentValue = item[columnName] ?? true;
@@ -253,6 +281,7 @@ export const useMenuVisibility = () => {
     menuVisibility: Array.from(menuVisibility.values()),
     canSeeMenuItem,
     isAvailableOnPlatform,
+    isPlatformSupported,
     getMenuItemsForPlatform,
     toggleRoleVisibility,
     togglePlatformVisibility,

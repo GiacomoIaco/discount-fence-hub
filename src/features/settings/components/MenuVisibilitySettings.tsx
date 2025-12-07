@@ -17,6 +17,7 @@ const MenuVisibilitySettings = () => {
     menuVisibility,
     toggleRoleVisibility,
     togglePlatformVisibility,
+    isPlatformSupported,
     addUserOverride,
     removeUserOverride,
     loading,
@@ -171,47 +172,60 @@ const MenuVisibilitySettings = () => {
                 const showTablet = item.show_on_tablet ?? true;
                 const showMobile = item.show_on_mobile ?? (item.available_on !== 'desktop');
 
+                // Get platform support (does the feature have a UI for this platform?)
+                const supportsDesktop = isPlatformSupported(item.menu_id, 'desktop');
+                const supportsTablet = isPlatformSupported(item.menu_id, 'tablet');
+                const supportsMobile = isPlatformSupported(item.menu_id, 'mobile');
+
+                // Helper to render platform icon with correct state
+                const renderPlatformIcon = (
+                  platform: 'desktop' | 'tablet' | 'mobile',
+                  Icon: typeof Monitor,
+                  isEnabled: boolean,
+                  isSupported: boolean,
+                  activeColor: string,
+                  activeBg: string
+                ) => {
+                  if (!isSupported) {
+                    // Unsupported: show crossed-out icon
+                    return (
+                      <div
+                        className="p-1.5 rounded bg-gray-50 relative cursor-not-allowed"
+                        title={`Not available on ${platform} (no ${platform} UI)`}
+                      >
+                        <Icon className="w-4 h-4 text-gray-200" />
+                        {/* Diagonal line through icon */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-6 h-0.5 bg-gray-300 rotate-45 rounded"></div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Supported: clickable toggle
+                  return (
+                    <button
+                      onClick={() => handleTogglePlatform(item.menu_id, platform)}
+                      className={`p-1.5 rounded transition-colors ${
+                        isEnabled
+                          ? `${activeBg} ${activeColor} hover:opacity-80`
+                          : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                      }`}
+                      title={isEnabled ? `Visible on ${platform} (click to hide)` : `Hidden on ${platform} (click to show)`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </button>
+                  );
+                };
+
                 return (
                 <tr key={item.menu_id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{item.menu_name}</td>
                   <td className="text-center py-3 px-2">
                     <div className="flex items-center justify-center gap-1">
-                      {/* Desktop icon */}
-                      <button
-                        onClick={() => handleTogglePlatform(item.menu_id, 'desktop')}
-                        className={`p-1.5 rounded transition-colors ${
-                          showDesktop
-                            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                            : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                        }`}
-                        title={showDesktop ? 'Visible on desktop (click to hide)' : 'Hidden on desktop (click to show)'}
-                      >
-                        <Monitor className="w-4 h-4" />
-                      </button>
-                      {/* Tablet icon */}
-                      <button
-                        onClick={() => handleTogglePlatform(item.menu_id, 'tablet')}
-                        className={`p-1.5 rounded transition-colors ${
-                          showTablet
-                            ? 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                            : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                        }`}
-                        title={showTablet ? 'Visible on tablet (click to hide)' : 'Hidden on tablet (click to show)'}
-                      >
-                        <Tablet className="w-4 h-4" />
-                      </button>
-                      {/* Phone icon */}
-                      <button
-                        onClick={() => handleTogglePlatform(item.menu_id, 'mobile')}
-                        className={`p-1.5 rounded transition-colors ${
-                          showMobile
-                            ? 'bg-green-100 text-green-600 hover:bg-green-200'
-                            : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                        }`}
-                        title={showMobile ? 'Visible on phone (click to hide)' : 'Hidden on phone (click to show)'}
-                      >
-                        <Smartphone className="w-4 h-4" />
-                      </button>
+                      {renderPlatformIcon('desktop', Monitor, showDesktop, supportsDesktop, 'text-blue-600', 'bg-blue-100')}
+                      {renderPlatformIcon('tablet', Tablet, showTablet, supportsTablet, 'text-purple-600', 'bg-purple-100')}
+                      {renderPlatformIcon('mobile', Smartphone, showMobile, supportsMobile, 'text-green-600', 'bg-green-100')}
                     </div>
                   </td>
                   {roles.map(role => {

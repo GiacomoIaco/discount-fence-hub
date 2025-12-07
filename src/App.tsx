@@ -177,10 +177,9 @@ function App() {
       { id: 'sales-coach' as Section, menuId: 'sales-coach', name: 'AI Sales Coach', icon: BookOpen },
       { id: 'photo-gallery' as Section, menuId: 'photo-gallery', name: 'Photo Gallery', icon: Image },
       { id: 'stain-calculator' as Section, menuId: 'stain-calculator', name: 'Pre-Stain Calculator', icon: DollarSign },
-      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket },
-      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'BOM Calculator', icon: Calculator },
+      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
+      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator },
       { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
-      { id: 'my-requests' as Section, menuId: 'my-requests', name: 'My Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, menuId: 'sales-resources', name: 'Sales Resources', icon: BookOpen },
       { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target },
@@ -224,6 +223,17 @@ function App() {
     // Wrap all lazy-loaded components with Suspense
     // Handle common sections for all roles
     if (activeSection === 'requests') {
+      // Desktop shows MyRequestsView (manage submitted requests)
+      // Mobile/Tablet shows RequestHub (create new requests)
+      if (currentPlatform === 'desktop') {
+        return (
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <MyRequestsView onBack={() => setActiveSection('home')} onMarkAsRead={markRequestAsRead} />
+            </Suspense>
+          </ErrorBoundary>
+        );
+      }
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
