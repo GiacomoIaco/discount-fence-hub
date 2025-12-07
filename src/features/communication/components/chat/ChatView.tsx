@@ -99,6 +99,27 @@ export default function ChatView({ conversation, onBack }: ChatViewProps) {
     scrollToBottom();
   }, [messages]);
 
+  // Re-resolve sender names when participants load (fixes race condition)
+  useEffect(() => {
+    if (conversation.is_group && participants.length > 0 && messages.length > 0) {
+      // Check if any messages have "Unknown" sender that can now be resolved
+      const needsUpdate = messages.some(
+        msg => !msg.is_own_message && msg.sender_name === 'Unknown'
+      );
+
+      if (needsUpdate) {
+        setMessages(prev => prev.map(msg => {
+          if (msg.is_own_message) return msg;
+          const participant = participants.find(p => p.user_id === msg.sender_id);
+          return {
+            ...msg,
+            sender_name: participant?.full_name || msg.sender_name
+          };
+        }));
+      }
+    }
+  }, [participants]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
