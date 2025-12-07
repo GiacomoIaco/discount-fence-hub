@@ -137,6 +137,7 @@ export default function Sidebar({
             >
               <option value="sales">Sales View</option>
               <option value="operations">Operations View</option>
+              <option value="yard">Yard View</option>
               <option value="sales-manager">Sales Manager View</option>
               <option value="admin">Admin View</option>
             </select>
