@@ -24,6 +24,7 @@ import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
 import { useFunctionsQuery, useAreasQuery, useCreateInitiative } from '../../leadership/hooks/useLeadershipQuery';
 import { getInitials } from '../../../lib/stringUtils';
+import { TaskCard } from './TaskCard';
 
 interface MyTodosProps {
   onBack: () => void;
@@ -2332,9 +2333,64 @@ export default function MyTodos({ onBack }: MyTodosProps) {
           }
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+        <>
+          {/* Mobile Card View */}
+          <div className="lg:hidden space-y-3">
+            {tasksByInitiative.map(({ initiativeId, initiativeTitle, functionName, areaName, tasks, isPersonal, headerColor }) => (
+              <div key={`mobile-${initiativeId}`} className="space-y-2">
+                {/* Initiative Header */}
+                <div
+                  className={`px-4 py-2 rounded-lg cursor-pointer ${
+                    isPersonal && headerColor
+                      ? `bg-${headerColor}`
+                      : getInitiativeColor(initiativeId).bg
+                  }`}
+                  onClick={() => toggleInitiativeCollapse(initiativeId)}
+                >
+                  <div className="flex items-center justify-between text-white">
+                    <div className="flex items-center gap-2">
+                      {collapsedInitiatives.has(initiativeId) ? (
+                        <ChevronRight className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                      <span className="font-medium text-sm">{initiativeTitle}</span>
+                    </div>
+                    <span className="text-xs text-white/70">{tasks.length} tasks</span>
+                  </div>
+                  {functionName && (
+                    <div className="text-xs text-white/60 ml-6">
+                      {functionName} {areaName && `/ ${areaName}`}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tasks */}
+                {!collapsedInitiatives.has(initiativeId) && (
+                  <div className="space-y-2 pl-2">
+                    {tasks.map(task => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        lastComment={lastComments[task.id] || null}
+                        onOpenTask={() => setSelectedTaskId(task.id)}
+                      />
+                    ))}
+                    {tasks.length === 0 && (
+                      <div className="text-center text-gray-500 text-sm py-4 bg-gray-50 rounded-lg">
+                        No tasks yet
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b-2 border-gray-200">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[250px]">
@@ -2528,7 +2584,8 @@ export default function MyTodos({ onBack }: MyTodosProps) {
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* New Initiative Modal */}
