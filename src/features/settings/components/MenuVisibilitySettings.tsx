@@ -15,6 +15,26 @@ const CATEGORY_OPTIONS: { value: MenuCategory; label: string }[] = [
   { value: 'system', label: 'System' },
 ];
 
+// Default gradient colors for each menu item (from migration 108)
+const DEFAULT_GRADIENTS: Record<string, string> = {
+  'presentation': 'from-blue-600 to-blue-700',
+  'sales-coach': 'from-purple-600 to-purple-700',
+  'direct-messages': 'from-blue-600 to-blue-700',
+  'team-communication': 'from-indigo-600 to-indigo-700',
+  'requests': 'from-green-600 to-green-700',
+  'bom-yard': 'from-amber-600 to-amber-700',
+  'bom-calculator': 'from-cyan-600 to-cyan-700',
+  'leadership': 'from-slate-700 to-slate-800',
+  'dashboard': 'from-gray-700 to-gray-800',
+  'roadmap': 'from-indigo-600 to-purple-600',
+  'analytics': 'from-teal-600 to-teal-700',
+  'my-todos': 'from-purple-600 to-purple-700',
+  'sales-resources': 'from-indigo-600 to-indigo-700',
+  'photo-gallery': 'from-green-600 to-green-700',
+  'stain-calculator': 'from-orange-600 to-orange-700',
+  'team': 'from-gray-600 to-gray-700',
+};
+
 interface UserProfile {
   id: string;
   full_name: string;
@@ -116,6 +136,8 @@ const MenuVisibilitySettings = () => {
   const handleToggleMobileStyle = async (menuId: string, currentStyle: Record<string, unknown> | null) => {
     // Toggle between gradient and solid style
     const isGradient = currentStyle?.gradient;
+    const defaultGradient = DEFAULT_GRADIENTS[menuId] || 'from-blue-600 to-blue-700';
+
     const newStyle = isGradient
       ? {
           bgColor: 'bg-white border-2 border-gray-200',
@@ -126,7 +148,7 @@ const MenuVisibilitySettings = () => {
           subtextColor: 'text-gray-600'
         }
       : {
-          gradient: 'from-blue-600 to-blue-700',
+          gradient: defaultGradient,
           iconBg: 'bg-white/20',
           description: currentStyle?.description || ''
         };
