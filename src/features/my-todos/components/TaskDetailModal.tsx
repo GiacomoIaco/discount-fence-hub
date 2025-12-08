@@ -2,21 +2,12 @@ import { useState, useEffect } from 'react';
 import { X, Calendar, CheckCircle2, MessageSquare, Clock, Crown, UserCheck, Building2, User, Loader2, Edit3, Save, AlertTriangle } from 'lucide-react';
 import { useUpdateTaskStatus, useUpdateTaskField, useMyTodosQuery } from '../hooks/useMyTodos';
 import TaskCommentsPanel from './TaskCommentsPanel';
+import { getInitials } from '../../../lib/stringUtils';
 
 interface TaskDetailModalProps {
   taskId: string;
   onClose: () => void;
 }
-
-// Helper to get initials
-const getInitials = (fullName: string): string => {
-  return fullName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 // Get avatar color from user ID
 const getAvatarColor = (userId: string): string => {

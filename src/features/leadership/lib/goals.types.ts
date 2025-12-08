@@ -2,19 +2,8 @@
 // SIMPLIFIED GOAL SYSTEM - TYPE DEFINITIONS
 // ============================================
 
-// ============================================
-// MEASUREMENT TYPES
-// ============================================
-
-export const MetricType = {
-  REVENUE: 'revenue',
-  PERCENTAGE: 'percentage',
-  COUNT: 'count',
-  SCORE: 'score',
-  TEXT: 'text',
-} as const;
-
-export type MetricType = typeof MetricType[keyof typeof MetricType];
+// MetricType is defined in leadership.ts - import from there
+import type { MetricType } from './leadership';
 
 // ============================================
 // ANNUAL GOALS

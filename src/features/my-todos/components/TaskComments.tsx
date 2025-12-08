@@ -2,21 +2,11 @@ import { useState } from 'react';
 import { Send, Trash2 } from 'lucide-react';
 import { useInitiativeCommentsQuery, useAddComment, useDeleteComment } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../../contexts/AuthContext';
+import { getInitials } from '../../../lib/stringUtils';
 
 interface TaskCommentsProps {
   initiativeId: string;
 }
-
-// Helper to get initials
-const getInitials = (fullName: string | null): string => {
-  if (!fullName) return '?';
-  return fullName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 // Format relative time
 const formatRelativeTime = (dateString: string): string => {

@@ -23,6 +23,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import TaskDetailModal from './TaskDetailModal';
 import { useFunctionsQuery, useAreasQuery, useCreateInitiative } from '../../leadership/hooks/useLeadershipQuery';
+import { getInitials } from '../../../lib/stringUtils';
 
 interface MyTodosProps {
   onBack: () => void;
@@ -30,16 +31,6 @@ interface MyTodosProps {
 
 // Filter type for the single list view
 type FilterId = 'all' | 'i-own' | 'assigned-to-me' | 'my-functions';
-
-// Helper to get initials from a full name
-const getInitials = (fullName: string): string => {
-  return fullName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 // Generate consistent color from user ID
 const getAvatarColor = (userId: string): string => {

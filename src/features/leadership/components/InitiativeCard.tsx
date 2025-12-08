@@ -1,21 +1,12 @@
 import { Calendar, TrendingUp, AlertCircle, CheckCircle2, Clock, Pause, XCircle, Flag, Target } from 'lucide-react';
 import { useInitiativeGoalLinksQuery } from '../hooks/useGoalsQuery';
 import type { InitiativeWithDetails } from '../lib/leadership';
+import { getInitials } from '../../../lib/stringUtils';
 
 interface InitiativeCardProps {
   initiative: InitiativeWithDetails;
   onClick: () => void;
 }
-
-// Helper to get initials from a full name
-const getInitials = (fullName: string): string => {
-  return fullName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 export default function InitiativeCard({ initiative, onClick }: InitiativeCardProps) {
   const { data: goalLinks } = useInitiativeGoalLinksQuery(initiative.id);

@@ -9,6 +9,28 @@ import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
 import { useAuth } from '../../../contexts/AuthContext';
 
+// Image component with fallback for broken images
+function ImageWithFallback({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+        <span className="text-gray-400 text-xs">Image unavailable</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
+
 interface RequestDetailProps {
   requestId: string;
   onClose: () => void;
@@ -966,15 +988,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                         onClick={() => setLightboxImage(attachment.file_url)}
                         className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
                       >
-                        <img
+                        <ImageWithFallback
                           src={attachment.file_url}
                           alt={attachment.file_name}
                           className="w-full h-full object-cover"
-                          onError={(e) => {
-                            // If image fails to load, show placeholder
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100"><span class="text-gray-400 text-xs">Image unavailable</span></div>';
-                          }}
                         />
                       </button>
                     ))}
@@ -1304,14 +1321,10 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                           onClick={() => setLightboxImage(attachment.file_url)}
                           className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
                         >
-                          <img
+                          <ImageWithFallback
                             src={attachment.file_url}
                             alt={attachment.file_name}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100"><span class="text-gray-400 text-xs">Image unavailable</span></div>';
-                            }}
                           />
                         </button>
                       ))}

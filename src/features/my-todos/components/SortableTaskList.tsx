@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Clock, ChevronRight, GripVertical } from 'lucide-react';
 import { useUpdateTaskOrder } from '../hooks/useMyTodos';
 import type { InitiativeWithDetails } from '../../leadership/lib/leadership';
+import { getInitials } from '../../../lib/stringUtils';
 
 interface SortableTaskListProps {
   tasks: InitiativeWithDetails[];
@@ -26,16 +27,6 @@ interface SortableTaskListProps {
   onOpenTask: (task: InitiativeWithDetails) => void;
   onStatusChange: (taskId: string, status: string) => void;
 }
-
-// Helper to get initials
-const getInitials = (fullName: string): string => {
-  return fullName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 // Status badge component
 function StatusBadge({ status }: { status: string }) {
