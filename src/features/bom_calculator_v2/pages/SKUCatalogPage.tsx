@@ -6,9 +6,10 @@
  */
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Loader2, Search, Pencil, Info, Package } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Search, Pencil, Info, Package, Archive, ArchiveRestore } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import toast from 'react-hot-toast';
 import { useProductTypes } from '../hooks';
 
 // SKU row for table display
@@ -27,6 +28,7 @@ interface SKURow {
   labor_cost_per_foot: number;
   total_cost_per_foot: number;
   is_active: boolean;
+  archived_at: string | null;
   calculated_at: string | null;
 }
 
@@ -42,12 +44,15 @@ interface SKUCatalogPageProps {
 }
 
 export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPageProps) {
+  const queryClient = useQueryClient();
+
   // Filters
   const [businessUnitId, setBusinessUnitId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [heightFilter, setHeightFilter] = useState<string>('all');
   const [postTypeFilter, setPostTypeFilter] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
 
   // Fetch product types for filter dropdown
   const { data: productTypes = [] } = useProductTypes();
@@ -71,9 +76,9 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
 
   // Fetch all SKUs with product type and style info
   const { data: skus = [], isLoading: loadingSKUs } = useQuery({
-    queryKey: ['product-skus-catalog-v2'],
+    queryKey: ['product-skus-catalog-v2', showArchived],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('product_skus')
         .select(`
           id,
@@ -88,11 +93,18 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
           standard_cost_per_foot,
           standard_cost_calculated_at,
           is_active,
+          archived_at,
           product_type:product_types(id, code, name),
           product_style:product_styles(code, name)
         `)
-        .eq('is_active', true)
-        .order('sku_code');
+        .eq('is_active', true);
+
+      // Filter by archived status
+      if (!showArchived) {
+        query = query.is('archived_at', null);
+      }
+
+      const { data, error } = await query.order('sku_code');
 
       if (error) throw error;
       return data || [];
@@ -150,10 +162,46 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         labor_cost_per_foot: laborCostPerFoot,
         total_cost_per_foot: materialCostPerFoot + laborCostPerFoot,
         is_active: sku.is_active,
+        archived_at: sku.archived_at,
         calculated_at: sku.standard_cost_calculated_at,
       };
     });
   }, [skus, laborCostMap]);
+
+  // Archive/Restore handlers
+  const handleArchive = async (skuId: string, skuCode: string) => {
+    if (!confirm(`Archive SKU ${skuCode}? It will be hidden from the BOM Calculator.`)) return;
+
+    const { error } = await supabase
+      .from('product_skus')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', skuId);
+
+    if (error) {
+      toast.error('Failed to archive SKU');
+      console.error(error);
+      return;
+    }
+
+    toast.success(`SKU ${skuCode} archived`);
+    queryClient.invalidateQueries({ queryKey: ['product-skus-catalog-v2'] });
+  };
+
+  const handleRestore = async (skuId: string, skuCode: string) => {
+    const { error } = await supabase
+      .from('product_skus')
+      .update({ archived_at: null })
+      .eq('id', skuId);
+
+    if (error) {
+      toast.error('Failed to restore SKU');
+      console.error(error);
+      return;
+    }
+
+    toast.success(`SKU ${skuCode} restored`);
+    queryClient.invalidateQueries({ queryKey: ['product-skus-catalog-v2'] });
+  };
 
   // Get unique heights for filter dropdown
   const uniqueHeights = useMemo(() => {
@@ -347,6 +395,24 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
             </select>
           </div>
 
+          {/* Show Archived Toggle (Admin only) */}
+          {isAdmin && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Archived</label>
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  showArchived
+                    ? 'bg-amber-50 border-amber-300 text-amber-700'
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Archive className="w-4 h-4" />
+                {showArchived ? 'Showing Archived' : 'Show Archived'}
+              </button>
+            </div>
+          )}
+
           {/* Clear Filters */}
           {hasFilters && (
             <div className="ml-auto">
@@ -402,17 +468,24 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
               <th className="text-right py-3 px-4 font-medium">Material/FT</th>
               <th className="text-right py-3 px-4 font-medium">Labor/FT</th>
               <th className="text-right py-3 px-4 font-medium bg-yellow-50">$/FT</th>
-              {isAdmin && <th className="text-center py-3 px-2 font-medium w-12"></th>}
+              {isAdmin && <th className="text-center py-3 px-2 font-medium w-24">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredRows.map((row) => (
               <tr
                 key={row.id}
-                className={`hover:bg-gray-50 ${isAdmin && onEditSKU ? 'cursor-pointer' : ''}`}
+                className={`hover:bg-gray-50 ${isAdmin && onEditSKU ? 'cursor-pointer' : ''} ${row.archived_at ? 'bg-amber-50/50' : ''}`}
                 onClick={() => handleRowClick(row)}
               >
-                <td className="py-3 px-4 font-mono font-semibold text-gray-900">{row.sku_code}</td>
+                <td className="py-3 px-4 font-mono font-semibold text-gray-900">
+                  <span className="flex items-center gap-2">
+                    {row.sku_code}
+                    {row.archived_at && (
+                      <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Archived</span>
+                    )}
+                  </span>
+                </td>
                 <td className="py-3 px-4 text-gray-700 max-w-[200px] truncate" title={row.sku_name}>
                   {row.sku_name}
                 </td>
@@ -435,16 +508,41 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
                 </td>
                 {isAdmin && (
                   <td className="py-3 px-2 text-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRowClick(row);
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                      title="Edit in SKU Builder"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRowClick(row);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                        title="Edit in SKU Builder"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      {row.archived_at ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRestore(row.id, row.sku_code);
+                          }}
+                          className="p-1.5 text-amber-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          title="Restore SKU"
+                        >
+                          <ArchiveRestore className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleArchive(row.id, row.sku_code);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                          title="Archive SKU"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>

@@ -24,6 +24,7 @@ export function useProductSKUs(productTypeId: string | null) {
         `)
         .eq('product_type_id', productTypeId)
         .eq('is_active', true)
+        .is('archived_at', null)
         .order('sku_code');
 
       if (error) throw error;
@@ -94,6 +95,7 @@ export function useAllProductSKUsWithDetails(productTypeCode?: string) {
           product_style:product_styles(*)
         `)
         .eq('is_active', true)
+        .is('archived_at', null)
         .order('sku_code');
 
       if (productTypeCode) {

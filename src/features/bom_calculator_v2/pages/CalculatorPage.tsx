@@ -173,7 +173,7 @@ export function CalculatorPage({
     },
   });
 
-  // All SKUs for dropdown
+  // All SKUs for dropdown (excluding archived)
   const { data: allSKUs = [] } = useQuery({
     queryKey: ['all-skus-calc'],
     queryFn: async () => {
@@ -181,6 +181,7 @@ export function CalculatorPage({
         .from('product_skus')
         .select('id, sku_code, sku_name, product_type_id, post_type')
         .eq('is_active', true)
+        .is('archived_at', null)
         .order('sku_code');
       if (error) throw error;
       return data as SKUOption[];
