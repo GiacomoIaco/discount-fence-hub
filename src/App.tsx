@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
@@ -96,7 +96,7 @@ function App() {
 
   // Handle QR code claim - checks multiple sources for the claim code
   // Priority: localStorage (from /qr page) > URL path > URL query param
-  useEffect(() => {
+  const checkForClaimCode = useCallback(() => {
     if (!profile?.role) return;
 
     // Check localStorage first (set by /qr/CODE intermediate page)
@@ -128,6 +128,24 @@ function App() {
       setActiveSection('bom-calculator');
     }
   }, [profile?.role]);
+
+  // Check on mount and when profile loads
+  useEffect(() => {
+    checkForClaimCode();
+  }, [checkForClaimCode]);
+
+  // Also check when PWA becomes visible (handles mobile PWA resume scenario)
+  // When scanning QR on mobile, the intermediate page sets localStorage then opens PWA
+  // PWA resumes from background, so we need to check localStorage when it becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForClaimCode();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [checkForClaimCode]);
 
   // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {
