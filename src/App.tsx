@@ -95,19 +95,14 @@ function App() {
   }, [isHubSection]);
 
   // Handle QR code claim parameter - auto-navigate to BOM Calculator
-  // The BOMCalculatorHub will then handle opening the mobile view with the claim code
+  // Wait for profile to load before navigating (otherwise role check fails and resets to home)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    console.log('[QR Debug] Checking claim param:', {
-      hasClaim: params.has('claim'),
-      claimValue: params.get('claim'),
-      currentSection: activeSection
-    });
-    if (params.has('claim')) {
-      console.log('[QR Debug] Setting section to bom-calculator');
+    if (params.has('claim') && profile?.role) {
+      // Only navigate once profile is loaded so role check passes
       setActiveSection('bom-calculator');
     }
-  }, []);
+  }, [profile?.role]);
 
   // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {
