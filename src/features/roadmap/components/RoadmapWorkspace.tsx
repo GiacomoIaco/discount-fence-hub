@@ -27,7 +27,8 @@ import {
   RefreshCw,
   User,
   Mic,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowUpDown
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
@@ -45,11 +46,14 @@ interface RoadmapWorkspaceProps {
 
 const FILTER_STORAGE_KEY = 'roadmap-filter-state';
 
+type SortOption = 'importance' | 'updated_at' | 'created_at' | 'title';
+
 interface FilterState {
   statusFilter: StatusType | 'all';
   importanceFilter: number | 'all';
   complexityFilter: ComplexityType | 'all';
   showCompleted: boolean;
+  sortBy: SortOption;
 }
 
 function loadFilterState(): FilterState | null {
@@ -234,6 +238,7 @@ export default function RoadmapWorkspace({
   const [importanceFilter, setImportanceFilter] = useState<number | 'all'>(savedFilters?.importanceFilter ?? 'all');
   const [complexityFilter, setComplexityFilter] = useState<ComplexityType | 'all'>(savedFilters?.complexityFilter ?? 'all');
   const [showCompleted, setShowCompleted] = useState(savedFilters?.showCompleted ?? false);
+  const [sortBy, setSortBy] = useState<SortOption>(savedFilters?.sortBy ?? 'importance');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<RoadmapItem | null>(null);
@@ -246,8 +251,9 @@ export default function RoadmapWorkspace({
       importanceFilter,
       complexityFilter,
       showCompleted,
+      sortBy,
     });
-  }, [statusFilter, importanceFilter, complexityFilter, showCompleted]);
+  }, [statusFilter, importanceFilter, complexityFilter, showCompleted, sortBy]);
 
   // Sync local items with props
   useEffect(() => {
@@ -330,6 +336,18 @@ export default function RoadmapWorkspace({
     }
 
     return true;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'updated_at':
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      case 'created_at':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'title':
+        return a.title.localeCompare(b.title);
+      case 'importance':
+      default:
+        return (b.importance || 0) - (a.importance || 0);
+    }
   });
 
   if (loading) {
@@ -444,6 +462,24 @@ export default function RoadmapWorkspace({
                 <option key={key} value={key}>{key} - {config.label}</option>
               ))}
             </select>
+
+            {/* Sort separator */}
+            <span className="hidden lg:block w-px h-5 bg-gray-300 mx-1" />
+
+            {/* Sort dropdown */}
+            <div className="flex items-center gap-1">
+              <ArrowUpDown className="w-4 h-4 text-gray-400" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="importance">By Importance</option>
+                <option value="updated_at">Last Modified</option>
+                <option value="created_at">Date Created</option>
+                <option value="title">Alphabetical</option>
+              </select>
+            </div>
 
             {/* Show Completed toggle */}
             <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-2">
