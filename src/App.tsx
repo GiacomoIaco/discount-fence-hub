@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
@@ -62,6 +63,8 @@ type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'present
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Get role and name from authenticated profile, with fallback for role switching
   const [userRole, setUserRole] = useState<UserRole>(profile?.role || 'sales');
@@ -94,16 +97,24 @@ function App() {
     }
   }, [isHubSection]);
 
-  // Handle QR code deep link claim
-  // The /p/:projectCode route sets sessionStorage, then navigates here
-  // Also supports legacy ?claim= query param for backwards compatibility
-  useEffect(() => {
+  // Handle QR code deep link claim from multiple sources
+  const checkForClaimCode = useCallback(() => {
     if (!profile?.role) return;
 
-    // Check sessionStorage (set by /p/:projectCode deep link route)
+    // Check sessionStorage first (set by /p/:projectCode deep link route)
     const storedClaim = sessionStorage.getItem('qr-claim-code');
     if (storedClaim) {
-      // Don't clear yet - BOMCalculatorHub will read and clear it
+      setActiveSection('bom-calculator');
+      return;
+    }
+
+    // Check current URL for /p/:projectCode pattern (handles PWA resume scenario)
+    // When PWA resumes from external link, React Router may not have processed the route
+    const pathMatch = location.pathname.match(/^\/p\/([^/]+)/);
+    if (pathMatch) {
+      const claimCode = pathMatch[1].toUpperCase();
+      sessionStorage.setItem('qr-claim-code', claimCode);
+      navigate('/', { replace: true });
       setActiveSection('bom-calculator');
       return;
     }
@@ -116,7 +127,23 @@ function App() {
       window.history.replaceState({}, '', '/');
       setActiveSection('bom-calculator');
     }
-  }, [profile?.role]);
+  }, [profile?.role, location.pathname, navigate]);
+
+  // Check on mount, when profile loads, or when location changes
+  useEffect(() => {
+    checkForClaimCode();
+  }, [checkForClaimCode]);
+
+  // Also check when PWA becomes visible (handles mobile PWA resume from background)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForClaimCode();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [checkForClaimCode]);
 
   // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {
