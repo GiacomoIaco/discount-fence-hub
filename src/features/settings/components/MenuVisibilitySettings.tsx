@@ -30,6 +30,7 @@ const MenuVisibilitySettings = () => {
     isPlatformSupported,
     addUserOverride,
     removeUserOverride,
+    loadMenuVisibility,
     loading,
   } = useMenuVisibility();
 
@@ -90,8 +91,7 @@ const MenuVisibilitySettings = () => {
 
       if (error) throw error;
       showSuccess('Category updated');
-      // Reload to reflect changes
-      window.location.reload();
+      await loadMenuVisibility();
     } catch (error) {
       console.error('Error updating category:', error);
       showError('Failed to update category');
@@ -139,7 +139,7 @@ const MenuVisibilitySettings = () => {
 
       if (error) throw error;
       showSuccess(`Style changed to ${isGradient ? 'solid' : 'gradient'}`);
-      window.location.reload();
+      await loadMenuVisibility();
     } catch (error) {
       console.error('Error updating mobile style:', error);
       showError('Failed to update style');
