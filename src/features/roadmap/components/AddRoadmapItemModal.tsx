@@ -21,6 +21,7 @@ export default function AddRoadmapItemModal({
   selectedHubs,
 }: AddRoadmapItemModalProps) {
   const [saving, setSaving] = useState(false);
+  const [expanding, setExpanding] = useState(false);
   const [formData, setFormData] = useState({
     hub: selectedHubs.size === 1 ? Array.from(selectedHubs)[0] : 'general' as HubKey,
     title: '',
@@ -138,6 +139,35 @@ export default function AddRoadmapItemModal({
     setAudioDuration(0);
     setTranscript('');
     setPlaybackProgress(0);
+  };
+
+  // Expand typed idea with AI
+  const expandTypedIdea = async () => {
+    if (!formData.raw_idea.trim()) {
+      toast.error('Please enter a description first');
+      return;
+    }
+
+    setExpanding(true);
+    try {
+      const expanded = await expandRoadmapIdea(formData.raw_idea);
+
+      setFormData({
+        hub: (expanded.hub as HubKey) || formData.hub,
+        title: expanded.title || formData.title,
+        raw_idea: expanded.raw_idea || formData.raw_idea,
+        claude_analysis: expanded.claude_analysis || '',
+        importance: expanded.importance || formData.importance,
+        complexity: (expanded.complexity as ComplexityType) || formData.complexity,
+      });
+
+      toast.success('AI expanded your idea!');
+    } catch (error) {
+      console.error('Error expanding idea:', error);
+      toast.error('Failed to expand idea. Please try again.');
+    } finally {
+      setExpanding(false);
+    }
   };
 
   // Handle audio element events
@@ -354,6 +384,26 @@ export default function AddRoadmapItemModal({
               rows={3}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+            {!formData.claude_analysis && (
+              <button
+                type="button"
+                onClick={expandTypedIdea}
+                disabled={expanding || !formData.raw_idea.trim()}
+                className="mt-2 flex items-center gap-2 px-3 py-1.5 text-sm bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-lg hover:from-purple-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {expanding ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Expanding...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Expand with AI</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Claude Analysis */}

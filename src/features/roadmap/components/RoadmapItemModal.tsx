@@ -122,12 +122,12 @@ export default function RoadmapItemModal({
         throw new Error('Failed to re-analyze idea');
       }
 
-      const { expandedIdea } = await response.json();
+      const result = await response.json();
 
       // Update the claude_analysis with new analysis
       setFormData(prev => ({
         ...prev,
-        claude_analysis: expandedIdea,
+        claude_analysis: result.claude_analysis || prev.claude_analysis,
         // Keep user_notes so user can see what was submitted
       }));
 
