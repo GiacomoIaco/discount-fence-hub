@@ -98,7 +98,13 @@ function App() {
   // The BOMCalculatorHub will then handle opening the mobile view with the claim code
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    console.log('[QR Debug] Checking claim param:', {
+      hasClaim: params.has('claim'),
+      claimValue: params.get('claim'),
+      currentSection: activeSection
+    });
     if (params.has('claim')) {
+      console.log('[QR Debug] Setting section to bom-calculator');
       setActiveSection('bom-calculator');
     }
   }, []);
