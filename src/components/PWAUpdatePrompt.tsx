@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 // @ts-ignore - virtual module from vite-plugin-pwa
@@ -6,6 +6,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 
 export default function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -15,7 +16,7 @@ export default function PWAUpdatePrompt() {
       console.log('SW Registered:', r);
       // Check for updates every 60 seconds
       if (r) {
-        setInterval(() => {
+        intervalRef.current = setInterval(() => {
           r.update();
         }, 60000);
       }
@@ -24,6 +25,15 @@ export default function PWAUpdatePrompt() {
       console.log('SW registration error', error);
     },
   });
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (needRefresh) {

@@ -8,9 +8,7 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    // ✅ Use correct env var name (OPENAI_API_KEY without VITE_ prefix)
-    // Fallback to VITE_ version for backward compatibility during migration
-    const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
     }

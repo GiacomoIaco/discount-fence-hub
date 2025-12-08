@@ -14,7 +14,7 @@ export default async (req, context) => {
       });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'API key not configured' }), {
         status: 500,

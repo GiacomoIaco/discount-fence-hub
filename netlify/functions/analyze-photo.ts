@@ -80,7 +80,7 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY not configured in Netlify environment variables');
     }

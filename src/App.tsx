@@ -501,9 +501,7 @@ function App() {
   }
 
   // Show login screen if not authenticated
-  // TEMPORARY: Allow bypass for development - remove this once auth is fully implemented
-  const bypassAuth = localStorage.getItem('bypassAuth') === 'true';
-  if (!user && !bypassAuth) {
+  if (!user) {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <Login />
