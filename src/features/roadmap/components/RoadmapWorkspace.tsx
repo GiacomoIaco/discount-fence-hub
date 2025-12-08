@@ -116,10 +116,10 @@ function SortableItemCard({
         isDragging ? 'shadow-lg ring-2 ring-blue-500' : 'hover:shadow-md'
       } ${hubConfig?.border || 'border-gray-200'}`}
     >
-      {/* Desktop: Two-column layout with description pushed to right */}
-      <div className="flex gap-4 items-start justify-between">
+      {/* Desktop: Grid layout - left 40% for info, right 60% for description */}
+      <div className="lg:grid lg:grid-cols-[minmax(300px,40%)_1fr] gap-4">
         {/* Left side - Main info */}
-        <div className="flex items-start gap-3 min-w-0 flex-1">
+        <div className="flex items-start gap-3 min-w-0">
           {/* Drag handle */}
           <button
             {...attributes}
@@ -202,10 +202,10 @@ function SortableItemCard({
           </div>
         </div>
 
-        {/* Right side - Description (desktop only, pushed to right edge) */}
-        {hasDescription && (
-          <div className="hidden lg:flex lg:w-72 xl:w-80 flex-shrink-0 border-l border-gray-100 pl-4 ml-auto">
-            <div className="text-sm text-gray-600 max-h-24 overflow-y-auto">
+        {/* Right side - Description (desktop only) */}
+        {hasDescription ? (
+          <div className="hidden lg:block border-l border-gray-100 pl-4">
+            <div className="text-sm text-gray-600">
               {item.raw_idea && (
                 <p className="line-clamp-3">{item.raw_idea}</p>
               )}
@@ -216,6 +216,8 @@ function SortableItemCard({
               )}
             </div>
           </div>
+        ) : (
+          <div className="hidden lg:block" />
         )}
       </div>
     </div>

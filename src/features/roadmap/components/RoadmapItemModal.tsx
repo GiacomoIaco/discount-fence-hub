@@ -270,7 +270,7 @@ export default function RoadmapItemModal({
           </div>
 
           {/* Two-column layout for Raw Idea and Claude Analysis */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
             {/* Left column - Raw Idea */}
             <div className="flex flex-col">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -280,8 +280,8 @@ export default function RoadmapItemModal({
                 value={formData.raw_idea}
                 onChange={(e) => setFormData({ ...formData, raw_idea: e.target.value })}
                 placeholder="Quick brain dump - what's the idea about?"
-                rows={6}
-                className="flex-1 min-h-[150px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows={14}
+                className="flex-1 min-h-[280px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
               />
             </div>
 
@@ -296,9 +296,9 @@ export default function RoadmapItemModal({
                 value={formData.claude_analysis}
                 onChange={(e) => isAdmin && setFormData({ ...formData, claude_analysis: e.target.value })}
                 placeholder="AI-expanded thoughts, best practices, implementation notes..."
-                rows={6}
+                rows={14}
                 disabled={!isAdmin}
-                className={`flex-1 min-h-[150px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                className={`flex-1 min-h-[280px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
               />
             </div>
           </div>
