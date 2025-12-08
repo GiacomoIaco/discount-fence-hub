@@ -284,7 +284,10 @@ export default function SKUImportPage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'sku_import_template.csv';
+    // Must append to DOM for click to work in all browsers
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
