@@ -57,17 +57,26 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
 
-  // Check for claim parameter in URL (from QR code scan)
+  // Check for claim code from QR scan (stored in sessionStorage by App.tsx)
   // This auto-navigates to mobile view with the project code pre-filled
   useEffect(() => {
+    // Check sessionStorage first (set by App.tsx from /claim/CODE or ?claim=CODE)
+    const storedClaim = sessionStorage.getItem('qr-claim-code');
+    if (storedClaim) {
+      setClaimCode(storedClaim);
+      setActivePage('yard-mobile');
+      // Clear the stored claim so it doesn't re-trigger
+      sessionStorage.removeItem('qr-claim-code');
+      return;
+    }
+
+    // Fallback: check URL params directly (in case of direct navigation)
     const params = new URLSearchParams(window.location.search);
     const claim = params.get('claim');
     if (claim) {
       setClaimCode(claim);
       setActivePage('yard-mobile');
-      // Clear the URL param
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 

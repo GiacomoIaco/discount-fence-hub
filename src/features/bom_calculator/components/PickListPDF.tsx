@@ -150,8 +150,9 @@ export async function generatePickListPDF(data: PickListData, copies: number = 3
   const margin = 10;
   const contentWidth = pageWidth - (margin * 2);
 
-  // Generate QR code - includes claim parameter which auto-opens mobile view with this project
-  const appUrl = `${window.location.origin}?claim=${data.project_code}`;
+  // Generate QR code - path-based URL that auto-opens mobile view with this project
+  // Using /claim/CODE format for reliable PWA deep linking
+  const appUrl = `${window.location.origin}/claim/${data.project_code}`;
   const qrCodeDataUrl = await generateQRCode(appUrl);
 
   // Generate each copy

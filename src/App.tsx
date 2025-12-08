@@ -94,27 +94,30 @@ function App() {
     }
   }, [isHubSection]);
 
-  // Handle QR code claim parameter - auto-navigate to BOM Calculator
+  // Handle QR code claim - supports both path (/claim/CODE) and query param (?claim=CODE)
   // Wait for profile to load before navigating (otherwise role check fails and resets to home)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('claim') && profile?.role) {
-      // Only navigate once profile is loaded so role check passes
-      setActiveSection('bom-calculator');
-    }
-  }, [profile?.role]);
+    if (!profile?.role) return;
 
-  // Handle PWA launch with URL (for QR codes scanned when app is installed as PWA)
-  useEffect(() => {
-    if ('launchQueue' in window && profile?.role) {
-      (window as any).launchQueue.setConsumer((launchParams: any) => {
-        if (launchParams.targetURL) {
-          const url = new URL(launchParams.targetURL);
-          if (url.searchParams.has('claim')) {
-            setActiveSection('bom-calculator');
-          }
-        }
-      });
+    // Check for path-based claim: /claim/PROJECT123
+    const pathMatch = window.location.pathname.match(/^\/claim\/([^/]+)/);
+    if (pathMatch) {
+      const claimCode = pathMatch[1];
+      // Store claim code for BOMCalculatorHub to use
+      sessionStorage.setItem('qr-claim-code', claimCode);
+      // Clean up URL
+      window.history.replaceState({}, '', '/');
+      setActiveSection('bom-calculator');
+      return;
+    }
+
+    // Check for query param claim: ?claim=PROJECT123 (backwards compatibility)
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('claim')) {
+      const claimCode = params.get('claim')!;
+      sessionStorage.setItem('qr-claim-code', claimCode);
+      window.history.replaceState({}, '', '/');
+      setActiveSection('bom-calculator');
     }
   }, [profile?.role]);
 
