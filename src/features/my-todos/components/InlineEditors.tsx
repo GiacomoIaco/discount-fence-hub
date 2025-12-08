@@ -391,7 +391,7 @@ export function InitiativeColorPicker({
       <button
         ref={buttonRef}
         onClick={toggleDropdown}
-        className="p-1 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors opacity-0 group-hover:opacity-100"
+        className="p-1 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors"
         title="Change color"
       >
         <Palette className="w-4 h-4" />
