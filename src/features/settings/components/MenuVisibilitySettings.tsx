@@ -3,7 +3,7 @@ import { useMenuVisibility } from '../../../hooks/useMenuVisibility';
 import type { Platform, MenuCategory } from '../../../hooks/useMenuVisibility';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import { X, Users, Check, Monitor, Tablet, Smartphone } from 'lucide-react';
+import { X, Users, Check, Monitor, Tablet, Smartphone, Palette } from 'lucide-react';
 
 const CATEGORY_OPTIONS: { value: MenuCategory; label: string }[] = [
   { value: 'main', label: 'Main' },
@@ -113,6 +113,39 @@ const MenuVisibilitySettings = () => {
     }
   };
 
+  const handleToggleMobileStyle = async (menuId: string, currentStyle: Record<string, unknown> | null) => {
+    // Toggle between gradient and solid style
+    const isGradient = currentStyle?.gradient;
+    const newStyle = isGradient
+      ? {
+          bgColor: 'bg-white border-2 border-gray-200',
+          iconBg: 'bg-gray-100',
+          iconColor: 'text-gray-600',
+          description: currentStyle?.description || '',
+          textColor: 'text-gray-900',
+          subtextColor: 'text-gray-600'
+        }
+      : {
+          gradient: 'from-blue-600 to-blue-700',
+          iconBg: 'bg-white/20',
+          description: currentStyle?.description || ''
+        };
+
+    try {
+      const { error } = await supabase
+        .from('menu_visibility')
+        .update({ mobile_style: newStyle, updated_at: new Date().toISOString() })
+        .eq('menu_id', menuId);
+
+      if (error) throw error;
+      showSuccess(`Style changed to ${isGradient ? 'solid' : 'gradient'}`);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating mobile style:', error);
+      showError('Failed to update style');
+    }
+  };
+
   const getRoleLabel = (role: string): string => {
     const labels: Record<string, string> = {
       'sales': 'Sales',
@@ -194,6 +227,7 @@ const MenuVisibilitySettings = () => {
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Menu Item</th>
                 <th className="text-left py-3 px-2 font-semibold text-gray-700 min-w-[120px]">Category</th>
                 <th className="text-center py-3 px-2 font-semibold text-gray-700 min-w-[50px]">Order</th>
+                <th className="text-center py-3 px-2 font-semibold text-gray-700">Style</th>
                 <th className="text-center py-3 px-2 font-semibold text-gray-700">
                   <div className="flex items-center justify-center gap-1">
                     <Monitor className="w-4 h-4" />
@@ -287,6 +321,25 @@ const MenuVisibilitySettings = () => {
                     />
                   </td>
                   <td className="text-center py-3 px-2">
+                    {(() => {
+                      const style = item.mobile_style as Record<string, unknown> | null;
+                      const isGradient = style?.gradient;
+                      return (
+                        <button
+                          onClick={() => handleToggleMobileStyle(item.menu_id, style)}
+                          className={`p-1.5 rounded transition-colors ${
+                            isGradient
+                              ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                              : 'bg-gray-100 text-gray-600 border border-gray-300'
+                          }`}
+                          title={isGradient ? 'Gradient style (click for solid)' : 'Solid style (click for gradient)'}
+                        >
+                          <Palette className="w-4 h-4" />
+                        </button>
+                      );
+                    })()}
+                  </td>
+                  <td className="text-center py-3 px-2">
                     <div className="flex items-center justify-center gap-1">
                       {renderPlatformIcon('desktop', Monitor, showDesktop, supportsDesktop, 'text-blue-600', 'bg-blue-100')}
                       {renderPlatformIcon('tablet', Tablet, showTablet, supportsTablet, 'text-purple-600', 'bg-purple-100')}
@@ -331,12 +384,13 @@ const MenuVisibilitySettings = () => {
 
         <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
           <p className="text-sm text-blue-800">
-            <strong>Category:</strong> Controls which section the item appears in on mobile navigation.
-            <strong> Order:</strong> Lower numbers appear first within each category.
+            <strong>Category:</strong> Controls mobile nav section.
+            <strong> Order:</strong> Lower = first.
+            <strong> Style:</strong> Toggle gradient/solid button appearance.
           </p>
           <p className="text-sm text-blue-800">
             <strong>Tip:</strong> Role settings apply to all users with that role.
-            User overrides let you enable/disable specific menu items for individual users.
+            User overrides let you enable/disable for individual users.
           </p>
         </div>
       </div>
