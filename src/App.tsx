@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
@@ -94,27 +94,16 @@ function App() {
     }
   }, [isHubSection]);
 
-  // Handle QR code claim - checks multiple sources for the claim code
-  // Priority: localStorage (from /qr page) > URL path > URL query param
-  const checkForClaimCode = useCallback(() => {
+  // Handle QR code deep link claim
+  // The /p/:projectCode route sets sessionStorage, then navigates here
+  // Also supports legacy ?claim= query param for backwards compatibility
+  useEffect(() => {
     if (!profile?.role) return;
 
-    // Check localStorage first (set by /qr/CODE intermediate page)
-    const storedClaim = localStorage.getItem('qr-claim-code');
+    // Check sessionStorage (set by /p/:projectCode deep link route)
+    const storedClaim = sessionStorage.getItem('qr-claim-code');
     if (storedClaim) {
-      // Move to sessionStorage for BOMCalculatorHub and clear localStorage
-      sessionStorage.setItem('qr-claim-code', storedClaim);
-      localStorage.removeItem('qr-claim-code');
-      setActiveSection('bom-calculator');
-      return;
-    }
-
-    // Check for path-based claim: /claim/PROJECT123
-    const pathMatch = window.location.pathname.match(/^\/claim\/([^/]+)/);
-    if (pathMatch) {
-      const claimCode = pathMatch[1];
-      sessionStorage.setItem('qr-claim-code', claimCode);
-      window.history.replaceState({}, '', '/');
+      // Don't clear yet - BOMCalculatorHub will read and clear it
       setActiveSection('bom-calculator');
       return;
     }
@@ -128,24 +117,6 @@ function App() {
       setActiveSection('bom-calculator');
     }
   }, [profile?.role]);
-
-  // Check on mount and when profile loads
-  useEffect(() => {
-    checkForClaimCode();
-  }, [checkForClaimCode]);
-
-  // Also check when PWA becomes visible (handles mobile PWA resume scenario)
-  // When scanning QR on mobile, the intermediate page sets localStorage then opens PWA
-  // PWA resumes from background, so we need to check localStorage when it becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkForClaimCode();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [checkForClaimCode]);
 
   // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {

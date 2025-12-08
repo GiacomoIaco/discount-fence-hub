@@ -150,9 +150,9 @@ export async function generatePickListPDF(data: PickListData, copies: number = 3
   const margin = 10;
   const contentWidth = pageWidth - (margin * 2);
 
-  // Generate QR code - uses intermediate page to bypass PWA interception
-  // Flow: /qr/CODE → stores in localStorage → redirects to app → app reads code
-  const appUrl = `${window.location.origin}/qr/${data.project_code}`;
+  // Generate QR code - uses React Router deep link
+  // Flow: /p/CODE → ProjectDeepLink stores in sessionStorage → navigates to app
+  const appUrl = `${window.location.origin}/p/${data.project_code}`;
   const qrCodeDataUrl = await generateQRCode(appUrl);
 
   // Generate each copy
