@@ -26,6 +26,7 @@ const DirectMessages = lazy(() => import('../../features/communication').then(mo
 const Settings = lazy(() => import('../../features/settings').then(module => ({ default: module.Settings })));
 const MyTodos = lazy(() => import('../../features/my-todos').then(m => ({ default: m.MyTodos })));
 const BOMCalculatorHub = lazy(() => import('../../features/bom_calculator/BOMCalculatorHub'));
+const RoadmapHub = lazy(() => import('../../features/roadmap/RoadmapHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -182,6 +183,14 @@ export default function SalesRepView({
     );
   }
 
+  if (activeSection === 'roadmap') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <RoadmapHub onBack={() => setActiveSection('home')} />
+      </Suspense>
+    );
+  }
+
   // Define styling and descriptions for each menu item
   const getItemStyle = (menuId: string): {
     gradient?: string;
@@ -306,6 +315,12 @@ export default function SalesRepView({
         description: 'Overview & quick stats',
         subtextColor: 'text-gray-200'
       },
+      'roadmap': {
+        gradient: 'from-indigo-600 to-purple-600',
+        iconBg: 'bg-white/20',
+        description: 'Feature ideas & development roadmap',
+        subtextColor: 'text-indigo-100'
+      },
     };
     return styles[menuId] || {
       bgColor: 'bg-white border border-gray-200',
@@ -371,7 +386,7 @@ export default function SalesRepView({
     ['bom-yard', 'bom-calculator'].includes(item.menuId)
   );
   const toolItems = navigationItems.filter(item =>
-    ['sales-resources', 'analytics', 'leadership', 'my-todos', 'team'].includes(item.menuId)
+    ['sales-resources', 'analytics', 'leadership', 'my-todos', 'roadmap', 'team'].includes(item.menuId)
   );
 
   return (

@@ -82,9 +82,9 @@ function SortableItemCard({
       } ${hubConfig?.border || 'border-gray-200'}`}
     >
       {/* Desktop: Two-column layout */}
-      <div className="flex gap-4">
-        {/* Left side - Main info */}
-        <div className="flex items-start gap-3 flex-1 min-w-0">
+      <div className="flex gap-4 items-start">
+        {/* Left side - Main info (no flex-1 so it doesn't push description to edge) */}
+        <div className="flex items-start gap-3 min-w-0 flex-1 lg:flex-initial lg:max-w-[60%]">
           {/* Drag handle */}
           <button
             {...attributes}
