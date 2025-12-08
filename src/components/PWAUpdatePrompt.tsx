@@ -14,11 +14,12 @@ export default function PWAUpdatePrompt() {
   } = useRegisterSW({
     onRegistered(r: any) {
       console.log('SW Registered:', r);
-      // Check for updates every 60 seconds
+      // Check for updates every 15 minutes (was 60 seconds)
+      // Less frequent = less intrusive, user controls when to update via prompt
       if (r) {
         intervalRef.current = setInterval(() => {
           r.update();
-        }, 60000);
+        }, 15 * 60 * 1000); // 15 minutes
       }
     },
     onRegisterError(error: any) {

@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',  // User controls when to update (was 'autoUpdate')
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'Discount Fence Hub',
