@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ArrowLeft, AlertTriangle, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Plus, Lock, Crown, UserCheck, Eye, Folder } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Building2, ChevronDown, ChevronRight, ChevronsUpDown, Search, X, Plus, Lock, Crown, UserCheck, Eye, Folder, SlidersHorizontal } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -93,6 +93,7 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     taskTitle: string;
     position: { top: number; left: number };
   } | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useMyTodosQuery();
   const { data: personalInitiatives = [], refetch: refetchPersonal } = usePersonalInitiativesQuery();
@@ -484,23 +485,163 @@ export default function MyTodos({ onBack }: MyTodosProps) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 lg:gap-4">
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">My To-Dos</h1>
+          <h1 className="text-xl lg:text-3xl font-bold text-gray-900">My To-Dos</h1>
         </div>
         <button
           onClick={() => setShowNewInitiativeModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1 lg:gap-2 px-2 lg:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm lg:text-base"
         >
           <Plus className="w-4 h-4" />
-          New Initiative
+          <span className="hidden sm:inline">New Initiative</span>
+          <span className="sm:hidden">New</span>
         </button>
       </div>
 
-      {/* Row 1: Search, Status, Quick Filters, Sort */}
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+      {/* Mobile Filter Bar */}
+      <div className="lg:hidden bg-white border border-gray-200 rounded-lg p-3">
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Filter Toggle Button */}
+          <button
+            onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+            className={`flex items-center gap-1 px-3 py-2 rounded-lg border transition-colors ${
+              mobileFiltersOpen || hasActiveFilters
+                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                : 'border-gray-300 text-gray-600'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="text-sm">Filters</span>
+            {hasActiveFilters && (
+              <span className="w-2 h-2 rounded-full bg-blue-600" />
+            )}
+          </button>
+        </div>
+
+        {/* Expanded Mobile Filters */}
+        {mobileFiltersOpen && (
+          <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+            {/* Role Filter - Horizontal scroll */}
+            <div className="overflow-x-auto -mx-3 px-3">
+              <div className="flex gap-2 min-w-max">
+                {filterChips.map((chip) => {
+                  const Icon = chip.icon;
+                  const isActive = activeFilter === chip.id;
+                  return (
+                    <button
+                      key={chip.id}
+                      onClick={() => setActiveFilter(chip.id)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {chip.label}
+                      <span className={`ml-1 ${isActive ? 'text-blue-200' : 'text-gray-500'}`}>
+                        {chip.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Filters Row */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
+                className={`px-2 py-1 text-xs font-medium rounded ${
+                  dueDateFilter === 'overdue' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                Overdue
+              </button>
+              <button
+                onClick={() => setDueDateFilter(dueDateFilter === 'high-priority' ? 'all' : 'high-priority')}
+                className={`px-2 py-1 text-xs font-medium rounded ${
+                  dueDateFilter === 'high-priority' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                Priority
+              </button>
+              <button
+                onClick={() => setShowCompleted(!showCompleted)}
+                className={`px-2 py-1 text-xs font-medium rounded ${
+                  showCompleted ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {showCompleted ? '✓ Done' : 'Show Done'}
+              </button>
+            </div>
+
+            {/* Status & Sort Row */}
+            <div className="flex gap-2">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg"
+              >
+                <option value="all">All Status</option>
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="blocked">Blocked</option>
+              </select>
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg"
+              >
+                <option value="default">Default</option>
+                <option value="due-date-asc">Due ↑</option>
+                <option value="due-date-desc">Due ↓</option>
+              </select>
+            </div>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setActiveFilter('all');
+                  setSearchQuery('');
+                  setFilterStatus('all');
+                  setShowCompleted(false);
+                  setDueDateFilter('all');
+                  setSortOption('default');
+                  setFunctionFilter('all');
+                }}
+                className="w-full py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Task Count */}
+        <div className="mt-2 text-xs text-gray-500 text-center">
+          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Desktop Row 1: Search, Status, Quick Filters, Sort */}
+      <div className="hidden lg:block bg-white border border-gray-200 rounded-lg px-4 py-2">
         <div className="flex items-center gap-3 flex-wrap">
           {/* Search */}
           <div className="relative flex-1 min-w-[180px] max-w-[280px]">
@@ -629,8 +770,8 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         </div>
       </div>
 
-      {/* Row 2: Role Filters, Function Filter, Collapse, Task Count */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Row 2: Role Filters, Function Filter, Collapse, Task Count (Desktop only) */}
+      <div className="hidden lg:flex items-center gap-3 flex-wrap">
         {/* Role Filter Chips */}
         <div className="flex items-center gap-1">
           {filterChips.map((chip) => {
