@@ -7,6 +7,13 @@ interface RoadmapStats {
   inProgress: number;
   done: number;
   approved: number;
+  researched: number;
+  parked: number;
+}
+
+interface HubCounts {
+  ideasAndResearched: number;
+  approved: number;
 }
 
 interface RoadmapSidebarProps {
@@ -15,6 +22,7 @@ interface RoadmapSidebarProps {
   onSelectAll: () => void;
   onClearAll: () => void;
   stats: RoadmapStats;
+  hubCounts: Record<HubKey, HubCounts>;
 }
 
 export default function RoadmapSidebar({
@@ -22,7 +30,8 @@ export default function RoadmapSidebar({
   onToggleHub,
   onSelectAll,
   onClearAll,
-  stats
+  stats,
+  hubCounts
 }: RoadmapSidebarProps) {
   const allSelected = selectedHubs.size === Object.keys(HUB_CONFIG).length;
   const noneSelected = selectedHubs.size === 0;
@@ -69,6 +78,7 @@ export default function RoadmapSidebar({
           {(Object.keys(HUB_CONFIG) as HubKey[]).map((hubKey) => {
             const config = HUB_CONFIG[hubKey];
             const isSelected = selectedHubs.has(hubKey);
+            const counts = hubCounts[hubKey] || { ideasAndResearched: 0, approved: 0 };
 
             return (
               <button
@@ -102,9 +112,22 @@ export default function RoadmapSidebar({
                     }`}>
                       {config.label}
                     </span>
-                    <span className="text-xs text-gray-400 font-mono">
-                      {config.prefix}-
-                    </span>
+                  </div>
+                  {/* Hub counts */}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {counts.ideasAndResearched > 0 && (
+                      <span className="text-xs text-gray-500">
+                        {counts.ideasAndResearched} ideas
+                      </span>
+                    )}
+                    {counts.approved > 0 && (
+                      <span className="text-xs text-purple-600 font-medium">
+                        {counts.approved} approved
+                      </span>
+                    )}
+                    {counts.ideasAndResearched === 0 && counts.approved === 0 && (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </div>
                 </div>
               </button>
@@ -119,7 +142,7 @@ export default function RoadmapSidebar({
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="bg-white p-2 rounded border border-gray-200">
             <div className="text-gray-500 text-xs">Ideas</div>
-            <div className="font-semibold text-gray-900">{stats.ideas}</div>
+            <div className="font-semibold text-gray-900">{stats.ideas + stats.researched}</div>
           </div>
           <div className="bg-white p-2 rounded border border-gray-200">
             <div className="text-gray-500 text-xs">Approved</div>
@@ -134,6 +157,11 @@ export default function RoadmapSidebar({
             <div className="font-semibold text-green-600">{stats.done}</div>
           </div>
         </div>
+        {stats.parked > 0 && (
+          <div className="mt-2 text-xs text-orange-600">
+            {stats.parked} parked
+          </div>
+        )}
       </div>
     </div>
   );

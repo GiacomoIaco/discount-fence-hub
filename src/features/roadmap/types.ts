@@ -5,9 +5,9 @@ export interface RoadmapItem {
   title: string;
   raw_idea: string | null;
   claude_analysis: string | null;
-  status: 'idea' | 'researched' | 'approved' | 'in_progress' | 'done' | 'wont_do';
+  status: 'idea' | 'researched' | 'approved' | 'in_progress' | 'done' | 'wont_do' | 'parked';
   importance: number | null;
-  complexity: 'S' | 'M' | 'L' | 'XL' | null;
+  complexity: 'XS' | 'S' | 'M' | 'L' | 'XL' | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -15,6 +15,8 @@ export interface RoadmapItem {
   session_notes: string | null;
   commit_refs: string[] | null;
   related_items: string[] | null;
+  // Joined from user_profiles
+  creator_name?: string;
 }
 
 export type StatusType = RoadmapItem['status'];
@@ -27,9 +29,11 @@ export const STATUS_CONFIG: Record<StatusType, { label: string; color: string; b
   in_progress: { label: 'In Progress', color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
   done: { label: 'Done', color: 'text-green-600', bgColor: 'bg-green-100' },
   wont_do: { label: "Won't Do", color: 'text-red-600', bgColor: 'bg-red-100' },
+  parked: { label: 'Parked', color: 'text-orange-600', bgColor: 'bg-orange-100' },
 };
 
 export const COMPLEXITY_CONFIG: Record<ComplexityType, { label: string; color: string }> = {
+  XS: { label: 'Tiny (<1hr)', color: 'text-blue-600' },
   S: { label: 'Small (hours)', color: 'text-green-600' },
   M: { label: 'Medium (day)', color: 'text-yellow-600' },
   L: { label: 'Large (days)', color: 'text-orange-600' },

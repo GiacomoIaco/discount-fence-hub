@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Trash2, Save } from 'lucide-react';
+import { X, Trash2, Save, User, Lock } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
 import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType } from '../types';
@@ -9,12 +9,14 @@ interface RoadmapItemModalProps {
   item: RoadmapItem;
   onClose: () => void;
   onUpdate: () => void;
+  isAdmin: boolean;
 }
 
 export default function RoadmapItemModal({
   item,
   onClose,
   onUpdate,
+  isAdmin,
 }: RoadmapItemModalProps) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -35,18 +37,26 @@ export default function RoadmapItemModal({
       return;
     }
 
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('roadmap_items')
-        .update({
+    // Non-admins can only update title and descriptions, not status
+    const updateData = isAdmin
+      ? {
           title: formData.title.trim(),
           raw_idea: formData.raw_idea.trim() || null,
           claude_analysis: formData.claude_analysis.trim() || null,
           status: formData.status,
           importance: formData.importance,
           complexity: formData.complexity,
-        })
+        }
+      : {
+          title: formData.title.trim(),
+          raw_idea: formData.raw_idea.trim() || null,
+        };
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('roadmap_items')
+        .update(updateData)
         .eq('id', item.id);
 
       if (error) throw error;
@@ -62,6 +72,10 @@ export default function RoadmapItemModal({
   };
 
   const handleDelete = async () => {
+    if (!isAdmin) {
+      toast.error('Only admins can delete items');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this item?')) return;
 
     setDeleting(true);
@@ -84,17 +98,23 @@ export default function RoadmapItemModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className={`flex items-center justify-between p-4 border-b ${hubConfig?.border || 'border-gray-200'} ${hubConfig?.bgLight || 'bg-gray-50'}`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className={`text-sm font-mono px-2 py-1 rounded ${hubConfig?.bgLight || 'bg-gray-100'} ${hubConfig?.textColor || 'text-gray-600'} border ${hubConfig?.border || 'border-gray-200'}`}>
               {item.code}
             </span>
             <span className={`text-sm ${hubConfig?.textColor || 'text-gray-600'}`}>
               {hubConfig?.label || item.hub}
             </span>
+            {item.creator_name && (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                {item.creator_name}
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -117,44 +137,60 @@ export default function RoadmapItemModal({
             />
           </div>
 
-          {/* Status */}
+          {/* Status - Admin only */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(STATUS_CONFIG) as StatusType[]).map((status) => {
-                const config = STATUS_CONFIG[status];
-                const isSelected = formData.status === status;
-                return (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, status })}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
-                      isSelected
-                        ? `${config.bgColor} ${config.color} ring-2 ring-offset-1 ring-current`
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {config.label}
-                  </button>
-                );
-              })}
-            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+              Status
+              {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+            </label>
+            {isAdmin ? (
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(STATUS_CONFIG) as StatusType[]).map((status) => {
+                  const config = STATUS_CONFIG[status];
+                  const isSelected = formData.status === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, status })}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                        isSelected
+                          ? `${config.bgColor} ${config.color} ring-2 ring-offset-1 ring-current`
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {config.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1.5 text-sm font-medium rounded-full ${STATUS_CONFIG[item.status].bgColor} ${STATUS_CONFIG[item.status].color}`}>
+                  {STATUS_CONFIG[item.status].label}
+                </span>
+                <span className="text-xs text-gray-400 italic">Only admins can change status</span>
+              </div>
+            )}
           </div>
 
-          {/* Importance & Complexity */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Importance & Complexity - Admin only */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Importance</label>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                Importance
+                {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+              </label>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((level) => (
                   <button
                     key={level}
                     type="button"
-                    onClick={() => setFormData({ ...formData, importance: level })}
+                    onClick={() => isAdmin && setFormData({ ...formData, importance: level })}
+                    disabled={!isAdmin}
                     className={`flex-1 py-2 text-xl transition-colors ${
                       formData.importance >= level ? 'text-yellow-500' : 'text-gray-300'
-                    }`}
+                    } ${!isAdmin ? 'cursor-not-allowed' : ''}`}
                   >
                     ★
                   </button>
@@ -163,18 +199,22 @@ export default function RoadmapItemModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Complexity</label>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                Complexity
+                {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+              </label>
               <div className="flex gap-1">
                 {(Object.keys(COMPLEXITY_CONFIG) as ComplexityType[]).map((size) => (
                   <button
                     key={size}
                     type="button"
-                    onClick={() => setFormData({ ...formData, complexity: size })}
+                    onClick={() => isAdmin && setFormData({ ...formData, complexity: size })}
+                    disabled={!isAdmin}
                     className={`flex-1 py-2 text-sm font-medium rounded border transition-colors ${
                       formData.complexity === size
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
+                    } ${!isAdmin ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     {size}
                   </button>
@@ -195,15 +235,19 @@ export default function RoadmapItemModal({
             />
           </div>
 
-          {/* Claude Analysis */}
+          {/* Claude Analysis - Admin only */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Claude Analysis</label>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+              Claude Analysis
+              {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+            </label>
             <textarea
               value={formData.claude_analysis}
-              onChange={(e) => setFormData({ ...formData, claude_analysis: e.target.value })}
+              onChange={(e) => isAdmin && setFormData({ ...formData, claude_analysis: e.target.value })}
               placeholder="Expanded thoughts, best practices, implementation notes from Claude sessions..."
               rows={4}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={!isAdmin}
+              className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
             />
           </div>
 
@@ -221,14 +265,18 @@ export default function RoadmapItemModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? 'Deleting...' : 'Delete'}
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-3">
             <button

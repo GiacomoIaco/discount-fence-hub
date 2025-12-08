@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Menu, RefreshCw, Smartphone, Bell, FileText, Map } from 'lucide-react';
+import { ArrowLeft, Users, Menu, RefreshCw, Smartphone, Bell, FileText } from 'lucide-react';
 import TeamManagement from './components/TeamManagement';
 import RequestSettings from './components/RequestSettings';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
 import NotificationSettings from './components/NotificationSettings';
-import RoadmapSettings from './components/RoadmapSettings';
 import type { UserRole } from '../../types';
 
 // Declare build time from vite config
@@ -16,7 +15,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'request-settings' | 'menu-visibility' | 'notifications' | 'app' | 'roadmap'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'request-settings' | 'menu-visibility' | 'notifications' | 'app'>('team');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   return (
@@ -95,18 +94,6 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
                 <Menu className="w-5 h-5" />
                 <span className="font-medium">Menu Visibility</span>
               </button>
-
-              <button
-                onClick={() => setActiveTab('roadmap')}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'roadmap'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Map className="w-5 h-5" />
-                <span className="font-medium">Roadmap</span>
-              </button>
             </>
           )}
         </div>
@@ -170,9 +157,6 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
         )}
         {activeTab === 'menu-visibility' && userRole === 'admin' && (
           <MenuVisibilitySettings />
-        )}
-        {activeTab === 'roadmap' && userRole === 'admin' && (
-          <RoadmapSettings />
         )}
       </div>
     </div>

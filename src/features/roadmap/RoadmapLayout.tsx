@@ -9,6 +9,13 @@ interface RoadmapStats {
   inProgress: number;
   done: number;
   approved: number;
+  researched: number;
+  parked: number;
+}
+
+interface HubCounts {
+  ideasAndResearched: number;
+  approved: number;
 }
 
 interface RoadmapLayoutProps {
@@ -18,6 +25,7 @@ interface RoadmapLayoutProps {
   onSelectAll: () => void;
   onClearAll: () => void;
   stats: RoadmapStats;
+  hubCounts: Record<HubKey, HubCounts>;
   onBack?: () => void;
 }
 
@@ -28,18 +36,22 @@ export default function RoadmapLayout({
   onSelectAll,
   onClearAll,
   stats,
+  hubCounts,
   onBack
 }: RoadmapLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Left Sidebar - Hub Selection */}
-      <RoadmapSidebar
-        selectedHubs={selectedHubs}
-        onToggleHub={onToggleHub}
-        onSelectAll={onSelectAll}
-        onClearAll={onClearAll}
-        stats={stats}
-      />
+      {/* Left Sidebar - Hub Selection (hidden on mobile) */}
+      <div className="hidden lg:block">
+        <RoadmapSidebar
+          selectedHubs={selectedHubs}
+          onToggleHub={onToggleHub}
+          onSelectAll={onSelectAll}
+          onClearAll={onClearAll}
+          stats={stats}
+          hubCounts={hubCounts}
+        />
+      </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
