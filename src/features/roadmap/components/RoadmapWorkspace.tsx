@@ -28,8 +28,11 @@ import {
   User,
   Mic,
   SlidersHorizontal,
-  ArrowUpDown
+  ArrowUpDown,
+  Copy,
+  Check
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
 import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType } from '../types';
@@ -245,6 +248,36 @@ export default function RoadmapWorkspace({
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<RoadmapItem | null>(null);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Copy filtered items as markdown
+  const copyAsMarkdown = async () => {
+    const markdown = filteredItems.map(item => {
+      const stars = item.importance ? '★'.repeat(item.importance) + '☆'.repeat(5 - item.importance) : '';
+      let md = `## ${item.code}: ${item.title}\n`;
+      md += `**Status:** ${STATUS_CONFIG[item.status].label} | **Importance:** ${stars} | **Size:** ${item.complexity || 'N/A'}\n\n`;
+      if (item.raw_idea) {
+        md += `**Description:**\n${item.raw_idea}\n\n`;
+      }
+      if (item.claude_analysis) {
+        md += `**Analysis:**\n${item.claude_analysis}\n\n`;
+      }
+      md += `---\n`;
+      return md;
+    }).join('\n');
+
+    const header = `# Roadmap Items (${filteredItems.length} items)\n\n`;
+    const fullMarkdown = header + markdown;
+
+    try {
+      await navigator.clipboard.writeText(fullMarkdown);
+      setCopied(true);
+      toast.success(`Copied ${filteredItems.length} items to clipboard`);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
 
   // Save filter state when filters change
   useEffect(() => {
@@ -406,6 +439,15 @@ export default function RoadmapWorkspace({
           </button>
 
           {/* Actions */}
+          <button
+            onClick={copyAsMarkdown}
+            className={`p-2 rounded-lg transition-colors ${
+              copied ? 'text-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+            title="Copy as Markdown"
+          >
+            {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+          </button>
           <button
             onClick={onRefresh}
             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"

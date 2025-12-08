@@ -1,5 +1,36 @@
 import type { Handler } from '@netlify/functions';
 
+// App context for UX-focused analysis
+const APP_CONTEXT = `
+## Discount Fence Hub - App Context
+
+**Business**: Discount Fence Enterprises USA - fence installation company in South Florida.
+
+**Users**:
+- Sales Reps (mobile-first): Field workers using phone/tablet for quotes, photos, AI coach
+- Yard Workers (mobile-only): Pick materials from yard, stage for delivery, use QR codes
+- Operations Managers (desktop): Manage request queue, assignments, scheduling
+- Leadership: Track KPIs, operating plans, business intelligence
+
+**Core Workflow**: Sales creates quote → BOM generated → Pick list created → Yard picks materials → Staged → Loaded → Delivered
+
+**Key Features**:
+- Ops Hub: BOM Calculator (fence quotes), Pick Lists, Yard Mobile interface
+- Requests: Pricing/support/material requests with queue management
+- Communication: Team announcements, direct messages, chat
+- Sales Tools: AI Sales Coach, Pre-Stain Calculator, Photo Gallery
+- Analytics: Sales, operations, and yard performance dashboards
+- Leadership Hub: Operating plans, function workspaces, KPI tracking
+
+**UX Patterns**:
+- Mobile: Large touch targets, collapsible headers, card-based lists
+- Desktop: Sidebar navigation, queue views with filters
+- Role-based visibility: Features shown/hidden per user role
+- Real-time updates for pick lists, chat, notifications
+
+**Integrations**: ServiceTitan (planned export), QuickBooks Online (planned sync)
+`;
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -11,44 +42,43 @@ export const handler: Handler = async (event) => {
       throw new Error('Anthropic API key not configured');
     }
 
-    const { transcript } = JSON.parse(event.body || '{}');
+    const { rawIdea, transcript } = JSON.parse(event.body || '{}');
+    const ideaText = rawIdea || transcript;
 
-    const prompt = `You are an AI assistant helping expand and structure roadmap ideas for a software development team.
+    const prompt = `You are a UX strategist helping analyze roadmap ideas for the Discount Fence Hub app.
 
-A team member just recorded a voice memo about a feature idea or improvement. Your job is to:
-1. Extract a clear, concise title
-2. Suggest which hub/category this belongs to
-3. Estimate importance and complexity
-4. Expand and articulate the raw idea into a well-structured description
-5. Add implementation thoughts, best practices, and considerations
+${APP_CONTEXT}
 
-Voice transcript: "${transcript}"
+A team member shared this idea:
+"${ideaText}"
 
-Available hubs:
-- ops-hub: Operations Hub - BOM calculator, yard management, pick lists, inventory
-- requests: Request Hub - pricing requests, material requests, support tickets
-- chat: Chat - messaging, notifications, communication features
-- analytics: Analytics - reporting, dashboards, data visualization
-- settings: Settings - configuration, user management, system settings
-- general: General - cross-cutting concerns, infrastructure, general improvements
-- leadership: Leadership - executive tools, KPIs, business intelligence
-- future: Future - long-term vision, major initiatives, R&D
+**Your job**: Provide UX-focused analysis that helps prioritize and shape this feature. Focus on user experience, workflows, and business value - NOT technical implementation (that's handled separately during development).
 
-Complexity levels:
-- XS: Very simple, < 1 hour, minor text/config change
-- S: Simple, 1-4 hours, single file change
-- M: Medium, 4-16 hours, few files, some logic
-- L: Large, 1-3 days, multiple components, backend work
-- XL: Extra Large, 3+ days, complex feature, multiple systems
+**Hub Categories**:
+- ops-hub: BOM calculator, yard management, pick lists
+- requests: Pricing/support/material request workflows
+- chat: Messaging, notifications, team communication
+- analytics: Reporting, dashboards, KPIs
+- settings: Configuration, user management
+- general: Cross-cutting, app-wide improvements
+- leadership: Executive tools, operating plans
+- future: Long-term vision, major initiatives
 
-Respond ONLY with valid JSON in this exact format:
+**Complexity** (effort to design + build):
+- XS: Tiny tweak (<1hr)
+- S: Small (few hours)
+- M: Medium (1 day)
+- L: Large (few days)
+- XL: Major initiative (week+)
+
+Respond ONLY with valid JSON:
 {
-  "title": "concise professional title for the feature/idea",
-  "hub": "one of: ops-hub, requests, chat, analytics, settings, general, leadership, future",
-  "importance": 1-5 (5 being most important),
+  "title": "concise professional title",
+  "hub": "one of the hub categories above",
+  "importance": 1-5,
   "complexity": "XS|S|M|L|XL",
-  "raw_idea": "cleaned up version of what the user said, preserving their voice",
-  "claude_analysis": "Expanded analysis with implementation considerations, best practices, potential challenges, and suggested approach. Be specific and actionable."
+  "raw_idea": "cleaned up version preserving their voice and intent",
+  "claude_analysis": "UX-focused analysis covering: (1) Which user persona benefits most and how their workflow improves, (2) How this integrates with existing features, (3) Key UX considerations (mobile vs desktop, information density, touch targets), (4) Business value - time saved, errors reduced, customer experience improved, (5) Potential gotchas or scope creep risks. Keep it concise and actionable. Do NOT include technical implementation details, testing strategies, or code architecture - focus on the WHAT and WHY, not the HOW."
 }`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
