@@ -23,14 +23,53 @@ interface RoadmapHubProps {
   onBack?: () => void;
 }
 
+const STORAGE_KEY = 'roadmap-view-state';
+
+interface ViewState {
+  selectedHubs: HubKey[];
+}
+
+function loadViewState(): ViewState | null {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+function saveViewState(state: ViewState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export default function RoadmapHub({ onBack }: RoadmapHubProps) {
   const { profile } = useAuth();
   const [items, setItems] = useState<RoadmapItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedHubs, setSelectedHubs] = useState<Set<HubKey>>(new Set(Object.keys(HUB_CONFIG) as HubKey[]));
+
+  // Initialize selectedHubs from localStorage or default to all
+  const [selectedHubs, setSelectedHubs] = useState<Set<HubKey>>(() => {
+    const saved = loadViewState();
+    if (saved?.selectedHubs?.length) {
+      return new Set(saved.selectedHubs);
+    }
+    return new Set(Object.keys(HUB_CONFIG) as HubKey[]);
+  });
 
   // Check if user is admin (can change statuses)
   const isAdmin = profile?.role === 'admin';
+
+  // Save view state when selectedHubs changes
+  useEffect(() => {
+    saveViewState({ selectedHubs: Array.from(selectedHubs) });
+  }, [selectedHubs]);
 
   // Load items
   useEffect(() => {

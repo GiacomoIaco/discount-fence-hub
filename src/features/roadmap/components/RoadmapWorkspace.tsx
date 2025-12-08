@@ -20,12 +20,14 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Plus,
   Search,
   Filter,
   RefreshCw,
   User,
-  Mic
+  Mic,
+  SlidersHorizontal
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
@@ -39,6 +41,35 @@ interface RoadmapWorkspaceProps {
   onRefresh: () => void;
   selectedHubs: Set<HubKey>;
   isAdmin: boolean;
+}
+
+const FILTER_STORAGE_KEY = 'roadmap-filter-state';
+
+interface FilterState {
+  statusFilter: StatusType | 'all';
+  importanceFilter: number | 'all';
+  complexityFilter: ComplexityType | 'all';
+  showCompleted: boolean;
+}
+
+function loadFilterState(): FilterState | null {
+  try {
+    const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+function saveFilterState(state: FilterState) {
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 // Sortable item card with description on right (desktop)
@@ -81,10 +112,10 @@ function SortableItemCard({
         isDragging ? 'shadow-lg ring-2 ring-blue-500' : 'hover:shadow-md'
       } ${hubConfig?.border || 'border-gray-200'}`}
     >
-      {/* Desktop: Two-column layout */}
-      <div className="flex gap-4 items-start">
-        {/* Left side - Main info (no flex-1 so it doesn't push description to edge) */}
-        <div className="flex items-start gap-3 min-w-0 flex-1 lg:flex-initial lg:max-w-[60%]">
+      {/* Desktop: Two-column layout with description pushed to right */}
+      <div className="flex gap-4 items-start justify-between">
+        {/* Left side - Main info */}
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           {/* Drag handle */}
           <button
             {...attributes}
@@ -167,9 +198,9 @@ function SortableItemCard({
           </div>
         </div>
 
-        {/* Right side - Description (desktop only) */}
+        {/* Right side - Description (desktop only, pushed to right edge) */}
         {hasDescription && (
-          <div className="hidden lg:block w-80 flex-shrink-0 border-l border-gray-100 pl-4">
+          <div className="hidden lg:flex lg:w-72 xl:w-80 flex-shrink-0 border-l border-gray-100 pl-4 ml-auto">
             <div className="text-sm text-gray-600 max-h-24 overflow-y-auto">
               {item.raw_idea && (
                 <p className="line-clamp-3">{item.raw_idea}</p>
@@ -196,11 +227,27 @@ export default function RoadmapWorkspace({
 }: RoadmapWorkspaceProps) {
   const [localItems, setLocalItems] = useState<RoadmapItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusType | 'all'>('all');
-  const [importanceFilter, setImportanceFilter] = useState<number | 'all'>('all');
-  const [complexityFilter, setComplexityFilter] = useState<ComplexityType | 'all'>('all');
+
+  // Initialize filter state from localStorage
+  const savedFilters = loadFilterState();
+  const [statusFilter, setStatusFilter] = useState<StatusType | 'all'>(savedFilters?.statusFilter ?? 'all');
+  const [importanceFilter, setImportanceFilter] = useState<number | 'all'>(savedFilters?.importanceFilter ?? 'all');
+  const [complexityFilter, setComplexityFilter] = useState<ComplexityType | 'all'>(savedFilters?.complexityFilter ?? 'all');
+  const [showCompleted, setShowCompleted] = useState(savedFilters?.showCompleted ?? false);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<RoadmapItem | null>(null);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  // Save filter state when filters change
+  useEffect(() => {
+    saveFilterState({
+      statusFilter,
+      importanceFilter,
+      complexityFilter,
+      showCompleted,
+    });
+  }, [statusFilter, importanceFilter, complexityFilter, showCompleted]);
 
   // Sync local items with props
   useEffect(() => {
@@ -250,6 +297,11 @@ export default function RoadmapWorkspace({
 
   // Filter items
   const filteredItems = localItems.filter(item => {
+    // Hide completed items unless showCompleted is true
+    if (!showCompleted && (item.status === 'done' || item.status === 'wont_do')) {
+      return false;
+    }
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -288,13 +340,22 @@ export default function RoadmapWorkspace({
     );
   }
 
+  // Count active filters for badge
+  const activeFilterCount = [
+    statusFilter !== 'all',
+    importanceFilter !== 'all',
+    complexityFilter !== 'all',
+    showCompleted,
+  ].filter(Boolean).length;
+
   return (
     <div className="p-4 lg:p-6 h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 w-full lg:w-auto">
+      <div className="space-y-3 mb-6">
+        {/* Top row: Search + Actions */}
+        <div className="flex items-center gap-2">
           {/* Search */}
-          <div className="relative flex-1 w-full sm:max-w-md">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
@@ -305,52 +366,26 @@ export default function RoadmapWorkspace({
             />
           </div>
 
-          {/* Filters row */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
+          {/* Mobile: Filter toggle button */}
+          <button
+            onClick={() => setFiltersExpanded(!filtersExpanded)}
+            className="lg:hidden flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors relative"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline">Filters</span>
+            {filtersExpanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 text-xs bg-blue-600 text-white rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
-            {/* Status filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusType | 'all')}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Status</option>
-              {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                <option key={key} value={key}>{config.label}</option>
-              ))}
-            </select>
-
-            {/* Importance filter */}
-            <select
-              value={importanceFilter}
-              onChange={(e) => setImportanceFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Importance</option>
-              <option value="5">★★★★★ Critical</option>
-              <option value="4">★★★★☆ High</option>
-              <option value="3">★★★☆☆ Medium</option>
-              <option value="2">★★☆☆☆ Low</option>
-              <option value="1">★☆☆☆☆ Nice-to-have</option>
-            </select>
-
-            {/* Complexity filter */}
-            <select
-              value={complexityFilter}
-              onChange={(e) => setComplexityFilter(e.target.value as ComplexityType | 'all')}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Size</option>
-              {Object.entries(COMPLEXITY_CONFIG).map(([key, config]) => (
-                <option key={key} value={key}>{key} - {config.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+          {/* Actions */}
           <button
             onClick={onRefresh}
             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -365,6 +400,77 @@ export default function RoadmapWorkspace({
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Add Idea</span>
           </button>
+        </div>
+
+        {/* Filters row - always visible on desktop, collapsible on mobile */}
+        <div className={`${filtersExpanded ? 'block' : 'hidden'} lg:block`}>
+          <div className="flex flex-wrap items-center gap-2 p-3 lg:p-0 bg-gray-50 lg:bg-transparent rounded-lg lg:rounded-none">
+            <Filter className="w-4 h-4 text-gray-400" />
+
+            {/* Status filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusType | 'all')}
+              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="all">All Status</option>
+              {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                <option key={key} value={key}>{config.label}</option>
+              ))}
+            </select>
+
+            {/* Importance filter */}
+            <select
+              value={importanceFilter}
+              onChange={(e) => setImportanceFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="all">All Importance</option>
+              <option value="5">★★★★★ Critical</option>
+              <option value="4">★★★★☆ High</option>
+              <option value="3">★★★☆☆ Medium</option>
+              <option value="2">★★☆☆☆ Low</option>
+              <option value="1">★☆☆☆☆ Nice-to-have</option>
+            </select>
+
+            {/* Complexity filter */}
+            <select
+              value={complexityFilter}
+              onChange={(e) => setComplexityFilter(e.target.value as ComplexityType | 'all')}
+              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="all">All Size</option>
+              {Object.entries(COMPLEXITY_CONFIG).map(([key, config]) => (
+                <option key={key} value={key}>{key} - {config.label}</option>
+              ))}
+            </select>
+
+            {/* Show Completed toggle */}
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-2">
+              <input
+                type="checkbox"
+                checked={showCompleted}
+                onChange={(e) => setShowCompleted(e.target.checked)}
+                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+              />
+              <span>Show Completed</span>
+            </label>
+
+            {/* Clear filters button - show when filters are active */}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => {
+                  setStatusFilter('all');
+                  setImportanceFilter('all');
+                  setComplexityFilter('all');
+                  setShowCompleted(false);
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700 underline ml-2"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

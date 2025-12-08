@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Trash2, Save, User, Lock } from 'lucide-react';
+import { X, Trash2, Save, User, Lock, MessageSquarePlus, Sparkles } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
 import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType } from '../types';
@@ -20,10 +20,12 @@ export default function RoadmapItemModal({
 }: RoadmapItemModalProps) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [formData, setFormData] = useState({
     title: item.title,
     raw_idea: item.raw_idea || '',
     claude_analysis: item.claude_analysis || '',
+    user_notes: item.user_notes || '',
     status: item.status,
     importance: item.importance || 3,
     complexity: item.complexity || 'M',
@@ -37,12 +39,13 @@ export default function RoadmapItemModal({
       return;
     }
 
-    // Non-admins can only update title and descriptions, not status
+    // Non-admins can only update title, descriptions, and user_notes, not status
     const updateData = isAdmin
       ? {
           title: formData.title.trim(),
           raw_idea: formData.raw_idea.trim() || null,
           claude_analysis: formData.claude_analysis.trim() || null,
+          user_notes: formData.user_notes.trim() || null,
           status: formData.status,
           importance: formData.importance,
           complexity: formData.complexity,
@@ -50,6 +53,7 @@ export default function RoadmapItemModal({
       : {
           title: formData.title.trim(),
           raw_idea: formData.raw_idea.trim() || null,
+          user_notes: formData.user_notes.trim() || null,
         };
 
     setSaving(true);
@@ -97,9 +101,48 @@ export default function RoadmapItemModal({
     }
   };
 
+  const handleReanalyze = async () => {
+    if (!formData.user_notes.trim()) {
+      toast.error('Add some notes first before re-analyzing');
+      return;
+    }
+
+    setReanalyzing(true);
+    try {
+      // Combine original idea with user notes for re-analysis
+      const combinedIdea = `${formData.raw_idea}\n\n--- Additional thoughts ---\n${formData.user_notes}`;
+
+      const response = await fetch('/.netlify/functions/expand-roadmap-idea', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawIdea: combinedIdea }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to re-analyze idea');
+      }
+
+      const { expandedIdea } = await response.json();
+
+      // Update the claude_analysis with new analysis
+      setFormData(prev => ({
+        ...prev,
+        claude_analysis: expandedIdea,
+        // Keep user_notes so user can see what was submitted
+      }));
+
+      toast.success('Re-analysis complete! Review and save.');
+    } catch (error) {
+      console.error('Error re-analyzing:', error);
+      toast.error('Failed to re-analyze idea');
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className={`flex items-center justify-between p-4 border-b ${hubConfig?.border || 'border-gray-200'} ${hubConfig?.bgLight || 'bg-gray-50'}`}>
           <div className="flex items-center gap-3 flex-wrap">
@@ -125,84 +168,80 @@ export default function RoadmapItemModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-4 space-y-4">
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+        <div className="flex-1 overflow-auto p-4 lg:p-6 space-y-4">
+          {/* Title row */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
 
-          {/* Status - Admin only */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-              Status
-              {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
-            </label>
-            {isAdmin ? (
-              <div className="flex flex-wrap gap-2">
-                {(Object.keys(STATUS_CONFIG) as StatusType[]).map((status) => {
-                  const config = STATUS_CONFIG[status];
-                  const isSelected = formData.status === status;
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, status })}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
-                        isSelected
-                          ? `${config.bgColor} ${config.color} ring-2 ring-offset-1 ring-current`
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {config.label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className={`px-3 py-1.5 text-sm font-medium rounded-full ${STATUS_CONFIG[item.status].bgColor} ${STATUS_CONFIG[item.status].color}`}>
-                  {STATUS_CONFIG[item.status].label}
-                </span>
-                <span className="text-xs text-gray-400 italic">Only admins can change status</span>
-              </div>
-            )}
-          </div>
-
-          {/* Importance & Complexity - Admin only */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            {/* Status - Admin only */}
+            <div className="lg:w-auto">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                Importance
+                Status
                 {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
               </label>
-              <div className="flex gap-1">
+              {isAdmin ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {(Object.keys(STATUS_CONFIG) as StatusType[]).map((status) => {
+                    const config = STATUS_CONFIG[status];
+                    const isSelected = formData.status === status;
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, status })}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+                          isSelected
+                            ? `${config.bgColor} ${config.color} ring-2 ring-offset-1 ring-current`
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1.5 text-sm font-medium rounded-full ${STATUS_CONFIG[item.status].bgColor} ${STATUS_CONFIG[item.status].color}`}>
+                    {STATUS_CONFIG[item.status].label}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Importance & Complexity row - more compact */}
+          <div className="flex flex-wrap items-center gap-4 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Importance:</label>
+              <div className="flex">
                 {[1, 2, 3, 4, 5].map((level) => (
                   <button
                     key={level}
                     type="button"
                     onClick={() => isAdmin && setFormData({ ...formData, importance: level })}
                     disabled={!isAdmin}
-                    className={`flex-1 py-2 text-xl transition-colors ${
+                    className={`px-1 text-lg transition-colors ${
                       formData.importance >= level ? 'text-yellow-500' : 'text-gray-300'
-                    } ${!isAdmin ? 'cursor-not-allowed' : ''}`}
+                    } ${!isAdmin ? 'cursor-not-allowed' : 'hover:scale-110'}`}
                   >
                     ★
                   </button>
                 ))}
               </div>
+              {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
             </div>
 
-            <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                Complexity
-                {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
-              </label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Size:</label>
               <div className="flex gap-1">
                 {(Object.keys(COMPLEXITY_CONFIG) as ComplexityType[]).map((size) => (
                   <button
@@ -210,55 +249,90 @@ export default function RoadmapItemModal({
                     type="button"
                     onClick={() => isAdmin && setFormData({ ...formData, complexity: size })}
                     disabled={!isAdmin}
-                    className={`flex-1 py-2 text-sm font-medium rounded border transition-colors ${
+                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
                       formData.complexity === size
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     } ${!isAdmin ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     {size}
                   </button>
                 ))}
               </div>
+              {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+            </div>
+
+            {/* Metadata inline */}
+            <div className="text-xs text-gray-400 ml-auto">
+              Created: {new Date(item.created_at).toLocaleDateString()}
+              {item.completed_at && ` • Completed: ${new Date(item.completed_at).toLocaleDateString()}`}
             </div>
           </div>
 
-          {/* Raw Idea */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Raw Idea / Description</label>
-            <textarea
-              value={formData.raw_idea}
-              onChange={(e) => setFormData({ ...formData, raw_idea: e.target.value })}
-              placeholder="Quick brain dump - what's the idea about?"
-              rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+          {/* Two-column layout for Raw Idea and Claude Analysis */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left column - Raw Idea */}
+            <div className="flex flex-col">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Original Idea / Description
+              </label>
+              <textarea
+                value={formData.raw_idea}
+                onChange={(e) => setFormData({ ...formData, raw_idea: e.target.value })}
+                placeholder="Quick brain dump - what's the idea about?"
+                rows={6}
+                className="flex-1 min-h-[150px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              />
+            </div>
+
+            {/* Right column - Claude Analysis */}
+            <div className="flex flex-col">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                <Sparkles className="w-4 h-4 text-blue-500" />
+                Claude Analysis
+                {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+              </label>
+              <textarea
+                value={formData.claude_analysis}
+                onChange={(e) => isAdmin && setFormData({ ...formData, claude_analysis: e.target.value })}
+                placeholder="AI-expanded thoughts, best practices, implementation notes..."
+                rows={6}
+                disabled={!isAdmin}
+                className={`flex-1 min-h-[150px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              />
+            </div>
           </div>
 
-          {/* Claude Analysis - Admin only */}
-          <div>
+          {/* User Notes section - for additional thoughts */}
+          <div className="border-t border-gray-200 pt-4">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-              Claude Analysis
-              {!isAdmin && <Lock className="w-3 h-3 text-gray-400" />}
+              <MessageSquarePlus className="w-4 h-4 text-green-600" />
+              Additional Thoughts
+              <span className="text-xs text-gray-400 font-normal">
+                (Add notes here, then click "Re-analyze" to update Claude's analysis)
+              </span>
             </label>
-            <textarea
-              value={formData.claude_analysis}
-              onChange={(e) => isAdmin && setFormData({ ...formData, claude_analysis: e.target.value })}
-              placeholder="Expanded thoughts, best practices, implementation notes from Claude sessions..."
-              rows={4}
-              disabled={!isAdmin}
-              className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
-            />
-          </div>
-
-          {/* Metadata */}
-          <div className="text-xs text-gray-500 space-y-1 pt-2 border-t border-gray-200">
-            <p>Created: {new Date(item.created_at).toLocaleString()}</p>
-            {item.updated_at !== item.created_at && (
-              <p>Updated: {new Date(item.updated_at).toLocaleString()}</p>
-            )}
-            {item.completed_at && (
-              <p>Completed: {new Date(item.completed_at).toLocaleString()}</p>
+            <div className="flex flex-col lg:flex-row gap-3">
+              <textarea
+                value={formData.user_notes}
+                onChange={(e) => setFormData({ ...formData, user_notes: e.target.value })}
+                placeholder="After reviewing the idea and analysis, add any additional thoughts, requirements, or questions here..."
+                rows={3}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+              />
+              <button
+                onClick={handleReanalyze}
+                disabled={reanalyzing || !formData.user_notes.trim()}
+                className="lg:self-end flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <Sparkles className="w-4 h-4" />
+                {reanalyzing ? 'Analyzing...' : 'Re-analyze'}
+              </button>
+            </div>
+            {item.user_notes && item.user_notes !== formData.user_notes && (
+              <p className="text-xs text-gray-400 mt-1">
+                Previous notes: {item.user_notes.substring(0, 100)}...
+              </p>
             )}
           </div>
         </div>

@@ -5,6 +5,7 @@ export interface RoadmapItem {
   title: string;
   raw_idea: string | null;
   claude_analysis: string | null;
+  user_notes: string | null;
   status: 'idea' | 'researched' | 'approved' | 'in_progress' | 'done' | 'wont_do' | 'parked';
   importance: number | null;
   complexity: 'XS' | 'S' | 'M' | 'L' | 'XL' | null;
