@@ -56,6 +56,7 @@ interface FilterState {
   importanceFilter: number | 'all';
   complexityFilter: ComplexityType | 'all';
   showCompleted: boolean;
+  showParked: boolean;
   sortBy: SortOption;
 }
 
@@ -135,10 +136,13 @@ function SortableItemCard({
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {/* Code and Title */}
+            {/* Code, Hub, and Title */}
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${hubConfig?.bgLight || 'bg-gray-100'} ${hubConfig?.textColor || 'text-gray-600'}`}>
                 {item.code}
+              </span>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${hubConfig?.bgLight || 'bg-gray-100'} ${hubConfig?.textColor || 'text-gray-600'}`}>
+                {hubConfig?.label || item.hub}
               </span>
               <h3 className="font-medium text-gray-900 cursor-pointer hover:text-blue-600" onClick={onOpen}>
                 {item.title}
@@ -243,6 +247,7 @@ export default function RoadmapWorkspace({
   const [importanceFilter, setImportanceFilter] = useState<number | 'all'>(savedFilters?.importanceFilter ?? 'all');
   const [complexityFilter, setComplexityFilter] = useState<ComplexityType | 'all'>(savedFilters?.complexityFilter ?? 'all');
   const [showCompleted, setShowCompleted] = useState(savedFilters?.showCompleted ?? false);
+  const [showParked, setShowParked] = useState(savedFilters?.showParked ?? false);
   const [sortBy, setSortBy] = useState<SortOption>(savedFilters?.sortBy ?? 'importance');
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -286,9 +291,10 @@ export default function RoadmapWorkspace({
       importanceFilter,
       complexityFilter,
       showCompleted,
+      showParked,
       sortBy,
     });
-  }, [statusFilter, importanceFilter, complexityFilter, showCompleted, sortBy]);
+  }, [statusFilter, importanceFilter, complexityFilter, showCompleted, showParked, sortBy]);
 
   // Sync local items with props
   useEffect(() => {
@@ -340,6 +346,11 @@ export default function RoadmapWorkspace({
   const filteredItems = localItems.filter(item => {
     // Hide completed items unless showCompleted is true
     if (!showCompleted && (item.status === 'done' || item.status === 'wont_do')) {
+      return false;
+    }
+
+    // Hide parked items unless showParked is true
+    if (!showParked && item.status === 'parked') {
       return false;
     }
 
@@ -399,6 +410,7 @@ export default function RoadmapWorkspace({
     importanceFilter !== 'all',
     complexityFilter !== 'all',
     showCompleted,
+    showParked,
   ].filter(Boolean).length;
 
   return (
@@ -536,6 +548,17 @@ export default function RoadmapWorkspace({
               <span>Show Completed</span>
             </label>
 
+            {/* Show Parked toggle */}
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-2">
+              <input
+                type="checkbox"
+                checked={showParked}
+                onChange={(e) => setShowParked(e.target.checked)}
+                className="w-4 h-4 text-yellow-600 bg-gray-100 border-gray-300 rounded focus:ring-yellow-500 focus:ring-2 cursor-pointer"
+              />
+              <span>Show Parked</span>
+            </label>
+
             {/* Clear filters button - show when filters are active */}
             {activeFilterCount > 0 && (
               <button
@@ -544,6 +567,7 @@ export default function RoadmapWorkspace({
                   setImportanceFilter('all');
                   setComplexityFilter('all');
                   setShowCompleted(false);
+                  setShowParked(false);
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline ml-2"
               >
