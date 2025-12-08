@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -45,6 +45,7 @@ const Login = lazy(() => import('./components/auth/Login'));
 const BOMCalculatorHub = lazy(() => import('./features/bom_calculator/BOMCalculatorHub'));
 const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
 const MyTodos = lazy(() => import('./features/my-todos').then(m => ({ default: m.MyTodos })));
+const RoadmapHub = lazy(() => import('./features/roadmap/RoadmapHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -57,7 +58,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -85,8 +86,8 @@ function App() {
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
-  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'yard' || activeSection === 'leadership';
+  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap)
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -184,6 +185,7 @@ function App() {
       { id: 'sales-resources' as Section, menuId: 'sales-resources', name: 'Sales Resources', icon: BookOpen },
       { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target },
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo },
+      { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
       { id: 'team' as Section, menuId: 'team', name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
@@ -435,6 +437,15 @@ function App() {
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             <MyTodos onBack={() => setActiveSection('home')} />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'roadmap') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <RoadmapHub onBack={() => setActiveSection('home')} />
           </Suspense>
         </ErrorBoundary>
       );

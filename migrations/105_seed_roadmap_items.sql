@@ -98,11 +98,12 @@ INSERT INTO roadmap_items (code, hub, title, raw_idea, status, importance, compl
 -- ============================================
 -- UPDATE SEQUENCES TO CONTINUE FROM MAX
 -- ============================================
+-- Use GREATEST(..., 1) to ensure minimum value of 1 for sequences
 
-SELECT setval('roadmap_seq_ops', (SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'ops-hub'));
-SELECT setval('roadmap_seq_requests', (SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'requests'));
-SELECT setval('roadmap_seq_general', (SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'general'));
-SELECT setval('roadmap_seq_settings', (SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'settings'));
-SELECT setval('roadmap_seq_analytics', (SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'analytics'));
-SELECT setval('roadmap_seq_chat', (SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'chat'));
-SELECT setval('roadmap_seq_leadership', 0);
+SELECT setval('roadmap_seq_ops', GREATEST((SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'ops-hub'), 1));
+SELECT setval('roadmap_seq_requests', GREATEST((SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'requests'), 1));
+SELECT setval('roadmap_seq_general', GREATEST((SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'general'), 1));
+SELECT setval('roadmap_seq_settings', GREATEST((SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'settings'), 1));
+SELECT setval('roadmap_seq_analytics', GREATEST((SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'analytics'), 1));
+SELECT setval('roadmap_seq_chat', GREATEST((SELECT COALESCE(MAX(SUBSTRING(code FROM 3)::INTEGER), 0) FROM roadmap_items WHERE hub = 'chat'), 1));
+SELECT setval('roadmap_seq_leadership', 1, false);
