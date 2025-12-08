@@ -217,14 +217,14 @@ function App() {
   }, []);
 
   // Filter navigation items based on menu visibility settings
-  // Note: Platform icons in Menu Visibility control Ops Hub submenu, not main sidebar
-  // Yard is hidden from desktop sidebar (access via Ops Hub) but shown on mobile
+  // This checks both role visibility AND platform availability
   const visibleNavigationItems = navigationItems.filter(item => {
     // Hide Yard from desktop sidebar - it's accessed through Ops Hub
     if (item.menuId === 'bom-yard' && currentPlatform === 'desktop') {
       return false;
     }
-    return canSeeMenuItem(item.menuId, { overrideRole: userRole });
+    // Check both role visibility AND platform availability
+    return canSeeMenuItem(item.menuId, { overrideRole: userRole, platform: currentPlatform });
   });
 
   const renderContent = () => {

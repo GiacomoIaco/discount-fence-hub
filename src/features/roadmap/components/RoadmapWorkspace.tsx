@@ -168,8 +168,8 @@ function SortableItemCard({
         </div>
 
         {/* Right side - Description (desktop only) */}
-        <div className="hidden lg:block w-1/3 border-l border-gray-100 pl-4">
-          {hasDescription ? (
+        {hasDescription && (
+          <div className="hidden lg:block w-80 flex-shrink-0 border-l border-gray-100 pl-4">
             <div className="text-sm text-gray-600 max-h-24 overflow-y-auto">
               {item.raw_idea && (
                 <p className="line-clamp-3">{item.raw_idea}</p>
@@ -180,10 +180,8 @@ function SortableItemCard({
                 </p>
               )}
             </div>
-          ) : (
-            <p className="text-xs text-gray-400 italic">No description</p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
