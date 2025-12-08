@@ -104,6 +104,20 @@ function App() {
     }
   }, [profile?.role]);
 
+  // Handle PWA launch with URL (for QR codes scanned when app is installed as PWA)
+  useEffect(() => {
+    if ('launchQueue' in window && profile?.role) {
+      (window as any).launchQueue.setConsumer((launchParams: any) => {
+        if (launchParams.targetURL) {
+          const url = new URL(launchParams.targetURL);
+          if (url.searchParams.has('claim')) {
+            setActiveSection('bom-calculator');
+          }
+        }
+      });
+    }
+  }, [profile?.role]);
+
   // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {
     if (userRole === 'yard' && activeSection !== 'yard' && activeSection !== 'bom-calculator') {

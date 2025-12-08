@@ -15,7 +15,18 @@
       "Bash(git -C C:/Users/giaco/discount-fence-hub add src/features/roadmap/RoadmapHub.tsx src/features/roadmap/components/RoadmapItemModal.tsx src/features/roadmap/components/RoadmapWorkspace.tsx src/features/roadmap/types.ts migrations/110_roadmap_user_notes.sql)",
       "Bash(git -C C:/Users/giaco/discount-fence-hub commit:*)",
       "Bash(git -C C:/Users/giaco/discount-fence-hub add src/features/roadmap/components/RoadmapWorkspace.tsx)",
-      "Bash(git -C C:/Users/giaco/discount-fence-hub add src/features/roadmap/components/RoadmapItemModal.tsx src/features/roadmap/components/RoadmapWorkspace.tsx)"
+      "Bash(git -C C:/Users/giaco/discount-fence-hub add src/features/roadmap/components/RoadmapItemModal.tsx src/features/roadmap/components/RoadmapWorkspace.tsx)",
+      "Bash(dir:*)",
+      "mcp__chrome-devtools__wait_for",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__press_key"
     ],
     "deny": [],
     "ask": []

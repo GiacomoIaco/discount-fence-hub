@@ -22,6 +22,10 @@ export default defineConfig({
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        // Handle external links properly - preserve URL when PWA is launched
+        launch_handler: {
+          client_mode: ['navigate-existing', 'auto']
+        },
         icons: [
           {
             src: '/Logo-DF-Transparent.png',
