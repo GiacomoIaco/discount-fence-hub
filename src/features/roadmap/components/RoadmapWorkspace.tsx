@@ -30,7 +30,9 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   Copy,
-  Check
+  Check,
+  BookOpen,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../../lib/supabase';
@@ -254,6 +256,7 @@ export default function RoadmapWorkspace({
   const [selectedItem, setSelectedItem] = useState<RoadmapItem | null>(null);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
 
   // Copy filtered items as markdown
   const copyAsMarkdown = async () => {
@@ -452,6 +455,13 @@ export default function RoadmapWorkspace({
 
           {/* Actions */}
           <button
+            onClick={() => setShowKnowledgeModal(true)}
+            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            title="AI Knowledge Context"
+          >
+            <BookOpen className="w-5 h-5" />
+          </button>
+          <button
             onClick={copyAsMarkdown}
             className={`p-2 rounded-lg transition-colors ${
               copied ? 'text-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-100'
@@ -644,6 +654,83 @@ export default function RoadmapWorkspace({
           }}
           isAdmin={isAdmin}
         />
+      )}
+
+      {/* Knowledge Modal */}
+      {showKnowledgeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
+              <div className="flex items-center gap-3">
+                <BookOpen className="w-6 h-6 text-blue-600" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">AI Knowledge Context</h2>
+                  <p className="text-xs text-gray-500">This context is provided to Claude when analyzing roadmap ideas</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowKnowledgeModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/50 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              <div className="prose prose-sm max-w-none">
+                <h3 className="text-blue-800">Discount Fence Hub - App Context</h3>
+
+                <p><strong>Business:</strong> Discount Fence Enterprises USA - fence installation company in South Florida.</p>
+
+                <h4>Users:</h4>
+                <ul>
+                  <li><strong>Sales Reps (mobile-first):</strong> Field workers using phone/tablet for quotes, photos, AI coach</li>
+                  <li><strong>Yard Workers (mobile-only):</strong> Pick materials from yard, stage for delivery, use QR codes</li>
+                  <li><strong>Operations Managers (desktop):</strong> Manage request queue, assignments, scheduling</li>
+                  <li><strong>Leadership:</strong> Track KPIs, operating plans, business intelligence</li>
+                </ul>
+
+                <h4>Core Workflow:</h4>
+                <p>Sales creates quote → BOM generated → Pick list created → Yard picks materials → Staged → Loaded → Delivered</p>
+
+                <h4>Key Features:</h4>
+                <ul>
+                  <li><strong>Ops Hub:</strong> BOM Calculator (fence quotes), Pick Lists, Yard Mobile interface</li>
+                  <li><strong>Requests:</strong> Pricing/support/material requests with queue management</li>
+                  <li><strong>Communication:</strong> Team announcements, direct messages, chat</li>
+                  <li><strong>Sales Tools:</strong> AI Sales Coach, Pre-Stain Calculator, Photo Gallery</li>
+                  <li><strong>Analytics:</strong> Sales, operations, and yard performance dashboards</li>
+                  <li><strong>Leadership Hub:</strong> Operating plans, function workspaces, KPI tracking</li>
+                </ul>
+
+                <h4>UX Patterns:</h4>
+                <ul>
+                  <li><strong>Mobile:</strong> Large touch targets, collapsible headers, card-based lists</li>
+                  <li><strong>Desktop:</strong> Sidebar navigation, queue views with filters</li>
+                  <li><strong>Role-based visibility:</strong> Features shown/hidden per user role</li>
+                  <li><strong>Real-time updates:</strong> For pick lists, chat, notifications</li>
+                </ul>
+
+                <h4>Integrations:</h4>
+                <p>ServiceTitan (planned export), QuickBooks Online (planned sync)</p>
+
+                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>To update this context:</strong> Create a roadmap item describing the changes needed,
+                    then ask Claude Code to update the <code>APP_CONTEXT</code> in <code>netlify/functions/expand-roadmap-idea.ts</code>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowKnowledgeModal(false)}
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
