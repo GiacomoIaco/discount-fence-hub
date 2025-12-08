@@ -44,6 +44,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB (to handle Survey.js bundle)
+        // Don't intercept /qr/* routes - let them load the intermediate HTML page
+        navigateFallbackDenylist: [/^\/qr\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.anthropic\.com\/.*/i,

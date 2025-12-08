@@ -3,6 +3,14 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# QR code intermediate page - must come before catch-all
+# This bypasses the PWA/SPA to load a plain HTML page that stores the claim code
+[[redirects]]
+  from = "/qr/*"
+  to = "/qr.html"
+  status = 200
+
+# SPA catch-all - serves index.html for all other routes
 [[redirects]]
   from = "/*"
   to = "/index.html"

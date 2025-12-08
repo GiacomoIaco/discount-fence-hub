@@ -94,18 +94,26 @@ function App() {
     }
   }, [isHubSection]);
 
-  // Handle QR code claim - supports both path (/claim/CODE) and query param (?claim=CODE)
-  // Wait for profile to load before navigating (otherwise role check fails and resets to home)
+  // Handle QR code claim - checks multiple sources for the claim code
+  // Priority: localStorage (from /qr page) > URL path > URL query param
   useEffect(() => {
     if (!profile?.role) return;
+
+    // Check localStorage first (set by /qr/CODE intermediate page)
+    const storedClaim = localStorage.getItem('qr-claim-code');
+    if (storedClaim) {
+      // Move to sessionStorage for BOMCalculatorHub and clear localStorage
+      sessionStorage.setItem('qr-claim-code', storedClaim);
+      localStorage.removeItem('qr-claim-code');
+      setActiveSection('bom-calculator');
+      return;
+    }
 
     // Check for path-based claim: /claim/PROJECT123
     const pathMatch = window.location.pathname.match(/^\/claim\/([^/]+)/);
     if (pathMatch) {
       const claimCode = pathMatch[1];
-      // Store claim code for BOMCalculatorHub to use
       sessionStorage.setItem('qr-claim-code', claimCode);
-      // Clean up URL
       window.history.replaceState({}, '', '/');
       setActiveSection('bom-calculator');
       return;
