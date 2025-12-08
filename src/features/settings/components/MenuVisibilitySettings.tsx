@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useMenuVisibility } from '../../../hooks/useMenuVisibility';
-import type { Platform } from '../../../hooks/useMenuVisibility';
+import type { Platform, MenuCategory } from '../../../hooks/useMenuVisibility';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import { X, Users, Check, Monitor, Tablet, Smartphone } from 'lucide-react';
+
+const CATEGORY_OPTIONS: { value: MenuCategory; label: string }[] = [
+  { value: 'main', label: 'Main' },
+  { value: 'communication', label: 'Communication' },
+  { value: 'requests', label: 'Requests' },
+  { value: 'operations', label: 'Operations' },
+  { value: 'admin', label: 'Leadership' },
+  { value: 'tools', label: 'Tools' },
+  { value: 'system', label: 'System' },
+];
 
 interface UserProfile {
   id: string;
@@ -68,6 +78,38 @@ const MenuVisibilitySettings = () => {
       showSuccess('Platform visibility updated');
     } else {
       showError('Failed to update platform visibility');
+    }
+  };
+
+  const handleUpdateCategory = async (menuId: string, category: MenuCategory) => {
+    try {
+      const { error } = await supabase
+        .from('menu_visibility')
+        .update({ category, updated_at: new Date().toISOString() })
+        .eq('menu_id', menuId);
+
+      if (error) throw error;
+      showSuccess('Category updated');
+      // Reload to reflect changes
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating category:', error);
+      showError('Failed to update category');
+    }
+  };
+
+  const handleUpdateSortOrder = async (menuId: string, sortOrder: number) => {
+    try {
+      const { error } = await supabase
+        .from('menu_visibility')
+        .update({ sort_order: sortOrder, updated_at: new Date().toISOString() })
+        .eq('menu_id', menuId);
+
+      if (error) throw error;
+      showSuccess('Sort order updated');
+    } catch (error) {
+      console.error('Error updating sort order:', error);
+      showError('Failed to update sort order');
     }
   };
 
@@ -150,6 +192,8 @@ const MenuVisibilitySettings = () => {
             <thead>
               <tr className="border-b-2 border-gray-200">
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Menu Item</th>
+                <th className="text-left py-3 px-2 font-semibold text-gray-700 min-w-[120px]">Category</th>
+                <th className="text-center py-3 px-2 font-semibold text-gray-700 min-w-[50px]">Order</th>
                 <th className="text-center py-3 px-2 font-semibold text-gray-700">
                   <div className="flex items-center justify-center gap-1">
                     <Monitor className="w-4 h-4" />
@@ -221,6 +265,27 @@ const MenuVisibilitySettings = () => {
                 return (
                 <tr key={item.menu_id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{item.menu_name}</td>
+                  <td className="py-3 px-2">
+                    <select
+                      value={item.category || 'tools'}
+                      onChange={(e) => handleUpdateCategory(item.menu_id, e.target.value as MenuCategory)}
+                      className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {CATEGORY_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="text-center py-3 px-2">
+                    <input
+                      type="number"
+                      value={item.sort_order || 100}
+                      onChange={(e) => handleUpdateSortOrder(item.menu_id, parseInt(e.target.value) || 100)}
+                      className="w-14 text-sm text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min={1}
+                      max={999}
+                    />
+                  </td>
                   <td className="text-center py-3 px-2">
                     <div className="flex items-center justify-center gap-1">
                       {renderPlatformIcon('desktop', Monitor, showDesktop, supportsDesktop, 'text-blue-600', 'bg-blue-100')}
@@ -264,11 +329,14 @@ const MenuVisibilitySettings = () => {
           </table>
         </div>
 
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <p className="text-sm text-blue-800">
+            <strong>Category:</strong> Controls which section the item appears in on mobile navigation.
+            <strong> Order:</strong> Lower numbers appear first within each category.
+          </p>
           <p className="text-sm text-blue-800">
             <strong>Tip:</strong> Role settings apply to all users with that role.
-            User overrides let you enable/disable specific menu items for individual users,
-            regardless of their role settings.
+            User overrides let you enable/disable specific menu items for individual users.
           </p>
         </div>
       </div>
