@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import CustomPricingRequest from './CustomPricingRequest';
+import type { MenuCategory, MobileStyle } from '../../hooks/useMenuVisibility';
 
 type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap';
 
@@ -10,6 +11,9 @@ interface NavigationItem {
   icon: React.ComponentType<{ className?: string }>;
   badge?: number;
   separator?: boolean;
+  category?: MenuCategory;
+  sortOrder?: number;
+  mobileStyle?: MobileStyle | null;
 }
 
 // Lazy load components
@@ -191,144 +195,25 @@ export default function SalesRepView({
     );
   }
 
-  // Define styling and descriptions for each menu item
-  const getItemStyle = (menuId: string): {
-    gradient?: string;
-    bgColor?: string;
-    iconBg: string;
-    iconColor?: string;
-    description: string;
-    textColor?: string;
-    subtextColor?: string;
-    extra?: React.ReactNode;
-  } => {
-    const styles: Record<string, ReturnType<typeof getItemStyle>> = {
-      'presentation': {
-        gradient: 'from-blue-600 to-blue-700',
-        iconBg: 'bg-white/20',
-        description: "Show customers why we're #1",
-        subtextColor: 'text-blue-100'
-      },
-      'sales-coach': {
-        gradient: 'from-purple-600 to-purple-700',
-        iconBg: 'bg-white/20',
-        description: 'Record & analyze meetings',
-        subtextColor: 'text-purple-100'
-      },
-      'photo-gallery': {
-        bgColor: 'bg-white border-2 border-gray-200',
-        iconBg: 'bg-green-100',
-        iconColor: 'text-green-600',
-        description: 'Browse & capture job photos',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'stain-calculator': {
-        bgColor: 'bg-white border-2 border-gray-200',
-        iconBg: 'bg-orange-100',
-        iconColor: 'text-orange-600',
-        description: 'Show ROI vs DIY staining',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'direct-messages': {
-        gradient: 'from-blue-600 to-blue-700',
-        iconBg: 'bg-white/20',
-        description: 'Direct messages with team',
-        subtextColor: 'text-blue-100'
-      },
-      'team-communication': {
-        gradient: 'from-indigo-600 to-indigo-700',
-        iconBg: 'bg-white/20',
-        description: 'Team updates & announcements',
-        subtextColor: 'text-indigo-100'
-      },
-      'requests': {
-        gradient: 'from-green-600 to-green-700',
-        iconBg: 'bg-white/20',
-        description: 'Submit & track all requests',
-        subtextColor: 'text-green-100'
-      },
-      'my-requests': {
-        bgColor: 'bg-white border-2 border-gray-200',
-        iconBg: 'bg-blue-100',
-        iconColor: 'text-blue-600',
-        description: 'Track your submitted requests',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'bom-yard': {
-        gradient: 'from-amber-600 to-amber-700',
-        iconBg: 'bg-white/20',
-        description: 'Manage pick lists & staging',
-        subtextColor: 'text-amber-100'
-      },
-      'sales-resources': {
-        bgColor: 'bg-white border border-gray-200',
-        iconBg: 'bg-indigo-100',
-        iconColor: 'text-indigo-600',
-        description: 'Guides, catalogs & training',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'my-todos': {
-        bgColor: 'bg-white border-2 border-gray-200',
-        iconBg: 'bg-purple-100',
-        iconColor: 'text-purple-600',
-        description: 'Your tasks and to-do items',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'team': {
-        bgColor: 'bg-white border border-gray-200',
-        iconBg: 'bg-gray-100',
-        iconColor: 'text-gray-600',
-        description: 'App settings & preferences',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'analytics': {
-        bgColor: 'bg-white border-2 border-gray-200',
-        iconBg: 'bg-teal-100',
-        iconColor: 'text-teal-600',
-        description: 'View reports & metrics',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'leadership': {
-        gradient: 'from-slate-700 to-slate-800',
-        iconBg: 'bg-white/20',
-        description: 'Goals, targets & team overview',
-        subtextColor: 'text-slate-200'
-      },
-      'bom-calculator': {
-        bgColor: 'bg-white border-2 border-gray-200',
-        iconBg: 'bg-cyan-100',
-        iconColor: 'text-cyan-600',
-        description: 'Bill of materials calculator',
-        textColor: 'text-gray-900',
-        subtextColor: 'text-gray-600'
-      },
-      'dashboard': {
-        gradient: 'from-gray-700 to-gray-800',
-        iconBg: 'bg-white/20',
-        description: 'Overview & quick stats',
-        subtextColor: 'text-gray-200'
-      },
-      'roadmap': {
-        gradient: 'from-indigo-600 to-purple-600',
-        iconBg: 'bg-white/20',
-        description: 'Feature ideas & development roadmap',
-        subtextColor: 'text-indigo-100'
-      },
-    };
-    return styles[menuId] || {
-      bgColor: 'bg-white border border-gray-200',
-      iconBg: 'bg-gray-100',
-      iconColor: 'text-gray-600',
-      description: '',
-      textColor: 'text-gray-900',
-      subtextColor: 'text-gray-600'
+  // Default style when no mobile_style in database
+  const defaultStyle: MobileStyle = {
+    bgColor: 'bg-white border border-gray-200',
+    iconBg: 'bg-gray-100',
+    iconColor: 'text-gray-600',
+    description: '',
+    textColor: 'text-gray-900',
+    subtextColor: 'text-gray-600'
+  };
+
+  // Get style from item's mobileStyle or use default
+  const getItemStyle = (item: NavigationItem): MobileStyle & { textColor?: string; subtextColor?: string } => {
+    const style = item.mobileStyle || defaultStyle;
+    // For gradient items, text is white; for solid bg items, use specified colors
+    const isGradient = !!style.gradient;
+    return {
+      ...style,
+      textColor: style.textColor || (isGradient ? 'text-white' : 'text-gray-900'),
+      subtextColor: style.subtextColor || (isGradient ? 'text-white/80' : 'text-gray-600'),
     };
   };
 
@@ -341,7 +226,7 @@ export default function SalesRepView({
 
   // Render a single navigation button
   const renderNavButton = (item: NavigationItem) => {
-    const style = getItemStyle(item.menuId);
+    const style = getItemStyle(item);
     const Icon = item.icon;
     const isGradient = !!style.gradient;
     const badgeCount = item.badge || getBadgeCount(item.menuId);
@@ -375,52 +260,55 @@ export default function SalesRepView({
     );
   };
 
-  // Group navigation items by category
-  const mainItems = navigationItems.filter(item =>
-    ['presentation', 'sales-coach', 'photo-gallery', 'stain-calculator', 'direct-messages', 'team-communication', 'dashboard'].includes(item.menuId)
-  );
-  const requestItems = navigationItems.filter(item =>
-    ['requests', 'my-requests'].includes(item.menuId)
-  );
-  const yardItems = navigationItems.filter(item =>
-    ['bom-yard', 'bom-calculator'].includes(item.menuId)
-  );
-  const toolItems = navigationItems.filter(item =>
-    ['sales-resources', 'analytics', 'leadership', 'my-todos', 'roadmap', 'team'].includes(item.menuId)
-  );
+  // Group navigation items dynamically by category from database
+  // Items are sorted by sortOrder within each category
+  const categorizedItems = useMemo(() => {
+    const sorted = [...navigationItems].sort((a, b) => (a.sortOrder || 100) - (b.sortOrder || 100));
+    return {
+      main: sorted.filter(item => item.category === 'main'),
+      communication: sorted.filter(item => item.category === 'communication'),
+      requests: sorted.filter(item => item.category === 'requests'),
+      operations: sorted.filter(item => item.category === 'operations'),
+      admin: sorted.filter(item => item.category === 'admin'),
+      tools: sorted.filter(item => item.category === 'tools'),
+      system: sorted.filter(item => item.category === 'system'),
+    };
+  }, [navigationItems]);
+
+  // Category display configuration
+  const categoryConfig: Record<MenuCategory, { label: string; showLabel: boolean }> = {
+    main: { label: '', showLabel: false }, // Main tools shown without header
+    communication: { label: 'Communication', showLabel: true },
+    requests: { label: 'Requests', showLabel: true },
+    operations: { label: 'Operations', showLabel: true },
+    admin: { label: 'Leadership', showLabel: true },
+    tools: { label: 'Other Tools', showLabel: true },
+    system: { label: '', showLabel: false }, // Settings shown without header
+  };
+
+  // Order categories for display
+  const categoryOrder: MenuCategory[] = ['main', 'communication', 'requests', 'operations', 'admin', 'tools', 'system'];
 
   return (
     <div className="space-y-4 p-4">
-      {/* Main Tools Section */}
-      {mainItems.length > 0 && (
-        <div className="space-y-3">
-          {mainItems.map(renderNavButton)}
-        </div>
-      )}
+      {categoryOrder.map(category => {
+        const items = categorizedItems[category];
+        if (items.length === 0) return null;
 
-      {/* Requests Section */}
-      {requestItems.length > 0 && (
-        <div className="space-y-3 pt-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Requests</h2>
-          {requestItems.map(renderNavButton)}
-        </div>
-      )}
+        const config = categoryConfig[category];
+        const isLast = category === 'system' || category === 'tools';
 
-      {/* Yard Section */}
-      {yardItems.length > 0 && (
-        <div className="space-y-3 pt-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Yard</h2>
-          {yardItems.map(renderNavButton)}
-        </div>
-      )}
-
-      {/* Other Tools Section */}
-      {toolItems.length > 0 && (
-        <div className="space-y-3 pt-4 pb-8">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Other Tools</h2>
-          {toolItems.map(renderNavButton)}
-        </div>
-      )}
+        return (
+          <div key={category} className={`space-y-3 ${category !== 'main' ? 'pt-4' : ''} ${isLast ? 'pb-8' : ''}`}>
+            {config.showLabel && (
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                {config.label}
+              </h2>
+            )}
+            {items.map(renderNavButton)}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -115,7 +115,7 @@ function App() {
   useEscalationEngine(isOperationsRole);
 
   // Menu visibility control
-  const { canSeeMenuItem } = useMenuVisibility();
+  const { canSeeMenuItem, menuVisibility } = useMenuVisibility();
 
   // Request notifications
   const { unreadCount: requestUnreadCount, markRequestAsRead } = useRequestNotifications();
@@ -169,7 +169,12 @@ function App() {
 
   // Universal navigation items - same for all roles (permissions controlled inside each component)
   // menuId allows mapping navigation section to different menu_visibility entries
+  // Category and mobile_style are pulled from database for dynamic mobile navigation
   const getNavigationItems = () => {
+    // Create a lookup object for menu visibility items
+    const visibilityLookup: Record<string, typeof menuVisibility[number]> = {};
+    menuVisibility.forEach(item => { visibilityLookup[item.menu_id] = item; });
+
     const items = [
       { id: 'dashboard' as Section, menuId: 'dashboard', name: 'Dashboard', icon: Home },
       { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
@@ -189,7 +194,16 @@ function App() {
       { id: 'team' as Section, menuId: 'team', name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
-    return items;
+    // Enhance items with category, sort_order, and mobile_style from database
+    return items.map(item => {
+      const visibility = visibilityLookup[item.menuId];
+      return {
+        ...item,
+        category: visibility?.category || 'tools',
+        sortOrder: visibility?.sort_order || 100,
+        mobileStyle: visibility?.mobile_style || null,
+      };
+    });
   };
 
   const navigationItems = getNavigationItems();

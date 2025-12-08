@@ -4,6 +4,17 @@ import { useAuth } from '../contexts/AuthContext';
 
 export type Platform = 'desktop' | 'tablet' | 'mobile';
 export type LegacyPlatform = 'desktop' | 'mobile' | 'both';
+export type MenuCategory = 'main' | 'communication' | 'requests' | 'operations' | 'admin' | 'tools' | 'system';
+
+export interface MobileStyle {
+  gradient?: string;
+  bgColor?: string;
+  iconBg: string;
+  iconColor?: string;
+  description: string;
+  textColor?: string;
+  subtextColor?: string;
+}
 
 export interface MenuVisibilityItem {
   id: string;
@@ -22,6 +33,10 @@ export interface MenuVisibilityItem {
   supported_on_desktop: boolean;
   supported_on_tablet: boolean;
   supported_on_mobile: boolean;
+  // Category and ordering for dynamic navigation
+  category: MenuCategory;
+  sort_order: number;
+  mobile_style: MobileStyle | null;
   updated_at: string;
   updated_by?: string;
 }
@@ -159,6 +174,46 @@ export const useMenuVisibility = () => {
   };
 
   /**
+   * Get menu items grouped by category for a specific platform and role
+   * Items are sorted by sort_order within each category
+   * @param platform - The platform to filter by
+   * @param role - The user role to filter by
+   * @returns Record<MenuCategory, MenuVisibilityItem[]> - Items grouped by category
+   */
+  const getMenuItemsByCategory = (
+    platform: Platform,
+    role?: string
+  ): Record<MenuCategory, MenuVisibilityItem[]> => {
+    const userRole = role || profile?.role || 'sales';
+    const grouped: Record<MenuCategory, MenuVisibilityItem[]> = {
+      main: [],
+      communication: [],
+      requests: [],
+      operations: [],
+      admin: [],
+      tools: [],
+      system: [],
+    };
+
+    Array.from(menuVisibility.values())
+      .filter(item => {
+        // Check platform availability
+        if (!isAvailableOnPlatform(item.menu_id, platform)) return false;
+        // Check role visibility
+        return canSeeMenuItem(item.menu_id, { overrideRole: userRole, platform });
+      })
+      .sort((a, b) => (a.sort_order || 100) - (b.sort_order || 100))
+      .forEach(item => {
+        const category = item.category || 'tools';
+        if (grouped[category]) {
+          grouped[category].push(item);
+        }
+      });
+
+    return grouped;
+  };
+
+  /**
    * Check if a platform is supported for a menu item
    * @param menuId - The menu item ID
    * @param platform - The platform to check
@@ -283,6 +338,7 @@ export const useMenuVisibility = () => {
     isAvailableOnPlatform,
     isPlatformSupported,
     getMenuItemsForPlatform,
+    getMenuItemsByCategory,
     toggleRoleVisibility,
     togglePlatformVisibility,
     addUserOverride,
