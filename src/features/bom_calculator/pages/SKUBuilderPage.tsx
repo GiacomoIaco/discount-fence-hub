@@ -23,22 +23,24 @@ import type {
 } from '../database.types';
 
 // Style options per fence type
+// Values match database format: lowercase, hyphenated
 const WOOD_VERTICAL_STYLES = [
-  { value: 'Standard', label: 'Standard', postSpacing: 8, picketMultiplier: 1.0 },
-  { value: 'Good Neighbor', label: 'Good Neighbor', postSpacing: 7.71, picketMultiplier: 1.11 },
-  { value: 'Board-on-Board', label: 'Board-on-Board', postSpacing: 8, picketMultiplier: 1.14 },
+  { value: 'standard', label: 'Standard', postSpacing: 8, picketMultiplier: 1.0 },
+  { value: 'good-neighbor-builder', label: 'Good Neighbor Builder', postSpacing: 7.71, picketMultiplier: 1.11 },
+  { value: 'good-neighbor-residential', label: 'Good Neighbor Residential', postSpacing: 7.71, picketMultiplier: 1.11 },
+  { value: 'board-on-board', label: 'Board on Board', postSpacing: 8, picketMultiplier: 1.14 },
 ];
 
 const WOOD_HORIZONTAL_STYLES = [
-  { value: 'Standard', label: 'Standard Horizontal', postSpacing: 6 },
-  { value: 'Good Neighbor', label: 'Good Neighbor Horizontal', postSpacing: 6 },
-  { value: 'Exposed', label: 'Exposed Horizontal', postSpacing: 6 },
+  { value: 'standard', label: 'Standard Horizontal', postSpacing: 6 },
+  { value: 'good-neighbor', label: 'Good Neighbor Horizontal', postSpacing: 6 },
+  { value: 'exposed', label: 'Exposed Horizontal', postSpacing: 6 },
 ];
 
 const IRON_STYLES = [
-  { value: 'Standard 2 Rail', label: 'Standard 2 Rail', rails: 2, postSpacing: 8 },
-  { value: 'Standard 3 Rail', label: 'Standard 3 Rail', rails: 3, postSpacing: 8 },
-  { value: 'Ameristar', label: 'Ameristar/3 Rail Brackets', rails: 3, postSpacing: 8 },
+  { value: 'standard-2-rail', label: 'Standard 2 Rail', rails: 2, postSpacing: 8 },
+  { value: 'standard-3-rail', label: 'Standard 3 Rail', rails: 3, postSpacing: 8 },
+  { value: 'ameristar', label: 'Ameristar/3 Rail Brackets', rails: 3, postSpacing: 8 },
 ];
 
 type ProductType = 'wood-vertical' | 'wood-horizontal' | 'iron';
@@ -98,7 +100,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
   const [skuCode, setSkuCode] = useState('');
   const [skuName, setSkuName] = useState('');
   const [height, setHeight] = useState(6);
-  const [style, setStyle] = useState('Standard');
+  const [style, setStyle] = useState('standard');
   const [railCount, setRailCount] = useState(2);
   const [postType, setPostType] = useState<PostType>('WOOD');
 
@@ -668,7 +670,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
     setSkuCode('');
     setSkuName('');
     setHeight(6);
-    setStyle('Standard');
+    setStyle('standard');
     setRailCount(2);
     setPostType('WOOD');
     setPostMaterialId('');
@@ -814,13 +816,13 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
   const handleProductTypeChange = (type: ProductType) => {
     setProductType(type);
     if (type === 'wood-vertical') {
-      setStyle('Standard');
+      setStyle('standard');
       setPostType('WOOD');
     } else if (type === 'wood-horizontal') {
-      setStyle('Standard');
+      setStyle('standard');
       setPostType('WOOD');
     } else {
-      setStyle('Standard 2 Rail');
+      setStyle('standard-2-rail');
       setPostType('STEEL');
     }
     // Clear material selections
@@ -1198,7 +1200,7 @@ export default function SKUBuilderPage({ selectedSKU, onClearSelection }: SKUBui
                     ))}
                   </select>
                 </div>
-                {style === 'Ameristar' && (
+                {style === 'ameristar' && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-600 w-14 flex-shrink-0">Brackets</span>
                     <select

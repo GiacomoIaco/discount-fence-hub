@@ -83,6 +83,35 @@ export interface ConcreteMaterials {
   ctr?: Material; // Red bags
 }
 
+// ============================================================================
+// STYLE HELPERS
+// ============================================================================
+// Style values can be in different formats:
+// - Old format: 'Good Neighbor', 'Board-on-Board', 'Standard', 'Ameristar'
+// - New format: 'good-neighbor-builder', 'board-on-board', 'standard', 'ameristar'
+// This helper normalizes comparison to handle both formats
+
+function styleMatches(style: string, ...patterns: string[]): boolean {
+  const normalized = style.toLowerCase().replace(/[\s-]+/g, '');
+  return patterns.some(pattern => {
+    const normalizedPattern = pattern.toLowerCase().replace(/[\s-]+/g, '');
+    return normalized.includes(normalizedPattern);
+  });
+}
+
+// Common style checks
+const isGoodNeighbor = (style: string) => styleMatches(style, 'goodneighbor');
+const isBoardOnBoard = (style: string) => styleMatches(style, 'boardonboard');
+const isExposed = (style: string) => styleMatches(style, 'exposed');
+const isAmeristar = (style: string) => styleMatches(style, 'ameristar');
+const isStandard2Rail = (style: string) => styleMatches(style, 'standard2rail');
+const isIronRail = (style: string) => styleMatches(style, 'ironrail');
+const isCenturion = (style: string) => styleMatches(style, 'centurion');
+
+// ============================================================================
+// DEFAULT MATERIALS
+// ============================================================================
+
 // Default fallback materials (used when not provided)
 const DEFAULT_HARDWARE: HardwareMaterials = {
   frameNails: {
@@ -873,7 +902,7 @@ export class FenceCalculator {
     }
 
     // 3. BRACKETS (if Ameristar/Centurion style)
-    if (product.bracket_material && product.style.includes('Ameristar')) {
+    if (product.bracket_material && isAmeristar(product.style)) {
       const panels = this.calculateIronPanels(input.netLength, product.panel_width);
       const brackets = this.calculateIronBrackets(
         panels,
@@ -1250,10 +1279,10 @@ export class FenceCalculator {
     let pickets = (lengthInches / picketWidthActual) * 1.025;
 
     // Style modifiers
-    if (style.includes('Good Neighbor')) {
+    if (isGoodNeighbor(style)) {
       // FIXED: 11% more for double-sided (was 10%)
       pickets = pickets * 1.11;
-    } else if (style.includes('Board-on-Board')) {
+    } else if (isBoardOnBoard(style)) {
       // Formula: (length × 2) / (width × 2 - gap) × waste
       pickets = ((lengthInches * 2) / (picketWidthActual * 2 - 2.5)) * 1.025;
     }
@@ -1325,7 +1354,7 @@ export class FenceCalculator {
     let totalBoards = boardsHigh * boardsPerRow;
 
     // Good Neighbor needs double (both sides)
-    if (style.includes('Good Neighbor')) {
+    if (isGoodNeighbor(style)) {
       totalBoards *= 2;
     }
 
@@ -1338,7 +1367,7 @@ export class FenceCalculator {
     sections: number,
     style: string
   ): number {
-    if (style.includes('Exposed')) {
+    if (isExposed(style)) {
       // Exposed style: nailers = posts × 2 (one each side)
       // This is calculated differently, return sections × 2 as approximation
       return sections * 2;
@@ -1352,10 +1381,10 @@ export class FenceCalculator {
    * Standard: posts × 1, Good Neighbor: posts × 2, Exposed: 0
    */
   private calculateVerticalTrimBoards(posts: number, style: string): number {
-    if (style.includes('Exposed')) {
+    if (isExposed(style)) {
       return 0; // Not needed for exposed style
     }
-    if (style.includes('Good Neighbor')) {
+    if (isGoodNeighbor(style)) {
       return posts * 2; // Both sides
     }
     return posts * 1; // Standard: one side
@@ -1384,7 +1413,7 @@ export class FenceCalculator {
     railsPerPanel: number,
     style: string
   ): number {
-    if (!style.includes('Ameristar') && !style.includes('Centurion')) {
+    if (!isAmeristar(style) && !isCenturion(style)) {
       return 0;
     }
     return panels * railsPerPanel * 2;
@@ -1426,7 +1455,7 @@ export class FenceCalculator {
     }
 
     // Good Neighbor (depends on post type!)
-    if (product.style.includes('Good Neighbor')) {
+    if (isGoodNeighbor(product.style)) {
       codes.push({
         labor_sku: product.post_type === 'STEEL' ? 'M06' : 'W06',
         quantity: input.netLength,
@@ -1479,7 +1508,7 @@ export class FenceCalculator {
     codes.push({ labor_sku: 'W13', quantity: input.netLength });
 
     // Good Neighbor style modifier
-    if (product.style.includes('Good Neighbor')) {
+    if (isGoodNeighbor(product.style)) {
       codes.push({
         labor_sku: product.post_type === 'STEEL' ? 'M06' : 'W06',
         quantity: input.netLength,
@@ -1504,11 +1533,11 @@ export class FenceCalculator {
     codes.push({ labor_sku: 'IR01', quantity: input.netLength });
 
     // Style-specific installation
-    if (product.style.includes('Standard 2 Rail')) {
+    if (isStandard2Rail(product.style)) {
       codes.push({ labor_sku: 'IR02', quantity: input.netLength });
-    } else if (product.style.includes('Ameristar')) {
+    } else if (isAmeristar(product.style)) {
       codes.push({ labor_sku: 'IR06', quantity: input.netLength });
-    } else if (product.style.includes('Iron Rail')) {
+    } else if (isIronRail(product.style)) {
       codes.push({ labor_sku: 'IR04', quantity: input.netLength });
     }
 

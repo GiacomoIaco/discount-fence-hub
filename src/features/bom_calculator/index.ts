@@ -1,11 +1,19 @@
 /**
- * BOM Calculator Feature - Public API
+ * ✅ BOM Calculator V1 - PRODUCTION VERSION
+ *
+ * This is the ACTIVE production BOM Calculator.
+ *
+ * Database tables (V1):
+ * - wood_vertical_products
+ * - wood_horizontal_products
+ * - iron_products
+ * - custom_products
+ *
+ * Note: There is an experimental V2 in bom_calculator_v2/ folder.
+ * V2 is NOT used in production - ignore it.
  *
  * IMPORTANT: Only export what should be accessible from outside this feature.
  * Keep all implementation details (components, hooks, services) private.
- *
- * When working on BOM Calculator from other features, only import from this file.
- * Example: import { BOMCalculator } from '@/features/bom_calculator'
  */
 
 // ============================================================================
