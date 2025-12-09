@@ -13,21 +13,48 @@ export const handler: Handler = async (event) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // The body contains the base64 encoded audio
-    const { audioData } = JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
 
-    // Convert base64 to buffer
-    const audioBuffer = Buffer.from(audioData, 'base64');
+    let audioBuffer: Buffer;
+    let contentType = 'audio/webm';
+
+    // Support both base64 data (small files) and storage URLs (large files)
+    if (body.audioUrl) {
+      // Fetch from Supabase storage
+      console.log('Fetching audio from storage URL...');
+
+      const response = await axios.get(body.audioUrl, {
+        responseType: 'arraybuffer',
+        timeout: 60000, // 60 second timeout for download
+      });
+
+      audioBuffer = Buffer.from(response.data);
+      contentType = response.headers['content-type'] || 'audio/webm';
+
+      console.log(`Downloaded audio: ${audioBuffer.length} bytes`);
+    } else if (body.audioData) {
+      // Legacy: base64 encoded audio (for small files < 1MB)
+      audioBuffer = Buffer.from(body.audioData, 'base64');
+    } else {
+      throw new Error('Either audioUrl or audioData is required');
+    }
+
+    // Check file size (Whisper API limit is 25MB)
+    const maxSize = 25 * 1024 * 1024;
+    if (audioBuffer.length > maxSize) {
+      throw new Error(`Audio file too large (${Math.round(audioBuffer.length / 1024 / 1024)}MB). Maximum is 25MB.`);
+    }
 
     // Create FormData
     const formData = new FormData();
     formData.append('file', audioBuffer, {
       filename: 'audio.webm',
-      contentType: 'audio/webm',
+      contentType: contentType,
     });
     formData.append('model', 'whisper-1');
-    // Limit language to English and Spanish to improve accuracy
     formData.append('language', 'en');
+
+    console.log('Sending to Whisper API...');
 
     const response = await axios.post(
       'https://api.openai.com/v1/audio/transcriptions',
@@ -37,8 +64,11 @@ export const handler: Handler = async (event) => {
           'Authorization': `Bearer ${apiKey}`,
           ...formData.getHeaders(),
         },
+        timeout: 120000, // 2 minute timeout for transcription
       }
     );
+
+    console.log('Transcription complete');
 
     return {
       statusCode: 200,

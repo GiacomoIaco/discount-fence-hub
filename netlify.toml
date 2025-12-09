@@ -24,8 +24,14 @@
   node_bundler = "esbuild"
   external_node_modules = ["@sendgrid/mail"]
 
-# Increase timeout for AI analysis (requires Pro plan for 26s, otherwise 10s max)
+# Increase timeout for AI functions (requires Pro plan for 26s, otherwise 10s max)
 [functions."analyze-recording"]
+  timeout = 26
+
+[functions."transcribe"]
+  timeout = 26
+
+[functions."expand-roadmap-idea"]
   timeout = 26
 
 # Optimization settings
