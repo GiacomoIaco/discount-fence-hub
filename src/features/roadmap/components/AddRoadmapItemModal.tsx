@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Mic, StopCircle, Play, Pause, Loader2, Sparkles, Save, Check } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
@@ -37,10 +37,22 @@ export default function AddRoadmapItemModal({
   const [savedAudioUrl, setSavedAudioUrl] = useState<string | null>(null);  // Permanent storage URL
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
+  const [recordingTime, setRecordingTime] = useState(0);  // Live timer while recording
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [savingAudio, setSavingAudio] = useState(false);
+
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -76,13 +88,28 @@ export default function AddRoadmapItemModal({
 
       mediaRecorder.start(100);
       setRecordingState('recording');
+      setRecordingTime(0);
+
+      // Start live timer
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to start recording. Please check microphone permissions.');
     }
   };
 
+  // Cleanup timer on unmount or when recording stops
+  const stopTimer = () => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+  };
+
   const stopRecording = () => {
+    stopTimer();
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -228,9 +255,11 @@ export default function AddRoadmapItemModal({
   };
 
   const clearRecording = () => {
+    stopTimer();
     setRecordingState('idle');
     setAudioUrl(null);
     setSavedAudioUrl(null);
+    setRecordingTime(0);
     setAudioBlob(null);
     setAudioDuration(0);
     setTranscript('');
@@ -352,18 +381,23 @@ export default function AddRoadmapItemModal({
             )}
 
             {recordingState === 'recording' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-red-600 font-medium">Recording...</span>
-                  <span className="text-gray-500">{formatDuration(Math.floor((Date.now() - recordingStartTimeRef.current) / 1000))}</span>
+              <div className="space-y-4">
+                {/* Prominent recording indicator */}
+                <div className="flex flex-col items-center justify-center py-4 bg-red-50 rounded-xl border-2 border-red-200">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50" />
+                    <span className="text-red-600 font-semibold text-lg">Recording</span>
+                  </div>
+                  <div className="text-3xl font-bold text-red-700 font-mono">
+                    {formatDuration(recordingTime)}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={stopRecording}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-lg font-semibold"
                 >
-                  <StopCircle className="w-5 h-5" />
+                  <StopCircle className="w-6 h-6" />
                   <span>Stop Recording</span>
                 </button>
               </div>
