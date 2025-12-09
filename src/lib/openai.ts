@@ -46,6 +46,7 @@ async function transcribeViaBase64(audioBlob: Blob): Promise<string> {
 }
 
 // For large files: upload to storage first, then transcribe
+// Uses existing 'voice-samples' bucket with temp/ folder for roadmap recordings
 async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
@@ -53,15 +54,15 @@ async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
     throw new Error('Must be logged in to transcribe audio');
   }
 
-  // Generate unique filename
+  // Generate unique filename in temp folder (will be deleted after transcription)
   const timestamp = Date.now();
-  const filename = `${user.id}/${timestamp}.webm`;
+  const filename = `temp/${user.id}/${timestamp}.webm`;
 
   console.log(`Uploading audio to storage (${Math.round(audioBlob.size / 1024)}KB)...`);
 
-  // Upload to Supabase storage
+  // Upload to Supabase storage (reusing voice-samples bucket)
   const { error: uploadError } = await supabase.storage
-    .from('audio-recordings')
+    .from('voice-samples')
     .upload(filename, audioBlob, {
       contentType: 'audio/webm',
       upsert: false,
@@ -74,7 +75,7 @@ async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
   try {
     // Get signed URL (valid for 5 minutes)
     const { data: urlData, error: urlError } = await supabase.storage
-      .from('audio-recordings')
+      .from('voice-samples')
       .createSignedUrl(filename, 300);
 
     if (urlError || !urlData?.signedUrl) {
@@ -105,7 +106,7 @@ async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
     // Always clean up the uploaded file
     console.log('Cleaning up storage...');
     await supabase.storage
-      .from('audio-recordings')
+      .from('voice-samples')
       .remove([filename]);
   }
 }
