@@ -106,28 +106,51 @@ export default function AddRoadmapItemModal({
     setRecordingState('processing');
 
     try {
-      // Transcribe audio
-      const transcriptionText = await transcribeAudio(audioBlob);
-      setTranscript(transcriptionText);
+      // Step 1: Transcribe audio
+      console.log(`Starting transcription for ${Math.round(audioBlob.size / 1024)}KB audio...`);
+      let transcriptionText: string;
 
-      // Expand with AI
-      const expanded = await expandRoadmapIdea(transcriptionText);
+      try {
+        transcriptionText = await transcribeAudio(audioBlob);
+        setTranscript(transcriptionText);
+        console.log('Transcription successful:', transcriptionText.substring(0, 100) + '...');
+      } catch (transcribeError: any) {
+        console.error('Transcription failed:', transcribeError);
+        toast.error(`Transcription failed: ${transcribeError.message}. You can still add a title manually and save.`);
+        setRecordingState('recorded');
+        return;
+      }
 
-      // Auto-fill form with AI-generated data
-      setFormData({
-        hub: (expanded.hub as HubKey) || formData.hub,
-        title: expanded.title || '',
-        raw_idea: expanded.raw_idea || transcriptionText,
-        claude_analysis: expanded.claude_analysis || '',
-        importance: expanded.importance || 3,
-        complexity: (expanded.complexity as ComplexityType) || 'M',
-      });
+      // Step 2: Expand with AI (optional - can fail gracefully)
+      try {
+        const expanded = await expandRoadmapIdea(transcriptionText);
 
-      toast.success('AI expanded your idea!');
+        // Auto-fill form with AI-generated data
+        setFormData({
+          hub: (expanded.hub as HubKey) || formData.hub,
+          title: expanded.title || '',
+          raw_idea: expanded.raw_idea || transcriptionText,
+          claude_analysis: expanded.claude_analysis || '',
+          importance: expanded.importance || 3,
+          complexity: (expanded.complexity as ComplexityType) || 'M',
+        });
+
+        toast.success('AI expanded your idea!');
+      } catch (expandError: any) {
+        console.error('AI expansion failed:', expandError);
+        // Still save the transcript even if expansion fails
+        setFormData(prev => ({
+          ...prev,
+          raw_idea: transcriptionText,
+          title: transcriptionText.substring(0, 50) + (transcriptionText.length > 50 ? '...' : ''),
+        }));
+        toast.error('AI expansion failed, but transcript saved. You can edit and save manually.');
+      }
+
       setRecordingState('recorded');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing voice:', error);
-      toast.error('Failed to process voice recording. Please try again.');
+      toast.error(`Processing failed: ${error.message}. You can still add a title manually.`);
       setRecordingState('recorded');
     }
   };

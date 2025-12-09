@@ -54,9 +54,10 @@ async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
     throw new Error('Must be logged in to transcribe audio');
   }
 
-  // Generate unique filename in temp folder (will be deleted after transcription)
+  // Generate unique filename in user's folder (will be deleted after transcription)
+  // Path must be {user_id}/filename to match RLS policy
   const timestamp = Date.now();
-  const filename = `temp/${user.id}/${timestamp}.webm`;
+  const filename = `${user.id}/temp-transcribe-${timestamp}.webm`;
 
   console.log(`Uploading audio to storage (${Math.round(audioBlob.size / 1024)}KB)...`);
 
