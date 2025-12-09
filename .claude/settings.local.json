@@ -32,7 +32,19 @@
       "Bash(git restore:*)",
       "WebSearch",
       "WebFetch(domain:stackoverflow.com)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "mcp__chrome-devtools__list_pages",
+      "Bash(git checkout:*)",
+      "Bash(node -e:*)",
+      "Bash(git push:*)",
+      "Bash(npx supabase:*)",
+      "Bash(ls:*)",
+      "mcp__chrome-devtools__fill",
+      "mcp__chrome-devtools__get_console_message",
+      "Bash(npm run migrate:direct:*)",
+      "mcp__chrome-devtools__close_page",
+      "Bash(node scripts/create-sku-template.js:*)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { X, Mic, StopCircle, Play, Pause, Loader2, Sparkles } from 'lucide-react';
+import { X, Mic, StopCircle, Play, Pause, Loader2, Sparkles, Save, Check } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
 import { COMPLEXITY_CONFIG, type ComplexityType } from '../types';
@@ -33,12 +33,14 @@ export default function AddRoadmapItemModal({
 
   // Voice recording state
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);  // Local blob URL for playback
+  const [savedAudioUrl, setSavedAudioUrl] = useState<string | null>(null);  // Permanent storage URL
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [transcript, setTranscript] = useState('');
+  const [savingAudio, setSavingAudio] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -100,14 +102,65 @@ export default function AddRoadmapItemModal({
     }
   };
 
+  // Save audio to permanent storage (not temp)
+  const saveAudioToStorage = async (): Promise<string | null> => {
+    if (!audioBlob) return null;
+    if (savedAudioUrl) return savedAudioUrl; // Already saved
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Must be logged in');
+
+      const timestamp = Date.now();
+      const filename = `${user.id}/roadmap-idea-${timestamp}.webm`;
+
+      console.log(`Saving audio to permanent storage (${Math.round(audioBlob.size / 1024)}KB)...`);
+
+      const { error: uploadError } = await supabase.storage
+        .from('voice-samples')
+        .upload(filename, audioBlob, {
+          contentType: 'audio/webm',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get signed URL (1 year expiry for permanent storage)
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('voice-samples')
+        .createSignedUrl(filename, 31536000);
+
+      if (urlError || !urlData?.signedUrl) throw urlError;
+
+      console.log('Audio saved permanently');
+      setSavedAudioUrl(urlData.signedUrl);
+      return urlData.signedUrl;
+    } catch (error: any) {
+      console.error('Failed to save audio:', error);
+      throw error;
+    }
+  };
+
   const processVoiceRecording = async () => {
     if (!audioBlob) return;
 
     setRecordingState('processing');
 
     try {
+      // Step 0: Save audio to permanent storage FIRST
+      console.log(`Saving audio permanently (${Math.round(audioBlob.size / 1024)}KB)...`);
+      try {
+        await saveAudioToStorage();
+        toast.success('Recording saved!');
+      } catch (saveError: any) {
+        console.error('Failed to save audio:', saveError);
+        toast.error(`Failed to save recording: ${saveError.message}`);
+        setRecordingState('recorded');
+        return;
+      }
+
       // Step 1: Transcribe audio
-      console.log(`Starting transcription for ${Math.round(audioBlob.size / 1024)}KB audio...`);
+      console.log('Starting transcription...');
       let transcriptionText: string;
 
       try {
@@ -116,7 +169,7 @@ export default function AddRoadmapItemModal({
         console.log('Transcription successful:', transcriptionText.substring(0, 100) + '...');
       } catch (transcribeError: any) {
         console.error('Transcription failed:', transcribeError);
-        toast.error(`Transcription failed: ${transcribeError.message}. You can still add a title manually and save.`);
+        toast.error(`Transcription failed: ${transcribeError.message}. Recording saved - add title manually.`);
         setRecordingState('recorded');
         return;
       }
@@ -155,9 +208,29 @@ export default function AddRoadmapItemModal({
     }
   };
 
+  // Save just the recording without transcription
+  const saveRecordingOnly = async () => {
+    if (!audioBlob) return;
+
+    setSavingAudio(true);
+    try {
+      await saveAudioToStorage();
+      toast.success('Recording saved! Add a title to save your idea.');
+      // Set a placeholder title prompt
+      if (!formData.title) {
+        setFormData(prev => ({ ...prev, title: '' }));
+      }
+    } catch (error: any) {
+      toast.error(`Failed to save recording: ${error.message}`);
+    } finally {
+      setSavingAudio(false);
+    }
+  };
+
   const clearRecording = () => {
     setRecordingState('idle');
     setAudioUrl(null);
+    setSavedAudioUrl(null);
     setAudioBlob(null);
     setAudioDuration(0);
     setTranscript('');
@@ -228,6 +301,7 @@ export default function AddRoadmapItemModal({
         importance: formData.importance,
         complexity: formData.complexity,
         status: 'idea',
+        audio_url: savedAudioUrl || null,
       });
 
       if (error) throw error;
@@ -325,22 +399,41 @@ export default function AddRoadmapItemModal({
                   className="hidden"
                 />
 
+                {/* Saved indicator */}
+                {savedAudioUrl && (
+                  <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-lg px-3 py-2">
+                    <Check className="w-4 h-4" />
+                    <span>Recording saved to storage</span>
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={clearRecording}
-                    className="flex-1 px-3 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    className="px-3 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   >
                     Clear
                   </button>
+                  {!savedAudioUrl && (
+                    <button
+                      type="button"
+                      onClick={saveRecordingOnly}
+                      disabled={savingAudio}
+                      className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      {savingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      <span>Just Save</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={processVoiceRecording}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>Expand with AI</span>
+                    <span>{savedAudioUrl ? 'Transcribe & Expand' : 'Save & Expand'}</span>
                   </button>
                 </div>
 
