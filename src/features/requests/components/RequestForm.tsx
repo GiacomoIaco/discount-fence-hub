@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2 } from 'lucide-react';
 import type { RequestType, Urgency, CreateRequestInput } from '../lib/requests';
 import { useCreateRequestMutation } from '../hooks/useRequestsQuery';
@@ -61,11 +61,29 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [_parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const [recordingTime, setRecordingTime] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Format seconds as MM:SS
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
 
   // Get request type label and description
   const getRequestTypeInfo = () => {
@@ -119,6 +137,12 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       recordingStartTimeRef.current = Date.now();
+      setRecordingTime(0);
+
+      // Start live timer
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -127,6 +151,12 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
       };
 
       mediaRecorder.onstop = () => {
+        // Clear the timer
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
@@ -148,6 +178,12 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   };
 
   const stopRecording = () => {
+    // Clear the timer
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -452,9 +488,15 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
 
             {recordingState === 'recording' && (
               <div className="space-y-3">
-                <div className="flex items-center justify-center gap-3 text-red-600">
-                  <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-                  <span className="font-medium">Recording...</span>
+                {/* Prominent recording indicator with live timer */}
+                <div className="flex flex-col items-center justify-center py-4 bg-red-50 rounded-xl border-2 border-red-200">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50" />
+                    <span className="text-red-600 font-semibold text-lg">Recording</span>
+                  </div>
+                  <div className="text-3xl font-bold text-red-700 font-mono">
+                    {formatDuration(recordingTime)}
+                  </div>
                 </div>
                 <button
                   type="button"
