@@ -15,11 +15,10 @@
 
 import { useState } from 'react';
 import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench } from 'lucide-react';
-import { SKUCatalogPage, SKUBuilderPage, CalculatorPage } from './pages';
+import { SKUCatalogPage, SKUBuilderPage, CalculatorPage, ComponentTypesPage } from './pages';
 // Shared pages from V1
 import MaterialsPage from '../bom_calculator/pages/MaterialsPage';
 import LaborRatesPage from '../bom_calculator/pages/LaborRatesPage';
-import ComponentConfiguratorPage from '../bom_calculator/pages/ComponentConfiguratorPage';
 
 // Page types for navigation
 type Hub2Page = 'sku-catalog' | 'sku-builder' | 'calculator' | 'materials' | 'labor-rates' | 'components';
@@ -105,7 +104,7 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
         return <LaborRatesPage />;
 
       case 'components':
-        return <ComponentConfiguratorPage />;
+        return <ComponentTypesPage />;
 
       default:
         return null;

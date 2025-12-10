@@ -11,7 +11,7 @@ import CustomBuilderPage from './pages/CustomBuilderPage';
 import SKUImportPage from './pages/SKUImportPage';
 import SKUQueuePage from './pages/SKUQueuePage';
 import AnalyticsPage from './pages/AnalyticsPage';
-import ComponentConfiguratorPage from './pages/ComponentConfiguratorPage';
+import { ComponentTypesPage } from '../bom_calculator_v2/pages';
 import YardSchedulePage from './pages/YardSchedulePage';
 import YardSpotsPage from './pages/YardSpotsPage';
 import YardMobilePage from './pages/YardMobilePage';
@@ -258,7 +258,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
         if (!isAdmin) {
           return <AccessDenied onGoBack={() => handlePageChange('calculator')} />;
         }
-        return <ComponentConfiguratorPage />;
+        return <ComponentTypesPage />;
 
       case 'yard-schedule':
         return <YardSchedulePage />;
