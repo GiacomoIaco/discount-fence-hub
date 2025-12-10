@@ -1,14 +1,14 @@
 /**
  * SKU Builder Page - V2
  *
- * Build and configure product SKUs using the formula-based architecture.
+ * Full-featured SKU builder with V1 UI, connected to V2 tables.
  * Uses sku_catalog_v2 with JSONB for variables and components.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Save, RotateCcw, AlertTriangle, ArrowLeft, Package
+  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -16,16 +16,14 @@ import {
   useProductTypesV2,
   useProductStylesV2,
   useProductVariablesV2,
-  useComponentTypesV2,
   useSKUV2,
-  type ProductTypeV2,
 } from '../hooks';
 
-interface SKUBuilderPageProps {
-  editingSKUId?: string | null;
-  onClearSelection?: () => void;
-  isAdmin?: boolean;
-}
+// =============================================================================
+// TYPES
+// =============================================================================
+
+type ProductType = 'wood-vertical' | 'wood-horizontal' | 'iron';
 
 interface Material {
   id: string;
@@ -38,49 +36,92 @@ interface Material {
   actual_width: number | null;
 }
 
+interface EligibleMaterial {
+  fence_type: string;
+  component_code: string;
+  material_id: string;
+  material_sku: string;
+  material_name: string;
+  category: string;
+  sub_category: string | null;
+  unit_cost: number;
+  length_ft: number | null;
+  attribute_filter: Record<string, string> | null;
+}
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
+
+interface SKUBuilderPageProps {
+  editingSKUId?: string | null;
+  onClearSelection?: () => void;
+  isAdmin?: boolean;
+}
+
 export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdmin = true }: SKUBuilderPageProps) {
   const queryClient = useQueryClient();
 
-  // Core state
-  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
-  const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
+  // UI state
+  const [productType, setProductType] = useState<ProductType>('wood-vertical');
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Configuration state
   const [skuCode, setSkuCode] = useState('');
   const [skuName, setSkuName] = useState('');
   const [height, setHeight] = useState(6);
+  const [styleCode, setStyleCode] = useState('standard');
+  const [railCount, setRailCount] = useState(2);
   const [postType, setPostType] = useState<'WOOD' | 'STEEL'>('WOOD');
 
-  // Variables (JSONB)
-  const [variables, setVariables] = useState<Record<string, number | string>>({});
+  // Material selections (component_code -> material_sku)
+  const [postMaterialId, setPostMaterialId] = useState('');
+  const [picketMaterialId, setPicketMaterialId] = useState('');
+  const [railMaterialId, setRailMaterialId] = useState('');
+  const [capMaterialId, setCapMaterialId] = useState('');
+  const [trimMaterialId, setTrimMaterialId] = useState('');
+  const [rotBoardMaterialId, setRotBoardMaterialId] = useState('');
+  const [boardMaterialId, setBoardMaterialId] = useState('');
+  const [nailerMaterialId, setNailerMaterialId] = useState('');
+  const [verticalTrimMaterialId, setVerticalTrimMaterialId] = useState('');
+  const [panelMaterialId, setPanelMaterialId] = useState('');
+  const [bracketMaterialId, setBracketMaterialId] = useState('');
 
-  // Components (JSONB): component_code -> material_sku
-  const [components, setComponents] = useState<Record<string, string>>({});
+  // =============================================================================
+  // DATA FETCHING
+  // =============================================================================
 
-  // Preview parameters
-  const [previewLength, setPreviewLength] = useState(100);
-  const [previewLines, setPreviewLines] = useState(1);
+  // V2 Product types
+  const { data: productTypesV2 = [] } = useProductTypesV2();
 
-  // Fetch product types (V2)
-  const { data: productTypes = [], isLoading: loadingTypes } = useProductTypesV2();
+  // Get the V2 product type ID based on UI selection
+  const selectedProductTypeV2 = useMemo(() => {
+    const typeCode = productType === 'wood-vertical' ? 'wood_vertical' :
+                    productType === 'wood-horizontal' ? 'wood_horizontal' : 'iron';
+    return productTypesV2.find(t => t.code === typeCode);
+  }, [productTypesV2, productType]);
 
-  // Fetch styles for selected type (V2)
-  const { data: productStyles = [] } = useProductStylesV2(selectedTypeId);
+  // V2 Styles for selected type
+  const { data: stylesV2 = [] } = useProductStylesV2(selectedProductTypeV2?.id || null);
 
-  // Fetch variables for selected type (V2)
-  const { data: productVariables = [] } = useProductVariablesV2(selectedTypeId);
+  // V2 Variables for selected type
+  const { data: variablesV2 = [] } = useProductVariablesV2(selectedProductTypeV2?.id || null);
 
-  // Fetch all component types (V2)
-  const { data: componentTypes = [] } = useComponentTypesV2();
+  // Get selected style V2
+  const selectedStyleV2 = useMemo(() => {
+    return stylesV2.find(s => s.code === styleCode) || stylesV2[0];
+  }, [stylesV2, styleCode]);
 
-  // Fetch SKU details if editing
+  // Fetch editing SKU (V2)
   const { data: editingSKU } = useSKUV2(editingSKUId || null);
 
   // Fetch all materials
-  const { data: allMaterials = [], isLoading: loadingMaterials } = useQuery({
-    queryKey: ['materials-for-builder-v2'],
+  const { data: materials = [], isLoading: loadingMaterials } = useQuery({
+    queryKey: ['materials-for-sku-builder-v2'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, material_sku, material_name, category, sub_category, unit_cost, length_ft, actual_width')
+        .select('*')
         .eq('status', 'Active')
         .order('category')
         .order('material_name');
@@ -89,153 +130,327 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     },
   });
 
-  // Fetch component-material eligibility from V1 shared table
-  const { data: eligibilityRules = [] } = useQuery({
-    queryKey: ['component-material-eligibility'],
+  // Fetch eligible materials from V1 Component Configurator (shared table)
+  const fenceTypeDb = productType === 'wood-vertical' ? 'wood_vertical' :
+                     productType === 'wood-horizontal' ? 'wood_horizontal' : 'iron';
+
+  const { data: eligibleMaterials = [] } = useQuery({
+    queryKey: ['eligible-materials-sku-builder-v2', fenceTypeDb],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('component_material_eligibility')
-        .select('*');
+        .from('v_component_eligible_materials')
+        .select('*')
+        .eq('fence_type', fenceTypeDb);
       if (error) throw error;
-      return data || [];
+      return data as EligibleMaterial[];
     },
   });
 
-  // Load editing SKU data
+  // =============================================================================
+  // LOAD EDITING SKU
+  // =============================================================================
+
   useEffect(() => {
     if (editingSKU) {
-      setSelectedTypeId(editingSKU.product_type_id);
-      setSelectedStyleId(editingSKU.product_style_id);
+      // Determine product type from V2 data
+      const typeCode = editingSKU.product_type?.code;
+      if (typeCode === 'wood_vertical') setProductType('wood-vertical');
+      else if (typeCode === 'wood_horizontal') setProductType('wood-horizontal');
+      else if (typeCode === 'iron') setProductType('iron');
+
       setSkuCode(editingSKU.sku_code);
       setSkuName(editingSKU.sku_name);
       setHeight(editingSKU.height);
+      setStyleCode(editingSKU.product_style?.code || 'standard');
       setPostType(editingSKU.post_type);
-      setVariables(editingSKU.variables || {});
-      setComponents(editingSKU.components || {});
+
+      // Load variables
+      const vars = editingSKU.variables || {};
+      if (vars.rail_count) setRailCount(Number(vars.rail_count));
+
+      // Load component materials (stored as SKU codes in V2)
+      const comps = editingSKU.components || {};
+      const findMaterialId = (sku: string) => materials.find(m => m.material_sku === sku)?.id || '';
+
+      setPostMaterialId(findMaterialId(comps.post || ''));
+      setPicketMaterialId(findMaterialId(comps.picket || ''));
+      setRailMaterialId(findMaterialId(comps.rail || ''));
+      setCapMaterialId(findMaterialId(comps.cap || ''));
+      setTrimMaterialId(findMaterialId(comps.trim || ''));
+      setRotBoardMaterialId(findMaterialId(comps.rot_board || ''));
+      setBoardMaterialId(findMaterialId(comps.board || ''));
+      setNailerMaterialId(findMaterialId(comps.nailer || ''));
+      setVerticalTrimMaterialId(findMaterialId(comps.vertical_trim || ''));
+      setPanelMaterialId(findMaterialId(comps.panel || ''));
+      setBracketMaterialId(findMaterialId(comps.bracket || ''));
+
+      setEditingId(editingSKU.id);
     }
-  }, [editingSKU]);
+  }, [editingSKU, materials]);
 
-  // Get selected type and style
-  const selectedType = productTypes.find(t => t.id === selectedTypeId);
-  const selectedStyle = productStyles.find(s => s.id === selectedStyleId);
+  // =============================================================================
+  // MATERIAL FILTERING
+  // =============================================================================
 
-  // Set default variable values when type changes
-  useEffect(() => {
-    if (productVariables.length > 0) {
-      const defaults: Record<string, number | string> = {};
-      productVariables.forEach(v => {
-        if (v.default_value && !(v.variable_code in variables)) {
-          if (v.variable_type === 'integer') {
-            defaults[v.variable_code] = parseInt(v.default_value);
-          } else if (v.variable_type === 'decimal') {
-            defaults[v.variable_code] = parseFloat(v.default_value);
-          } else {
-            defaults[v.variable_code] = v.default_value;
-          }
+  const getEligibleMaterialsForComponent = (
+    componentCode: string,
+    attributeFilter?: Record<string, string>
+  ): Material[] => {
+    let eligible = eligibleMaterials.filter(em => em.component_code === componentCode);
+
+    if (attributeFilter) {
+      eligible = eligible.filter(em => {
+        if (!em.attribute_filter) return false;
+        return Object.entries(attributeFilter).every(
+          ([key, value]) => em.attribute_filter?.[key] === value
+        );
+      });
+    }
+
+    const materialIds = new Set(eligible.map(em => em.material_id));
+    return materials.filter(m => materialIds.has(m.id));
+  };
+
+  // Filtered materials per component (with fallbacks)
+  const filteredPostMaterials = useMemo(() => {
+    if (productType !== 'iron') {
+      const configured = getEligibleMaterialsForComponent('post', { post_type: postType });
+      if (configured.length > 0) {
+        if (postType === 'WOOD') {
+          const requiredLength = height <= 6 ? 8 : 10;
+          return configured.filter(m => m.length_ft === null || m.length_ft >= requiredLength);
         }
-      });
-      if (Object.keys(defaults).length > 0) {
-        setVariables(prev => ({ ...defaults, ...prev }));
+        return configured;
       }
+    } else {
+      const configured = getEligibleMaterialsForComponent('post');
+      if (configured.length > 0) return configured;
     }
-  }, [productVariables, variables]);
+    // Fallback
+    const posts = materials.filter(m => m.category === '01-Post');
+    if (productType === 'iron') {
+      return posts.filter(m => m.sub_category === 'Iron' || m.material_name.toLowerCase().includes('iron'));
+    }
+    if (postType === 'STEEL') {
+      return posts.filter(m => m.sub_category === 'Steel' || m.material_name.toLowerCase().includes('steel'));
+    }
+    const requiredLength = height <= 6 ? 8 : 10;
+    return posts.filter(m =>
+      (m.sub_category === 'Wood' || m.material_name.toLowerCase().includes('ptp')) &&
+      (m.length_ft === null || m.length_ft >= requiredLength)
+    );
+  }, [materials, eligibleMaterials, postType, height, productType]);
 
-  // Filter materials for a component type based on eligibility rules
-  const getEligibleMaterials = useMemo(() => {
-    return (componentCode: string): Material[] => {
-      const rules = eligibilityRules.filter(r => r.component_code === componentCode);
-      if (rules.length === 0) return allMaterials;
+  const filteredPicketMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('picket');
+    if (configured.length > 0) {
+      return configured.filter(m => m.length_ft === null || m.length_ft === height);
+    }
+    const pickets = materials.filter(m => m.category === '02-Pickets');
+    return pickets.filter(m => m.length_ft === null || m.length_ft === height);
+  }, [materials, eligibleMaterials, height]);
 
-      return allMaterials.filter(m => {
-        return rules.some(rule => {
-          if (rule.material_sku && rule.material_sku === m.material_sku) return true;
-          if (rule.material_sub_category && rule.material_sub_category === m.sub_category) return true;
-          if (rule.material_category && !rule.material_sub_category && rule.material_category === m.category) return true;
-          return false;
-        });
-      });
-    };
-  }, [eligibilityRules, allMaterials]);
+  const filteredRailMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('rail');
+    if (configured.length > 0) return configured;
+    return materials.filter(m => m.category === '03-Rails');
+  }, [materials, eligibleMaterials]);
 
-  // Get relevant component types for the selected product type
-  // For now, show all component types - filtering can be added later via eligibility rules
-  const relevantComponentTypes = useMemo(() => {
-    if (!selectedType) return [];
-    // Show all active component types for now
-    return componentTypes;
-  }, [selectedType, componentTypes]);
+  const filteredCapTrimMaterials = useMemo(() => {
+    const configuredCap = getEligibleMaterialsForComponent('cap');
+    const configuredTrim = getEligibleMaterialsForComponent('trim');
+    if (configuredCap.length > 0 || configuredTrim.length > 0) {
+      return [...configuredCap, ...configuredTrim];
+    }
+    return materials.filter(m => m.category === '04-Cap/Trim');
+  }, [materials, eligibleMaterials]);
 
-  // Set component material
-  const setComponentMaterial = (componentCode: string, materialSku: string) => {
-    setComponents(prev => ({
-      ...prev,
-      [componentCode]: materialSku,
-    }));
-  };
+  const filteredHorizontalBoardMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('board');
+    if (configured.length > 0) {
+      return configured.filter(m => m.length_ft === null || m.length_ft === 6 || m.length_ft === 8);
+    }
+    const boards = materials.filter(m => m.category === '07-Horizontal Boards');
+    return boards.filter(m => m.length_ft === null || m.length_ft === 6 || m.length_ft === 8);
+  }, [materials, eligibleMaterials]);
 
-  // Set variable value
-  const setVariable = (code: string, value: number | string) => {
-    setVariables(prev => ({
-      ...prev,
-      [code]: value,
-    }));
-  };
+  const filteredIronPanelMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('panel');
+    if (configured.length > 0) return configured;
+    const panels = materials.filter(m => m.category === '09-Iron' && m.sub_category === 'Panel');
+    return panels.filter(m => m.length_ft === null || m.length_ft === 8);
+  }, [materials, eligibleMaterials]);
 
-  // Reset form
+  const filteredBracketMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('bracket');
+    if (configured.length > 0) return configured;
+    return materials.filter(m => m.category === '08-Hardware' || m.material_name.toLowerCase().includes('bracket'));
+  }, [materials, eligibleMaterials]);
+
+  const filteredNailerMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('nailer');
+    if (configured.length > 0) return configured;
+    return materials.filter(m => m.category === '03-Rails');
+  }, [materials, eligibleMaterials]);
+
+  const filteredRotBoardMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('rot_board');
+    if (configured.length > 0) return configured;
+    return materials.filter(m =>
+      m.material_name.toLowerCase().includes('rot') ||
+      m.sub_category?.toLowerCase().includes('rot')
+    );
+  }, [materials, eligibleMaterials]);
+
+  const filteredVerticalTrimMaterials = useMemo(() => {
+    const configured = getEligibleMaterialsForComponent('vertical_trim');
+    if (configured.length > 0) return configured;
+    return materials.filter(m => m.category === '04-Cap/Trim' && m.sub_category === 'Trim');
+  }, [materials, eligibleMaterials]);
+
+  // =============================================================================
+  // HELPERS
+  // =============================================================================
+
+  const getMaterial = (id: string): Material | undefined => materials.find(m => m.id === id);
+  const getMaterialSku = (id: string): string => getMaterial(id)?.material_sku || '';
+
+  // Generate suggested SKU name
+  const suggestedSkuName = useMemo(() => {
+    const h = `${height}'`;
+    const styleShort = styleCode.includes('good_neighbor') ? 'GN' :
+                       styleCode.includes('board_on_board') ? 'BOB' : 'STD';
+    const pt = postType === 'STEEL' ? 'ST' : 'WD';
+    const rails = productType === 'wood-vertical' ? `${railCount}R` : '';
+
+    if (productType === 'wood-vertical') {
+      return `${h} ${styleShort} ${rails} : ${pt}`;
+    } else if (productType === 'wood-horizontal') {
+      return `${h} HOR ${styleShort} : ${pt}`;
+    } else {
+      return `${h} Iron ${styleCode}`;
+    }
+  }, [height, styleCode, postType, railCount, productType]);
+
+  // =============================================================================
+  // RESET & PRODUCT TYPE CHANGE
+  // =============================================================================
+
   const resetForm = () => {
-    setSelectedTypeId(null);
-    setSelectedStyleId(null);
+    setEditingId(null);
     setSkuCode('');
     setSkuName('');
     setHeight(6);
+    setStyleCode('standard');
+    setRailCount(2);
     setPostType('WOOD');
-    setVariables({});
-    setComponents({});
+    setPostMaterialId('');
+    setPicketMaterialId('');
+    setRailMaterialId('');
+    setCapMaterialId('');
+    setTrimMaterialId('');
+    setRotBoardMaterialId('');
+    setBoardMaterialId('');
+    setNailerMaterialId('');
+    setVerticalTrimMaterialId('');
+    setPanelMaterialId('');
+    setBracketMaterialId('');
     onClearSelection?.();
   };
 
-  // Save SKU mutation
+  const handleProductTypeChange = (type: ProductType) => {
+    setProductType(type);
+    setStyleCode('standard');
+    if (type === 'iron') {
+      setPostType('STEEL');
+    } else {
+      setPostType('WOOD');
+    }
+    // Clear material selections
+    setPostMaterialId('');
+    setPicketMaterialId('');
+    setRailMaterialId('');
+    setBoardMaterialId('');
+    setNailerMaterialId('');
+    setPanelMaterialId('');
+    setBracketMaterialId('');
+    setCapMaterialId('');
+    setTrimMaterialId('');
+    setRotBoardMaterialId('');
+    setVerticalTrimMaterialId('');
+  };
+
+  // =============================================================================
+  // SAVE MUTATION
+  // =============================================================================
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!skuCode) throw new Error('SKU code is required');
-      if (!selectedTypeId) throw new Error('Product type is required');
-      if (!selectedStyleId) throw new Error('Style is required');
+      if (!selectedProductTypeV2) throw new Error('Product type not found');
+      if (!selectedStyleV2) throw new Error('Style not found');
 
-      const skuData = {
+      // Build variables JSONB
+      const variables: Record<string, number | string> = {};
+      if (productType === 'wood-vertical') {
+        variables.rail_count = railCount;
+      }
+      // Add any other variables from the V2 schema
+      variablesV2.forEach(v => {
+        if (v.variable_code === 'post_spacing') {
+          variables.post_spacing = selectedStyleV2.formula_adjustments?.post_spacing ||
+                                  selectedProductTypeV2.default_post_spacing || 8;
+        }
+      });
+
+      // Build components JSONB (store material SKUs)
+      const components: Record<string, string> = {};
+
+      if (postMaterialId) components.post = getMaterialSku(postMaterialId);
+      if (picketMaterialId) components.picket = getMaterialSku(picketMaterialId);
+      if (railMaterialId) components.rail = getMaterialSku(railMaterialId);
+      if (capMaterialId) components.cap = getMaterialSku(capMaterialId);
+      if (trimMaterialId) components.trim = getMaterialSku(trimMaterialId);
+      if (rotBoardMaterialId) components.rot_board = getMaterialSku(rotBoardMaterialId);
+      if (boardMaterialId) components.board = getMaterialSku(boardMaterialId);
+      if (nailerMaterialId) components.nailer = getMaterialSku(nailerMaterialId);
+      if (verticalTrimMaterialId) components.vertical_trim = getMaterialSku(verticalTrimMaterialId);
+      if (panelMaterialId) components.panel = getMaterialSku(panelMaterialId);
+      if (bracketMaterialId) components.bracket = getMaterialSku(bracketMaterialId);
+
+      const payload = {
         sku_code: skuCode,
-        sku_name: skuName || generateSkuName(),
-        product_type_id: selectedTypeId,
-        product_style_id: selectedStyleId,
+        sku_name: skuName || suggestedSkuName,
+        product_type_id: selectedProductTypeV2.id,
+        product_style_id: selectedStyleV2.id,
         height,
         post_type: postType,
         variables,
         components,
         is_active: true,
+        updated_at: new Date().toISOString(),
       };
 
-      if (editingSKUId) {
-        // Update existing
+      if (editingId) {
         const { error } = await supabase
           .from('sku_catalog_v2')
-          .update(skuData)
-          .eq('id', editingSKUId);
+          .update(payload)
+          .eq('id', editingId);
         if (error) throw error;
-        return editingSKUId;
       } else {
-        // Insert new
-        const { data: newSku, error } = await supabase
+        const { error } = await supabase
           .from('sku_catalog_v2')
-          .insert(skuData)
-          .select('id')
-          .single();
+          .insert(payload);
         if (error) throw error;
-        return newSku.id;
       }
     },
     onSuccess: () => {
-      showSuccess(editingSKUId ? 'SKU updated successfully' : 'SKU created successfully');
+      showSuccess(editingId ? 'SKU updated' : 'SKU created');
       queryClient.invalidateQueries({ queryKey: ['sku-catalog-v2'] });
-      queryClient.invalidateQueries({ queryKey: ['sku-v2'] });
+      if (editingId) {
+        onClearSelection?.();
+        setEditingId(null);
+      }
       resetForm();
     },
     onError: (err: Error) => {
@@ -243,394 +458,458 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     },
   });
 
-  // Generate suggested SKU name
-  const generateSkuName = () => {
-    const typeName = selectedType?.name || '';
-    const styleName = selectedStyle?.name || '';
-    const h = `${height}'`;
-    const pt = postType === 'STEEL' ? 'Steel Post' : 'Wood Post';
-    return `${typeName} ${styleName} ${h} ${pt}`.trim();
-  };
+  // =============================================================================
+  // RENDER
+  // =============================================================================
 
-  // Loading state
-  if (loadingTypes || loadingMaterials) {
+  if (loadingMaterials) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-3" />
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Loading materials...</p>
         </div>
       </div>
     );
   }
-
-  // No product types available
-  if (productTypes.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 p-8">
-        <div className="text-center max-w-md">
-          <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">No Product Types</h2>
-          <p className="text-gray-600">
-            Product types need to be configured in the database (product_types_v2).
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const hasRequiredFields = skuCode && selectedTypeId && selectedStyleId;
 
   return (
     <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
-      {/* Left Panel - Configuration */}
-      <div className="w-[500px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+      {/* Configuration Panel */}
+      <div className="w-[520px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {editingSKUId && (
+            {editingId && (
               <button
                 onClick={resetForm}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
                 title="New SKU"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
             <div>
-              <h1 className="text-lg font-bold text-gray-900">
-                {editingSKUId ? 'Edit SKU' : 'SKU Builder'}
+              <h1 className="text-base font-bold text-gray-900">
+                {editingId ? 'Edit SKU' : 'SKU Builder'}
               </h1>
-              {editingSKUId && (
-                <p className="text-xs text-purple-600">{skuCode}</p>
-              )}
+              {editingId && <p className="text-xs text-purple-600">{skuCode}</p>}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={resetForm}
-              className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-xs font-medium flex items-center gap-1.5"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
               Reset
             </button>
             <button
               onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || !hasRequiredFields}
-              className="px-4 py-1.5 bg-purple-600 text-white rounded text-sm font-medium flex items-center gap-1.5 transition-colors disabled:bg-gray-400 hover:bg-purple-700"
+              disabled={saveMutation.isPending || !skuCode}
+              className={`px-3 py-1.5 text-white rounded text-xs font-medium flex items-center gap-1.5 disabled:bg-gray-400 ${
+                editingId ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'
+              }`}
             >
-              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {editingSKUId ? 'Update' : 'Save SKU'}
+              {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {editingId ? 'Update SKU' : 'Save SKU'}
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3">
           {/* SKU Code & Name */}
-          <div className="flex gap-3">
-            <div className="w-28">
-              <label className="block text-xs font-medium text-gray-700 mb-1">SKU Code *</label>
+          <div className="flex gap-2 mb-3">
+            <div className="w-24 flex-shrink-0">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU #</label>
               <input
                 type="text"
                 value={skuCode}
                 onChange={(e) => setSkuCode(e.target.value.toUpperCase())}
                 placeholder="A07"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-purple-500"
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 mb-1">SKU Name</label>
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU Name</label>
               <input
                 type="text"
-                value={skuName || generateSkuName()}
+                value={skuName || suggestedSkuName}
                 onChange={(e) => setSkuName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-purple-500"
               />
             </div>
           </div>
 
-          {/* Product Type Selection */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Product Type *</label>
-            <div className="flex flex-wrap gap-2">
-              {productTypes.map((type: ProductTypeV2) => (
-                <button
-                  key={type.id}
-                  onClick={() => {
-                    setSelectedTypeId(type.id);
-                    setSelectedStyleId(null);
-                    setVariables({});
-                    setComponents({});
-                  }}
-                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                    selectedTypeId === type.id
-                      ? 'border-purple-600 bg-purple-50 text-purple-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {type.name}
-                </button>
-              ))}
-            </div>
+          {/* Product Type Tabs */}
+          <div className="flex rounded border border-gray-200 overflow-hidden mb-3">
+            <button
+              onClick={() => handleProductTypeChange('wood-vertical')}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1 ${
+                productType === 'wood-vertical' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              Vertical
+            </button>
+            <button
+              onClick={() => handleProductTypeChange('wood-horizontal')}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1 border-l border-gray-200 ${
+                productType === 'wood-horizontal' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Horizontal
+            </button>
+            <button
+              onClick={() => handleProductTypeChange('iron')}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1 border-l border-gray-200 ${
+                productType === 'iron' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" />
+              Iron
+            </button>
           </div>
 
-          {/* Style Selection */}
-          {selectedTypeId && productStyles.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-2">Style *</label>
-              <div className="flex flex-wrap gap-2">
-                {productStyles.map((style) => (
-                  <button
-                    key={style.id}
-                    onClick={() => setSelectedStyleId(style.id)}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      selectedStyleId === style.id
-                        ? 'border-purple-600 bg-purple-50 text-purple-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {style.name}
-                  </button>
+          {/* Attributes */}
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Style</label>
+              <select
+                value={styleCode}
+                onChange={(e) => setStyleCode(e.target.value)}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+              >
+                {stylesV2.map(s => (
+                  <option key={s.id} value={s.code}>{s.name}</option>
                 ))}
-              </div>
+              </select>
             </div>
-          )}
-
-          {/* Specifications */}
-          {selectedTypeId && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Height</label>
-                <select
-                  value={height}
-                  onChange={(e) => setHeight(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                >
-                  {[4, 5, 6, 7, 8].map(h => (
-                    <option key={h} value={h}>{h} ft</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Post Type</label>
+            <div className="w-16">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Height</label>
+              <select
+                value={height}
+                onChange={(e) => { setHeight(Number(e.target.value)); setPicketMaterialId(''); }}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+              >
+                {(productType === 'iron' ? [4, 5, 6] : [4, 5, 6, 7, 8]).map(h => (
+                  <option key={h} value={h}>{h} ft</option>
+                ))}
+              </select>
+            </div>
+            {productType === 'wood-vertical' && (
+              <>
+                <div className="w-16">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5"># Rails</label>
+                  <select
+                    value={railCount}
+                    onChange={(e) => setRailCount(Number(e.target.value))}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value={2}>2</option>
+                    <option value={3}>3</option>
+                    <option value={4}>4</option>
+                  </select>
+                </div>
+                <div className="w-20">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Post Type</label>
+                  <select
+                    value={postType}
+                    onChange={(e) => { setPostType(e.target.value as 'WOOD' | 'STEEL'); setPostMaterialId(''); }}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="WOOD">Wood</option>
+                    <option value="STEEL">Steel</option>
+                  </select>
+                </div>
+              </>
+            )}
+            {productType === 'wood-horizontal' && (
+              <div className="w-20">
+                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Post Type</label>
                 <select
                   value={postType}
-                  onChange={(e) => setPostType(e.target.value as 'WOOD' | 'STEEL')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                  onChange={(e) => { setPostType(e.target.value as 'WOOD' | 'STEEL'); setPostMaterialId(''); }}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
                 >
                   <option value="WOOD">Wood</option>
                   <option value="STEEL">Steel</option>
                 </select>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Product Variables */}
-          {selectedTypeId && productVariables.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900">Variables</h3>
-              <div className="bg-blue-50 rounded-lg p-3 grid grid-cols-2 gap-3">
-                {productVariables.map((v) => (
-                  <div key={v.id}>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      {v.variable_name} {v.unit && `(${v.unit})`}
-                    </label>
-                    {v.variable_type === 'select' && v.allowed_values ? (
-                      <select
-                        value={variables[v.variable_code] ?? v.default_value ?? ''}
-                        onChange={(e) => setVariable(v.variable_code, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      >
-                        {v.allowed_values.map(val => (
-                          <option key={val} value={val}>{val}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="number"
-                        value={variables[v.variable_code] ?? v.default_value ?? ''}
-                        onChange={(e) => setVariable(v.variable_code,
-                          v.variable_type === 'integer' ? parseInt(e.target.value) : parseFloat(e.target.value)
-                        )}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                        step={v.variable_type === 'decimal' ? '0.1' : '1'}
-                      />
-                    )}
-                  </div>
+          {/* Materials Section */}
+          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Materials</h3>
+
+            {/* Post Material */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600 w-14 flex-shrink-0">Post</span>
+              <select
+                value={postMaterialId}
+                onChange={(e) => setPostMaterialId(e.target.value)}
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+              >
+                <option value="">Select post...</option>
+                {filteredPostMaterials.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
-          )}
 
-          {/* Component Materials */}
-          {selectedTypeId && relevantComponentTypes.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900">Components</h3>
-              <div className="bg-purple-50 rounded-lg p-3 space-y-3">
-                {relevantComponentTypes.map((comp) => {
-                  const eligible = getEligibleMaterials(comp.code);
-                  const selected = components[comp.code];
+            {/* Wood Vertical Materials */}
+            {productType === 'wood-vertical' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Pickets</span>
+                  <select
+                    value={picketMaterialId}
+                    onChange={(e) => setPicketMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="">Select pickets...</option>
+                    {filteredPicketMaterials.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Rails</span>
+                  <select
+                    value={railMaterialId}
+                    onChange={(e) => setRailMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="">Select rails...</option>
+                    {filteredRailMaterials.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
+                    <select
+                      value={capMaterialId}
+                      onChange={(e) => setCapMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-10 flex-shrink-0">Trim</span>
+                    <select
+                      value={trimMaterialId}
+                      onChange={(e) => setTrimMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredCapTrimMaterials.filter(m => m.sub_category === 'Trim').map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Rot Brd</span>
+                  <select
+                    value={rotBoardMaterialId}
+                    onChange={(e) => setRotBoardMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="">None</option>
+                    {filteredRotBoardMaterials.map(m => (
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
-                  return (
-                    <div key={comp.id} className="flex items-center gap-3">
-                      <span className="text-sm text-gray-700 w-24 flex-shrink-0">
-                        {comp.name}
-                      </span>
-                      <select
-                        value={selected || ''}
-                        onChange={(e) => setComponentMaterial(comp.code, e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white"
-                      >
-                        <option value="">Select {comp.name.toLowerCase()}...</option>
-                        {eligible.map(m => (
-                          <option key={m.id} value={m.material_sku}>
-                            {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            {/* Wood Horizontal Materials */}
+            {productType === 'wood-horizontal' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Board</span>
+                  <select
+                    value={boardMaterialId}
+                    onChange={(e) => setBoardMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="">Select board...</option>
+                    {filteredHorizontalBoardMaterials.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Nailer</span>
+                  <select
+                    value={nailerMaterialId}
+                    onChange={(e) => setNailerMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="">None</option>
+                    {filteredNailerMaterials.map(m => (
+                      <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Cap</span>
+                    <select
+                      value={capMaterialId}
+                      onChange={(e) => setCapMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredCapTrimMaterials.filter(m => m.sub_category === 'Cap').map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-gray-600 w-10 flex-shrink-0">VTrim</span>
+                    <select
+                      value={verticalTrimMaterialId}
+                      onChange={(e) => setVerticalTrimMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                    >
+                      <option value="">None</option>
+                      {filteredVerticalTrimMaterials.map(m => (
+                        <option key={m.id} value={m.id}>{m.material_sku} - {m.material_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
 
-          {/* Warning if no type selected */}
-          {!selectedTypeId && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-amber-800">Select a product type</p>
-                <p className="text-xs text-amber-600 mt-1">
-                  Choose a product type above to configure variables and components.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right Panel - Preview */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Preview Header */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Preview</h2>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Length:</span>
-                <input
-                  type="number"
-                  value={previewLength}
-                  onChange={(e) => setPreviewLength(Number(e.target.value))}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                />
-                <span className="text-gray-400">ft</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Lines:</span>
-                <select
-                  value={previewLines}
-                  onChange={(e) => setPreviewLines(Number(e.target.value))}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm"
-                >
-                  {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-            </div>
+            {/* Iron Materials */}
+            {productType === 'iron' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-14 flex-shrink-0">Panel</span>
+                  <select
+                    value={panelMaterialId}
+                    onChange={(e) => setPanelMaterialId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                  >
+                    <option value="">Select panel...</option>
+                    {filteredIronPanelMaterials.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {styleCode.includes('ameristar') && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600 w-14 flex-shrink-0">Bracket</span>
+                    <select
+                      value={bracketMaterialId}
+                      onChange={(e) => setBracketMaterialId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+                    >
+                      <option value="">Select bracket...</option>
+                      {filteredBracketMaterials.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Preview Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {selectedTypeId && Object.keys(components).length > 0 ? (
-            <div className="space-y-4">
-              {/* Summary Stats */}
-              <div className="grid grid-cols-4 gap-3">
-                <div className="bg-purple-600 text-white rounded-lg px-4 py-3 text-center">
-                  <div className="text-xs uppercase tracking-wide opacity-80">Cost/Ft</div>
-                  <div className="text-xl font-bold">$0.00</div>
-                </div>
-                <div className="bg-green-600 text-white rounded-lg px-4 py-3 text-center">
-                  <div className="text-xs uppercase tracking-wide opacity-80">Total Cost</div>
-                  <div className="text-xl font-bold">$0.00</div>
-                </div>
-                <div className="bg-amber-500 text-white rounded-lg px-4 py-3 text-center">
-                  <div className="text-xs uppercase tracking-wide opacity-80">Material/Ft</div>
-                  <div className="text-xl font-bold">$0.00</div>
-                </div>
-                <div className="bg-blue-500 text-white rounded-lg px-4 py-3 text-center">
-                  <div className="text-xs uppercase tracking-wide opacity-80">Labor/Ft</div>
-                  <div className="text-xl font-bold">$0.00</div>
-                </div>
-              </div>
+      {/* Preview Panel */}
+      <div className="flex-1 bg-gray-50 p-4 overflow-auto">
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">SKU Preview</h2>
 
-              {/* Variables Summary */}
-              {Object.keys(variables).length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-gray-900">Variables</h3>
-                  </div>
-                  <div className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(variables).map(([code, value]) => (
-                        <span key={code} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                          {code}: {value}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Selected Materials */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-sm font-semibold text-gray-900">Selected Materials</h3>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {Object.entries(components).map(([componentCode, materialSku]) => {
-                    const material = allMaterials.find(m => m.material_sku === materialSku);
-                    const componentType = componentTypes.find(c => c.code === componentCode);
-
-                    if (!materialSku) return null;
-
-                    return (
-                      <div key={componentCode} className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {componentType?.name || componentCode}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {materialSku} - {material?.material_name}
-                          </div>
-                        </div>
-                        <div className="text-sm font-medium text-green-600">
-                          ${material?.unit_cost.toFixed(2) || '0.00'}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Calculation Preview Placeholder */}
-              <div className="bg-gray-100 rounded-lg p-6 text-center">
-                <p className="text-gray-500 text-sm">
-                  BOM calculation preview will use FormulaInterpreter when Calculator is implemented.
-                </p>
-              </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-gray-500">SKU Code:</span>
+              <span className="ml-2 font-mono font-medium">{skuCode || '-'}</span>
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">Select materials to see preview</p>
-              </div>
+            <div>
+              <span className="text-gray-500">SKU Name:</span>
+              <span className="ml-2">{skuName || suggestedSkuName || '-'}</span>
             </div>
-          )}
+            <div>
+              <span className="text-gray-500">Type:</span>
+              <span className="ml-2">{selectedProductTypeV2?.name || '-'}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Style:</span>
+              <span className="ml-2">{selectedStyleV2?.name || '-'}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Height:</span>
+              <span className="ml-2">{height} ft</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Post Type:</span>
+              <span className="ml-2">{postType}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Selected Materials</h3>
+            <div className="space-y-1 text-xs">
+              {postMaterialId && <MaterialPreview label="Post" material={getMaterial(postMaterialId)} />}
+              {picketMaterialId && <MaterialPreview label="Picket" material={getMaterial(picketMaterialId)} />}
+              {railMaterialId && <MaterialPreview label="Rail" material={getMaterial(railMaterialId)} />}
+              {boardMaterialId && <MaterialPreview label="Board" material={getMaterial(boardMaterialId)} />}
+              {nailerMaterialId && <MaterialPreview label="Nailer" material={getMaterial(nailerMaterialId)} />}
+              {capMaterialId && <MaterialPreview label="Cap" material={getMaterial(capMaterialId)} />}
+              {trimMaterialId && <MaterialPreview label="Trim" material={getMaterial(trimMaterialId)} />}
+              {rotBoardMaterialId && <MaterialPreview label="Rot Board" material={getMaterial(rotBoardMaterialId)} />}
+              {verticalTrimMaterialId && <MaterialPreview label="V. Trim" material={getMaterial(verticalTrimMaterialId)} />}
+              {panelMaterialId && <MaterialPreview label="Panel" material={getMaterial(panelMaterialId)} />}
+              {bracketMaterialId && <MaterialPreview label="Bracket" material={getMaterial(bracketMaterialId)} />}
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-purple-50 rounded-lg text-xs text-purple-700">
+            <p className="font-medium">V2 Architecture</p>
+            <p className="mt-1 text-purple-600">
+              This SKU will be saved to <code className="bg-purple-100 px-1 rounded">sku_catalog_v2</code> with
+              JSONB variables and components for formula-based BOM calculation.
+            </p>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Material preview helper
+function MaterialPreview({ label, material }: { label: string; material?: Material }) {
+  if (!material) return null;
+  return (
+    <div className="flex justify-between text-gray-600">
+      <span>{label}:</span>
+      <span className="font-mono">{material.material_sku} - ${material.unit_cost.toFixed(2)}</span>
     </div>
   );
 }

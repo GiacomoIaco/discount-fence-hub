@@ -1,14 +1,15 @@
 /**
  * Calculator Page - V2
  *
- * Main BOM/BOL estimation engine using the formula-based architecture.
- * Uses FormulaInterpreter to execute database-stored formulas.
+ * Full-featured BOM/BOL calculator with V1 UI, connected to V2 tables.
+ * Uses sku_catalog_v2 for products and FormulaInterpreter for calculations.
+ * Shares materials, labor_codes, labor_rates, yards with V1.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Trash2, Loader2, Save, Search, Calculator, ChevronDown, ChevronUp
+  Plus, Trash2, Loader2, Save, Search, X
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -18,7 +19,7 @@ import {
   createFormulaContext,
   applyProjectRounding,
 } from '../services';
-import { useSKUCatalogV2, useProductTypesV2, type SKUCatalogV2WithRelations } from '../hooks';
+import { useSKUCatalogV2, type SKUCatalogV2WithRelations } from '../hooks';
 
 // =============================================================================
 // TYPES
@@ -26,11 +27,10 @@ import { useSKUCatalogV2, useProductTypesV2, type SKUCatalogV2WithRelations } fr
 
 interface LineItem {
   id: string;
-  productTypeId: string;
-  productTypeName: string;
   skuId: string;
   skuCode: string;
   skuName: string;
+  productTypeCode: string;
   postType: 'WOOD' | 'STEEL';
   totalFootage: number;
   buffer: number;
@@ -41,8 +41,7 @@ interface LineItem {
 }
 
 interface MaterialRow {
-  component_code: string;
-  component_name: string;
+  material_id: string;
   material_sku: string;
   material_name: string;
   unit_cost: number;
@@ -51,13 +50,329 @@ interface MaterialRow {
   adjustment: number;
   total_qty: number;
   total_cost: number;
-  formula_used: string;
+  is_manual: boolean;
+}
+
+interface LaborRow {
+  labor_code_id: string;
+  labor_sku: string;
+  description: string;
+  rate: number;
+  quantity: number;
+  calculated_cost: number;
+  adjustment: number;
+  total_cost: number;
+  is_manual: boolean;
+}
+
+interface MaterialOption {
+  id: string;
+  material_sku: string;
+  material_name: string;
+  category: string;
+  unit_cost: number;
+  unit_type: string;
+}
+
+interface LaborCode {
+  id: string;
+  labor_sku: string;
+  description: string;
+  unit_type: string;
 }
 
 interface BusinessUnit {
   id: string;
   code: string;
   name: string;
+}
+
+interface Yard {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+}
+
+// =============================================================================
+// SKU SEARCH COMPONENT
+// =============================================================================
+
+function SKUSearch({
+  value,
+  onChange,
+  skus,
+}: {
+  value: string;
+  onChange: (sku: SKUCatalogV2WithRelations) => void;
+  skus: SKUCatalogV2WithRelations[];
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+
+  const filteredSkus = useMemo(() => {
+    if (!searchTerm) return skus.slice(0, 15);
+    return skus.filter(s =>
+      s.sku_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.sku_code.toLowerCase().includes(searchTerm.toLowerCase())
+    ).slice(0, 15);
+  }, [skus, searchTerm]);
+
+  const selectedSku = skus.find(s => s.id === value);
+  const displayValue = selectedSku ? `${selectedSku.sku_code} - ${selectedSku.sku_name}` : searchTerm;
+
+  // Get type badge
+  const getTypeBadge = (typeCode: string) => {
+    switch (typeCode) {
+      case 'wood_vertical': return { label: 'WV', color: 'bg-green-100 text-green-700' };
+      case 'wood_horizontal': return { label: 'WH', color: 'bg-blue-100 text-blue-700' };
+      case 'iron': return { label: 'IR', color: 'bg-gray-200 text-gray-700' };
+      default: return { label: '?', color: 'bg-gray-100 text-gray-600' };
+    }
+  };
+
+  return (
+    <div className="relative flex-1">
+      <input
+        type="text"
+        value={isFocused ? searchTerm : displayValue}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onFocus={() => { setIsFocused(true); setSearchTerm(''); }}
+        onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+        placeholder="Search SKU..."
+        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+      />
+      {isFocused && filteredSkus.length > 0 && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+          {filteredSkus.map(sku => {
+            const badge = getTypeBadge(sku.product_type?.code || '');
+            return (
+              <div
+                key={sku.id}
+                onMouseDown={() => {
+                  onChange(sku);
+                  setSearchTerm('');
+                  setIsFocused(false);
+                }}
+                className="px-3 py-2 cursor-pointer hover:bg-purple-50 border-b border-gray-100 last:border-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.color}`}>
+                    {badge.label}
+                  </span>
+                  <span className="font-mono text-sm font-medium text-gray-900">{sku.sku_code}</span>
+                </div>
+                <div className="text-xs text-gray-600 truncate ml-7">{sku.sku_name}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// ADD MATERIAL MODAL
+// =============================================================================
+
+function AddMaterialModal({
+  isOpen,
+  onClose,
+  materials,
+  existingMaterialIds,
+  onAdd,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  materials: MaterialOption[];
+  existingMaterialIds: Set<string>;
+  onAdd: (material: MaterialOption) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+
+  if (!isOpen) return null;
+
+  const filteredMaterials = materials.filter(m => {
+    const matchesSearch = m.material_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.material_sku.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !categoryFilter || m.category === categoryFilter;
+    const notAlreadyAdded = !existingMaterialIds.has(m.id);
+    return matchesSearch && matchesCategory && notAlreadyAdded;
+  });
+
+  const categories = [...new Set(materials.map(m => m.category))].sort();
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Add Material</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-gray-200 space-y-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search materials..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                autoFocus
+              />
+            </div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {filteredMaterials.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              {searchTerm || categoryFilter ? 'No materials match your filters' : 'All materials already added'}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredMaterials.slice(0, 50).map(material => (
+                <div
+                  key={material.id}
+                  onClick={() => {
+                    onAdd(material);
+                    onClose();
+                  }}
+                  className="px-4 py-3 hover:bg-purple-50 cursor-pointer flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-medium text-gray-900">{material.material_name}</div>
+                    <div className="text-xs text-gray-500 flex gap-2">
+                      <span className="font-mono">{material.material_sku}</span>
+                      <span>•</span>
+                      <span>{material.category}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold text-green-600">${material.unit_cost.toFixed(2)}</div>
+                    <div className="text-xs text-gray-500">{material.unit_type}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// ADD LABOR MODAL
+// =============================================================================
+
+function AddLaborModal({
+  isOpen,
+  onClose,
+  laborCodes,
+  laborRates,
+  existingLaborIds,
+  onAdd,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  laborCodes: LaborCode[];
+  laborRates: { labor_code_id: string; rate: number }[];
+  existingLaborIds: Set<string>;
+  onAdd: (laborCode: LaborCode, rate: number) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  if (!isOpen) return null;
+
+  const rateMap = new Map(laborRates.map(r => [r.labor_code_id, r.rate]));
+
+  const filteredLabor = laborCodes.filter(lc => {
+    const matchesSearch = lc.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lc.labor_sku.toLowerCase().includes(searchTerm.toLowerCase());
+    const notAlreadyAdded = !existingLaborIds.has(lc.id);
+    return matchesSearch && notAlreadyAdded;
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Add Labor</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-gray-200">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search labor codes..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {filteredLabor.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              {searchTerm ? 'No labor codes match your search' : 'All labor codes already added'}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredLabor.map(lc => {
+                const rate = rateMap.get(lc.id) || 0;
+                return (
+                  <div
+                    key={lc.id}
+                    onClick={() => {
+                      onAdd(lc, rate);
+                      onClose();
+                    }}
+                    className="px-4 py-3 hover:bg-purple-50 cursor-pointer flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="font-medium text-gray-900">{lc.description}</div>
+                      <div className="text-xs text-gray-500 flex gap-2">
+                        <span className="font-mono">{lc.labor_sku}</span>
+                        <span>•</span>
+                        <span>{lc.unit_type}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-purple-600">${rate.toFixed(2)}</div>
+                      <div className="text-xs text-gray-500">per {lc.unit_type}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // =============================================================================
@@ -83,19 +398,38 @@ export function CalculatorPage({
   const [projectName, setProjectName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [businessUnitId, setBusinessUnitId] = useState('');
+  const [yardId, setYardId] = useState('');
+  const [expectedPickupDate, setExpectedPickupDate] = useState('');
+  const [projectNotes, setProjectNotes] = useState('');
+  const [concreteType, setConcreteType] = useState<'3-part' | 'yellow-bags' | 'red-bags'>('3-part');
 
   // Line items
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([{
+    id: `line-${Date.now()}`,
+    skuId: '',
+    skuCode: '',
+    skuName: '',
+    productTypeCode: '',
+    postType: 'WOOD',
+    totalFootage: 0,
+    buffer: 5,
+    numberOfLines: 1,
+    numberOfGates: 0,
+    netLength: 0,
+    sortOrder: 0,
+  }]);
 
-  // BOM results
+  // BOM/BOL
   const [materialRows, setMaterialRows] = useState<MaterialRow[]>([]);
+  const [laborRows, setLaborRows] = useState<LaborRow[]>([]);
 
   // UI state
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
+  const [showAddLaborModal, setShowAddLaborModal] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [expandedLineItem, setExpandedLineItem] = useState<string | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
-  // Formula interpreter instance
+  // Formula interpreter
   const formulaInterpreter = useMemo(() => new FormulaInterpreter(supabase), []);
 
   // =============================================================================
@@ -116,23 +450,65 @@ export function CalculatorPage({
     },
   });
 
-  // Product types (V2)
-  const { data: productTypes = [] } = useProductTypesV2();
+  // Yards
+  const { data: yards = [] } = useQuery({
+    queryKey: ['yards-calc-v2'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('yards')
+        .select('id, code, name, city')
+        .eq('is_active', true)
+        .order('code');
+      if (error) throw error;
+      return data as Yard[];
+    },
+  });
 
   // All SKUs (V2)
-  const { data: allSKUs = [] } = useSKUCatalogV2();
+  const { data: allSKUs = [], isLoading: loadingSKUs } = useSKUCatalogV2();
 
-  // All materials for lookup
+  // All materials
   const { data: allMaterials = [] } = useQuery({
     queryKey: ['materials-for-calc-v2'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, material_sku, material_name, unit_cost, category')
-        .eq('status', 'Active');
+        .select('id, material_sku, material_name, category, unit_cost, unit_type')
+        .eq('status', 'Active')
+        .order('category')
+        .order('material_name');
+      if (error) throw error;
+      return data as MaterialOption[];
+    },
+  });
+
+  // All labor codes
+  const { data: allLaborCodes = [] } = useQuery({
+    queryKey: ['labor-codes-calc-v2'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('labor_codes')
+        .select('id, labor_sku, description, unit_type')
+        .eq('is_active', true)
+        .order('labor_sku');
+      if (error) throw error;
+      return data as LaborCode[];
+    },
+  });
+
+  // Labor rates for selected BU
+  const { data: laborRates = [] } = useQuery({
+    queryKey: ['labor-rates-calc-v2', businessUnitId],
+    queryFn: async () => {
+      if (!businessUnitId) return [];
+      const { data, error } = await supabase
+        .from('labor_rates')
+        .select('labor_code_id, rate')
+        .eq('business_unit_id', businessUnitId);
       if (error) throw error;
       return data || [];
     },
+    enabled: !!businessUnitId,
   });
 
   // =============================================================================
@@ -145,65 +521,11 @@ export function CalculatorPage({
     }
   }, [businessUnits, businessUnitId]);
 
-  // =============================================================================
-  // LINE ITEM MANAGEMENT
-  // =============================================================================
-
-  const addLineItem = () => {
-    const defaultType = productTypes[0];
-    if (!defaultType) return;
-
-    const newItem: LineItem = {
-      id: `line-${Date.now()}`,
-      productTypeId: defaultType.id,
-      productTypeName: defaultType.name,
-      skuId: '',
-      skuCode: '',
-      skuName: '',
-      postType: 'WOOD',
-      totalFootage: 100,
-      buffer: 5,
-      numberOfLines: 1,
-      numberOfGates: 0,
-      netLength: 95,
-      sortOrder: lineItems.length,
-    };
-
-    setLineItems([...lineItems, newItem]);
-    setExpandedLineItem(newItem.id);
-  };
-
-  const updateLineItem = (id: string, updates: Partial<LineItem>) => {
-    setLineItems(items =>
-      items.map(item => {
-        if (item.id !== id) return item;
-
-        const updated = { ...item, ...updates };
-
-        // Recalculate net length
-        if ('totalFootage' in updates || 'buffer' in updates) {
-          updated.netLength = Math.max(0, updated.totalFootage - updated.buffer);
-        }
-
-        return updated;
-      })
-    );
-  };
-
-  const removeLineItem = (id: string) => {
-    setLineItems(items => items.filter(item => item.id !== id));
-  };
-
-  const selectSKU = (lineItemId: string, sku: SKUCatalogV2WithRelations) => {
-    updateLineItem(lineItemId, {
-      skuId: sku.id,
-      skuCode: sku.sku_code,
-      skuName: sku.sku_name,
-      productTypeId: sku.product_type_id,
-      productTypeName: sku.product_type?.name || '',
-      postType: sku.post_type,
-    });
-  };
+  useEffect(() => {
+    if (yards.length > 0 && !yardId) {
+      setYardId(yards[0].id);
+    }
+  }, [yards, yardId]);
 
   // =============================================================================
   // CALCULATION
@@ -212,27 +534,27 @@ export function CalculatorPage({
   const runCalculation = useCallback(async () => {
     if (!businessUnitId || lineItems.length === 0) return;
 
-    // Check if all line items have SKUs
-    const validItems = lineItems.filter(item => item.skuId);
+    const validItems = lineItems.filter(item => item.skuId && item.netLength > 0);
     if (validItems.length === 0) {
       setMaterialRows([]);
+      setLaborRows([]);
       return;
     }
 
     setIsCalculating(true);
 
     try {
-      const allResults: Map<string, MaterialRow> = new Map();
+      const allMaterialResults: Map<string, MaterialRow> = new Map();
+      // Labor results will be populated when labor formulas are implemented
 
       for (const item of validItems) {
-        // Find the SKU
         const sku = allSKUs.find(s => s.id === item.skuId);
         if (!sku) continue;
 
         // Build material attributes from SKU components
         const materialAttributes = await buildMaterialAttributes(supabase, sku.components || {});
 
-        // Get style adjustments from the product style
+        // Get style adjustments
         const styleAdjustments = sku.product_style?.formula_adjustments || {};
 
         // Create formula context
@@ -256,7 +578,7 @@ export function CalculatorPage({
         // Apply project-level rounding
         const roundedResults = applyProjectRounding(results);
 
-        // Merge results
+        // Process material results
         for (const result of roundedResults) {
           const componentCode = result.component_code;
           const materialSku = sku.components?.[componentCode];
@@ -266,8 +588,8 @@ export function CalculatorPage({
           const material = allMaterials.find(m => m.material_sku === materialSku);
           if (!material) continue;
 
-          const key = `${componentCode}-${materialSku}`;
-          const existing = allResults.get(key);
+          const key = material.id;
+          const existing = allMaterialResults.get(key);
 
           if (existing) {
             existing.calculated_qty += result.raw_value;
@@ -275,10 +597,9 @@ export function CalculatorPage({
             existing.total_qty = existing.rounded_qty + existing.adjustment;
             existing.total_cost = existing.total_qty * existing.unit_cost;
           } else {
-            allResults.set(key, {
-              component_code: componentCode,
-              component_name: result.component_name,
-              material_sku: materialSku,
+            allMaterialResults.set(key, {
+              material_id: material.id,
+              material_sku: material.material_sku,
               material_name: material.material_name,
               unit_cost: material.unit_cost,
               calculated_qty: result.raw_value,
@@ -286,27 +607,30 @@ export function CalculatorPage({
               adjustment: 0,
               total_qty: result.rounded_value,
               total_cost: result.rounded_value * material.unit_cost,
-              formula_used: result.formula_used,
+              is_manual: false,
             });
           }
         }
+
+        // TODO: Add labor calculation when labor formulas are implemented
       }
 
-      // Preserve existing adjustments
-      const newRows = Array.from(allResults.values());
+      // Preserve existing adjustments for materials
+      const newMaterialRows = Array.from(allMaterialResults.values());
       setMaterialRows(prev => {
-        return newRows.map(row => {
-          const existing = prev.find(
-            p => p.component_code === row.component_code && p.material_sku === row.material_sku
-          );
-          if (existing) {
+        return newMaterialRows.map(row => {
+          const existing = prev.find(p => p.material_id === row.material_id);
+          if (existing && !existing.is_manual) {
             row.adjustment = existing.adjustment;
             row.total_qty = row.rounded_qty + row.adjustment;
             row.total_cost = row.total_qty * row.unit_cost;
           }
           return row;
-        });
+        }).concat(prev.filter(p => p.is_manual));
       });
+
+      // Preserve manual labor entries
+      setLaborRows(prev => prev.filter(p => p.is_manual));
 
     } catch (error) {
       console.error('Calculation error:', error);
@@ -316,77 +640,192 @@ export function CalculatorPage({
     }
   }, [businessUnitId, lineItems, allSKUs, allMaterials, formulaInterpreter]);
 
-  // Auto-calculate when line items change
+  // Auto-calculate
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      runCalculation();
-    }, 500);
-    return () => clearTimeout(timeoutId);
+    const timer = setTimeout(runCalculation, 300);
+    return () => clearTimeout(timer);
   }, [runCalculation]);
-
-  // =============================================================================
-  // ADJUSTMENTS
-  // =============================================================================
-
-  const updateMaterialAdjustment = (componentCode: string, materialSku: string, adjustment: number) => {
-    setMaterialRows(rows =>
-      rows.map(row => {
-        if (row.component_code !== componentCode || row.material_sku !== materialSku) return row;
-        const totalQty = row.rounded_qty + adjustment;
-        return {
-          ...row,
-          adjustment,
-          total_qty: totalQty,
-          total_cost: totalQty * row.unit_cost,
-        };
-      })
-    );
-  };
 
   // =============================================================================
   // TOTALS
   // =============================================================================
 
   const totals = useMemo(() => {
-    const materialTotal = materialRows.reduce((sum, r) => sum + r.total_cost, 0);
-    const totalFootage = lineItems.reduce((sum, i) => sum + i.netLength, 0);
-    const costPerFoot = totalFootage > 0 ? materialTotal / totalFootage : 0;
+    const materialTotal = materialRows.reduce((sum, m) => sum + m.total_cost, 0);
+    const laborTotal = laborRows.reduce((sum, l) => sum + l.total_cost, 0);
+    const materialCalc = materialRows.reduce((sum, m) => sum + (m.rounded_qty * m.unit_cost), 0);
+    const laborCalc = laborRows.reduce((sum, l) => sum + l.calculated_cost, 0);
+    const totalFootage = lineItems.reduce((sum, item) => sum + item.netLength, 0);
+    const projectTotal = materialTotal + laborTotal;
+    const adjustmentTotal = (materialTotal - materialCalc) + (laborTotal - laborCalc);
 
     return {
-      materialTotal,
-      totalFootage,
-      costPerFoot,
+      material: materialTotal,
+      labor: laborTotal,
+      total: projectTotal,
+      footage: totalFootage,
+      perFoot: totalFootage > 0 ? projectTotal / totalFootage : 0,
+      adjustments: adjustmentTotal,
+      calculatedTotal: materialCalc + laborCalc,
     };
-  }, [materialRows, lineItems]);
+  }, [materialRows, laborRows, lineItems]);
+
+  // =============================================================================
+  // LINE ITEM HANDLERS
+  // =============================================================================
+
+  const handleAddLine = () => {
+    setLineItems([...lineItems, {
+      id: `line-${Date.now()}`,
+      skuId: '',
+      skuCode: '',
+      skuName: '',
+      productTypeCode: '',
+      postType: 'WOOD',
+      totalFootage: 0,
+      buffer: 5,
+      numberOfLines: 1,
+      numberOfGates: 0,
+      netLength: 0,
+      sortOrder: lineItems.length,
+    }]);
+  };
+
+  const handleRemoveLine = (id: string) => {
+    if (lineItems.length > 1) {
+      setLineItems(lineItems.filter(item => item.id !== id));
+    }
+  };
+
+  const handleUpdateLine = (id: string, updates: Partial<LineItem>) => {
+    setLineItems(lineItems.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, ...updates };
+        updated.netLength = Math.max(0, updated.totalFootage - updated.buffer);
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  const handleSelectSKU = (lineId: string, sku: SKUCatalogV2WithRelations) => {
+    handleUpdateLine(lineId, {
+      skuId: sku.id,
+      skuCode: sku.sku_code,
+      skuName: sku.sku_name,
+      productTypeCode: sku.product_type?.code || '',
+      postType: sku.post_type,
+    });
+  };
+
+  // =============================================================================
+  // ADJUSTMENT HANDLERS
+  // =============================================================================
+
+  const handleMaterialAdjustment = (materialId: string, adj: number) => {
+    setMaterialRows(rows => rows.map(row => {
+      if (row.material_id === materialId) {
+        const newTotalQty = row.rounded_qty + adj;
+        return {
+          ...row,
+          adjustment: adj,
+          total_qty: Math.max(0, newTotalQty),
+          total_cost: Math.max(0, newTotalQty) * row.unit_cost,
+        };
+      }
+      return row;
+    }));
+  };
+
+  const handleLaborAdjustment = (laborCodeId: string, adj: number) => {
+    setLaborRows(rows => rows.map(row => {
+      if (row.labor_code_id === laborCodeId) {
+        return {
+          ...row,
+          adjustment: adj,
+          total_cost: row.calculated_cost + adj,
+        };
+      }
+      return row;
+    }));
+  };
+
+  // =============================================================================
+  // MANUAL ADDITIONS
+  // =============================================================================
+
+  const handleAddManualMaterial = (material: MaterialOption) => {
+    setMaterialRows(prev => [...prev, {
+      material_id: material.id,
+      material_sku: material.material_sku,
+      material_name: material.material_name,
+      unit_cost: material.unit_cost,
+      calculated_qty: 0,
+      rounded_qty: 0,
+      adjustment: 0,
+      total_qty: 0,
+      total_cost: 0,
+      is_manual: true,
+    }]);
+    showSuccess(`Added ${material.material_name}`);
+  };
+
+  const handleAddManualLabor = (laborCode: LaborCode, rate: number) => {
+    setLaborRows(prev => [...prev, {
+      labor_code_id: laborCode.id,
+      labor_sku: laborCode.labor_sku,
+      description: laborCode.description,
+      rate: rate,
+      quantity: 0,
+      calculated_cost: 0,
+      adjustment: 0,
+      total_cost: 0,
+      is_manual: true,
+    }]);
+    showSuccess(`Added ${laborCode.description}`);
+  };
+
+  const handleRemoveMaterial = (materialId: string) => {
+    setMaterialRows(prev => prev.filter(m => m.material_id !== materialId || !m.is_manual));
+  };
+
+  const handleRemoveLabor = (laborCodeId: string) => {
+    setLaborRows(prev => prev.filter(l => l.labor_code_id !== laborCodeId || !l.is_manual));
+  };
 
   // =============================================================================
   // SAVE PROJECT
   // =============================================================================
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (status: 'draft' | 'saved') => {
       if (!projectName.trim()) throw new Error('Project name is required');
+      if (!businessUnitId) throw new Error('Business unit is required');
+
+      const isUpdate = !!editingProjectId;
 
       const projectData = {
         project_name: projectName.trim(),
         customer_name: customerName.trim() || null,
-        net_length: totals.totalFootage,
+        net_length: totals.footage,
         number_of_lines: lineItems.reduce((sum, i) => sum + i.numberOfLines, 0),
         number_of_gates: lineItems.reduce((sum, i) => sum + i.numberOfGates, 0),
         sku_id: lineItems[0]?.skuId || null,
         materials_result: materialRows,
-        total_material_cost: totals.materialTotal,
-        total_cost: totals.materialTotal, // Will add labor when implemented
-        status: 'draft' as const,
+        labor_result: laborRows,
+        total_material_cost: totals.material,
+        total_labor_cost: totals.labor,
+        total_cost: totals.total,
+        status,
         created_by: userId || null,
       };
 
       let projectId: string;
 
-      if (editingProjectId) {
+      if (isUpdate) {
         const { error } = await supabase
           .from('bom_projects_v2')
-          .update(projectData)
+          .update({ ...projectData, updated_at: new Date().toISOString() })
           .eq('id', editingProjectId);
         if (error) throw error;
         projectId = editingProjectId;
@@ -400,16 +839,23 @@ export function CalculatorPage({
         projectId = data.id;
       }
 
-      return projectId;
+      return { id: projectId, isUpdate };
     },
-    onSuccess: (projectId) => {
-      showSuccess(editingProjectId ? 'Project updated!' : 'Project saved!');
+    onSuccess: (result, status) => {
+      const message = result.isUpdate
+        ? (status === 'draft' ? 'Draft updated' : 'Project updated')
+        : (status === 'draft' ? 'Draft saved' : 'Project saved');
+      showSuccess(message);
       queryClient.invalidateQueries({ queryKey: ['bom-projects-v2'] });
-      setEditingProjectId(projectId);
-      onProjectSaved?.(projectId);
+
+      if (!result.isUpdate) {
+        setEditingProjectId(result.id);
+      }
+
+      onProjectSaved?.(result.id);
     },
     onError: (err: Error) => {
-      showError(err.message || 'Failed to save project');
+      showError(err.message);
     },
   });
 
@@ -417,384 +863,505 @@ export function CalculatorPage({
   // FORMATTING
   // =============================================================================
 
-  const formatCurrency = (num: number) =>
-    '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatCurrency = (num: number) => '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // =============================================================================
   // RENDER
   // =============================================================================
 
-  const loading = !businessUnits.length || !productTypes.length;
+  const loading = loadingSKUs;
 
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-3" />
-          <p className="text-gray-600">Loading calculator...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto" />
+          <p className="mt-2 text-gray-600">Loading calculator...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
-      {/* Left Panel - Line Items */}
-      <div className="w-[450px] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">Calculator V2</h1>
-              <p className="text-xs text-gray-500">Formula-driven BOM</p>
-            </div>
-            <button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || !projectName.trim()}
-              className="flex items-center gap-2 px-4 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:bg-gray-400 transition-colors"
-            >
-              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save
-            </button>
-          </div>
-
+    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* TOP SECTION - Project Info & Summary Metrics */}
+      <div className="bg-white border-b border-gray-200 p-4">
+        <div className="flex gap-6">
           {/* Project Details */}
-          <div className="space-y-2">
-            <input
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="Project Name *"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-            />
-            <div className="grid grid-cols-2 gap-2">
+          <div className="flex-1 grid grid-cols-6 gap-3 items-end">
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-600 mb-1">Project Name *</label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="Enter project name"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Customer</label>
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Customer"
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="Customer name"
               />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Business Unit *</label>
               <select
                 value={businessUnitId}
                 onChange={(e) => setBusinessUnitId(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               >
                 {businessUnits.map(bu => (
-                  <option key={bu.id} value={bu.id}>{bu.code} - {bu.name}</option>
+                  <option key={bu.id} value={bu.id}>{bu.code}</option>
                 ))}
               </select>
             </div>
-          </div>
-        </div>
-
-        {/* Line Items */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {lineItems.map((item, idx) => (
-            <LineItemCard
-              key={item.id}
-              item={item}
-              index={idx}
-              isExpanded={expandedLineItem === item.id}
-              productTypes={productTypes}
-              allSKUs={allSKUs}
-              onToggle={() => setExpandedLineItem(expandedLineItem === item.id ? null : item.id)}
-              onUpdate={(updates) => updateLineItem(item.id, updates)}
-              onSelectSKU={(sku) => selectSKU(item.id, sku)}
-              onRemove={() => removeLineItem(item.id)}
-            />
-          ))}
-
-          <button
-            onClick={addLineItem}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-purple-400 hover:text-purple-600 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Line Item
-          </button>
-        </div>
-      </div>
-
-      {/* Right Panel - BOM Results */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Summary Stats */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase opacity-80">Cost/Ft</div>
-              <div className="text-lg font-bold">{formatCurrency(totals.costPerFoot)}</div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Yard</label>
+              <select
+                value={yardId}
+                onChange={(e) => setYardId(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              >
+                {yards.map(y => (
+                  <option key={y.id} value={y.id}>{y.code}</option>
+                ))}
+              </select>
             </div>
-            <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase opacity-80">Material Total</div>
-              <div className="text-lg font-bold">{formatCurrency(totals.materialTotal)}</div>
-            </div>
-            <div className="bg-gray-600 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase opacity-80">Footage</div>
-              <div className="text-lg font-bold">{totals.totalFootage.toLocaleString()}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Materials Table */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {isCalculating && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-              <span className="ml-2 text-gray-600">Calculating...</span>
-            </div>
-          )}
-
-          {!isCalculating && lineItems.length === 0 && (
-            <div className="text-center py-12">
-              <Calculator className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">Add a line item to start calculating</p>
-            </div>
-          )}
-
-          {!isCalculating && materialRows.length > 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900">Materials (BOM)</h3>
-                <span className="font-semibold text-green-600">{formatCurrency(totals.materialTotal)}</span>
-              </div>
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr className="text-xs text-gray-500 uppercase">
-                    <th className="text-left py-2 px-3">Component / Material</th>
-                    <th className="text-right py-2 px-3 w-16">Calc</th>
-                    <th className="text-right py-2 px-3 w-16">Rnd</th>
-                    <th className="text-right py-2 px-3 w-20">Adj</th>
-                    <th className="text-right py-2 px-3 w-16">Qty</th>
-                    <th className="text-right py-2 px-3 w-20">Cost</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {materialRows.map(row => (
-                    <tr key={`${row.component_code}-${row.material_sku}`} className="hover:bg-gray-50">
-                      <td className="py-2 px-3">
-                        <div className="font-medium text-gray-900">{row.component_name}</div>
-                        <div className="text-xs text-gray-500">{row.material_sku} - {row.material_name}</div>
-                      </td>
-                      <td className="py-2 px-3 text-right text-gray-500">{row.calculated_qty.toFixed(1)}</td>
-                      <td className="py-2 px-3 text-right text-gray-700">{row.rounded_qty}</td>
-                      <td className="py-2 px-3 text-right">
-                        <input
-                          type="number"
-                          value={row.adjustment}
-                          onChange={(e) => updateMaterialAdjustment(row.component_code, row.material_sku, Number(e.target.value))}
-                          className={`w-16 px-2 py-1 border rounded text-right text-sm ${
-                            row.adjustment !== 0 ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
-                          }`}
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-right font-medium">{row.total_qty}</td>
-                      <td className="py-2 px-3 text-right font-medium text-green-600">{formatCurrency(row.total_cost)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!isCalculating && lineItems.some(i => i.skuId) && materialRows.length === 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-              <p className="text-amber-800">
-                No formulas found for the selected SKU. Make sure formula templates are configured in the database.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// LINE ITEM CARD COMPONENT
-// =============================================================================
-
-function LineItemCard({
-  item,
-  index,
-  isExpanded,
-  productTypes,
-  allSKUs,
-  onToggle,
-  onUpdate,
-  onSelectSKU,
-  onRemove,
-}: {
-  item: LineItem;
-  index: number;
-  isExpanded: boolean;
-  productTypes: { id: string; code: string; name: string }[];
-  allSKUs: SKUCatalogV2WithRelations[];
-  onToggle: () => void;
-  onUpdate: (updates: Partial<LineItem>) => void;
-  onSelectSKU: (sku: SKUCatalogV2WithRelations) => void;
-  onRemove: () => void;
-}) {
-  const [skuSearch, setSkuSearch] = useState('');
-  const [showSkuDropdown, setShowSkuDropdown] = useState(false);
-
-  // Filter SKUs by product type and search
-  const filteredSKUs = useMemo(() => {
-    return allSKUs
-      .filter(sku => sku.product_type_id === item.productTypeId)
-      .filter(sku =>
-        sku.sku_code.toLowerCase().includes(skuSearch.toLowerCase()) ||
-        sku.sku_name.toLowerCase().includes(skuSearch.toLowerCase())
-      )
-      .slice(0, 10);
-  }, [allSKUs, item.productTypeId, skuSearch]);
-
-  return (
-    <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-100"
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-3">
-          <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center">
-            {index + 1}
-          </span>
-          <div>
-            <div className="text-sm font-medium text-gray-900">
-              {item.skuCode || 'Select SKU'}
-            </div>
-            <div className="text-xs text-gray-500">
-              {item.netLength} ft net • {item.numberOfLines} line{item.numberOfLines !== 1 ? 's' : ''}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
-      </div>
-
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="px-3 pb-3 space-y-3 bg-white border-t border-gray-200">
-          {/* Product Type */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Product Type</label>
-            <select
-              value={item.productTypeId}
-              onChange={(e) => {
-                const type = productTypes.find(t => t.id === e.target.value);
-                onUpdate({
-                  productTypeId: e.target.value,
-                  productTypeName: type?.name || '',
-                  skuId: '',
-                  skuCode: '',
-                  skuName: '',
-                });
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              {productTypes.map(type => (
-                <option key={type.id} value={type.id}>{type.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* SKU Search */}
-          <div className="relative">
-            <label className="block text-xs font-medium text-gray-500 mb-1">SKU</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Expected Pickup</label>
               <input
-                type="text"
-                value={showSkuDropdown ? skuSearch : (item.skuCode ? `${item.skuCode} - ${item.skuName}` : '')}
-                onChange={(e) => setSkuSearch(e.target.value)}
-                onFocus={() => { setShowSkuDropdown(true); setSkuSearch(''); }}
-                onBlur={() => setTimeout(() => setShowSkuDropdown(false), 200)}
-                placeholder="Search SKU..."
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                type="date"
+                value={expectedPickupDate}
+                onChange={(e) => setExpectedPickupDate(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               />
             </div>
-            {showSkuDropdown && filteredSKUs.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {filteredSKUs.map(sku => (
-                  <div
-                    key={sku.id}
-                    onMouseDown={() => {
-                      onSelectSKU(sku);
-                      setShowSkuDropdown(false);
-                      setSkuSearch('');
-                    }}
-                    className="px-3 py-2 cursor-pointer hover:bg-purple-50 border-b border-gray-100 last:border-0"
-                  >
-                    <div className="font-mono text-sm font-medium">{sku.sku_code}</div>
-                    <div className="text-xs text-gray-500 truncate">{sku.sku_name}</div>
+          </div>
+
+          {/* Concrete Type */}
+          <div className="mt-2">
+            <label className="block text-xs text-gray-600 mb-1">Concrete Type</label>
+            <div className="flex bg-gray-100 rounded-lg p-0.5 w-fit">
+              <button
+                onClick={() => setConcreteType('3-part')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  concreteType === '3-part'
+                    ? 'bg-white text-purple-700 font-medium shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                3-Part Mix
+              </button>
+              <button
+                onClick={() => setConcreteType('yellow-bags')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  concreteType === 'yellow-bags'
+                    ? 'bg-white text-yellow-700 font-medium shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Yellow Bags
+              </button>
+              <button
+                onClick={() => setConcreteType('red-bags')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  concreteType === 'red-bags'
+                    ? 'bg-white text-red-700 font-medium shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Red Bags
+              </button>
+            </div>
+          </div>
+
+          {/* Save Buttons */}
+          <div className="flex gap-2 items-end">
+            <button
+              onClick={() => saveMutation.mutate('draft')}
+              disabled={saveMutation.isPending || !projectName.trim()}
+              className="px-4 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-300 text-sm font-medium"
+            >
+              Save Draft
+            </button>
+            <button
+              onClick={() => saveMutation.mutate('saved')}
+              disabled={saveMutation.isPending || !projectName.trim()}
+              className="px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 flex items-center gap-2 text-sm font-medium"
+            >
+              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save Project
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-6 gap-3 mt-4">
+          <div className="bg-purple-50 rounded-lg p-2.5 text-center">
+            <div className="text-[10px] text-purple-600 font-medium uppercase">Total Material</div>
+            <div className="text-lg font-bold text-purple-700">{formatCurrency(totals.material)}</div>
+          </div>
+          <div className="bg-indigo-50 rounded-lg p-2.5 text-center">
+            <div className="text-[10px] text-indigo-600 font-medium uppercase">Total Labor</div>
+            <div className="text-lg font-bold text-indigo-700">{formatCurrency(totals.labor)}</div>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-2.5 text-center">
+            <div className="text-[10px] text-blue-600 font-medium uppercase">Project Total</div>
+            <div className="text-lg font-bold text-blue-700">{formatCurrency(totals.total)}</div>
+          </div>
+          <div className="bg-gray-100 rounded-lg p-2.5 text-center">
+            <div className="text-[10px] text-gray-600 font-medium uppercase">Total Footage</div>
+            <div className="text-lg font-bold text-gray-700">{totals.footage.toLocaleString()} ft</div>
+          </div>
+          <div className="bg-gray-100 rounded-lg p-2.5 text-center">
+            <div className="text-[10px] text-gray-600 font-medium uppercase">$/Foot</div>
+            <div className="text-lg font-bold text-gray-700">{formatCurrency(totals.perFoot)}</div>
+          </div>
+          <div className={`rounded-lg p-2.5 text-center ${totals.adjustments !== 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
+            <div className="text-[10px] text-amber-600 font-medium uppercase">Adjustments</div>
+            <div className={`text-lg font-bold ${totals.adjustments > 0 ? 'text-red-600' : totals.adjustments < 0 ? 'text-green-600' : 'text-gray-400'}`}>
+              {totals.adjustments >= 0 ? '+' : ''}{formatCurrency(totals.adjustments)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* BOTTOM SECTION - SKU Lines (Left 45%) & BOM/BOL (Right 55%) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Panel - SKU Lines */}
+        <div className="w-[45%] bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+          <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+            <h3 className="font-semibold text-gray-900 text-sm">SKU Lines</h3>
+            <button
+              onClick={handleAddLine}
+              className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              Add Line
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {lineItems.map((item, idx) => {
+              // Get type badge
+              const badge = item.productTypeCode === 'wood_vertical' ? { label: 'WV', color: 'bg-green-100 text-green-700' } :
+                           item.productTypeCode === 'wood_horizontal' ? { label: 'WH', color: 'bg-blue-100 text-blue-700' } :
+                           item.productTypeCode === 'iron' ? { label: 'IR', color: 'bg-gray-200 text-gray-700' } :
+                           { label: 'ALL', color: 'bg-yellow-100 text-yellow-700' };
+
+              return (
+                <div key={item.id} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-gray-500 w-4">{idx + 1}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.color}`}>
+                      {badge.label}
+                    </span>
+                    <div className="flex-1">
+                      <SKUSearch
+                        value={item.skuId}
+                        onChange={(sku) => handleSelectSKU(item.id, sku)}
+                        skus={allSKUs}
+                      />
+                    </div>
+                    {lineItems.length > 1 && (
+                      <button
+                        onClick={() => handleRemoveLine(item.id)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                ))}
+
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <div>
+                      <label className="block text-[10px] text-gray-500">Footage</label>
+                      <input
+                        type="number"
+                        value={item.totalFootage || ''}
+                        onChange={(e) => handleUpdateLine(item.id, { totalFootage: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-purple-500"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500">Buffer</label>
+                      <input
+                        type="number"
+                        value={item.buffer || ''}
+                        onChange={(e) => handleUpdateLine(item.id, { buffer: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-purple-500"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500">Lines</label>
+                      <select
+                        value={item.numberOfLines}
+                        onChange={(e) => handleUpdateLine(item.id, { numberOfLines: parseInt(e.target.value) })}
+                        className="w-full px-1 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-purple-500"
+                      >
+                        {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500">Gates</label>
+                      <select
+                        value={item.numberOfGates}
+                        onChange={(e) => handleUpdateLine(item.id, { numberOfGates: parseInt(e.target.value) })}
+                        className="w-full px-1 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-purple-500"
+                      >
+                        {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-600 pt-1">
+                    Net: <span className="font-semibold text-gray-900">{item.netLength} ft</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Notes */}
+            <div className="pt-3 border-t border-gray-200">
+              <label className="block text-xs text-gray-600 mb-1">Notes</label>
+              <textarea
+                value={projectNotes}
+                onChange={(e) => setProjectNotes(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="Project notes..."
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - BOM & BOL */}
+        <div className="w-[55%] flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-auto p-4 space-y-4">
+            {isCalculating && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                <span className="ml-2 text-gray-600">Calculating...</span>
               </div>
             )}
-          </div>
 
-          {/* Parameters */}
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Footage</label>
-              <input
-                type="number"
-                value={item.totalFootage}
-                onChange={(e) => onUpdate({ totalFootage: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
+            {/* Materials (BOM) */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Materials (BOM)</h3>
+                <button
+                  onClick={() => setShowAddMaterialModal(true)}
+                  className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Material
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="text-xs text-gray-500 uppercase">
+                      <th className="text-left py-2 px-3 font-medium">Material</th>
+                      <th className="text-right py-2 px-3 font-medium w-20">Cost</th>
+                      <th className="text-right py-2 px-3 font-medium w-16">Calc</th>
+                      <th className="text-center py-2 px-3 font-medium w-20">Adj</th>
+                      <th className="text-right py-2 px-3 font-medium w-16">Total</th>
+                      <th className="text-right py-2 px-3 font-medium w-24">Total Cost</th>
+                      <th className="w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {materialRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-gray-400">
+                          Add SKUs and footage to see materials
+                        </td>
+                      </tr>
+                    ) : (
+                      materialRows.map(mat => (
+                        <tr key={mat.material_id} className={`hover:bg-gray-50 ${mat.is_manual ? 'bg-purple-50' : ''}`}>
+                          <td className="py-2 px-3">
+                            <div className="flex items-center gap-1">
+                              <div className="font-medium text-gray-900">{mat.material_name}</div>
+                              {mat.is_manual && <span className="text-[10px] bg-purple-200 text-purple-700 px-1 rounded">Manual</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">{mat.material_sku}</div>
+                          </td>
+                          <td className="py-2 px-3 text-right text-gray-600">{formatCurrency(mat.unit_cost)}</td>
+                          <td className="py-2 px-3 text-right text-gray-600">{mat.is_manual ? '-' : mat.rounded_qty}</td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="number"
+                              value={mat.is_manual ? (mat.total_qty || '') : (mat.adjustment || '')}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                if (mat.is_manual) {
+                                  setMaterialRows(rows => rows.map(r =>
+                                    r.material_id === mat.material_id
+                                      ? { ...r, total_qty: Math.max(0, val), total_cost: Math.max(0, val) * r.unit_cost }
+                                      : r
+                                  ));
+                                } else {
+                                  handleMaterialAdjustment(mat.material_id, val);
+                                }
+                              }}
+                              className={`w-full px-2 py-1 text-xs text-center border rounded ${mat.adjustment !== 0 || mat.is_manual ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`}
+                              placeholder={mat.is_manual ? 'Qty' : '0'}
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-right font-semibold">{mat.total_qty}</td>
+                          <td className={`py-2 px-3 text-right font-semibold ${mat.adjustment !== 0 || mat.is_manual ? 'text-amber-600' : 'text-purple-600'}`}>
+                            {formatCurrency(mat.total_cost)}
+                          </td>
+                          <td className="py-2 px-1">
+                            {mat.is_manual && (
+                              <button
+                                onClick={() => handleRemoveMaterial(mat.material_id)}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {materialRows.length > 0 && (
+                    <tfoot className="bg-purple-50">
+                      <tr>
+                        <td colSpan={6} className="py-2 px-3 text-right font-semibold text-gray-700">Material Total:</td>
+                        <td className="py-2 px-3 text-right font-bold text-purple-700">{formatCurrency(totals.material)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Buffer</label>
-              <input
-                type="number"
-                value={item.buffer}
-                onChange={(e) => onUpdate({ buffer: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Net</label>
-              <input
-                type="number"
-                value={item.netLength}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50"
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Lines</label>
-              <select
-                value={item.numberOfLines}
-                onChange={(e) => onUpdate({ numberOfLines: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Gates</label>
-              <select
-                value={item.numberOfGates}
-                onChange={(e) => onUpdate({ numberOfGates: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+            {/* Labor (BOL) */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Labor (BOL)</h3>
+                <button
+                  onClick={() => setShowAddLaborModal(true)}
+                  className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-200 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Labor
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="text-xs text-gray-500 uppercase">
+                      <th className="text-left py-2 px-3 font-medium">Labor</th>
+                      <th className="text-right py-2 px-3 font-medium w-20">Rate</th>
+                      <th className="text-right py-2 px-3 font-medium w-16">Qty</th>
+                      <th className="text-right py-2 px-3 font-medium w-24">Calc Cost</th>
+                      <th className="text-center py-2 px-3 font-medium w-24">Adj ($)</th>
+                      <th className="text-right py-2 px-3 font-medium w-24">Total Cost</th>
+                      <th className="w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {laborRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-gray-400">
+                          Add labor manually or formulas will populate
+                        </td>
+                      </tr>
+                    ) : (
+                      laborRows.map(lab => (
+                        <tr key={lab.labor_code_id} className={`hover:bg-gray-50 ${lab.is_manual ? 'bg-indigo-50' : ''}`}>
+                          <td className="py-2 px-3">
+                            <div className="flex items-center gap-1">
+                              <div className="font-medium text-gray-900">{lab.description}</div>
+                              {lab.is_manual && <span className="text-[10px] bg-indigo-200 text-indigo-700 px-1 rounded">Manual</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">{lab.labor_sku}</div>
+                          </td>
+                          <td className="py-2 px-3 text-right text-gray-600">{formatCurrency(lab.rate)}</td>
+                          <td className="py-2 px-3 text-right text-gray-600">{lab.is_manual ? '-' : lab.quantity.toFixed(1)}</td>
+                          <td className="py-2 px-3 text-right text-gray-600">{lab.is_manual ? '-' : formatCurrency(lab.calculated_cost)}</td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="number"
+                              value={lab.is_manual ? (lab.total_cost || '') : (lab.adjustment || '')}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                if (lab.is_manual) {
+                                  setLaborRows(rows => rows.map(r =>
+                                    r.labor_code_id === lab.labor_code_id
+                                      ? { ...r, total_cost: val }
+                                      : r
+                                  ));
+                                } else {
+                                  handleLaborAdjustment(lab.labor_code_id, val);
+                                }
+                              }}
+                              className={`w-full px-2 py-1 text-xs text-center border rounded ${lab.adjustment !== 0 || lab.is_manual ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`}
+                              placeholder={lab.is_manual ? '$' : '0'}
+                              step="0.01"
+                            />
+                          </td>
+                          <td className={`py-2 px-3 text-right font-semibold ${lab.adjustment !== 0 || lab.is_manual ? 'text-amber-600' : 'text-indigo-600'}`}>
+                            {formatCurrency(lab.total_cost)}
+                          </td>
+                          <td className="py-2 px-1">
+                            {lab.is_manual && (
+                              <button
+                                onClick={() => handleRemoveLabor(lab.labor_code_id)}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {laborRows.length > 0 && (
+                    <tfoot className="bg-indigo-50">
+                      <tr>
+                        <td colSpan={6} className="py-2 px-3 text-right font-semibold text-gray-700">Labor Total:</td>
+                        <td className="py-2 px-3 text-right font-bold text-indigo-700">{formatCurrency(totals.labor)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Modals */}
+      <AddMaterialModal
+        isOpen={showAddMaterialModal}
+        onClose={() => setShowAddMaterialModal(false)}
+        materials={allMaterials}
+        existingMaterialIds={new Set(materialRows.map(m => m.material_id))}
+        onAdd={handleAddManualMaterial}
+      />
+
+      <AddLaborModal
+        isOpen={showAddLaborModal}
+        onClose={() => setShowAddLaborModal(false)}
+        laborCodes={allLaborCodes}
+        laborRates={laborRates}
+        existingLaborIds={new Set(laborRows.map(l => l.labor_code_id))}
+        onAdd={handleAddManualLabor}
+      />
     </div>
   );
 }
