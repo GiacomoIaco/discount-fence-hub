@@ -322,6 +322,9 @@ export default function AddRoadmapItemModal({
 
     setSaving(true);
     try {
+      // Get current user to save as creator
+      const { data: { user } } = await supabase.auth.getUser();
+
       const { error } = await supabase.from('roadmap_items').insert({
         hub: formData.hub,
         title: formData.title.trim(),
@@ -331,6 +334,7 @@ export default function AddRoadmapItemModal({
         complexity: formData.complexity,
         status: 'idea',
         audio_url: savedAudioUrl || null,
+        created_by: user?.id || null,
       });
 
       if (error) throw error;

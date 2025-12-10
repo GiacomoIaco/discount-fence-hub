@@ -57,6 +57,7 @@ interface FilterState {
   statusFilter: StatusType | 'all';
   importanceFilter: number | 'all';
   complexityFilter: ComplexityType | 'all';
+  creatorFilter: string | 'all';
   showCompleted: boolean;
   showParked: boolean;
   sortBy: SortOption;
@@ -248,6 +249,7 @@ export default function RoadmapWorkspace({
   const [statusFilter, setStatusFilter] = useState<StatusType | 'all'>(savedFilters?.statusFilter ?? 'all');
   const [importanceFilter, setImportanceFilter] = useState<number | 'all'>(savedFilters?.importanceFilter ?? 'all');
   const [complexityFilter, setComplexityFilter] = useState<ComplexityType | 'all'>(savedFilters?.complexityFilter ?? 'all');
+  const [creatorFilter, setCreatorFilter] = useState<string | 'all'>(savedFilters?.creatorFilter ?? 'all');
   const [showCompleted, setShowCompleted] = useState(savedFilters?.showCompleted ?? false);
   const [showParked, setShowParked] = useState(savedFilters?.showParked ?? false);
   const [sortBy, setSortBy] = useState<SortOption>(savedFilters?.sortBy ?? 'importance');
@@ -293,11 +295,19 @@ export default function RoadmapWorkspace({
       statusFilter,
       importanceFilter,
       complexityFilter,
+      creatorFilter,
       showCompleted,
       showParked,
       sortBy,
     });
-  }, [statusFilter, importanceFilter, complexityFilter, showCompleted, showParked, sortBy]);
+  }, [statusFilter, importanceFilter, complexityFilter, creatorFilter, showCompleted, showParked, sortBy]);
+
+  // Get unique creators for filter dropdown
+  const uniqueCreators = [...new Set(
+    localItems
+      .filter(item => item.creator_name)
+      .map(item => item.creator_name as string)
+  )].sort();
 
   // Sync local items with props
   useEffect(() => {
@@ -384,6 +394,11 @@ export default function RoadmapWorkspace({
       return false;
     }
 
+    // Creator filter
+    if (creatorFilter !== 'all' && item.creator_name !== creatorFilter) {
+      return false;
+    }
+
     return true;
   }).sort((a, b) => {
     switch (sortBy) {
@@ -412,6 +427,7 @@ export default function RoadmapWorkspace({
     statusFilter !== 'all',
     importanceFilter !== 'all',
     complexityFilter !== 'all',
+    creatorFilter !== 'all',
     showCompleted,
     showParked,
   ].filter(Boolean).length;
@@ -529,6 +545,20 @@ export default function RoadmapWorkspace({
               ))}
             </select>
 
+            {/* Creator filter */}
+            {uniqueCreators.length > 0 && (
+              <select
+                value={creatorFilter}
+                onChange={(e) => setCreatorFilter(e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="all">All Submitters</option>
+                {uniqueCreators.map((creator) => (
+                  <option key={creator} value={creator}>{creator}</option>
+                ))}
+              </select>
+            )}
+
             {/* Sort separator */}
             <span className="hidden lg:block w-px h-5 bg-gray-300 mx-1" />
 
@@ -576,6 +606,7 @@ export default function RoadmapWorkspace({
                   setStatusFilter('all');
                   setImportanceFilter('all');
                   setComplexityFilter('all');
+                  setCreatorFilter('all');
                   setShowCompleted(false);
                   setShowParked(false);
                 }}
