@@ -158,17 +158,12 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   }, [eligibilityRules, allMaterials]);
 
   // Get relevant component types for the selected product type
+  // For now, show all component types - filtering can be added later via eligibility rules
   const relevantComponentTypes = useMemo(() => {
     if (!selectedType) return [];
-    const typeCode = selectedType.code;
-    // Filter by product type code - components with matching eligibility rules
-    const relevantCodes = new Set<string>();
-    eligibilityRules
-      .filter(r => !r.product_type_code || r.product_type_code === typeCode)
-      .forEach(r => relevantCodes.add(r.component_code));
-
-    return componentTypes.filter(c => relevantCodes.has(c.code));
-  }, [selectedType, componentTypes, eligibilityRules]);
+    // Show all active component types for now
+    return componentTypes;
+  }, [selectedType, componentTypes]);
 
   // Set component material
   const setComponentMaterial = (componentCode: string, materialSku: string) => {
