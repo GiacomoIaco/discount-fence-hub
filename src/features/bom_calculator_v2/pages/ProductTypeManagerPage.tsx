@@ -14,9 +14,10 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Save, Trash2, X, ChevronRight, Edit2, Copy,
+  Plus, Save, Trash2, X, ChevronRight, ChevronDown, Edit2, Copy,
   AlertCircle, CheckCircle, Layers, Settings, Variable,
-  Box, Calculator, Search, ArrowUp, ArrowDown, Download
+  Box, Calculator, Search, ArrowUp, ArrowDown, Download,
+  Link2, Filter, Check
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -50,7 +51,7 @@ interface FormulaTemplateV2 {
 }
 
 // Tab types
-type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas';
+type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'eligibility';
 
 export default function ProductTypeManagerPage() {
   const queryClient = useQueryClient();
@@ -179,6 +180,12 @@ export default function ProductTypeManagerPage() {
                     onClick={() => setActiveTab('formulas')}
                     count={stats.formulas}
                   />
+                  <TabButton
+                    label="Materials/Labor"
+                    icon={<Link2 className="w-4 h-4" />}
+                    isActive={activeTab === 'eligibility'}
+                    onClick={() => setActiveTab('eligibility')}
+                  />
                 </nav>
               </div>
 
@@ -217,6 +224,12 @@ export default function ProductTypeManagerPage() {
                     variables={variables}
                     isLoading={loadingFormulas}
                     onRefresh={() => loadFormulas(selectedTypeId!)}
+                  />
+                )}
+                {activeTab === 'eligibility' && (
+                  <EligibilityTab
+                    productType={selectedType}
+                    variables={variables}
                   />
                 )}
               </div>
@@ -2491,6 +2504,802 @@ function EmptyState({
       <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
       <p className="text-sm text-gray-500 mb-6 max-w-sm">{description}</p>
       {action}
+    </div>
+  );
+}
+
+// =============================================================================
+// ELIGIBILITY TAB - Material/Labor Assignment
+// =============================================================================
+
+interface Material {
+  id: string;
+  material_sku: string;
+  material_name: string;
+  category: string;
+  sub_category: string | null;
+  unit_cost: number;
+  length_ft: number | null;
+  status: string;
+}
+
+interface LaborCode {
+  id: string;
+  labor_sku: string;
+  description: string;
+  unit_type: string;
+  fence_category_standard: string[] | null;
+}
+
+interface MaterialEligibilityV2 {
+  id: string;
+  product_type_id: string;
+  component_type_id: string;
+  selection_mode: 'category' | 'subcategory' | 'specific';
+  material_category: string | null;
+  material_subcategory: string | null;
+  material_id: string | null;
+  attribute_filter: Record<string, string> | null;
+  is_active: boolean;
+}
+
+interface LaborEligibilityV2 {
+  id: string;
+  product_type_id: string;
+  component_type_id: string;
+  labor_code_id: string;
+  attribute_filter: Record<string, string> | null;
+  quantity_formula: string | null;
+  is_active: boolean;
+}
+
+function EligibilityTab({
+  productType,
+  variables,
+}: {
+  productType: ProductTypeV2;
+  variables: ProductVariableV2[];
+}) {
+  // UI State
+  const [browserMode, setBrowserMode] = useState<'material' | 'labor'>('material');
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [selectedAttributeValue, setSelectedAttributeValue] = useState<string | null>(null);
+  const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+  const [materialSearch, setMaterialSearch] = useState('');
+  const [laborSearch, setLaborSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [subcategoryFilter, setSubcategoryFilter] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Fetch assigned components for this product type
+  const { data: componentsFull = [] } = useProductTypeComponentsFull(productType.id);
+
+  // Get only assigned components
+  const assignedComponents = componentsFull.filter(c => c.is_assigned);
+
+  // Find the main filter variable (e.g., post_type)
+  const filterVariable = variables.find(v =>
+    v.variable_code === 'post_type' || v.variable_type === 'select'
+  );
+
+  // Fetch all materials
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(true);
+
+  // Fetch all labor codes
+  const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
+  const [loadingLabor, setLoadingLabor] = useState(true);
+
+  // Fetch material eligibility rules for this product type
+  const [materialRules, setMaterialRules] = useState<MaterialEligibilityV2[]>([]);
+
+  // Fetch labor eligibility rules for this product type
+  const [laborRules, setLaborRules] = useState<LaborEligibilityV2[]>([]);
+
+  // Load materials and labor codes on mount
+  useEffect(() => {
+    const loadData = async () => {
+      // Load materials
+      const { data: matData } = await supabase
+        .from('materials')
+        .select('id, material_sku, material_name, category, sub_category, unit_cost, length_ft, status')
+        .eq('status', 'Active')
+        .order('category')
+        .order('material_name');
+
+      if (matData) setMaterials(matData);
+      setLoadingMaterials(false);
+
+      // Load labor codes
+      const { data: laborData } = await supabase
+        .from('labor_codes')
+        .select('id, labor_sku, description, unit_type, fence_category_standard')
+        .order('labor_sku');
+
+      if (laborData) setLaborCodes(laborData);
+      setLoadingLabor(false);
+    };
+
+    loadData();
+  }, []);
+
+  // Load eligibility rules when product type changes
+  useEffect(() => {
+    const loadRules = async () => {
+      // Material rules - using V2 table
+      const { data: matRules } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+
+      if (matRules) setMaterialRules(matRules);
+
+      // Labor rules
+      const { data: labRules } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+
+      if (labRules) setLaborRules(labRules);
+    };
+
+    loadRules();
+  }, [productType.id]);
+
+  // Get unique categories
+  const categories = [...new Set(materials.map(m => m.category))].sort();
+
+  // Get subcategories for selected category
+  const subcategories = categoryFilter
+    ? [...new Set(materials.filter(m => m.category === categoryFilter && m.sub_category).map(m => m.sub_category!))]
+    : [];
+
+  // Filter materials
+  const filteredMaterials = materials.filter(m => {
+    if (categoryFilter && m.category !== categoryFilter) return false;
+    if (subcategoryFilter && m.sub_category !== subcategoryFilter) return false;
+    if (materialSearch) {
+      const search = materialSearch.toLowerCase();
+      return m.material_sku.toLowerCase().includes(search) ||
+             m.material_name.toLowerCase().includes(search);
+    }
+    return true;
+  });
+
+  // Filter labor codes
+  const filteredLabor = laborCodes.filter(lc => {
+    if (laborSearch) {
+      const search = laborSearch.toLowerCase();
+      return lc.labor_sku.toLowerCase().includes(search) ||
+             lc.description.toLowerCase().includes(search);
+    }
+    return true;
+  });
+
+  // Get eligible materials for selected component + attribute
+  const getEligibleMaterialIds = (): Set<string> => {
+    if (!selectedComponentId) return new Set();
+
+    const rules = materialRules.filter(r => {
+      if (r.component_type_id !== selectedComponentId) return false;
+
+      // Check attribute filter match
+      if (selectedAttributeValue && filterVariable) {
+        if (!r.attribute_filter) return false;
+        return r.attribute_filter[filterVariable.variable_code] === selectedAttributeValue;
+      }
+
+      return !r.attribute_filter;
+    });
+
+    const eligibleIds = new Set<string>();
+
+    for (const rule of rules) {
+      if (rule.selection_mode === 'specific' && rule.material_id) {
+        eligibleIds.add(rule.material_id);
+      } else if (rule.selection_mode === 'category' && rule.material_category) {
+        materials
+          .filter(m => m.category === rule.material_category)
+          .forEach(m => eligibleIds.add(m.id));
+      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
+        materials
+          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
+          .forEach(m => eligibleIds.add(m.id));
+      }
+    }
+
+    return eligibleIds;
+  };
+
+  // Get eligible labor codes for selected component + attribute
+  const getEligibleLaborIds = (): Set<string> => {
+    if (!selectedComponentId) return new Set();
+
+    const rules = laborRules.filter(r => {
+      if (r.component_type_id !== selectedComponentId) return false;
+
+      if (selectedAttributeValue && filterVariable) {
+        if (!r.attribute_filter) return false;
+        return r.attribute_filter[filterVariable.variable_code] === selectedAttributeValue;
+      }
+
+      return !r.attribute_filter;
+    });
+
+    return new Set(rules.map(r => r.labor_code_id));
+  };
+
+  const eligibleMaterialIds = getEligibleMaterialIds();
+  const eligibleLaborIds = getEligibleLaborIds();
+
+  // Get material count for a component
+  const getMaterialCount = (componentId: string, attributeValue?: string): number => {
+    return materialRules.filter(r => {
+      if (r.component_type_id !== componentId) return false;
+
+      if (attributeValue && filterVariable) {
+        if (!r.attribute_filter) return false;
+        return r.attribute_filter[filterVariable.variable_code] === attributeValue;
+      }
+
+      return !r.attribute_filter;
+    }).length;
+  };
+
+  // Get labor count for a component
+  const getLaborCount = (componentId: string, attributeValue?: string): number => {
+    return laborRules.filter(r => {
+      if (r.component_type_id !== componentId) return false;
+
+      if (attributeValue && filterVariable) {
+        if (!r.attribute_filter) return false;
+        return r.attribute_filter[filterVariable.variable_code] === attributeValue;
+      }
+
+      return !r.attribute_filter;
+    }).length;
+  };
+
+  // Toggle component expansion
+  const toggleExpansion = (componentId: string) => {
+    const next = new Set(expandedComponents);
+    if (next.has(componentId)) {
+      next.delete(componentId);
+    } else {
+      next.add(componentId);
+    }
+    setExpandedComponents(next);
+  };
+
+  // Select component
+  const handleSelectComponent = (componentId: string, attributeValue?: string) => {
+    setSelectedComponentId(componentId);
+    setSelectedAttributeValue(attributeValue || null);
+  };
+
+  // Build attribute filter for insert
+  const buildAttributeFilter = (): Record<string, string> | null => {
+    if (!filterVariable || !selectedAttributeValue) return null;
+    return { [filterVariable.variable_code]: selectedAttributeValue };
+  };
+
+  // Add material to eligibility
+  const addMaterial = async (materialId: string) => {
+    if (!selectedComponentId) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_material_eligibility_v2')
+      .insert({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentId,
+        selection_mode: 'specific',
+        material_id: materialId,
+        attribute_filter: buildAttributeFilter(),
+      });
+
+    if (!error) {
+      // Refresh rules
+      const { data } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setMaterialRules(data);
+    }
+
+    setSaving(false);
+  };
+
+  // Remove material from eligibility
+  const removeMaterial = async (materialId: string) => {
+    if (!selectedComponentId) return;
+    setSaving(true);
+
+    const attrFilter = buildAttributeFilter();
+
+    let query = supabase
+      .from('component_material_eligibility_v2')
+      .delete()
+      .eq('product_type_id', productType.id)
+      .eq('component_type_id', selectedComponentId)
+      .eq('material_id', materialId)
+      .eq('selection_mode', 'specific');
+
+    if (attrFilter) {
+      query = query.eq('attribute_filter', attrFilter);
+    } else {
+      query = query.is('attribute_filter', null);
+    }
+
+    await query;
+
+    // Refresh rules
+    const { data } = await supabase
+      .from('component_material_eligibility_v2')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setMaterialRules(data);
+
+    setSaving(false);
+  };
+
+  // Toggle material eligibility
+  const toggleMaterial = (materialId: string) => {
+    if (eligibleMaterialIds.has(materialId)) {
+      removeMaterial(materialId);
+    } else {
+      addMaterial(materialId);
+    }
+  };
+
+  // Add labor code to eligibility
+  const addLabor = async (laborCodeId: string) => {
+    if (!selectedComponentId) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_labor_eligibility')
+      .insert({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentId,
+        labor_code_id: laborCodeId,
+        attribute_filter: buildAttributeFilter(),
+      });
+
+    if (!error) {
+      // Refresh rules
+      const { data } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setLaborRules(data);
+    }
+
+    setSaving(false);
+  };
+
+  // Remove labor code from eligibility
+  const removeLabor = async (laborCodeId: string) => {
+    if (!selectedComponentId) return;
+    setSaving(true);
+
+    const attrFilter = buildAttributeFilter();
+
+    let query = supabase
+      .from('component_labor_eligibility')
+      .delete()
+      .eq('product_type_id', productType.id)
+      .eq('component_type_id', selectedComponentId)
+      .eq('labor_code_id', laborCodeId);
+
+    if (attrFilter) {
+      query = query.eq('attribute_filter', attrFilter);
+    } else {
+      query = query.is('attribute_filter', null);
+    }
+
+    await query;
+
+    // Refresh rules
+    const { data } = await supabase
+      .from('component_labor_eligibility')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setLaborRules(data);
+
+    setSaving(false);
+  };
+
+  // Toggle labor eligibility
+  const toggleLabor = (laborCodeId: string) => {
+    if (eligibleLaborIds.has(laborCodeId)) {
+      removeLabor(laborCodeId);
+    } else {
+      addLabor(laborCodeId);
+    }
+  };
+
+  // Add category rule
+  const addCategoryRule = async () => {
+    if (!selectedComponentId || !categoryFilter) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_material_eligibility_v2')
+      .insert({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentId,
+        selection_mode: subcategoryFilter ? 'subcategory' : 'category',
+        material_category: categoryFilter,
+        material_subcategory: subcategoryFilter || null,
+        attribute_filter: buildAttributeFilter(),
+      });
+
+    if (!error) {
+      const { data } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setMaterialRules(data);
+    }
+
+    setSaving(false);
+  };
+
+  const selectedComponent = assignedComponents.find(c => c.component_type_id === selectedComponentId);
+
+  return (
+    <div className="flex h-full -m-6">
+      {/* Left Panel - Components */}
+      <div className="w-72 bg-white border-r border-gray-200 flex flex-col">
+        <div className="px-4 py-3 border-b border-gray-200">
+          <h3 className="font-semibold text-gray-900">Components</h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Select a component to configure eligible materials/labor
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-auto">
+          {assignedComponents.length === 0 ? (
+            <div className="p-4 text-center text-gray-500 text-sm">
+              No components assigned.<br />
+              Go to Components tab to assign components first.
+            </div>
+          ) : (
+            assignedComponents.map(comp => {
+              const isExpanded = expandedComponents.has(comp.component_type_id);
+              const materialCount = getMaterialCount(comp.component_type_id);
+              const laborCount = getLaborCount(comp.component_type_id);
+              const hasFilterValues = filterVariable?.allowed_values && filterVariable.allowed_values.length > 0;
+
+              return (
+                <div key={comp.component_type_id}>
+                  <button
+                    onClick={() => {
+                      if (hasFilterValues) {
+                        toggleExpansion(comp.component_type_id);
+                      } else {
+                        handleSelectComponent(comp.component_type_id);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors border-b border-gray-100 ${
+                      selectedComponentId === comp.component_type_id && !selectedAttributeValue
+                        ? 'bg-purple-50 border-l-2 border-l-purple-600'
+                        : 'hover:bg-gray-50 border-l-2 border-l-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {hasFilterValues && (
+                        <span className="text-gray-400">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </span>
+                      )}
+                      <div>
+                        <div className="font-medium text-gray-900">{comp.component_name}</div>
+                        <div className="text-xs text-gray-500">
+                          {comp.is_labor ? 'Labor' : 'Material'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                        {materialCount}
+                      </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                        {laborCount}
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Expandable attribute values */}
+                  {hasFilterValues && isExpanded && (
+                    <div className="bg-gray-50 border-b border-gray-100">
+                      {filterVariable!.allowed_values!.map(value => {
+                        const isSelected = selectedComponentId === comp.component_type_id && selectedAttributeValue === value;
+                        const matCount = getMaterialCount(comp.component_type_id, value);
+                        const labCount = getLaborCount(comp.component_type_id, value);
+
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => handleSelectComponent(comp.component_type_id, value)}
+                            className={`w-full flex items-center justify-between pl-10 pr-4 py-2 text-left transition-colors ${
+                              isSelected
+                                ? 'bg-purple-100 border-l-2 border-l-purple-600'
+                                : 'hover:bg-gray-100 border-l-2 border-l-transparent'
+                            }`}
+                          >
+                            <span className={`text-sm ${isSelected ? 'text-purple-700 font-medium' : 'text-gray-700'}`}>
+                              {value}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${matCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
+                                {matCount}
+                              </span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${labCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                                {labCount}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Right Panel - Material/Labor Browser */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+        {selectedComponent ? (
+          <>
+            {/* Header */}
+            <div className="bg-white border-b border-gray-200 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-gray-900">
+                    {selectedComponent.component_name}
+                    {selectedAttributeValue && (
+                      <span className="text-purple-600 ml-2">→ {selectedAttributeValue}</span>
+                    )}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {browserMode === 'material'
+                      ? `${eligibleMaterialIds.size} materials assigned`
+                      : `${eligibleLaborIds.size} labor codes assigned`
+                    }
+                  </p>
+                </div>
+
+                {/* Mode Toggle */}
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setBrowserMode('material')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      browserMode === 'material'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Materials
+                  </button>
+                  <button
+                    onClick={() => setBrowserMode('labor')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      browserMode === 'labor'
+                        ? 'bg-white text-green-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Labor
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {browserMode === 'material' ? (
+              <>
+                {/* Material Filters */}
+                <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value);
+                      setSubcategoryFilter('');
+                    }}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded-lg"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  {subcategories.length > 0 && (
+                    <select
+                      value={subcategoryFilter}
+                      onChange={(e) => setSubcategoryFilter(e.target.value)}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-lg"
+                    >
+                      <option value="">All Subcategories</option>
+                      {subcategories.map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+                  )}
+                  {categoryFilter && (
+                    <button
+                      onClick={addCategoryRule}
+                      disabled={saving}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      + Add as Rule
+                    </button>
+                  )}
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={materialSearch}
+                      onChange={(e) => setMaterialSearch(e.target.value)}
+                      placeholder="Search materials..."
+                      className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                {/* Material List */}
+                <div className="flex-1 overflow-auto p-3">
+                  {loadingMaterials ? (
+                    <div className="flex items-center justify-center h-32">
+                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredMaterials.map(material => {
+                        const isEligible = eligibleMaterialIds.has(material.id);
+
+                        return (
+                          <div
+                            key={material.id}
+                            onClick={() => toggleMaterial(material.id)}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                              isEligible
+                                ? 'bg-blue-50 border border-blue-200'
+                                : 'bg-white border border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                              isEligible ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                            }`}>
+                              {isEligible && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
+                                <span className="text-sm font-medium text-gray-900 truncate">{material.material_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>{material.category}</span>
+                                {material.sub_category && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{material.sub_category}</span>
+                                  </>
+                                )}
+                                {material.length_ft && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{material.length_ft}ft</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-sm font-medium text-gray-600">
+                              ${material.unit_cost.toFixed(2)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Labor Filters */}
+                <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
+                  <Search className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={laborSearch}
+                    onChange={(e) => setLaborSearch(e.target.value)}
+                    placeholder="Search labor codes..."
+                    className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                {/* Labor List */}
+                <div className="flex-1 overflow-auto p-3">
+                  {loadingLabor ? (
+                    <div className="flex items-center justify-center h-32">
+                      <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredLabor.map(labor => {
+                        const isEligible = eligibleLaborIds.has(labor.id);
+
+                        return (
+                          <div
+                            key={labor.id}
+                            onClick={() => toggleLabor(labor.id)}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                              isEligible
+                                ? 'bg-green-50 border border-green-200'
+                                : 'bg-white border border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                              isEligible ? 'bg-green-600 border-green-600' : 'border-gray-300'
+                            }`}>
+                              {isEligible && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono text-gray-500">{labor.labor_sku}</span>
+                                <span className="text-sm font-medium text-gray-900 truncate">{labor.description}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>{labor.unit_type}</span>
+                                {labor.fence_category_standard && labor.fence_category_standard.length > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{labor.fence_category_standard.slice(0, 2).join(', ')}</span>
+                                    {labor.fence_category_standard.length > 2 && (
+                                      <span className="text-gray-400">+{labor.fence_category_standard.length - 2} more</span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <Link2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm">Select a component to configure</p>
+              <p className="text-xs text-gray-400 mt-1">eligible materials and labor codes</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Saving Indicator */}
+      {saving && (
+        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm">Saving...</span>
+        </div>
+      )}
     </div>
   );
 }
