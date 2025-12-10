@@ -16,7 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Save, Trash2, X, ChevronRight, Edit2, Copy,
   AlertCircle, CheckCircle, Layers, Settings, Variable,
-  Box, Calculator
+  Box, Calculator, Search, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -24,10 +24,12 @@ import {
   useProductStylesV2,
   useProductVariablesV2,
   useComponentTypesV2,
+  useProductTypeComponentsFull,
   type ProductTypeV2,
   type ProductStyleV2,
   type ProductVariableV2,
   type ComponentTypeV2,
+  type ProductTypeComponentFull,
 } from '../hooks/useProductTypesV2';
 
 // Formula template type
@@ -1132,12 +1134,12 @@ function VariableModal({
 }
 
 // =============================================================================
-// COMPONENTS TAB
+// COMPONENTS TAB - Two-panel design
 // =============================================================================
 
 function ComponentsTab({
   productType,
-  componentTypes,
+  componentTypes: _componentTypes,
   formulas,
   isLoading,
 }: {
@@ -1146,61 +1148,396 @@ function ComponentsTab({
   formulas: FormulaTemplateV2[];
   isLoading: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Get full component data with assignment status from the view
+  const { data: componentsFull = [], isLoading: loadingFull, refetch: refetchComponents } = useProductTypeComponentsFull(productType.id);
+
   // Determine which components have formulas for this product type
   const componentsWithFormulas = new Set(formulas.map((f) => f.component_type_id));
 
+  // Split into selected and unselected
+  const selectedComponents = componentsFull
+    .filter(c => c.is_assigned)
+    .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+
+  const availableComponents = componentsFull
+    .filter(c => !c.is_assigned)
+    .filter(c =>
+      c.component_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.component_code.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+  // Toggle component selection
+  const toggleComponent = async (component: ProductTypeComponentFull) => {
+    setSaving(true);
+
+    if (component.is_assigned && component.assignment_id) {
+      // Unassign: Delete from junction table
+      const { error } = await supabase
+        .from('product_type_components_v2')
+        .delete()
+        .eq('id', component.assignment_id);
+
+      if (error) {
+        console.error('Error unassigning component:', error);
+      }
+    } else {
+      // Assign: Insert into junction table
+      const maxOrder = Math.max(...selectedComponents.map(c => c.display_order || 0), 0);
+      const { error } = await supabase
+        .from('product_type_components_v2')
+        .insert({
+          product_type_id: productType.id,
+          component_type_id: component.component_type_id,
+          display_order: maxOrder + 1,
+        });
+
+      if (error) {
+        console.error('Error assigning component:', error);
+      }
+    }
+
+    await refetchComponents();
+    setSaving(false);
+  };
+
+  // Move component up/down in order
+  const moveComponent = async (component: ProductTypeComponentFull, direction: 'up' | 'down') => {
+    const currentIndex = selectedComponents.findIndex(c => c.component_type_id === component.component_type_id);
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+    if (targetIndex < 0 || targetIndex >= selectedComponents.length) return;
+
+    setSaving(true);
+
+    const currentComponent = selectedComponents[currentIndex];
+    const targetComponent = selectedComponents[targetIndex];
+
+    // Swap display_order values
+    await Promise.all([
+      supabase
+        .from('product_type_components_v2')
+        .update({ display_order: targetComponent.display_order })
+        .eq('id', currentComponent.assignment_id),
+      supabase
+        .from('product_type_components_v2')
+        .update({ display_order: currentComponent.display_order })
+        .eq('id', targetComponent.assignment_id),
+    ]);
+
+    await refetchComponents();
+    setSaving(false);
+  };
+
+  const loading = isLoading || loadingFull;
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Components for {productType.name}</h2>
-          <p className="text-sm text-gray-500">Components with formulas will be calculated. Add formulas in the Formulas tab.</p>
+          <p className="text-sm text-gray-500">
+            Select components used by this product type. Order determines formula execution sequence.
+          </p>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
+          <Plus className="w-4 h-4" />
+          New Component
+        </button>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center h-48">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {componentTypes.map((component) => {
-            const hasFormula = componentsWithFormulas.has(component.id);
-            return (
-              <div
-                key={component.id}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  hasFormula
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-medium text-gray-900">{component.name}</div>
-                    <div className="text-xs text-gray-500 font-mono">{component.code}</div>
-                  </div>
-                  {hasFormula ? (
-                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  ) : (
-                    <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
-                  )}
-                </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  Unit: {component.unit_type}
-                </div>
-                {hasFormula && (
-                  <div className="mt-2">
-                    <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-                      Has formula
-                    </span>
-                  </div>
-                )}
+        <div className="grid grid-cols-2 gap-6 h-[calc(100vh-300px)]">
+          {/* Left Panel - Available Components */}
+          <div className="bg-white rounded-lg border border-gray-200 flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-3">Available Components</h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search components..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
               </div>
-            );
-          })}
+            </div>
+
+            <div className="flex-1 overflow-auto p-2">
+              {availableComponents.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  {searchTerm ? 'No matching components' : 'All components are selected'}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {availableComponents.map((component) => (
+                    <button
+                      key={component.component_type_id}
+                      onClick={() => toggleComponent(component)}
+                      disabled={saving}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-left transition-colors disabled:opacity-50"
+                    >
+                      <div className="w-5 h-5 border-2 border-gray-300 rounded flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{component.component_name}</div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-500 font-mono">{component.component_code}</span>
+                          {component.is_labor && (
+                            <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Panel - Selected Components */}
+          <div className="bg-white rounded-lg border border-gray-200 flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">
+                Selected Components ({selectedComponents.length})
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Formula execution order (top to bottom)
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-auto p-2">
+              {selectedComponents.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No components selected.<br />
+                  Click a component on the left to add it.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {selectedComponents.map((component, index) => {
+                    const hasFormula = componentsWithFormulas.has(component.component_type_id);
+                    return (
+                      <div
+                        key={component.component_type_id}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-50 group"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            onClick={() => moveComponent(component, 'up')}
+                            disabled={index === 0 || saving}
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                          >
+                            <ArrowUp className="w-3 h-3 text-gray-500" />
+                          </button>
+                          <button
+                            onClick={() => moveComponent(component, 'down')}
+                            disabled={index === selectedComponents.length - 1 || saving}
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                          >
+                            <ArrowDown className="w-3 h-3 text-gray-500" />
+                          </button>
+                        </div>
+
+                        <span className="w-6 text-center text-xs text-gray-400 font-mono">
+                          {index + 1}
+                        </span>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 truncate">{component.component_name}</span>
+                            {hasFormula && (
+                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-gray-500 font-mono">{component.component_code}</span>
+                            {component.is_labor && (
+                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
+                            )}
+                            {hasFormula ? (
+                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Has formula</span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Needs formula</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => toggleComponent(component)}
+                          disabled={saving}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          title="Remove from product type"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Add Component Modal */}
+      {showAddModal && (
+        <AddComponentModal
+          onClose={() => setShowAddModal(false)}
+          onSaved={() => {
+            setShowAddModal(false);
+            queryClient.invalidateQueries({ queryKey: ['component-types-v2'] });
+            refetchComponents();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Add Component Modal - inline creation
+function AddComponentModal({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    unit_type: 'each',
+    is_labor: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    if (!formData.code.trim() || !formData.name.trim()) {
+      setError('Code and Name are required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const { error: insertError } = await supabase
+      .from('component_types_v2')
+      .insert({
+        code: formData.code.toLowerCase().replace(/\s+/g, '_'),
+        name: formData.name,
+        unit_type: formData.unit_type,
+        is_labor: formData.is_labor,
+      });
+
+    if (insertError) {
+      setError(insertError.message);
+      setSaving(false);
+    } else {
+      onSaved();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Add Component Type</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                placeholder="e.g., post"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Posts"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type</label>
+            <select
+              value={formData.unit_type}
+              onChange={(e) => setFormData({ ...formData, unit_type: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="each">Each</option>
+              <option value="linear_foot">Linear Foot</option>
+              <option value="square_foot">Square Foot</option>
+              <option value="pound">Pound</option>
+              <option value="bag">Bag</option>
+              <option value="box">Box</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_labor"
+              checked={formData.is_labor}
+              onChange={(e) => setFormData({ ...formData, is_labor: e.target.checked })}
+              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <label htmlFor="is_labor" className="text-sm text-gray-700">
+              This is a labor component (no material formula needed)
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+          <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+          >
+            {saving ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Create Component
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1232,6 +1569,14 @@ function FormulasTab({
     existing: FormulaTemplateV2 | null;
   } | null>(null);
 
+  // Get assigned components for this product type
+  const { data: assignedComponents = [], isLoading: loadingAssigned } = useProductTypeComponentsFull(productType.id);
+
+  // Filter to only assigned components, sorted by display_order
+  const selectedComponents = assignedComponents
+    .filter(c => c.is_assigned)
+    .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+
   // Build a lookup map for formulas: componentId -> styleId -> formula
   const formulaMap = new Map<string, Map<string | null, FormulaTemplateV2>>();
   formulas.forEach((f) => {
@@ -1254,6 +1599,8 @@ function FormulasTab({
     return componentFormulas.get(null) || null;
   };
 
+  const loading = isLoading || loadingAssigned;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -1265,9 +1612,17 @@ function FormulasTab({
         </div>
       </div>
 
-      {isLoading ? (
+      {loading ? (
         <div className="flex items-center justify-center h-48">
           <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : selectedComponents.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+          <Box className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No components selected</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Select components in the Components tab first, then add formulas here.
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-auto">
@@ -1291,15 +1646,27 @@ function FormulasTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {componentTypes.map((component) => {
-                const baseFormula = getFormula(component.id, null);
-                const hasAnyFormula = formulaMap.has(component.id);
+              {selectedComponents.map((component) => {
+                const baseFormula = getFormula(component.component_type_id, null);
+                const hasAnyFormula = formulaMap.has(component.component_type_id);
 
                 return (
-                  <tr key={component.id} className={hasAnyFormula ? 'bg-white' : 'bg-gray-50/50'}>
+                  <tr key={component.component_type_id} className={hasAnyFormula ? 'bg-white' : 'bg-gray-50/50'}>
                     <td className="px-4 py-3 sticky left-0 bg-inherit z-10">
-                      <div className="font-medium text-gray-900">{component.name}</div>
-                      <div className="text-xs text-gray-500 font-mono">{component.code}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 text-center text-xs text-gray-400 font-mono">
+                          {component.display_order}
+                        </span>
+                        <div>
+                          <div className="font-medium text-gray-900">{component.component_name}</div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-gray-500 font-mono">{component.component_code}</span>
+                            {component.is_labor && (
+                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </td>
 
                     {/* Base Formula Cell */}
@@ -1308,7 +1675,7 @@ function FormulasTab({
                         formula={baseFormula}
                         isInherited={false}
                         onClick={() => setEditingFormula({
-                          componentId: component.id,
+                          componentId: component.component_type_id,
                           styleId: null,
                           existing: baseFormula,
                         })}
@@ -1317,7 +1684,7 @@ function FormulasTab({
 
                     {/* Style-specific Formula Cells */}
                     {styles.map((style) => {
-                      const styleFormula = formulaMap.get(component.id)?.get(style.id) || null;
+                      const styleFormula = formulaMap.get(component.component_type_id)?.get(style.id) || null;
                       const isInherited = !styleFormula && !!baseFormula;
 
                       return (
@@ -1326,7 +1693,7 @@ function FormulasTab({
                             formula={styleFormula || baseFormula}
                             isInherited={isInherited}
                             onClick={() => setEditingFormula({
-                              componentId: component.id,
+                              componentId: component.component_type_id,
                               styleId: style.id,
                               existing: styleFormula,
                             })}

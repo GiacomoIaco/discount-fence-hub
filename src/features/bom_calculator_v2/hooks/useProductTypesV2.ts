@@ -185,6 +185,143 @@ export function useSKUCatalogV2(showArchived: boolean = false) {
   });
 }
 
+// ============================================
+// NEW HOOKS FOR PRODUCT TYPE MANAGER
+// ============================================
+
+/**
+ * Product type component assignment
+ */
+export interface ProductTypeComponentV2 {
+  id: string;
+  product_type_id: string;
+  component_type_id: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+/**
+ * Variable value option (global pool)
+ */
+export interface VariableValueOption {
+  id: string;
+  variable_code: string;
+  value: string;
+  display_label: string | null;
+  display_order: number;
+  is_active: boolean;
+}
+
+/**
+ * Full component view with assignment status
+ */
+export interface ProductTypeComponentFull {
+  product_type_id: string;
+  product_type_code: string;
+  product_type_name: string;
+  component_type_id: string;
+  component_code: string;
+  component_name: string;
+  is_labor: boolean;
+  assignment_id: string | null;
+  display_order: number | null;
+  is_assigned: boolean;
+  has_formula: boolean;
+}
+
+/**
+ * Fetch component assignments for a product type
+ */
+export function useProductTypeComponentsV2(productTypeId: string | null) {
+  return useQuery({
+    queryKey: ['product-type-components-v2', productTypeId],
+    queryFn: async () => {
+      if (!productTypeId) return [];
+
+      const { data, error } = await supabase
+        .from('product_type_components_v2')
+        .select(`
+          *,
+          component:component_types_v2(*)
+        `)
+        .eq('product_type_id', productTypeId)
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      return data as (ProductTypeComponentV2 & { component: ComponentTypeV2 })[];
+    },
+    enabled: !!productTypeId,
+  });
+}
+
+/**
+ * Fetch full component view for a product type (all components with assignment status)
+ */
+export function useProductTypeComponentsFull(productTypeId: string | null) {
+  return useQuery({
+    queryKey: ['product-type-components-full', productTypeId],
+    queryFn: async () => {
+      if (!productTypeId) return [];
+
+      const { data, error } = await supabase
+        .from('v_product_type_components_full')
+        .select('*')
+        .eq('product_type_id', productTypeId);
+
+      if (error) throw error;
+      return data as ProductTypeComponentFull[];
+    },
+    enabled: !!productTypeId,
+  });
+}
+
+/**
+ * Fetch all variable value options
+ */
+export function useVariableValueOptions(variableCode?: string) {
+  return useQuery({
+    queryKey: ['variable-value-options', variableCode],
+    queryFn: async () => {
+      let query = supabase
+        .from('variable_value_options')
+        .select('*')
+        .eq('is_active', true)
+        .order('variable_code')
+        .order('display_order');
+
+      if (variableCode) {
+        query = query.eq('variable_code', variableCode);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as VariableValueOption[];
+    },
+  });
+}
+
+/**
+ * Fetch variables from all product types (for import feature)
+ */
+export function useAllProductVariablesV2() {
+  return useQuery({
+    queryKey: ['all-product-variables-v2'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('product_variables_v2')
+        .select(`
+          *,
+          product_type:product_types_v2(code, name)
+        `)
+        .order('variable_code');
+
+      if (error) throw error;
+      return data as (ProductVariableV2 & { product_type: { code: string; name: string } })[];
+    },
+  });
+}
+
 /**
  * Fetch a single SKU by ID
  */
