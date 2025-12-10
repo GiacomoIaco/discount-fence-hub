@@ -227,6 +227,11 @@ export interface ProductTypeComponentFull {
   display_order: number | null;
   is_assigned: boolean;
   has_formula: boolean;
+  // Filter variable for subgrouping in Materials/Labor tab
+  filter_variable_id: string | null;
+  filter_variable_code: string | null;
+  filter_variable_name: string | null;
+  filter_variable_values: string[] | null;
 }
 
 /**

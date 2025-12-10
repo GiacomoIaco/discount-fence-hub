@@ -213,6 +213,7 @@ export default function ProductTypeManagerPage() {
                     componentTypes={componentTypes}
                     formulas={formulas}
                     isLoading={loadingComponents}
+                    variables={variables}
                   />
                 )}
                 {activeTab === 'formulas' && (
@@ -229,7 +230,6 @@ export default function ProductTypeManagerPage() {
                 {activeTab === 'eligibility' && (
                   <EligibilityTab
                     productType={selectedType}
-                    variables={variables}
                   />
                 )}
               </div>
@@ -1456,17 +1456,20 @@ function ComponentsTab({
   componentTypes: _componentTypes,
   formulas,
   isLoading,
+  variables,
 }: {
   productType: ProductTypeV2;
   componentTypes: ComponentTypeV2[];
   formulas: FormulaTemplateV2[];
   isLoading: boolean;
+  variables: ProductVariableV2[];
 }) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [componentFilter, setComponentFilter] = useState<'all' | 'material' | 'labor'>('all');
   const [saving, setSaving] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingComponent, setEditingComponent] = useState<ProductTypeComponentFull | null>(null);
 
   // Get full component data with assignment status from the view
   const { data: componentsFull = [], isLoading: loadingFull, refetch: refetchComponents } = useProductTypeComponentsFull(productType.id);
@@ -1682,6 +1685,7 @@ function ComponentsTab({
                 <div className="space-y-1">
                   {selectedComponents.map((component, index) => {
                     const hasFormula = componentsWithFormulas.has(component.component_type_id);
+                    const hasFilter = !!component.filter_variable_id;
                     return (
                       <div
                         key={component.component_type_id}
@@ -1715,7 +1719,7 @@ function ComponentsTab({
                               <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs">
+                          <div className="flex items-center gap-2 text-xs flex-wrap">
                             <span className="text-gray-500 font-mono">{component.component_code}</span>
                             {component.is_labor && (
                               <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
@@ -1725,8 +1729,21 @@ function ComponentsTab({
                             ) : (
                               <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Needs formula</span>
                             )}
+                            {hasFilter && (
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                                Filter: {component.filter_variable_name}
+                              </span>
+                            )}
                           </div>
                         </div>
+
+                        <button
+                          onClick={() => setEditingComponent(component)}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Edit component settings"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
 
                         <button
                           onClick={() => toggleComponent(component)}
@@ -1757,6 +1774,151 @@ function ComponentsTab({
           }}
         />
       )}
+
+      {/* Edit Component Assignment Modal */}
+      {editingComponent && (
+        <EditComponentAssignmentModal
+          component={editingComponent}
+          variables={variables}
+          onClose={() => setEditingComponent(null)}
+          onSaved={() => {
+            setEditingComponent(null);
+            refetchComponents();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Edit Component Assignment Modal - set filter variable
+function EditComponentAssignmentModal({
+  component,
+  variables,
+  onClose,
+  onSaved,
+}: {
+  component: ProductTypeComponentFull;
+  variables: ProductVariableV2[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [filterVariableId, setFilterVariableId] = useState<string>(component.filter_variable_id || '');
+  const [saving, setSaving] = useState(false);
+
+  // Only show select-type variables (those with allowed_values)
+  const selectVariables = variables.filter(v =>
+    v.variable_type === 'select' || (v.allowed_values && v.allowed_values.length > 0)
+  );
+
+  const handleSave = async () => {
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('product_type_components_v2')
+      .update({
+        filter_variable_id: filterVariableId || null,
+      })
+      .eq('id', component.assignment_id);
+
+    if (error) {
+      console.error('Error updating component assignment:', error);
+    } else {
+      onSaved();
+    }
+
+    setSaving(false);
+  };
+
+  const selectedVariable = variables.find(v => v.id === filterVariableId);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Edit Component Settings</h2>
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Component Info */}
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="font-medium text-gray-900">{component.component_name}</div>
+            <div className="text-sm text-gray-500 font-mono">{component.component_code}</div>
+          </div>
+
+          {/* Filter Variable Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Filter by Variable (for Materials/Labor tab)
+            </label>
+            <select
+              value={filterVariableId}
+              onChange={(e) => setFilterVariableId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">No filtering (same materials for all)</option>
+              {selectVariables.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.variable_name} ({v.variable_code})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              When set, you can assign different materials/labor for each value of this variable.
+            </p>
+          </div>
+
+          {/* Preview of filter values */}
+          {selectedVariable && selectedVariable.allowed_values && selectedVariable.allowed_values.length > 0 && (
+            <div className="p-3 bg-purple-50 rounded-lg">
+              <div className="text-sm font-medium text-purple-800 mb-2">
+                Material/Labor will be grouped by:
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {selectedVariable.allowed_values.map((val) => (
+                  <span
+                    key={val}
+                    className="px-2 py-1 bg-white text-purple-700 rounded text-sm border border-purple-200"
+                  >
+                    {val}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 flex items-center gap-2"
+          >
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2610,10 +2772,8 @@ interface LaborEligibilityV2 {
 
 function EligibilityTab({
   productType,
-  variables,
 }: {
   productType: ProductTypeV2;
-  variables: ProductVariableV2[];
 }) {
   // UI State
   const [browserMode, setBrowserMode] = useState<'material' | 'labor'>('material');
@@ -2632,10 +2792,12 @@ function EligibilityTab({
   // Get only assigned components
   const assignedComponents = componentsFull.filter(c => c.is_assigned);
 
-  // Find the main filter variable (e.g., post_type)
-  const filterVariable = variables.find(v =>
-    v.variable_code === 'post_type' || v.variable_type === 'select'
-  );
+  // Helper to get the selected component's filter variable info
+  const getSelectedComponentFilterCode = (): string | null => {
+    if (!selectedComponentId) return null;
+    const comp = assignedComponents.find(c => c.component_type_id === selectedComponentId);
+    return comp?.filter_variable_code || null;
+  };
 
   // Fetch all materials
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -2737,13 +2899,15 @@ function EligibilityTab({
   const getEligibleMaterialIds = (): Set<string> => {
     if (!selectedComponentId) return new Set();
 
+    const filterCode = getSelectedComponentFilterCode();
+
     const rules = materialRules.filter(r => {
       if (r.component_type_id !== selectedComponentId) return false;
 
       // Check attribute filter match
-      if (selectedAttributeValue && filterVariable) {
+      if (selectedAttributeValue && filterCode) {
         if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterVariable.variable_code] === selectedAttributeValue;
+        return r.attribute_filter[filterCode] === selectedAttributeValue;
       }
 
       return !r.attribute_filter;
@@ -2772,12 +2936,14 @@ function EligibilityTab({
   const getEligibleLaborIds = (): Set<string> => {
     if (!selectedComponentId) return new Set();
 
+    const filterCode = getSelectedComponentFilterCode();
+
     const rules = laborRules.filter(r => {
       if (r.component_type_id !== selectedComponentId) return false;
 
-      if (selectedAttributeValue && filterVariable) {
+      if (selectedAttributeValue && filterCode) {
         if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterVariable.variable_code] === selectedAttributeValue;
+        return r.attribute_filter[filterCode] === selectedAttributeValue;
       }
 
       return !r.attribute_filter;
@@ -2789,14 +2955,22 @@ function EligibilityTab({
   const eligibleMaterialIds = getEligibleMaterialIds();
   const eligibleLaborIds = getEligibleLaborIds();
 
+  // Helper to get component's filter variable code
+  const getComponentFilterCode = (componentId: string): string | null => {
+    const comp = assignedComponents.find(c => c.component_type_id === componentId);
+    return comp?.filter_variable_code || null;
+  };
+
   // Get material count for a component
   const getMaterialCount = (componentId: string, attributeValue?: string): number => {
+    const filterCode = getComponentFilterCode(componentId);
+
     return materialRules.filter(r => {
       if (r.component_type_id !== componentId) return false;
 
-      if (attributeValue && filterVariable) {
+      if (attributeValue && filterCode) {
         if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterVariable.variable_code] === attributeValue;
+        return r.attribute_filter[filterCode] === attributeValue;
       }
 
       return !r.attribute_filter;
@@ -2805,12 +2979,14 @@ function EligibilityTab({
 
   // Get labor count for a component
   const getLaborCount = (componentId: string, attributeValue?: string): number => {
+    const filterCode = getComponentFilterCode(componentId);
+
     return laborRules.filter(r => {
       if (r.component_type_id !== componentId) return false;
 
-      if (attributeValue && filterVariable) {
+      if (attributeValue && filterCode) {
         if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterVariable.variable_code] === attributeValue;
+        return r.attribute_filter[filterCode] === attributeValue;
       }
 
       return !r.attribute_filter;
@@ -2836,8 +3012,9 @@ function EligibilityTab({
 
   // Build attribute filter for insert
   const buildAttributeFilter = (): Record<string, string> | null => {
-    if (!filterVariable || !selectedAttributeValue) return null;
-    return { [filterVariable.variable_code]: selectedAttributeValue };
+    const filterCode = getSelectedComponentFilterCode();
+    if (!filterCode || !selectedAttributeValue) return null;
+    return { [filterCode]: selectedAttributeValue };
   };
 
   // Add material to eligibility
@@ -3032,7 +3209,8 @@ function EligibilityTab({
               const isExpanded = expandedComponents.has(comp.component_type_id);
               const materialCount = getMaterialCount(comp.component_type_id);
               const laborCount = getLaborCount(comp.component_type_id);
-              const hasFilterValues = filterVariable?.allowed_values && filterVariable.allowed_values.length > 0;
+              // Each component can have its own filter variable values
+              const hasFilterValues = comp.filter_variable_values && comp.filter_variable_values.length > 0;
 
               return (
                 <div key={comp.component_type_id}>
@@ -3060,6 +3238,9 @@ function EligibilityTab({
                         <div className="font-medium text-gray-900">{comp.component_name}</div>
                         <div className="text-xs text-gray-500">
                           {comp.is_labor ? 'Labor' : 'Material'}
+                          {comp.filter_variable_name && (
+                            <span className="ml-1 text-purple-600">• by {comp.filter_variable_name}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3073,10 +3254,10 @@ function EligibilityTab({
                     </div>
                   </button>
 
-                  {/* Expandable attribute values */}
+                  {/* Expandable attribute values - uses component's own filter_variable_values */}
                   {hasFilterValues && isExpanded && (
                     <div className="bg-gray-50 border-b border-gray-100">
-                      {filterVariable!.allowed_values!.map(value => {
+                      {comp.filter_variable_values!.map(value => {
                         const isSelected = selectedComponentId === comp.component_type_id && selectedAttributeValue === value;
                         const matCount = getMaterialCount(comp.component_type_id, value);
                         const labCount = getLaborCount(comp.component_type_id, value);
