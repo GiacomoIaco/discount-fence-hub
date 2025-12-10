@@ -15,6 +15,7 @@ import type { Request } from './features/requests/lib/requests';
 // Layout components
 import Sidebar from './layouts/Sidebar';
 import MobileHeader from './layouts/MobileHeader';
+import QuickRecordingFAB from './components/QuickRecordingFAB';
 
 // View components
 import Dashboard from './components/views/Dashboard';
@@ -82,6 +83,10 @@ function App() {
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>(() => {
     const saved = localStorage.getItem('viewMode');
     return (saved as 'mobile' | 'desktop') || 'mobile';
+  });
+  const [mobileLayout, setMobileLayout] = useState<'expanded' | 'compact'>(() => {
+    const saved = localStorage.getItem('mobileLayout');
+    return (saved as 'expanded' | 'compact') || 'expanded';
   });
   const [showMessageComposer, setShowMessageComposer] = useState(false);
   const [editingDraft, setEditingDraft] = useState<any>(null);
@@ -178,6 +183,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem('viewMode', viewMode);
   }, [viewMode]);
+
+  // Save mobileLayout to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('mobileLayout', mobileLayout);
+  }, [mobileLayout]);
 
   // Auto-collapse sidebar in Leadership and MyTodos modes for maximum screen space
   useEffect(() => {
@@ -546,6 +556,8 @@ function App() {
             profileFullName={userName}
             setViewMode={setViewMode}
             setShowProfileView={setShowProfileView}
+            mobileLayout={mobileLayout}
+            setMobileLayout={setMobileLayout}
           />
           <div className="pb-20">
             <ErrorBoundary>
@@ -553,6 +565,7 @@ function App() {
                 activeSection={activeSection}
                 setActiveSection={setActiveSection}
                 viewMode={viewMode}
+                mobileLayout={mobileLayout}
                 unreadAnnouncementsCount={unreadAnnouncementsCount}
                 announcementEngagementCount={announcementEngagementCount}
                 userId={user?.id}
@@ -566,6 +579,14 @@ function App() {
               />
             </ErrorBoundary>
           </div>
+
+          {/* Quick Recording FAB - only show on home screen */}
+          {activeSection === 'home' && (
+            <QuickRecordingFAB
+              onNavigate={setActiveSection}
+              userId={user?.id}
+            />
+          )}
 
           {/* Install App Banner */}
           <InstallAppBanner />

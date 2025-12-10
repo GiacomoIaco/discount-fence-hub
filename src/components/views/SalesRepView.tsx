@@ -46,6 +46,7 @@ interface SalesRepViewProps {
   activeSection: Section;
   setActiveSection: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
+  mobileLayout?: 'expanded' | 'compact';
   unreadAnnouncementsCount: number;
   announcementEngagementCount: number;
   userId?: string;
@@ -62,6 +63,7 @@ export default function SalesRepView({
   activeSection,
   setActiveSection,
   viewMode,
+  mobileLayout = 'expanded',
   unreadAnnouncementsCount,
   announcementEngagementCount,
   userId,
@@ -224,7 +226,7 @@ export default function SalesRepView({
     return 0;
   };
 
-  // Render a single navigation button
+  // Render a single navigation button (expanded view)
   const renderNavButton = (item: NavigationItem) => {
     const style = getItemStyle(item);
     const Icon = item.icon;
@@ -260,6 +262,36 @@ export default function SalesRepView({
     );
   };
 
+  // Render a compact navigation button (3 per row grid view)
+  const renderCompactNavButton = (item: NavigationItem) => {
+    const style = getItemStyle(item);
+    const Icon = item.icon;
+    const isGradient = !!style.gradient;
+    const badgeCount = item.badge || getBadgeCount(item.menuId);
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => setActiveSection(item.id)}
+        className={`flex flex-col items-center justify-center p-3 rounded-xl shadow-sm active:scale-95 transition-transform relative ${
+          isGradient ? `bg-gradient-to-br ${style.gradient} text-white` : style.bgColor
+        }`}
+      >
+        <div className={`${style.iconBg} p-2.5 rounded-lg mb-2`}>
+          <Icon className={`w-6 h-6 ${style.iconColor || ''}`} />
+        </div>
+        <span className={`text-xs font-medium text-center leading-tight line-clamp-2 ${style.textColor || ''}`}>
+          {item.name}
+        </span>
+        {badgeCount > 0 && (
+          <div className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {badgeCount > 9 ? '9+' : badgeCount}
+          </div>
+        )}
+      </button>
+    );
+  };
+
   // Group navigation items dynamically by category from database
   // Items are sorted by sortOrder within each category
   const categorizedItems = useMemo(() => {
@@ -289,6 +321,20 @@ export default function SalesRepView({
   // Order categories for display
   const categoryOrder: MenuCategory[] = ['main', 'communication', 'requests', 'operations', 'admin', 'tools', 'system'];
 
+  // Compact view: Flatten all items into a single grid (ignore categories)
+  if (mobileLayout === 'compact') {
+    const allItems = categoryOrder.flatMap(category => categorizedItems[category]);
+
+    return (
+      <div className="p-4">
+        <div className="grid grid-cols-3 gap-3">
+          {allItems.map(renderCompactNavButton)}
+        </div>
+      </div>
+    );
+  }
+
+  // Expanded view (default): Show items grouped by category
   return (
     <div className="space-y-4 p-4">
       {categoryOrder.map(category => {
