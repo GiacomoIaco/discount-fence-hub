@@ -1,8 +1,8 @@
 /**
- * Calculator Page - v2
+ * Calculator Page - V2
  *
- * Main BOM/BOL estimation engine using the new component-based architecture.
- * Supports multiple line items, adjustments, and project saving.
+ * Main BOM/BOL estimation engine using the formula-based architecture.
+ * Uses FormulaInterpreter to execute database-stored formulas.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -12,8 +12,13 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import { getCalculator, hasCalculator } from '../calculators';
-import type { ProductSKUWithDetails, CalculationInput } from '../types';
+import {
+  FormulaInterpreter,
+  buildMaterialAttributes,
+  createFormulaContext,
+  applyProjectRounding,
+} from '../services';
+import { useSKUCatalogV2, useProductTypesV2, type SKUCatalogV2WithRelations } from '../hooks';
 
 // =============================================================================
 // TYPES
@@ -36,29 +41,17 @@ interface LineItem {
 }
 
 interface MaterialRow {
-  material_id: string;
+  component_code: string;
+  component_name: string;
   material_sku: string;
   material_name: string;
-  component_code: string;
   unit_cost: number;
   calculated_qty: number;
   rounded_qty: number;
   adjustment: number;
   total_qty: number;
   total_cost: number;
-  is_manual: boolean;
-}
-
-interface LaborRow {
-  labor_code_id: string;
-  labor_sku: string;
-  description: string;
-  rate: number;
-  quantity: number;
-  calculated_cost: number;
-  adjustment: number;
-  total_cost: number;
-  is_manual: boolean;
+  formula_used: string;
 }
 
 interface BusinessUnit {
@@ -67,35 +60,14 @@ interface BusinessUnit {
   name: string;
 }
 
-interface Yard {
-  id: string;
-  code: string;
-  name: string;
-  city: string;
-}
-
-interface ProductType {
-  id: string;
-  code: string;
-  name: string;
-}
-
-interface SKUOption {
-  id: string;
-  sku_code: string;
-  sku_name: string;
-  product_type_id: string;
-  post_type: 'WOOD' | 'STEEL';
-}
-
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
 interface CalculatorPageProps {
   userId?: string;
-  initialProjectId?: string;  // TODO: Implement loading existing projects
-  duplicateMode?: boolean;     // TODO: Implement duplicate mode
+  initialProjectId?: string;
+  duplicateMode?: boolean;
   onProjectSaved?: (projectId: string) => void;
 }
 
@@ -111,21 +83,20 @@ export function CalculatorPage({
   const [projectName, setProjectName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [businessUnitId, setBusinessUnitId] = useState('');
-  const [yardId, setYardId] = useState('');
-  const [expectedPickupDate, _setExpectedPickupDate] = useState('');
-  const [projectNotes, _setProjectNotes] = useState('');
 
   // Line items
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
-  // BOM/BOL with adjustments
+  // BOM results
   const [materialRows, setMaterialRows] = useState<MaterialRow[]>([]);
-  const [laborRows, setLaborRows] = useState<LaborRow[]>([]);
 
   // UI state
   const [isCalculating, setIsCalculating] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [expandedLineItem, setExpandedLineItem] = useState<string | null>(null);
+
+  // Formula interpreter instance
+  const formulaInterpreter = useMemo(() => new FormulaInterpreter(supabase), []);
 
   // =============================================================================
   // DATA FETCHING
@@ -133,7 +104,7 @@ export function CalculatorPage({
 
   // Business units
   const { data: businessUnits = [] } = useQuery({
-    queryKey: ['business-units-calc'],
+    queryKey: ['business-units-calc-v2'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('business_units')
@@ -145,46 +116,22 @@ export function CalculatorPage({
     },
   });
 
-  // Yards
-  const { data: yards = [] } = useQuery({
-    queryKey: ['yards-calc'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('yards')
-        .select('id, code, name, city')
-        .eq('is_active', true)
-        .order('code');
-      if (error) throw error;
-      return data as Yard[];
-    },
-  });
+  // Product types (V2)
+  const { data: productTypes = [] } = useProductTypesV2();
 
-  // Product types
-  const { data: productTypes = [] } = useQuery({
-    queryKey: ['product-types-calc'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('product_types')
-        .select('id, code, name')
-        .eq('is_active', true)
-        .order('display_order');
-      if (error) throw error;
-      return data as ProductType[];
-    },
-  });
+  // All SKUs (V2)
+  const { data: allSKUs = [] } = useSKUCatalogV2();
 
-  // All SKUs for dropdown (excluding archived)
-  const { data: allSKUs = [] } = useQuery({
-    queryKey: ['all-skus-calc'],
+  // All materials for lookup
+  const { data: allMaterials = [] } = useQuery({
+    queryKey: ['materials-for-calc-v2'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('product_skus')
-        .select('id, sku_code, sku_name, product_type_id, post_type')
-        .eq('is_active', true)
-        .is('archived_at', null)
-        .order('sku_code');
+        .from('materials')
+        .select('id, material_sku, material_name, unit_cost, category')
+        .eq('status', 'Active');
       if (error) throw error;
-      return data as SKUOption[];
+      return data || [];
     },
   });
 
@@ -197,12 +144,6 @@ export function CalculatorPage({
       setBusinessUnitId(businessUnits[0].id);
     }
   }, [businessUnits, businessUnitId]);
-
-  useEffect(() => {
-    if (yards.length > 0 && !yardId) {
-      setYardId(yards[0].id);
-    }
-  }, [yards, yardId]);
 
   // =============================================================================
   // LINE ITEM MANAGEMENT
@@ -253,14 +194,13 @@ export function CalculatorPage({
     setLineItems(items => items.filter(item => item.id !== id));
   };
 
-  const selectSKU = (lineItemId: string, sku: SKUOption) => {
-    const productType = productTypes.find(t => t.id === sku.product_type_id);
+  const selectSKU = (lineItemId: string, sku: SKUCatalogV2WithRelations) => {
     updateLineItem(lineItemId, {
       skuId: sku.id,
       skuCode: sku.sku_code,
       skuName: sku.sku_name,
       productTypeId: sku.product_type_id,
-      productTypeName: productType?.name || '',
+      productTypeName: sku.product_type?.name || '',
       postType: sku.post_type,
     });
   };
@@ -274,131 +214,97 @@ export function CalculatorPage({
 
     // Check if all line items have SKUs
     const validItems = lineItems.filter(item => item.skuId);
-    if (validItems.length === 0) return;
+    if (validItems.length === 0) {
+      setMaterialRows([]);
+      return;
+    }
 
     setIsCalculating(true);
 
     try {
-      const allMaterials: MaterialRow[] = [];
-      const allLabor: LaborRow[] = [];
+      const allResults: Map<string, MaterialRow> = new Map();
 
       for (const item of validItems) {
-        // Find product type code
-        const productType = productTypes.find(t => t.id === item.productTypeId);
-        if (!productType || !hasCalculator(productType.code)) {
-          console.warn(`No calculator for product type: ${productType?.code}`);
-          continue;
-        }
+        // Find the SKU
+        const sku = allSKUs.find(s => s.id === item.skuId);
+        if (!sku) continue;
 
-        // Load full SKU with details
-        const { data: skuData } = await supabase
-          .from('product_skus')
-          .select(`
-            *,
-            product_type:product_types(*),
-            product_style:product_styles(*),
-            components:sku_components_v2(
-              component:component_definitions_v2(*),
-              material:materials(*)
-            )
-          `)
-          .eq('id', item.skuId)
-          .single();
+        // Build material attributes from SKU components
+        const materialAttributes = await buildMaterialAttributes(supabase, sku.components || {});
 
-        if (!skuData) continue;
+        // Get style adjustments from the product style
+        const styleAdjustments = sku.product_style?.formula_adjustments || {};
 
-        // Transform to expected format
-        const sku: ProductSKUWithDetails = {
-          ...skuData,
-          product_type: skuData.product_type,
-          product_style: skuData.product_style,
-          components: skuData.components.map((c: any) => ({
-            component: c.component,
-            material: c.material,
-          })),
-        };
+        // Create formula context
+        const context = createFormulaContext(
+          item.netLength,
+          item.numberOfLines,
+          item.numberOfGates,
+          sku.height,
+          sku.variables || {},
+          styleAdjustments,
+          materialAttributes
+        );
 
-        // Build calculation input
-        const input: CalculationInput = {
-          netLength: item.netLength,
-          numberOfLines: item.numberOfLines,
-          numberOfGates: item.numberOfGates,
-          businessUnitId,
-        };
+        // Execute formulas
+        const results = await formulaInterpreter.executeAllFormulas(
+          sku.product_type_id,
+          sku.product_style_id,
+          context
+        );
 
-        // Run calculator
-        const calculator = getCalculator(productType.code);
-        const result = await calculator.calculate(sku, input);
+        // Apply project-level rounding
+        const roundedResults = applyProjectRounding(results);
 
-        // Merge materials
-        for (const mat of result.materials) {
-          const existing = allMaterials.find(m => m.material_id === mat.material_id);
+        // Merge results
+        for (const result of roundedResults) {
+          const componentCode = result.component_code;
+          const materialSku = sku.components?.[componentCode];
+
+          if (!materialSku) continue;
+
+          const material = allMaterials.find(m => m.material_sku === materialSku);
+          if (!material) continue;
+
+          const key = `${componentCode}-${materialSku}`;
+          const existing = allResults.get(key);
+
           if (existing) {
-            existing.calculated_qty += mat.quantity;
+            existing.calculated_qty += result.raw_value;
             existing.rounded_qty = Math.ceil(existing.calculated_qty);
             existing.total_qty = existing.rounded_qty + existing.adjustment;
             existing.total_cost = existing.total_qty * existing.unit_cost;
           } else {
-            allMaterials.push({
-              material_id: mat.material_id,
-              material_sku: mat.material_sku,
-              material_name: mat.material_name,
-              component_code: mat.component_code,
-              unit_cost: mat.unit_cost,
-              calculated_qty: mat.quantity,
-              rounded_qty: Math.ceil(mat.quantity),
+            allResults.set(key, {
+              component_code: componentCode,
+              component_name: result.component_name,
+              material_sku: materialSku,
+              material_name: material.material_name,
+              unit_cost: material.unit_cost,
+              calculated_qty: result.raw_value,
+              rounded_qty: result.rounded_value,
               adjustment: 0,
-              total_qty: Math.ceil(mat.quantity),
-              total_cost: Math.ceil(mat.quantity) * mat.unit_cost,
-              is_manual: false,
-            });
-          }
-        }
-
-        // Merge labor
-        for (const lab of result.labor) {
-          const existing = allLabor.find(l => l.labor_code_id === lab.labor_code_id);
-          if (existing) {
-            existing.quantity += lab.quantity;
-            existing.calculated_cost = existing.quantity * existing.rate;
-            existing.total_cost = existing.calculated_cost + existing.adjustment;
-          } else {
-            allLabor.push({
-              labor_code_id: lab.labor_code_id,
-              labor_sku: lab.labor_sku,
-              description: lab.description,
-              rate: lab.rate,
-              quantity: lab.quantity,
-              calculated_cost: lab.quantity * lab.rate,
-              adjustment: 0,
-              total_cost: lab.quantity * lab.rate,
-              is_manual: false,
+              total_qty: result.rounded_value,
+              total_cost: result.rounded_value * material.unit_cost,
+              formula_used: result.formula_used,
             });
           }
         }
       }
 
       // Preserve existing adjustments
+      const newRows = Array.from(allResults.values());
       setMaterialRows(prev => {
-        return allMaterials.map(mat => {
-          const existing = prev.find(m => m.material_id === mat.material_id);
+        return newRows.map(row => {
+          const existing = prev.find(
+            p => p.component_code === row.component_code && p.material_sku === row.material_sku
+          );
           if (existing) {
-            mat.adjustment = existing.adjustment;
-            mat.total_qty = mat.rounded_qty + mat.adjustment;
-            mat.total_cost = mat.total_qty * mat.unit_cost;
+            row.adjustment = existing.adjustment;
+            row.total_qty = row.rounded_qty + row.adjustment;
+            row.total_cost = row.total_qty * row.unit_cost;
           }
-          return mat;
-        });
-      });
-
-      setLaborRows(prev => {
-        return allLabor.map(lab => {
-          const existing = prev.find(l => l.labor_code_id === lab.labor_code_id);
-          if (existing) {
-            lab.adjustment = existing.adjustment;
-            lab.total_cost = lab.calculated_cost + lab.adjustment;
-          }
-          return lab;
+          return row;
         });
       });
 
@@ -408,7 +314,7 @@ export function CalculatorPage({
     } finally {
       setIsCalculating(false);
     }
-  }, [businessUnitId, lineItems, productTypes]);
+  }, [businessUnitId, lineItems, allSKUs, allMaterials, formulaInterpreter]);
 
   // Auto-calculate when line items change
   useEffect(() => {
@@ -422,10 +328,10 @@ export function CalculatorPage({
   // ADJUSTMENTS
   // =============================================================================
 
-  const updateMaterialAdjustment = (materialId: string, adjustment: number) => {
+  const updateMaterialAdjustment = (componentCode: string, materialSku: string, adjustment: number) => {
     setMaterialRows(rows =>
       rows.map(row => {
-        if (row.material_id !== materialId) return row;
+        if (row.component_code !== componentCode || row.material_sku !== materialSku) return row;
         const totalQty = row.rounded_qty + adjustment;
         return {
           ...row,
@@ -437,42 +343,21 @@ export function CalculatorPage({
     );
   };
 
-  const updateLaborAdjustment = (laborCodeId: string, adjustment: number) => {
-    setLaborRows(rows =>
-      rows.map(row => {
-        if (row.labor_code_id !== laborCodeId) return row;
-        return {
-          ...row,
-          adjustment,
-          total_cost: row.calculated_cost + adjustment,
-        };
-      })
-    );
-  };
-
   // =============================================================================
   // TOTALS
   // =============================================================================
 
   const totals = useMemo(() => {
     const materialTotal = materialRows.reduce((sum, r) => sum + r.total_cost, 0);
-    const laborTotal = laborRows.reduce((sum, r) => sum + r.total_cost, 0);
     const totalFootage = lineItems.reduce((sum, i) => sum + i.netLength, 0);
-    const projectTotal = materialTotal + laborTotal;
-    const costPerFoot = totalFootage > 0 ? projectTotal / totalFootage : 0;
-
-    const materialAdjustments = materialRows.reduce((sum, r) => sum + (r.adjustment * r.unit_cost), 0);
-    const laborAdjustments = laborRows.reduce((sum, r) => sum + r.adjustment, 0);
+    const costPerFoot = totalFootage > 0 ? materialTotal / totalFootage : 0;
 
     return {
       materialTotal,
-      laborTotal,
-      projectTotal,
       totalFootage,
       costPerFoot,
-      totalAdjustments: materialAdjustments + laborAdjustments,
     };
-  }, [materialRows, laborRows, lineItems]);
+  }, [materialRows, lineItems]);
 
   // =============================================================================
   // SAVE PROJECT
@@ -481,19 +366,18 @@ export function CalculatorPage({
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!projectName.trim()) throw new Error('Project name is required');
-      if (!businessUnitId) throw new Error('Business unit is required');
 
       const projectData = {
         project_name: projectName.trim(),
         customer_name: customerName.trim() || null,
-        business_unit_id: businessUnitId,
-        yard_id: yardId || null,
-        expected_pickup_date: expectedPickupDate || null,
-        notes: projectNotes.trim() || null,
-        status: 'draft' as const,
+        net_length: totals.totalFootage,
+        number_of_lines: lineItems.reduce((sum, i) => sum + i.numberOfLines, 0),
+        number_of_gates: lineItems.reduce((sum, i) => sum + i.numberOfGates, 0),
+        sku_id: lineItems[0]?.skuId || null,
+        materials_result: materialRows,
         total_material_cost: totals.materialTotal,
-        total_labor_cost: totals.laborTotal,
-        total_cost: totals.projectTotal,
+        total_cost: totals.materialTotal, // Will add labor when implemented
+        status: 'draft' as const,
         created_by: userId || null,
       };
 
@@ -501,14 +385,14 @@ export function CalculatorPage({
 
       if (editingProjectId) {
         const { error } = await supabase
-          .from('bom_projects')
+          .from('bom_projects_v2')
           .update(projectData)
           .eq('id', editingProjectId);
         if (error) throw error;
         projectId = editingProjectId;
       } else {
         const { data, error } = await supabase
-          .from('bom_projects')
+          .from('bom_projects_v2')
           .insert(projectData)
           .select('id')
           .single();
@@ -516,78 +400,11 @@ export function CalculatorPage({
         projectId = data.id;
       }
 
-      // Delete existing line items, materials, labor
-      await Promise.all([
-        supabase.from('project_line_items').delete().eq('project_id', projectId),
-        supabase.from('project_materials').delete().eq('project_id', projectId),
-        supabase.from('project_labor').delete().eq('project_id', projectId),
-      ]);
-
-      // Insert line items
-      if (lineItems.length > 0) {
-        const lineItemsData = lineItems.map((item, idx) => ({
-          project_id: projectId,
-          fence_type: productTypes.find(t => t.id === item.productTypeId)?.code || 'wood-vertical',
-          product_id: item.skuId || null,
-          product_name: item.skuName,
-          total_footage: item.totalFootage,
-          buffer: item.buffer,
-          net_length: item.netLength,
-          number_of_lines: item.numberOfLines,
-          number_of_gates: item.numberOfGates,
-          sort_order: idx,
-        }));
-
-        const { error } = await supabase
-          .from('project_line_items')
-          .insert(lineItemsData);
-        if (error) throw error;
-      }
-
-      // Insert materials
-      if (materialRows.length > 0) {
-        const materialsData = materialRows.map(row => ({
-          project_id: projectId,
-          material_id: row.material_id,
-          calculated_qty: row.calculated_qty,
-          rounded_qty: row.rounded_qty,
-          adjustment: row.adjustment,
-          total_qty: row.total_qty,
-          unit_cost: row.unit_cost,
-          total_cost: row.total_cost,
-          is_manual: row.is_manual,
-        }));
-
-        const { error } = await supabase
-          .from('project_materials')
-          .insert(materialsData);
-        if (error) throw error;
-      }
-
-      // Insert labor
-      if (laborRows.length > 0) {
-        const laborData = laborRows.map(row => ({
-          project_id: projectId,
-          labor_code_id: row.labor_code_id,
-          quantity: row.quantity,
-          rate: row.rate,
-          calculated_cost: row.calculated_cost,
-          adjustment: row.adjustment,
-          total_cost: row.total_cost,
-          is_manual: row.is_manual,
-        }));
-
-        const { error } = await supabase
-          .from('project_labor')
-          .insert(laborData);
-        if (error) throw error;
-      }
-
       return projectId;
     },
     onSuccess: (projectId) => {
       showSuccess(editingProjectId ? 'Project updated!' : 'Project saved!');
-      queryClient.invalidateQueries({ queryKey: ['bom-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bom-projects-v2'] });
       setEditingProjectId(projectId);
       onProjectSaved?.(projectId);
     },
@@ -627,7 +444,10 @@ export function CalculatorPage({
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-bold text-gray-900">Calculator</h1>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Calculator V2</h1>
+              <p className="text-xs text-gray-500">Formula-driven BOM</p>
+            </div>
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending || !projectName.trim()}
@@ -695,26 +515,18 @@ export function CalculatorPage({
         </div>
       </div>
 
-      {/* Right Panel - BOM/BOL */}
+      {/* Right Panel - BOM Results */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Summary Stats */}
         <div className="bg-white border-b border-gray-200 px-4 py-3">
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase opacity-80">Cost/Ft</div>
               <div className="text-lg font-bold">{formatCurrency(totals.costPerFoot)}</div>
             </div>
             <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase opacity-80">Total</div>
-              <div className="text-lg font-bold">{formatCurrency(totals.projectTotal)}</div>
-            </div>
-            <div className="bg-amber-500 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase opacity-80">Materials</div>
+              <div className="text-[10px] uppercase opacity-80">Material Total</div>
               <div className="text-lg font-bold">{formatCurrency(totals.materialTotal)}</div>
-            </div>
-            <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-center">
-              <div className="text-[10px] uppercase opacity-80">Labor</div>
-              <div className="text-lg font-bold">{formatCurrency(totals.laborTotal)}</div>
             </div>
             <div className="bg-gray-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase opacity-80">Footage</div>
@@ -723,7 +535,7 @@ export function CalculatorPage({
           </div>
         </div>
 
-        {/* Materials & Labor Tables */}
+        {/* Materials Table */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {isCalculating && (
             <div className="flex items-center justify-center py-8">
@@ -740,95 +552,56 @@ export function CalculatorPage({
           )}
 
           {!isCalculating && materialRows.length > 0 && (
-            <>
-              {/* Materials Table */}
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Materials (BOM)</h3>
-                  <span className="font-semibold text-green-600">{formatCurrency(totals.materialTotal)}</span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr className="text-xs text-gray-500 uppercase">
-                      <th className="text-left py-2 px-3">Material</th>
-                      <th className="text-right py-2 px-3 w-16">Calc</th>
-                      <th className="text-right py-2 px-3 w-16">Rnd</th>
-                      <th className="text-right py-2 px-3 w-20">Adj</th>
-                      <th className="text-right py-2 px-3 w-16">Qty</th>
-                      <th className="text-right py-2 px-3 w-20">Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {materialRows.map(row => (
-                      <tr key={row.material_id} className="hover:bg-gray-50">
-                        <td className="py-2 px-3">
-                          <div className="font-medium text-gray-900">{row.material_name}</div>
-                          <div className="text-xs text-gray-500">{row.material_sku}</div>
-                        </td>
-                        <td className="py-2 px-3 text-right text-gray-500">{row.calculated_qty.toFixed(1)}</td>
-                        <td className="py-2 px-3 text-right text-gray-700">{row.rounded_qty}</td>
-                        <td className="py-2 px-3 text-right">
-                          <input
-                            type="number"
-                            value={row.adjustment}
-                            onChange={(e) => updateMaterialAdjustment(row.material_id, Number(e.target.value))}
-                            className={`w-16 px-2 py-1 border rounded text-right text-sm ${
-                              row.adjustment !== 0 ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
-                            }`}
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-right font-medium">{row.total_qty}</td>
-                        <td className="py-2 px-3 text-right font-medium text-green-600">{formatCurrency(row.total_cost)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Materials (BOM)</h3>
+                <span className="font-semibold text-green-600">{formatCurrency(totals.materialTotal)}</span>
               </div>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="text-xs text-gray-500 uppercase">
+                    <th className="text-left py-2 px-3">Component / Material</th>
+                    <th className="text-right py-2 px-3 w-16">Calc</th>
+                    <th className="text-right py-2 px-3 w-16">Rnd</th>
+                    <th className="text-right py-2 px-3 w-20">Adj</th>
+                    <th className="text-right py-2 px-3 w-16">Qty</th>
+                    <th className="text-right py-2 px-3 w-20">Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {materialRows.map(row => (
+                    <tr key={`${row.component_code}-${row.material_sku}`} className="hover:bg-gray-50">
+                      <td className="py-2 px-3">
+                        <div className="font-medium text-gray-900">{row.component_name}</div>
+                        <div className="text-xs text-gray-500">{row.material_sku} - {row.material_name}</div>
+                      </td>
+                      <td className="py-2 px-3 text-right text-gray-500">{row.calculated_qty.toFixed(1)}</td>
+                      <td className="py-2 px-3 text-right text-gray-700">{row.rounded_qty}</td>
+                      <td className="py-2 px-3 text-right">
+                        <input
+                          type="number"
+                          value={row.adjustment}
+                          onChange={(e) => updateMaterialAdjustment(row.component_code, row.material_sku, Number(e.target.value))}
+                          className={`w-16 px-2 py-1 border rounded text-right text-sm ${
+                            row.adjustment !== 0 ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                          }`}
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-right font-medium">{row.total_qty}</td>
+                      <td className="py-2 px-3 text-right font-medium text-green-600">{formatCurrency(row.total_cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-              {/* Labor Table */}
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Labor (BOL)</h3>
-                  <span className="font-semibold text-blue-600">{formatCurrency(totals.laborTotal)}</span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr className="text-xs text-gray-500 uppercase">
-                      <th className="text-left py-2 px-3">Labor</th>
-                      <th className="text-right py-2 px-3 w-16">Qty</th>
-                      <th className="text-right py-2 px-3 w-16">Rate</th>
-                      <th className="text-right py-2 px-3 w-20">Calc</th>
-                      <th className="text-right py-2 px-3 w-20">Adj $</th>
-                      <th className="text-right py-2 px-3 w-20">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {laborRows.map(row => (
-                      <tr key={row.labor_code_id} className="hover:bg-gray-50">
-                        <td className="py-2 px-3">
-                          <div className="font-medium text-gray-900">{row.description}</div>
-                          <div className="text-xs text-gray-500">{row.labor_sku}</div>
-                        </td>
-                        <td className="py-2 px-3 text-right text-gray-700">{row.quantity}</td>
-                        <td className="py-2 px-3 text-right text-gray-500">{formatCurrency(row.rate)}</td>
-                        <td className="py-2 px-3 text-right text-gray-500">{formatCurrency(row.calculated_cost)}</td>
-                        <td className="py-2 px-3 text-right">
-                          <input
-                            type="number"
-                            value={row.adjustment}
-                            onChange={(e) => updateLaborAdjustment(row.labor_code_id, Number(e.target.value))}
-                            className={`w-16 px-2 py-1 border rounded text-right text-sm ${
-                              row.adjustment !== 0 ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
-                            }`}
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-right font-medium text-blue-600">{formatCurrency(row.total_cost)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+          {!isCalculating && lineItems.some(i => i.skuId) && materialRows.length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+              <p className="text-amber-800">
+                No formulas found for the selected SKU. Make sure formula templates are configured in the database.
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -854,11 +627,11 @@ function LineItemCard({
   item: LineItem;
   index: number;
   isExpanded: boolean;
-  productTypes: ProductType[];
-  allSKUs: SKUOption[];
+  productTypes: { id: string; code: string; name: string }[];
+  allSKUs: SKUCatalogV2WithRelations[];
   onToggle: () => void;
   onUpdate: (updates: Partial<LineItem>) => void;
-  onSelectSKU: (sku: SKUOption) => void;
+  onSelectSKU: (sku: SKUCatalogV2WithRelations) => void;
   onRemove: () => void;
 }) {
   const [skuSearch, setSkuSearch] = useState('');

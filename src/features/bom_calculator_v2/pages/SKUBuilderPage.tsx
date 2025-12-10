@@ -1,11 +1,11 @@
 /**
- * SKU Builder Page - v2
+ * SKU Builder Page - V2
  *
- * Build and configure product SKUs using the component-based system.
- * Dynamically loads product types, styles, and components.
+ * Build and configure product SKUs using the formula-based architecture.
+ * Uses sku_catalog_v2 with JSONB for variables and components.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Save, RotateCcw, AlertTriangle, ArrowLeft, Package
@@ -13,22 +13,18 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import {
-  useProductTypesWithStyles,
-  useProductTypeComponents,
-  useComponentMaterialRules,
-  useProductSKUWithDetails,
+  useProductTypesV2,
+  useProductStylesV2,
+  useProductVariablesV2,
+  useComponentTypesV2,
+  useSKUV2,
+  type ProductTypeV2,
 } from '../hooks';
 
 interface SKUBuilderPageProps {
   editingSKUId?: string | null;
   onClearSelection?: () => void;
   isAdmin?: boolean;
-}
-
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
 }
 
 interface Material {
@@ -52,48 +48,35 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   const [skuName, setSkuName] = useState('');
   const [height, setHeight] = useState(6);
   const [postType, setPostType] = useState<'WOOD' | 'STEEL'>('WOOD');
-  const [postSpacing, setPostSpacing] = useState<number | null>(null);
 
-  // Component material selections: component_id -> material_id
-  const [componentMaterials, setComponentMaterials] = useState<Record<string, string>>({});
+  // Variables (JSONB)
+  const [variables, setVariables] = useState<Record<string, number | string>>({});
+
+  // Components (JSONB): component_code -> material_sku
+  const [components, setComponents] = useState<Record<string, string>>({});
 
   // Preview parameters
   const [previewLength, setPreviewLength] = useState(100);
   const [previewLines, setPreviewLines] = useState(1);
-  const [businessUnitId, setBusinessUnitId] = useState<string>('');
 
-  // Fetch product types with styles
-  const { data: productTypes = [], isLoading: loadingTypes } = useProductTypesWithStyles();
+  // Fetch product types (V2)
+  const { data: productTypes = [], isLoading: loadingTypes } = useProductTypesV2();
 
-  // Fetch components for selected type
-  const { data: typeComponents = [] } = useProductTypeComponents(selectedTypeId);
+  // Fetch styles for selected type (V2)
+  const { data: productStyles = [] } = useProductStylesV2(selectedTypeId);
 
-  // Fetch material rules for selected type
-  const { data: materialRules = [] } = useComponentMaterialRules(selectedTypeId);
+  // Fetch variables for selected type (V2)
+  const { data: productVariables = [] } = useProductVariablesV2(selectedTypeId);
+
+  // Fetch all component types (V2)
+  const { data: componentTypes = [] } = useComponentTypesV2();
 
   // Fetch SKU details if editing
-  const { data: editingSKU } = useProductSKUWithDetails(editingSKUId || null);
-
-  // Fetch business units
-  const { data: businessUnits = [] } = useQuery({
-    queryKey: ['business-units-builder'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('business_units')
-        .select('id, code, name')
-        .eq('is_active', true)
-        .order('code');
-      if (error) throw error;
-      if (data && data.length > 0 && !businessUnitId) {
-        setBusinessUnitId(data[0].id);
-      }
-      return data as BusinessUnit[];
-    },
-  });
+  const { data: editingSKU } = useSKUV2(editingSKUId || null);
 
   // Fetch all materials
   const { data: allMaterials = [], isLoading: loadingMaterials } = useQuery({
-    queryKey: ['materials-for-builder'],
+    queryKey: ['materials-for-builder-v2'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
@@ -106,6 +89,18 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     },
   });
 
+  // Fetch component-material eligibility from V1 shared table
+  const { data: eligibilityRules = [] } = useQuery({
+    queryKey: ['component-material-eligibility'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('component_material_eligibility')
+        .select('*');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Load editing SKU data
   useEffect(() => {
     if (editingSKU) {
@@ -115,48 +110,79 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       setSkuName(editingSKU.sku_name);
       setHeight(editingSKU.height);
       setPostType(editingSKU.post_type);
-      setPostSpacing(editingSKU.post_spacing);
-
-      // Set component materials
-      const materials: Record<string, string> = {};
-      editingSKU.components?.forEach(c => {
-        materials[c.component_id] = c.material_id;
-      });
-      setComponentMaterials(materials);
+      setVariables(editingSKU.variables || {});
+      setComponents(editingSKU.components || {});
     }
   }, [editingSKU]);
 
   // Get selected type and style
   const selectedType = productTypes.find(t => t.id === selectedTypeId);
-  const selectedStyle = selectedType?.styles.find(s => s.id === selectedStyleId);
+  const selectedStyle = productStyles.find(s => s.id === selectedStyleId);
 
-  // Set default post spacing from type
+  // Set default variable values when type changes
   useEffect(() => {
-    if (selectedType && postSpacing === null) {
-      setPostSpacing(selectedType.default_post_spacing || 8);
-    }
-  }, [selectedType, postSpacing]);
-
-  // Filter materials for a component based on rules
-  const getEligibleMaterials = (componentId: string): Material[] => {
-    const rules = materialRules.filter(r => r.component_id === componentId);
-    if (rules.length === 0) return allMaterials;
-
-    return allMaterials.filter(m => {
-      return rules.some(rule => {
-        if (rule.material_id && rule.material_id === m.id) return true;
-        if (rule.material_subcategory && rule.material_subcategory === m.sub_category) return true;
-        if (rule.material_category && !rule.material_subcategory && rule.material_category === m.category) return true;
-        return false;
+    if (productVariables.length > 0) {
+      const defaults: Record<string, number | string> = {};
+      productVariables.forEach(v => {
+        if (v.default_value && !(v.variable_code in variables)) {
+          if (v.variable_type === 'integer') {
+            defaults[v.variable_code] = parseInt(v.default_value);
+          } else if (v.variable_type === 'decimal') {
+            defaults[v.variable_code] = parseFloat(v.default_value);
+          } else {
+            defaults[v.variable_code] = v.default_value;
+          }
+        }
       });
-    });
-  };
+      if (Object.keys(defaults).length > 0) {
+        setVariables(prev => ({ ...defaults, ...prev }));
+      }
+    }
+  }, [productVariables, variables]);
+
+  // Filter materials for a component type based on eligibility rules
+  const getEligibleMaterials = useMemo(() => {
+    return (componentCode: string): Material[] => {
+      const rules = eligibilityRules.filter(r => r.component_code === componentCode);
+      if (rules.length === 0) return allMaterials;
+
+      return allMaterials.filter(m => {
+        return rules.some(rule => {
+          if (rule.material_sku && rule.material_sku === m.material_sku) return true;
+          if (rule.material_sub_category && rule.material_sub_category === m.sub_category) return true;
+          if (rule.material_category && !rule.material_sub_category && rule.material_category === m.category) return true;
+          return false;
+        });
+      });
+    };
+  }, [eligibilityRules, allMaterials]);
+
+  // Get relevant component types for the selected product type
+  const relevantComponentTypes = useMemo(() => {
+    if (!selectedType) return [];
+    const typeCode = selectedType.code;
+    // Filter by product type code - components with matching eligibility rules
+    const relevantCodes = new Set<string>();
+    eligibilityRules
+      .filter(r => !r.product_type_code || r.product_type_code === typeCode)
+      .forEach(r => relevantCodes.add(r.component_code));
+
+    return componentTypes.filter(c => relevantCodes.has(c.code));
+  }, [selectedType, componentTypes, eligibilityRules]);
 
   // Set component material
-  const setComponentMaterial = (componentId: string, materialId: string) => {
-    setComponentMaterials(prev => ({
+  const setComponentMaterial = (componentCode: string, materialSku: string) => {
+    setComponents(prev => ({
       ...prev,
-      [componentId]: materialId,
+      [componentCode]: materialSku,
+    }));
+  };
+
+  // Set variable value
+  const setVariable = (code: string, value: number | string) => {
+    setVariables(prev => ({
+      ...prev,
+      [code]: value,
     }));
   };
 
@@ -168,8 +194,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     setSkuName('');
     setHeight(6);
     setPostType('WOOD');
-    setPostSpacing(null);
-    setComponentMaterials({});
+    setVariables({});
+    setComponents({});
     onClearSelection?.();
   };
 
@@ -187,61 +213,34 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         product_style_id: selectedStyleId,
         height,
         post_type: postType,
-        post_spacing: postSpacing,
-        config_json: {},
+        variables,
+        components,
         is_active: true,
       };
-
-      let skuId: string;
 
       if (editingSKUId) {
         // Update existing
         const { error } = await supabase
-          .from('product_skus')
+          .from('sku_catalog_v2')
           .update(skuData)
           .eq('id', editingSKUId);
         if (error) throw error;
-        skuId = editingSKUId;
-
-        // Delete existing component mappings
-        await supabase
-          .from('sku_components')
-          .delete()
-          .eq('sku_id', editingSKUId);
+        return editingSKUId;
       } else {
         // Insert new
         const { data: newSku, error } = await supabase
-          .from('product_skus')
+          .from('sku_catalog_v2')
           .insert(skuData)
           .select('id')
           .single();
         if (error) throw error;
-        skuId = newSku.id;
+        return newSku.id;
       }
-
-      // Insert component materials
-      const componentRows = Object.entries(componentMaterials)
-        .filter(([_, materialId]) => materialId)
-        .map(([componentId, materialId]) => ({
-          sku_id: skuId,
-          component_id: componentId,
-          material_id: materialId,
-        }));
-
-      if (componentRows.length > 0) {
-        const { error } = await supabase
-          .from('sku_components')
-          .insert(componentRows);
-        if (error) throw error;
-      }
-
-      return skuId;
     },
     onSuccess: () => {
       showSuccess(editingSKUId ? 'SKU updated successfully' : 'SKU created successfully');
-      queryClient.invalidateQueries({ queryKey: ['product-skus'] });
-      queryClient.invalidateQueries({ queryKey: ['all-product-skus'] });
-      queryClient.invalidateQueries({ queryKey: ['product-skus-catalog-v2'] });
+      queryClient.invalidateQueries({ queryKey: ['sku-catalog-v2'] });
+      queryClient.invalidateQueries({ queryKey: ['sku-v2'] });
       resetForm();
     },
     onError: (err: Error) => {
@@ -278,16 +277,14 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">No Product Types</h2>
           <p className="text-gray-600">
-            Configure product types in the Product Types page before creating SKUs.
+            Product types need to be configured in the database (product_types_v2).
           </p>
         </div>
       </div>
     );
   }
 
-  const requiredComponents = typeComponents.filter(c => c.is_required);
-  const optionalComponents = typeComponents.filter(c => !c.is_required);
-  const allRequiredFilled = requiredComponents.every(c => componentMaterials[c.component_id]);
+  const hasRequiredFields = skuCode && selectedTypeId && selectedStyleId;
 
   return (
     <div className="flex-1 flex bg-gray-50 overflow-hidden h-full">
@@ -324,7 +321,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
             </button>
             <button
               onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || !skuCode || !selectedTypeId || !selectedStyleId || !allRequiredFilled}
+              disabled={saveMutation.isPending || !hasRequiredFields}
               className="px-4 py-1.5 bg-purple-600 text-white rounded text-sm font-medium flex items-center gap-1.5 transition-colors disabled:bg-gray-400 hover:bg-purple-700"
             >
               {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -337,7 +334,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           {/* SKU Code & Name */}
           <div className="flex gap-3">
             <div className="w-28">
-              <label className="block text-xs font-medium text-gray-700 mb-1">SKU Code</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">SKU Code *</label>
               <input
                 type="text"
                 value={skuCode}
@@ -359,16 +356,16 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
           {/* Product Type Selection */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Product Type</label>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Product Type *</label>
             <div className="flex flex-wrap gap-2">
-              {productTypes.map((type) => (
+              {productTypes.map((type: ProductTypeV2) => (
                 <button
                   key={type.id}
                   onClick={() => {
                     setSelectedTypeId(type.id);
-                    setSelectedStyleId(type.styles[0]?.id || null);
-                    setPostSpacing(type.default_post_spacing || 8);
-                    setComponentMaterials({});
+                    setSelectedStyleId(null);
+                    setVariables({});
+                    setComponents({});
                   }}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                     selectedTypeId === type.id
@@ -383,11 +380,11 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           </div>
 
           {/* Style Selection */}
-          {selectedType && selectedType.styles.length > 0 && (
+          {selectedTypeId && productStyles.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-2">Style</label>
+              <label className="block text-xs font-medium text-gray-700 mb-2">Style *</label>
               <div className="flex flex-wrap gap-2">
-                {selectedType.styles.map((style) => (
+                {productStyles.map((style) => (
                   <button
                     key={style.id}
                     onClick={() => setSelectedStyleId(style.id)}
@@ -406,7 +403,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
           {/* Specifications */}
           {selectedTypeId && (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Height</label>
                 <select
@@ -430,92 +427,76 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                   <option value="STEEL">Steel</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Post Spacing</label>
-                <input
-                  type="number"
-                  value={postSpacing || ''}
-                  onChange={(e) => setPostSpacing(Number(e.target.value) || null)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                  step="0.1"
-                />
+            </div>
+          )}
+
+          {/* Product Variables */}
+          {selectedTypeId && productVariables.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-900">Variables</h3>
+              <div className="bg-blue-50 rounded-lg p-3 grid grid-cols-2 gap-3">
+                {productVariables.map((v) => (
+                  <div key={v.id}>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      {v.variable_name} {v.unit && `(${v.unit})`}
+                    </label>
+                    {v.variable_type === 'select' && v.allowed_values ? (
+                      <select
+                        value={variables[v.variable_code] ?? v.default_value ?? ''}
+                        onChange={(e) => setVariable(v.variable_code, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                      >
+                        {v.allowed_values.map(val => (
+                          <option key={val} value={val}>{val}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="number"
+                        value={variables[v.variable_code] ?? v.default_value ?? ''}
+                        onChange={(e) => setVariable(v.variable_code,
+                          v.variable_type === 'integer' ? parseInt(e.target.value) : parseFloat(e.target.value)
+                        )}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                        step={v.variable_type === 'decimal' ? '0.1' : '1'}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Components */}
-          {selectedTypeId && typeComponents.length > 0 && (
+          {/* Component Materials */}
+          {selectedTypeId && relevantComponentTypes.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-900">Components</h3>
+              <div className="bg-purple-50 rounded-lg p-3 space-y-3">
+                {relevantComponentTypes.map((comp) => {
+                  const eligible = getEligibleMaterials(comp.code);
+                  const selected = components[comp.code];
 
-              {/* Required Components */}
-              {requiredComponents.length > 0 && (
-                <div className="bg-purple-50 rounded-lg p-3 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-purple-700">Required</span>
-                    {!allRequiredFilled && (
-                      <span className="text-xs text-red-600">* Select all required materials</span>
-                    )}
-                  </div>
-                  {requiredComponents.map((comp) => {
-                    const eligible = getEligibleMaterials(comp.component_id);
-                    const selected = componentMaterials[comp.component_id];
-
-                    return (
-                      <div key={comp.id} className="flex items-center gap-3">
-                        <span className="text-sm text-gray-700 w-24 flex-shrink-0">
-                          {comp.component.name}
-                        </span>
-                        <select
-                          value={selected || ''}
-                          onChange={(e) => setComponentMaterial(comp.component_id, e.target.value)}
-                          className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 ${
-                            !selected ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
-                          }`}
-                        >
-                          <option value="">Select {comp.component.name.toLowerCase()}...</option>
-                          {eligible.map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Optional Components */}
-              {optionalComponents.length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                  <span className="text-xs font-medium text-gray-500">Optional</span>
-                  {optionalComponents.map((comp) => {
-                    const eligible = getEligibleMaterials(comp.component_id);
-                    const selected = componentMaterials[comp.component_id];
-
-                    return (
-                      <div key={comp.id} className="flex items-center gap-3">
-                        <span className="text-sm text-gray-700 w-24 flex-shrink-0">
-                          {comp.component.name}
-                        </span>
-                        <select
-                          value={selected || ''}
-                          onChange={(e) => setComponentMaterial(comp.component_id, e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white"
-                        >
-                          <option value="">None</option>
-                          {eligible.map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                  return (
+                    <div key={comp.id} className="flex items-center gap-3">
+                      <span className="text-sm text-gray-700 w-24 flex-shrink-0">
+                        {comp.name}
+                      </span>
+                      <select
+                        value={selected || ''}
+                        onChange={(e) => setComponentMaterial(comp.code, e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                      >
+                        <option value="">Select {comp.name.toLowerCase()}...</option>
+                        {eligible.map(m => (
+                          <option key={m.id} value={m.material_sku}>
+                            {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -526,7 +507,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
               <div>
                 <p className="text-sm font-medium text-amber-800">Select a product type</p>
                 <p className="text-xs text-amber-600 mt-1">
-                  Choose a product type above to configure components and materials.
+                  Choose a product type above to configure variables and components.
                 </p>
               </div>
             </div>
@@ -561,25 +542,13 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                   {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">BU:</span>
-                <select
-                  value={businessUnitId}
-                  onChange={(e) => setBusinessUnitId(e.target.value)}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm w-24"
-                >
-                  {businessUnits.map(bu => (
-                    <option key={bu.id} value={bu.id}>{bu.code}</option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Preview Content */}
         <div className="flex-1 overflow-y-auto p-4">
-          {selectedTypeId && Object.keys(componentMaterials).length > 0 ? (
+          {selectedTypeId && Object.keys(components).length > 0 ? (
             <div className="space-y-4">
               {/* Summary Stats */}
               <div className="grid grid-cols-4 gap-3">
@@ -601,24 +570,44 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                 </div>
               </div>
 
+              {/* Variables Summary */}
+              {Object.keys(variables).length > 0 && (
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <h3 className="text-sm font-semibold text-gray-900">Variables</h3>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(variables).map(([code, value]) => (
+                        <span key={code} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                          {code}: {value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Selected Materials */}
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h3 className="text-sm font-semibold text-gray-900">Selected Materials</h3>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {typeComponents.map((comp) => {
-                    const materialId = componentMaterials[comp.component_id];
-                    const material = allMaterials.find(m => m.id === materialId);
+                  {Object.entries(components).map(([componentCode, materialSku]) => {
+                    const material = allMaterials.find(m => m.material_sku === materialSku);
+                    const componentType = componentTypes.find(c => c.code === componentCode);
 
-                    if (!materialId) return null;
+                    if (!materialSku) return null;
 
                     return (
-                      <div key={comp.id} className="px-4 py-3 flex items-center justify-between">
+                      <div key={componentCode} className="px-4 py-3 flex items-center justify-between">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{comp.component.name}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {componentType?.name || componentCode}
+                          </div>
                           <div className="text-xs text-gray-500">
-                            {material?.material_sku} - {material?.material_name}
+                            {materialSku} - {material?.material_name}
                           </div>
                         </div>
                         <div className="text-sm font-medium text-green-600">
@@ -633,7 +622,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
               {/* Calculation Preview Placeholder */}
               <div className="bg-gray-100 rounded-lg p-6 text-center">
                 <p className="text-gray-500 text-sm">
-                  BOM calculation preview will be available once calculators are implemented.
+                  BOM calculation preview will use FormulaInterpreter when Calculator is implemented.
                 </p>
               </div>
             </div>
@@ -650,4 +639,3 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     </div>
   );
 }
-

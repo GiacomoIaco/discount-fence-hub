@@ -1,21 +1,28 @@
 /**
  * BOM Calculator Hub v2
  *
- * Entry point for the new Smart Hybrid BOM Calculator.
- * Provides navigation between different sections:
- * - Product Types (admin)
- * - SKU Builder
- * - SKU Catalog
- * - Calculator
- * - Projects
+ * O-026: Formula-based BOM Calculator
+ * Uses database-stored formulas instead of hardcoded FenceCalculator.ts
+ *
+ * Pages:
+ * - SKU Catalog (V2) - reads from sku_catalog_v2
+ * - SKU Builder (V2) - saves to sku_catalog_v2
+ * - Calculator (V2) - uses FormulaInterpreter
+ * - Materials (shared from V1)
+ * - Labor Rates (shared from V1)
+ * - Components (shared from V1)
  */
 
 import { useState } from 'react';
-import { Monitor, ArrowLeft, FlaskConical } from 'lucide-react';
-import { ProductTypesPage, SKUCatalogPage, SKUBuilderPage, CalculatorPage, ProjectsPage } from './pages';
+import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench } from 'lucide-react';
+import { SKUCatalogPage, SKUBuilderPage, CalculatorPage } from './pages';
+// Shared pages from V1
+import MaterialsPage from '../bom_calculator/pages/MaterialsPage';
+import LaborRatesPage from '../bom_calculator/pages/LaborRatesPage';
+import ComponentConfiguratorPage from '../bom_calculator/pages/ComponentConfiguratorPage';
 
 // Page types for navigation
-type Hub2Page = 'product-types' | 'sku-builder' | 'sku-catalog' | 'calculator' | 'projects';
+type Hub2Page = 'sku-catalog' | 'sku-builder' | 'calculator' | 'materials' | 'labor-rates' | 'components';
 
 interface BOMCalculatorHub2Props {
   onBack: () => void;
@@ -30,7 +37,7 @@ const useIsDesktop = () => {
 };
 
 export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: _userName }: BOMCalculatorHub2Props) {
-  const [activePage, setActivePage] = useState<Hub2Page>('product-types');
+  const [activePage, setActivePage] = useState<Hub2Page>('calculator');
   const [editingSKUId, setEditingSKUId] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
@@ -61,15 +68,13 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
   // Render page content
   const renderContent = () => {
     switch (activePage) {
-      case 'product-types':
-        return <ProductTypesPage />;
-
-      case 'sku-builder':
+      case 'calculator':
         return (
-          <SKUBuilderPage
-            editingSKUId={editingSKUId}
-            onClearSelection={() => setEditingSKUId(null)}
-            isAdmin={isAdmin}
+          <CalculatorPage
+            userId={userId}
+            onProjectSaved={(projectId) => {
+              console.log('Project saved:', projectId);
+            }}
           />
         );
 
@@ -84,30 +89,23 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
           />
         );
 
-      case 'calculator':
+      case 'sku-builder':
         return (
-          <CalculatorPage
-            userId={userId}
-            onProjectSaved={(projectId) => {
-              console.log('Project saved:', projectId);
-            }}
+          <SKUBuilderPage
+            editingSKUId={editingSKUId}
+            onClearSelection={() => setEditingSKUId(null)}
+            isAdmin={isAdmin}
           />
         );
 
-      case 'projects':
-        return (
-          <ProjectsPage
-            onEditProject={(projectId) => {
-              // TODO: Load project into calculator
-              console.log('Edit project:', projectId);
-              setActivePage('calculator');
-            }}
-            onDuplicateProject={(projectId) => {
-              // TODO: Duplicate project
-              console.log('Duplicate project:', projectId);
-            }}
-          />
-        );
+      case 'materials':
+        return <MaterialsPage />;
+
+      case 'labor-rates':
+        return <LaborRatesPage />;
+
+      case 'components':
+        return <ComponentConfiguratorPage />;
 
       default:
         return null;
@@ -133,33 +131,52 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           <NavItem
-            label="Product Types"
-            isActive={activePage === 'product-types'}
-            onClick={() => setActivePage('product-types')}
-            badge={isAdmin ? undefined : 'Admin'}
-          />
-          <NavItem
-            label="SKU Builder"
-            isActive={activePage === 'sku-builder'}
-            onClick={() => setActivePage('sku-builder')}
-            badge={isAdmin ? undefined : 'Admin'}
-          />
-          <NavItem
-            label="SKU Catalog"
-            isActive={activePage === 'sku-catalog'}
-            onClick={() => setActivePage('sku-catalog')}
+            label="Calculator"
+            icon={<FlaskConical className="w-4 h-4" />}
+            isActive={activePage === 'calculator'}
+            onClick={() => setActivePage('calculator')}
           />
 
           <div className="pt-4 border-t border-gray-200 mt-4">
+            <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              SKU Management
+            </p>
             <NavItem
-              label="Calculator"
-              isActive={activePage === 'calculator'}
-              onClick={() => setActivePage('calculator')}
+              label="SKU Catalog"
+              icon={<Package className="w-4 h-4" />}
+              isActive={activePage === 'sku-catalog'}
+              onClick={() => setActivePage('sku-catalog')}
             />
             <NavItem
-              label="Projects"
-              isActive={activePage === 'projects'}
-              onClick={() => setActivePage('projects')}
+              label="SKU Builder"
+              icon={<Wrench className="w-4 h-4" />}
+              isActive={activePage === 'sku-builder'}
+              onClick={() => setActivePage('sku-builder')}
+              badge={isAdmin ? undefined : 'Admin'}
+            />
+          </div>
+
+          <div className="pt-4 border-t border-gray-200 mt-4">
+            <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Shared Data (V1)
+            </p>
+            <NavItem
+              label="Materials"
+              icon={<Package className="w-4 h-4" />}
+              isActive={activePage === 'materials'}
+              onClick={() => setActivePage('materials')}
+            />
+            <NavItem
+              label="Labor Rates"
+              icon={<DollarSign className="w-4 h-4" />}
+              isActive={activePage === 'labor-rates'}
+              onClick={() => setActivePage('labor-rates')}
+            />
+            <NavItem
+              label="Components"
+              icon={<Wrench className="w-4 h-4" />}
+              isActive={activePage === 'components'}
+              onClick={() => setActivePage('components')}
             />
           </div>
         </nav>
@@ -187,11 +204,13 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
 // Navigation item component
 function NavItem({
   label,
+  icon,
   isActive,
   onClick,
   badge,
 }: {
   label: string;
+  icon?: React.ReactNode;
   isActive: boolean;
   onClick: () => void;
   badge?: string;
@@ -205,7 +224,10 @@ function NavItem({
           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
       }`}
     >
-      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        {icon}
+        {label}
+      </span>
       {badge && (
         <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
           {badge}

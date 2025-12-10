@@ -1,16 +1,16 @@
 /**
  * SKU Catalog Page - v2
  *
- * Browse all SKUs across product types with unified view.
- * Uses the new component-based SKU architecture.
+ * Browse all SKUs from sku_catalog_v2 (formula-based architecture).
+ * Uses the V2 tables with JSONB for variables and components.
  */
 
 import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Search, Pencil, Info, Package, Archive, ArchiveRestore } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Loader2, Search, Pencil, Info, Package, Archive } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import toast from 'react-hot-toast';
-import { useProductTypes } from '../hooks';
+import { useProductTypesV2, useSKUCatalogV2, type SKUCatalogV2WithRelations } from '../hooks';
 
 // SKU row for table display
 interface SKURow {
@@ -24,18 +24,12 @@ interface SKURow {
   height: number;
   post_type: 'WOOD' | 'STEEL';
   post_spacing: number | null;
+  rail_count: number | null;
   material_cost_per_foot: number;
   labor_cost_per_foot: number;
   total_cost_per_foot: number;
   is_active: boolean;
-  archived_at: string | null;
   calculated_at: string | null;
-}
-
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
 }
 
 interface SKUCatalogPageProps {
@@ -47,160 +41,64 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
   const queryClient = useQueryClient();
 
   // Filters
-  const [businessUnitId, setBusinessUnitId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [heightFilter, setHeightFilter] = useState<string>('all');
   const [postTypeFilter, setPostTypeFilter] = useState<string>('all');
-  const [showArchived, setShowArchived] = useState(false);
 
-  // Fetch product types for filter dropdown
-  const { data: productTypes = [] } = useProductTypes();
+  // Fetch product types for filter dropdown (V2)
+  const { data: productTypes = [] } = useProductTypesV2();
 
-  // Fetch business units
-  const { data: businessUnits = [] } = useQuery({
-    queryKey: ['business-units-v2'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('business_units')
-        .select('id, code, name')
-        .eq('is_active', true)
-        .order('code');
-      if (error) throw error;
-      if (data && data.length > 0 && !businessUnitId) {
-        setBusinessUnitId(data[0].id);
-      }
-      return data as BusinessUnit[];
-    },
-  });
-
-  // Fetch all SKUs with product type and style info
-  const { data: skus = [], isLoading: loadingSKUs } = useQuery({
-    queryKey: ['product-skus-catalog-v2', showArchived],
-    queryFn: async () => {
-      let query = supabase
-        .from('product_skus')
-        .select(`
-          id,
-          sku_code,
-          sku_name,
-          product_type_id,
-          height,
-          post_type,
-          post_spacing,
-          standard_material_cost,
-          standard_labor_cost,
-          standard_cost_per_foot,
-          standard_cost_calculated_at,
-          is_active,
-          archived_at,
-          product_type:product_types(id, code, name),
-          product_style:product_styles(code, name)
-        `)
-        .eq('is_active', true);
-
-      // Filter by archived status
-      if (!showArchived) {
-        query = query.is('archived_at', null);
-      }
-
-      const { data, error } = await query.order('sku_code');
-
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Fetch labor costs for selected business unit
-  const { data: laborCosts = [] } = useQuery({
-    queryKey: ['sku-labor-costs-v2', businessUnitId],
-    queryFn: async () => {
-      if (!businessUnitId) return [];
-      const { data, error } = await supabase
-        .from('sku_labor_costs')
-        .select('product_type, product_id, labor_cost_per_foot')
-        .eq('business_unit_id', businessUnitId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!businessUnitId,
-  });
-
-  // Create labor cost lookup map
-  const laborCostMap = useMemo(() => {
-    const map = new Map<string, number>();
-    laborCosts.forEach((lc: { product_type: string; product_id: string; labor_cost_per_foot: number }) => {
-      // For v2, we'll use product_skus ID directly
-      map.set(lc.product_id, lc.labor_cost_per_foot);
-    });
-    return map;
-  }, [laborCosts]);
+  // Fetch all SKUs from sku_catalog_v2
+  const { data: skus = [], isLoading: loadingSKUs } = useSKUCatalogV2();
 
   // Transform SKUs into table rows
   const allRows: SKURow[] = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return skus.map((sku: any) => {
+    return skus.map((sku: SKUCatalogV2WithRelations) => {
       const materialCostPerFoot = sku.standard_cost_per_foot || 0;
-      const laborCostPerFoot = laborCostMap.get(sku.id) || 0;
+      const laborCostPerFoot = sku.standard_labor_cost ? sku.standard_labor_cost / 100 : 0; // Assume per 100ft
 
-      // Handle both single object and array from Supabase join
-      const productType = Array.isArray(sku.product_type) ? sku.product_type[0] : sku.product_type;
-      const productStyle = Array.isArray(sku.product_style) ? sku.product_style[0] : sku.product_style;
+      // Get variables from JSONB
+      const variables = sku.variables || {};
 
       return {
         id: sku.id,
         sku_code: sku.sku_code,
         sku_name: sku.sku_name,
         product_type_id: sku.product_type_id,
-        product_type_name: productType?.name || 'Unknown',
-        product_type_code: productType?.code || '',
-        product_style_name: productStyle?.name || '-',
+        product_type_name: sku.product_type?.name || 'Unknown',
+        product_type_code: sku.product_type?.code || '',
+        product_style_name: sku.product_style?.name || '-',
         height: sku.height,
         post_type: sku.post_type,
-        post_spacing: sku.post_spacing,
+        post_spacing: typeof variables.post_spacing === 'number' ? variables.post_spacing : null,
+        rail_count: typeof variables.rail_count === 'number' ? variables.rail_count : null,
         material_cost_per_foot: materialCostPerFoot,
         labor_cost_per_foot: laborCostPerFoot,
         total_cost_per_foot: materialCostPerFoot + laborCostPerFoot,
         is_active: sku.is_active,
-        archived_at: sku.archived_at,
         calculated_at: sku.standard_cost_calculated_at,
       };
     });
-  }, [skus, laborCostMap]);
+  }, [skus]);
 
-  // Archive/Restore handlers
-  const handleArchive = async (skuId: string, skuCode: string) => {
-    if (!confirm(`Archive SKU ${skuCode}? It will be hidden from the BOM Calculator.`)) return;
+  // Delete handler (soft delete via is_active)
+  const handleDelete = async (skuId: string, skuCode: string) => {
+    if (!confirm(`Delete SKU ${skuCode}? This will hide it from the catalog.`)) return;
 
     const { error } = await supabase
-      .from('product_skus')
-      .update({ archived_at: new Date().toISOString() })
+      .from('sku_catalog_v2')
+      .update({ is_active: false })
       .eq('id', skuId);
 
     if (error) {
-      toast.error('Failed to archive SKU');
+      toast.error('Failed to delete SKU');
       console.error(error);
       return;
     }
 
-    toast.success(`SKU ${skuCode} archived`);
-    queryClient.invalidateQueries({ queryKey: ['product-skus-catalog-v2'] });
-  };
-
-  const handleRestore = async (skuId: string, skuCode: string) => {
-    const { error } = await supabase
-      .from('product_skus')
-      .update({ archived_at: null })
-      .eq('id', skuId);
-
-    if (error) {
-      toast.error('Failed to restore SKU');
-      console.error(error);
-      return;
-    }
-
-    toast.success(`SKU ${skuCode} restored`);
-    queryClient.invalidateQueries({ queryKey: ['product-skus-catalog-v2'] });
+    toast.success(`SKU ${skuCode} deleted`);
+    queryClient.invalidateQueries({ queryKey: ['sku-catalog-v2'] });
   };
 
   // Get unique heights for filter dropdown
@@ -322,20 +220,6 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
       {/* Filters Row */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-4 flex-wrap">
-          {/* Business Unit - for labor cost display */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Labor Rates (BU)</label>
-            <select
-              value={businessUnitId}
-              onChange={(e) => setBusinessUnitId(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 w-48"
-            >
-              {businessUnits.map((bu: BusinessUnit) => (
-                <option key={bu.id} value={bu.id}>{bu.code} - {bu.name}</option>
-              ))}
-            </select>
-          </div>
-
           {/* Search */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Search</label>
@@ -346,7 +230,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
                 placeholder="SKU or Name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 w-44"
+                className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 w-48"
               />
             </div>
           </div>
@@ -357,7 +241,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
             <select
               value={productTypeFilter}
               onChange={(e) => setProductTypeFilter(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 w-40"
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 w-44"
             >
               <option value="all">All Types</option>
               {productTypes.map((pt) => (
@@ -394,24 +278,6 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
               <option value="STEEL">Steel</option>
             </select>
           </div>
-
-          {/* Show Archived Toggle (Admin only) */}
-          {isAdmin && (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Archived</label>
-              <button
-                onClick={() => setShowArchived(!showArchived)}
-                className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
-                  showArchived
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Archive className="w-4 h-4" />
-                {showArchived ? 'Showing Archived' : 'Show Archived'}
-              </button>
-            </div>
-          )}
 
           {/* Clear Filters */}
           {hasFilters && (
@@ -475,16 +341,11 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
             {filteredRows.map((row) => (
               <tr
                 key={row.id}
-                className={`hover:bg-gray-50 ${isAdmin && onEditSKU ? 'cursor-pointer' : ''} ${row.archived_at ? 'bg-amber-50/50' : ''}`}
+                className={`hover:bg-gray-50 ${isAdmin && onEditSKU ? 'cursor-pointer' : ''}`}
                 onClick={() => handleRowClick(row)}
               >
                 <td className="py-3 px-4 font-mono font-semibold text-gray-900">
-                  <span className="flex items-center gap-2">
-                    {row.sku_code}
-                    {row.archived_at && (
-                      <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Archived</span>
-                    )}
-                  </span>
+                  {row.sku_code}
                 </td>
                 <td className="py-3 px-4 text-gray-700 max-w-[200px] truncate" title={row.sku_name}>
                   {row.sku_name}
@@ -519,29 +380,16 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
-                      {row.archived_at ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRestore(row.id, row.sku_code);
-                          }}
-                          className="p-1.5 text-amber-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                          title="Restore SKU"
-                        >
-                          <ArchiveRestore className="w-4 h-4" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleArchive(row.id, row.sku_code);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                          title="Archive SKU"
-                        >
-                          <Archive className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(row.id, row.sku_code);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Delete SKU"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 )}
