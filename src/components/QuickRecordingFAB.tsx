@@ -288,7 +288,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     return (
       <button
         onClick={startRecording}
-        className="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform z-40"
+        className="fixed bottom-6 right-4 w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform z-40"
         title="Quick Voice Recording"
       >
         <Mic className="w-6 h-6" />
@@ -299,7 +299,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
   // Recording state - show recording indicator
   if (state === 'recording') {
     return (
-      <div className="fixed bottom-24 right-4 z-40">
+      <div className="fixed bottom-6 right-4 z-40">
         <div className="bg-white rounded-2xl shadow-xl p-4 w-64">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -329,7 +329,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     }[state];
 
     return (
-      <div className="fixed bottom-24 right-4 z-40">
+      <div className="fixed bottom-6 right-4 z-40">
         <div className="bg-white rounded-2xl shadow-xl p-4 w-64">
           <div className="flex items-center justify-center gap-3 py-4">
             <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
@@ -343,7 +343,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
   // Success state
   if (state === 'success' && createdItem) {
     return (
-      <div className="fixed bottom-24 right-4 z-40">
+      <div className="fixed bottom-6 right-4 z-40">
         <div className="bg-white rounded-2xl shadow-xl p-4 w-72">
           <div className="flex items-center gap-3 text-green-600">
             <CheckCircle className="w-6 h-6" />
@@ -360,7 +360,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
   // Manual selection state
   if (state === 'manual' && classification) {
     return (
-      <div className="fixed bottom-24 right-4 z-40">
+      <div className="fixed bottom-6 right-4 z-40">
         <div className="bg-white rounded-2xl shadow-xl p-4 w-80">
           <div className="flex items-center justify-between mb-3">
             <span className="font-medium text-gray-800">What is this?</span>
