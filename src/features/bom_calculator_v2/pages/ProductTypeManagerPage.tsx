@@ -918,13 +918,23 @@ function VariablesTab({
     }
   };
 
+  const [showAvailable, setShowAvailable] = useState(true);
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
+    <div className="space-y-6">
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Variables for {productType.name}</h2>
-          <p className="text-sm text-gray-500">Select existing variables or create new ones</p>
+          <p className="text-sm text-gray-500">Configure input variables for this product type</p>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
+          <Plus className="w-4 h-4" />
+          Create New Variable
+        </button>
       </div>
 
       {isLoading ? (
@@ -932,146 +942,191 @@ function VariablesTab({
           <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-6">
-          {/* LEFT PANEL: Selected Variables */}
+        <>
+          {/* SELECTED VARIABLES - TOP SECTION */}
           <div className="bg-white rounded-lg border border-gray-200">
-            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700">
-                  Selected Variables ({variables.length})
-                </h3>
-              </div>
+            <div className="px-4 py-3 border-b border-gray-200 bg-purple-50">
+              <h3 className="text-sm font-semibold text-purple-800">
+                Selected Variables ({variables.length})
+              </h3>
             </div>
-            <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
+            <div className="p-4">
               {variables.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8">
-                  No variables selected. Choose from available variables or create new.
+                  No variables configured. Import from other product types below or create a new one.
                 </p>
               ) : (
-                variables.map((variable) => (
-                  <div
-                    key={variable.id}
-                    className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{variable.variable_name}</span>
-                        <span className="text-xs font-mono text-gray-500">[{variable.variable_code}]</span>
-                        <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                          {variable.variable_type}
-                        </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {variables.map((variable) => (
+                    <div
+                      key={variable.id}
+                      className="p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-purple-300 transition-colors"
+                    >
+                      {/* Header: Name + Code + Actions */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{variable.variable_name}</h4>
+                          <span className="text-xs font-mono text-gray-500">{variable.variable_code}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingVariable(variable)}
+                            className="p-1.5 hover:bg-purple-100 rounded text-purple-600"
+                            title="Edit variable"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => removeVariable(variable.id)}
+                            className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                            title="Remove variable"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        {variable.allowed_values?.length ? (
-                          <span>{variable.allowed_values.length} values</span>
-                        ) : (
-                          <span>Any value</span>
+
+                      {/* Details Grid */}
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">Type</span>
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                            {variable.variable_type}
+                          </span>
+                        </div>
+
+                        {variable.default_value && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">Default</span>
+                            <span className="font-medium text-gray-900">{variable.default_value}</span>
+                          </div>
                         )}
-                        {variable.unit && <span>• {variable.unit}</span>}
-                        {variable.is_required && <span>• Required</span>}
+
+                        {variable.unit && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">Unit</span>
+                            <span className="font-medium text-gray-900">{variable.unit}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">Required</span>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            variable.is_required
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {variable.is_required ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+
+                        {/* Allowed Values */}
+                        {variable.allowed_values && variable.allowed_values.length > 0 && (
+                          <div className="pt-2 border-t border-gray-200">
+                            <span className="text-gray-500 text-xs">Allowed Values:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {variable.allowed_values.slice(0, 6).map((val) => (
+                                <span
+                                  key={val}
+                                  className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs"
+                                >
+                                  {val}
+                                </span>
+                              ))}
+                              {variable.allowed_values.length > 6 && (
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">
+                                  +{variable.allowed_values.length - 6} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEditingVariable(variable)}
-                        className="p-1.5 hover:bg-purple-100 rounded text-purple-600"
-                        title="Edit variable"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => removeVariable(variable.id)}
-                        className="p-1.5 hover:bg-red-100 rounded text-red-600"
-                        title="Remove variable"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
-          {/* RIGHT PANEL: Available Variables */}
+          {/* AVAILABLE VARIABLES - BOTTOM SECTION (Collapsible) */}
           <div className="bg-white rounded-lg border border-gray-200">
-            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-700">
-                  Available Variables ({uniqueAvailableVariables.length})
-                </h3>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
-                >
-                  <Plus className="w-3 h-3" />
-                  Create New
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <select
-                  value={filterProductType}
-                  onChange={(e) => setFilterProductType(e.target.value)}
-                  className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded bg-white"
-                >
-                  <option value="">All Product Types</option>
-                  {allProductTypes.filter(pt => pt.id !== productType.id).map(pt => (
-                    <option key={pt.id} value={pt.id}>{pt.name}</option>
-                  ))}
-                </select>
-                <div className="relative flex-1">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search..."
-                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-              {uniqueAvailableVariables.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">
-                  {searchTerm || filterProductType
-                    ? 'No matching variables found'
-                    : 'All available variables have been added'}
-                </p>
-              ) : (
-                uniqueAvailableVariables.map((variable) => (
-                  <div
-                    key={variable.id}
-                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
+            <button
+              onClick={() => setShowAvailable(!showAvailable)}
+              className="w-full px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between hover:bg-gray-100 transition-colors"
+            >
+              <h3 className="text-sm font-semibold text-gray-700">
+                Import from Other Product Types ({uniqueAvailableVariables.length} available)
+              </h3>
+              <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showAvailable ? '' : '-rotate-90'}`} />
+            </button>
+
+            {showAvailable && (
+              <div className="p-4">
+                {/* Filters */}
+                <div className="flex gap-3 mb-4">
+                  <select
+                    value={filterProductType}
+                    onChange={(e) => setFilterProductType(e.target.value)}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{variable.variable_name}</span>
-                        <span className="text-xs font-mono text-gray-500">[{variable.variable_code}]</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        <span className="px-1.5 py-0.5 bg-gray-100 rounded">{variable.variable_type}</span>
-                        <span>from {variable.product_type?.name || 'Unknown'}</span>
-                        {variable.allowed_values?.length && (
-                          <span>• {variable.allowed_values.length} values</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => importVariable(variable)}
-                      disabled={importing}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 disabled:opacity-50"
-                      title="Add to this product type"
-                    >
-                      <Download className="w-3 h-3" />
-                      Import
-                    </button>
+                    <option value="">All Product Types</option>
+                    {allProductTypes.filter(pt => pt.id !== productType.id).map(pt => (
+                      <option key={pt.id} value={pt.id}>{pt.name}</option>
+                    ))}
+                  </select>
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search variables..."
+                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg"
+                    />
                   </div>
-                ))
-              )}
-            </div>
+                </div>
+
+                {/* Available Variables List */}
+                {uniqueAvailableVariables.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-6">
+                    {searchTerm || filterProductType
+                      ? 'No matching variables found'
+                      : 'All available variables have been added'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {uniqueAvailableVariables.map((variable) => (
+                      <div
+                        key={variable.id}
+                        className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 truncate">{variable.variable_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{variable.variable_type}</span>
+                            <span className="truncate">from {variable.product_type?.name || 'Unknown'}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => importVariable(variable)}
+                          disabled={importing}
+                          className="flex items-center gap-1 px-2 py-1.5 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50 ml-2"
+                          title="Import to this product type"
+                        >
+                          <Download className="w-3 h-3" />
+                          Import
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
 
       {/* Add/Edit Variable Modal */}
