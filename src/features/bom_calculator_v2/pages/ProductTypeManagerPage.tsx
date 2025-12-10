@@ -2776,7 +2776,7 @@ function EligibilityTab({
   productType: ProductTypeV2;
 }) {
   // UI State
-  const [browserMode, setBrowserMode] = useState<'material' | 'labor'>('material');
+  const [componentFilter, setComponentFilter] = useState<'all' | 'material' | 'labor'>('all');
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedAttributeValue, setSelectedAttributeValue] = useState<string | null>(null);
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
@@ -2790,12 +2790,20 @@ function EligibilityTab({
   const { data: componentsFull = [] } = useProductTypeComponentsFull(productType.id);
 
   // Get only assigned components
-  const assignedComponents = componentsFull.filter(c => c.is_assigned);
+  const allAssignedComponents = componentsFull.filter(c => c.is_assigned);
+
+  // Filter components by type
+  const assignedComponents = allAssignedComponents.filter(c => {
+    if (componentFilter === 'all') return true;
+    if (componentFilter === 'material') return !c.is_labor;
+    if (componentFilter === 'labor') return c.is_labor;
+    return true;
+  });
 
   // Helper to get the selected component's filter variable info
   const getSelectedComponentFilterCode = (): string | null => {
     if (!selectedComponentId) return null;
-    const comp = assignedComponents.find(c => c.component_type_id === selectedComponentId);
+    const comp = allAssignedComponents.find(c => c.component_type_id === selectedComponentId);
     return comp?.filter_variable_code || null;
   };
 
@@ -2957,7 +2965,7 @@ function EligibilityTab({
 
   // Helper to get component's filter variable code
   const getComponentFilterCode = (componentId: string): string | null => {
-    const comp = assignedComponents.find(c => c.component_type_id === componentId);
+    const comp = allAssignedComponents.find(c => c.component_type_id === componentId);
     return comp?.filter_variable_code || null;
   };
 
@@ -3185,7 +3193,7 @@ function EligibilityTab({
     setSaving(false);
   };
 
-  const selectedComponent = assignedComponents.find(c => c.component_type_id === selectedComponentId);
+  const selectedComponent = allAssignedComponents.find(c => c.component_type_id === selectedComponentId);
 
   return (
     <div className="flex h-full -m-6">
@@ -3193,16 +3201,50 @@ function EligibilityTab({
       <div className="w-72 bg-white border-r border-gray-200 flex flex-col">
         <div className="px-4 py-3 border-b border-gray-200">
           <h3 className="font-semibold text-gray-900">Components</h3>
-          <p className="text-xs text-gray-500 mt-1">
-            Select a component to configure eligible materials/labor
-          </p>
+          {/* Filter toggle for Material/Labor components */}
+          <div className="flex items-center gap-1 mt-2 bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setComponentFilter('all')}
+              className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                componentFilter === 'all'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setComponentFilter('material')}
+              className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                componentFilter === 'material'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Material
+            </button>
+            <button
+              onClick={() => setComponentFilter('labor')}
+              className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                componentFilter === 'labor'
+                  ? 'bg-white text-green-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Labor
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto">
-          {assignedComponents.length === 0 ? (
+          {allAssignedComponents.length === 0 ? (
             <div className="p-4 text-center text-gray-500 text-sm">
               No components assigned.<br />
               Go to Components tab to assign components first.
+            </div>
+          ) : assignedComponents.length === 0 ? (
+            <div className="p-4 text-center text-gray-500 text-sm">
+              No {componentFilter} components found.
             </div>
           ) : (
             assignedComponents.map(comp => {
@@ -3310,40 +3352,26 @@ function EligibilityTab({
                     )}
                   </h2>
                   <p className="text-xs text-gray-500">
-                    {browserMode === 'material'
+                    {!selectedComponent.is_labor
                       ? `${eligibleMaterialIds.size} materials assigned`
                       : `${eligibleLaborIds.size} labor codes assigned`
                     }
                   </p>
                 </div>
 
-                {/* Mode Toggle */}
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-                  <button
-                    onClick={() => setBrowserMode('material')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                      browserMode === 'material'
-                        ? 'bg-white text-blue-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Materials
-                  </button>
-                  <button
-                    onClick={() => setBrowserMode('labor')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                      browserMode === 'labor'
-                        ? 'bg-white text-green-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Labor
-                  </button>
-                </div>
+                {/* Component Type Badge */}
+                <span className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                  selectedComponent.is_labor
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {selectedComponent.is_labor ? 'Labor Component' : 'Material Component'}
+                </span>
               </div>
             </div>
 
-            {browserMode === 'material' ? (
+            {/* Browser content based on component type */}
+            {!selectedComponent.is_labor ? (
               <>
                 {/* Material Filters */}
                 <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
