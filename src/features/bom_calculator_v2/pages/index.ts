@@ -8,3 +8,4 @@ export { SKUBuilderPage } from './SKUBuilderPage';
 export { CalculatorPage } from './CalculatorPage';
 export { ProjectsPage } from './ProjectsPage';
 export { ComponentTypesPage } from './ComponentTypesPage';
+export { default as ProductTypeManagerPage } from './ProductTypeManagerPage';

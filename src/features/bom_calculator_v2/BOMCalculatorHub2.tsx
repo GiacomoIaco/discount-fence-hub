@@ -14,14 +14,14 @@
  */
 
 import { useState } from 'react';
-import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench } from 'lucide-react';
-import { SKUCatalogPage, SKUBuilderPage, CalculatorPage, ComponentTypesPage } from './pages';
+import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench, Settings } from 'lucide-react';
+import { SKUCatalogPage, SKUBuilderPage, CalculatorPage, ComponentTypesPage, ProductTypeManagerPage } from './pages';
 // Shared pages from V1
 import MaterialsPage from '../bom_calculator/pages/MaterialsPage';
 import LaborRatesPage from '../bom_calculator/pages/LaborRatesPage';
 
 // Page types for navigation
-type Hub2Page = 'sku-catalog' | 'sku-builder' | 'calculator' | 'materials' | 'labor-rates' | 'components';
+type Hub2Page = 'sku-catalog' | 'sku-builder' | 'calculator' | 'materials' | 'labor-rates' | 'components' | 'product-manager';
 
 interface BOMCalculatorHub2Props {
   onBack: () => void;
@@ -106,6 +106,9 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
       case 'components':
         return <ComponentTypesPage />;
 
+      case 'product-manager':
+        return <ProductTypeManagerPage />;
+
       default:
         return null;
     }
@@ -151,6 +154,19 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
               icon={<Wrench className="w-4 h-4" />}
               isActive={activePage === 'sku-builder'}
               onClick={() => setActivePage('sku-builder')}
+              badge={isAdmin ? undefined : 'Admin'}
+            />
+          </div>
+
+          <div className="pt-4 border-t border-gray-200 mt-4">
+            <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Configuration
+            </p>
+            <NavItem
+              label="Product Types"
+              icon={<Settings className="w-4 h-4" />}
+              isActive={activePage === 'product-manager'}
+              onClick={() => setActivePage('product-manager')}
               badge={isAdmin ? undefined : 'Admin'}
             />
           </div>
