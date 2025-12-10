@@ -69,7 +69,7 @@ export default function MobileHeader({
             </button>
 
             {showSettings && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50">
+              <div className="fixed top-16 right-2 left-2 sm:left-auto sm:right-4 sm:w-56 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50">
                 <div className="p-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">View Settings</span>
@@ -82,16 +82,16 @@ export default function MobileHeader({
                   </div>
                 </div>
 
-                <div className="p-2">
+                <div className="p-3">
                   {/* Layout Toggle */}
-                  <div className="mb-2">
-                    <p className="text-xs text-gray-500 px-2 mb-1.5">Menu Layout</p>
-                    <div className="flex gap-1">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Menu Layout</p>
+                    <div className="flex gap-2">
                       <button
                         onClick={() => {
                           setMobileLayout('expanded');
                         }}
-                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                           mobileLayout === 'expanded'
                             ? 'bg-blue-100 text-blue-700 font-medium'
                             : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -104,7 +104,7 @@ export default function MobileHeader({
                         onClick={() => {
                           setMobileLayout('compact');
                         }}
-                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                           mobileLayout === 'compact'
                             ? 'bg-blue-100 text-blue-700 font-medium'
                             : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -119,7 +119,7 @@ export default function MobileHeader({
                   {/* Desktop View - Only show on tablets */}
                   {isTablet && (
                     <>
-                      <div className="my-2 border-t border-gray-100" />
+                      <div className="my-3 border-t border-gray-100" />
                       <button
                         onClick={() => {
                           setViewMode('desktop');
