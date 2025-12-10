@@ -3,7 +3,37 @@ import { X, Trash2, Save, User, Lock, MessageSquarePlus, Sparkles } from 'lucide
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
 import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType } from '../types';
+import { useAuth } from '../../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+// Fire-and-forget notification when idea is marked as done
+function sendRoadmapCompletedNotification(
+  roadmapItemId: string,
+  roadmapItemCode: string,
+  roadmapItemTitle: string,
+  createdById: string,
+  triggeredByName: string
+): void {
+  fetch('/.netlify/functions/send-roadmap-notification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      roadmapItemId,
+      roadmapItemCode,
+      roadmapItemTitle,
+      createdById,
+      triggeredByName,
+    }),
+  })
+    .then(response => {
+      if (!response.ok) {
+        console.warn('Roadmap notification request failed:', response.status);
+      }
+    })
+    .catch(error => {
+      console.error('Failed to send roadmap notification:', error);
+    });
+}
 
 interface RoadmapItemModalProps {
   item: RoadmapItem;
@@ -18,6 +48,7 @@ export default function RoadmapItemModal({
   onUpdate,
   isAdmin,
 }: RoadmapItemModalProps) {
+  const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -64,6 +95,18 @@ export default function RoadmapItemModal({
         .eq('id', item.id);
 
       if (error) throw error;
+
+      // Send notification if status changed to 'done'
+      if (item.status !== 'done' && formData.status === 'done' && item.created_by) {
+        const triggeredByName = profile?.full_name || profile?.email || 'Admin';
+        sendRoadmapCompletedNotification(
+          item.id,
+          item.code,
+          item.title,
+          item.created_by,
+          triggeredByName
+        );
+      }
 
       toast.success('Item updated');
       onUpdate();
