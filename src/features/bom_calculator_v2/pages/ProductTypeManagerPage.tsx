@@ -25,11 +25,13 @@ import {
   useProductVariablesV2,
   useComponentTypesV2,
   useProductTypeComponentsFull,
+  useVariableValueOptions,
   type ProductTypeV2,
   type ProductStyleV2,
   type ProductVariableV2,
   type ComponentTypeV2,
   type ProductTypeComponentFull,
+  type VariableValueOption,
 } from '../hooks/useProductTypesV2';
 
 // Formula template type
@@ -938,7 +940,7 @@ function VariablesTab({
   );
 }
 
-// Variable Modal
+// Variable Modal - Enhanced with Global Value Pool
 function VariableModal({
   productTypeId,
   variable,
@@ -950,19 +952,61 @@ function VariableModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     variable_code: variable?.variable_code || '',
     variable_name: variable?.variable_name || '',
     variable_type: variable?.variable_type || 'select',
     default_value: variable?.default_value || '',
-    allowed_values: variable?.allowed_values?.join(', ') || '',
     unit: variable?.unit || '',
     is_required: variable?.is_required ?? true,
   });
+  const [selectedValues, setSelectedValues] = useState<string[]>(variable?.allowed_values || []);
+  const [newValueInput, setNewValueInput] = useState('');
+  const [newValueLabel, setNewValueLabel] = useState('');
+  const [addingValue, setAddingValue] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = !!variable;
+  const normalizedCode = formData.variable_code.toLowerCase().replace(/\s+/g, '_');
+
+  // Fetch global value options for this variable code
+  const { data: globalOptions = [], refetch: refetchOptions } = useVariableValueOptions(normalizedCode);
+
+  // Update selected values when global options load (for new variables)
+  const toggleValueSelection = (value: string) => {
+    setSelectedValues(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  };
+
+  // Add a new global value option
+  const handleAddGlobalValue = async () => {
+    if (!newValueInput.trim()) return;
+
+    setAddingValue(true);
+    const { error: insertError } = await supabase
+      .from('variable_value_options')
+      .insert({
+        variable_code: normalizedCode,
+        value: newValueInput.trim(),
+        display_label: newValueLabel.trim() || null,
+        display_order: globalOptions.length + 1,
+      });
+
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      // Add to selected and refresh
+      setSelectedValues(prev => [...prev, newValueInput.trim()]);
+      setNewValueInput('');
+      setNewValueLabel('');
+      refetchOptions();
+      queryClient.invalidateQueries({ queryKey: ['variable-value-options'] });
+    }
+    setAddingValue(false);
+  };
 
   const handleSave = async () => {
     if (!formData.variable_code.trim() || !formData.variable_name.trim()) {
@@ -975,19 +1019,19 @@ function VariableModal({
 
     const data = {
       product_type_id: productTypeId,
-      variable_code: formData.variable_code.toLowerCase().replace(/\s+/g, '_'),
+      variable_code: normalizedCode,
       variable_name: formData.variable_name,
       variable_type: formData.variable_type,
       default_value: formData.default_value || null,
-      allowed_values: formData.allowed_values
-        ? formData.allowed_values.split(',').map((v) => v.trim()).filter(Boolean)
+      allowed_values: formData.variable_type === 'select' && selectedValues.length > 0
+        ? selectedValues
         : null,
       unit: formData.unit || null,
       is_required: formData.is_required,
     };
 
     let result;
-    if (isEditing) {
+    if (isEditing && variable) {
       result = await supabase
         .from('product_variables_v2')
         .update(data)
@@ -1008,7 +1052,7 @@ function VariableModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {isEditing ? 'Edit Variable' : 'Add Variable'}
@@ -1018,7 +1062,7 @@ function VariableModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -1054,7 +1098,7 @@ function VariableModal({
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
               <select
                 value={formData.variable_type}
-                onChange={(e) => setFormData({ ...formData, variable_type: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, variable_type: e.target.value as 'integer' | 'decimal' | 'select' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               >
                 <option value="select">Select (dropdown)</option>
@@ -1085,17 +1129,78 @@ function VariableModal({
             />
           </div>
 
-          {formData.variable_type === 'select' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Allowed Values</label>
-              <input
-                type="text"
-                value={formData.allowed_values}
-                onChange={(e) => setFormData({ ...formData, allowed_values: e.target.value })}
-                placeholder="e.g., 4, 5, 6, 8"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">Comma-separated list of allowed values</p>
+          {/* Global Value Pool Section - Only for select type */}
+          {formData.variable_type === 'select' && normalizedCode && (
+            <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">
+                  Allowed Values (Global Pool)
+                </label>
+                <span className="text-xs text-gray-500">
+                  {selectedValues.length} selected
+                </span>
+              </div>
+
+              {/* Existing global options as checkboxes */}
+              {globalOptions.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
+                  {globalOptions.map((opt: VariableValueOption) => (
+                    <label
+                      key={opt.id}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                        selectedValues.includes(opt.value)
+                          ? 'bg-purple-50 border-purple-300'
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedValues.includes(opt.value)}
+                        onChange={() => toggleValueSelection(opt.value)}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-sm">
+                        {opt.display_label || opt.value}
+                        {opt.display_label && (
+                          <span className="text-gray-400 ml-1">({opt.value})</span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">
+                  No global values defined for "{normalizedCode}" yet. Add some below.
+                </p>
+              )}
+
+              {/* Add new global value */}
+              <div className="pt-3 border-t border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">Add new value to global pool:</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newValueInput}
+                    onChange={(e) => setNewValueInput(e.target.value)}
+                    placeholder="Value (e.g., 7)"
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                  <input
+                    type="text"
+                    value={newValueLabel}
+                    onChange={(e) => setNewValueLabel(e.target.value)}
+                    placeholder="Label (e.g., 7 ft)"
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                  <button
+                    onClick={handleAddGlobalValue}
+                    disabled={!newValueInput.trim() || addingValue}
+                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {addingValue ? '...' : 'Add'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
