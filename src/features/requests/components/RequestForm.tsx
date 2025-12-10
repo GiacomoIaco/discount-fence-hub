@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2 } from 'lucide-react';
+import { X, Mic, StopCircle, Play, Pause, Send, Loader2, Camera, ImageIcon, Trash2, Video, Film } from 'lucide-react';
 import type { RequestType, Urgency, CreateRequestInput } from '../lib/requests';
 import { useCreateRequestMutation } from '../hooks/useRequestsQuery';
 import { transcribeAudio } from '../../../lib/openai';
@@ -46,8 +46,8 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
   const [expectedValue, setExpectedValue] = useState('');
   const [deadline, setDeadline] = useState('');
   const [specialRequirements, setSpecialRequirements] = useState('');
-  const [photos, setPhotos] = useState<File[]>([]);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -257,12 +257,26 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     }
   };
 
-  // Photo handling functions
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Media handling functions (photos + videos)
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+      const files = Array.from(e.target.files);
+      // Filter for valid file types and size (50MB max for videos)
+      const validFiles = files.filter(file => {
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024; // 50MB for video, 10MB for images
+        if (file.size > maxSize) {
+          showError(`${file.name} is too large. Max size: ${isVideo ? '50MB' : '10MB'}`);
+          return false;
+        }
+        return isImage || isVideo;
+      });
+      setMediaFiles(prev => [...prev, ...validFiles]);
     }
   };
+
+  const isVideoFile = (file: File) => file.type.startsWith('video/');
 
   const startCamera = async () => {
     try {
@@ -296,7 +310,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     canvas.toBlob((blob) => {
       if (blob) {
         const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-        setPhotos(prev => [...prev, file]);
+        setMediaFiles(prev => [...prev, file]);
         closeCamera();
       }
     }, 'image/jpeg', 0.9);
@@ -310,29 +324,32 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     setShowCamera(false);
   };
 
-  const removePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
+  const removeMedia = (index: number) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const uploadPhotosToStorage = async (): Promise<string[]> => {
-    if (photos.length === 0) return [];
+  const uploadMediaToStorage = async (): Promise<string[]> => {
+    if (mediaFiles.length === 0) return [];
 
-    setUploadingPhotos(true);
+    setUploadingMedia(true);
     const uploadedUrls: string[] = [];
 
     try {
-      for (const photo of photos) {
-        const fileName = `request-photos/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      for (const file of mediaFiles) {
+        const isVideo = file.type.startsWith('video/');
+        const extension = isVideo ? file.name.split('.').pop() || 'mp4' : 'jpg';
+        const folder = isVideo ? 'request-videos' : 'request-photos';
+        const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
 
         const { error: uploadError } = await supabase.storage
           .from('photos')
-          .upload(fileName, photo, {
-            contentType: 'image/jpeg',
+          .upload(fileName, file, {
+            contentType: file.type,
             upsert: false
           });
 
         if (uploadError) {
-          console.error('Photo upload error:', uploadError);
+          console.error('Media upload error:', uploadError);
           continue;
         }
 
@@ -345,10 +362,10 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
 
       return uploadedUrls;
     } catch (error) {
-      console.error('Error uploading photos:', error);
+      console.error('Error uploading media:', error);
       throw error;
     } finally {
-      setUploadingPhotos(false);
+      setUploadingMedia(false);
     }
   };
 
@@ -390,10 +407,10 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
     let requestData: CreateRequestInput | null = null;
 
     try {
-      // Upload photos first if there are any
-      let uploadedPhotoUrls: string[] = [];
-      if (photos.length > 0) {
-        uploadedPhotoUrls = await uploadPhotosToStorage();
+      // Upload media (photos + videos) first if there are any
+      let uploadedMediaUrls: string[] = [];
+      if (mediaFiles.length > 0) {
+        uploadedMediaUrls = await uploadMediaToStorage();
       }
 
       // Upload audio if there is any
@@ -419,7 +436,7 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
         voice_recording_url: uploadedAudioUrl,
         voice_duration: audioDuration && isFinite(audioDuration) && audioDuration > 0 ? audioDuration : undefined,
         transcript: transcript || undefined,
-        photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined
+        photo_urls: uploadedMediaUrls.length > 0 ? uploadedMediaUrls : undefined
       };
 
       await create(requestData);
@@ -712,11 +729,11 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
             />
           </div>
 
-          {/* Photo Upload */}
+          {/* Photo/Video Upload */}
           <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-gray-600" />
-              Photos (Optional)
+              <Film className="w-4 h-4 text-gray-600" />
+              Photos & Videos (Optional)
             </h3>
 
             <div className="flex gap-2 mb-3">
@@ -733,38 +750,56 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
                 Upload
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   multiple
-                  onChange={handlePhotoUpload}
+                  onChange={handleMediaUpload}
                   className="hidden"
                 />
               </label>
             </div>
 
-            {photos.length > 0 && (
+            {mediaFiles.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
-                {photos.map((photo, index) => (
+                {mediaFiles.map((file, index) => (
                   <div key={index} className="relative">
-                    <img
-                      src={URL.createObjectURL(photo)}
-                      alt={`Upload ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg"
-                    />
+                    {isVideoFile(file) ? (
+                      <div className="w-full h-24 bg-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
+                        <video
+                          src={URL.createObjectURL(file)}
+                          className="w-full h-full object-cover"
+                          muted
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <Video className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Upload ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-lg"
+                      />
+                    )}
                     <button
                       type="button"
-                      onClick={() => removePhoto(index)}
+                      onClick={() => removeMedia(index)}
                       className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700 transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
+                    {isVideoFile(file) && (
+                      <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                        Video
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            {photos.length === 0 && (
+            {mediaFiles.length === 0 && (
               <p className="text-sm text-gray-500 text-center py-3">
-                Add photos to help with your request
+                Add photos or videos to help with your request
               </p>
             )}
           </div>
@@ -780,13 +815,13 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
             </button>
             <button
               type="submit"
-              disabled={creating || uploadingPhotos || !title.trim()}
+              disabled={creating || uploadingMedia || !title.trim()}
               className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {uploadingPhotos ? (
+              {uploadingMedia ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Uploading photos...
+                  Uploading files...
                 </>
               ) : creating ? (
                 <>

@@ -1,4 +1,4 @@
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText, UserPlus, X, Eye } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Clock, User, Calendar, TrendingUp, MessageSquare, Users, Volume2, Edit2, CheckCircle, PlayCircle, Archive, Image, ChevronDown, ChevronUp, Send, Paperclip, Camera, FileText, UserPlus, X, Eye, Play, Video } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import { useRequestAge, useUsers } from '../hooks/useRequests';
 import { useRequestQuery, useRequestNotesQuery, useRequestActivityQuery, useAddRequestNoteMutation, useAssignRequestMutation } from '../hooks/useRequestsQuery';
@@ -9,25 +9,107 @@ import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
 import { useAuth } from '../../../contexts/AuthContext';
 
-// Image component with fallback for broken images
-function ImageWithFallback({ src, alt, className }: { src: string; alt: string; className?: string }) {
+// Helper to detect if URL is a video
+function isVideoUrl(url: string): boolean {
+  const videoExtensions = ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v', '.3gp'];
+  const lowerUrl = url.toLowerCase();
+  return videoExtensions.some(ext => lowerUrl.includes(ext)) || lowerUrl.includes('request-videos/');
+}
+
+// Inline Video Player component
+function InlineVideoPlayer({ src, className }: { src: string; className?: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   if (hasError) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-        <span className="text-gray-400 text-xs">Image unavailable</span>
+      <div className={`flex items-center justify-center bg-gray-800 ${className}`}>
+        <span className="text-gray-400 text-xs">Video unavailable</span>
+      </div>
+    );
+  }
+
+  const handlePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  return (
+    <div className={`relative bg-gray-900 ${className}`}>
+      <video
+        ref={videoRef}
+        src={src}
+        className="w-full h-full object-contain"
+        controls={isPlaying}
+        playsInline
+        onEnded={() => setIsPlaying(false)}
+        onError={() => setHasError(true)}
+      />
+      {!isPlaying && (
+        <button
+          onClick={handlePlay}
+          className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
+        >
+          <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+            <Play className="w-7 h-7 text-gray-800 ml-1" />
+          </div>
+        </button>
+      )}
+      <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-white text-xs flex items-center gap-1">
+        <Video className="w-3 h-3" />
+        Video
+      </div>
+    </div>
+  );
+}
+
+// Media thumbnail for grid display (handles both images and videos)
+function MediaThumbnail({ url, index, onClick }: { url: string; index: number; onClick: () => void }) {
+  const isVideo = isVideoUrl(url);
+
+  if (isVideo) {
+    return (
+      <div
+        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer relative bg-gray-900"
+        onClick={onClick}
+      >
+        <video
+          src={url}
+          className="w-full h-full object-cover"
+          muted
+          preload="metadata"
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <div className="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center">
+            <Play className="w-5 h-5 text-gray-800 ml-0.5" />
+          </div>
+        </div>
+        <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-white text-[10px] flex items-center gap-1">
+          <Video className="w-3 h-3" />
+          Video
+        </div>
       </div>
     );
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      onError={() => setHasError(true)}
-    />
+    <button
+      onClick={onClick}
+      className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
+    >
+      <img
+        src={url}
+        alt={`Media ${index + 1}`}
+        className="w-full h-full object-cover"
+      />
+    </button>
   );
 }
 
@@ -93,7 +175,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const [, setLoadingWatchers] = useState(true);
   const [isAddingWatcher, setIsAddingWatcher] = useState(false);
   const [selectedWatcherId, setSelectedWatcherId] = useState<string>('');
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxMedia, setLightboxMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
   const [showFilePickerModal, setShowFilePickerModal] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -941,26 +1023,21 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
           </div>
         )}
 
-        {/* Photos - Mobile Only */}
+        {/* Photos & Videos - Mobile Only */}
         {request.photo_urls && request.photo_urls.length > 0 && (
           <div className={`bg-white rounded-xl shadow-sm p-4 space-y-3 lg:hidden ${mobileTab !== 'files' ? 'hidden' : ''}`}>
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <Image className="w-4 h-4" />
-              Photos ({request.photo_urls.length})
+              Media ({request.photo_urls.length})
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {request.photo_urls.map((url, index) => (
-                <button
+                <MediaThumbnail
                   key={index}
-                  onClick={() => setLightboxImage(url)}
-                  className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
-                >
-                  <img
-                    src={url}
-                    alt={`Photo ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
+                  url={url}
+                  index={index}
+                  onClick={() => setLightboxMedia({ url, isVideo: isVideoUrl(url) })}
+                />
               ))}
             </div>
           </div>
@@ -979,26 +1056,21 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
               <p className="text-sm text-gray-600">No attachments yet</p>
             ) : (
               <div className="space-y-2">
-                {/* Image attachments as grid */}
-                {attachments.filter(a => a.file_type === 'image').length > 0 && (
+                {/* Image/Video attachments as grid */}
+                {attachments.filter(a => a.file_type === 'image' || a.file_type === 'video').length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    {attachments.filter(a => a.file_type === 'image').map((attachment) => (
-                      <button
+                    {attachments.filter(a => a.file_type === 'image' || a.file_type === 'video').map((attachment) => (
+                      <MediaThumbnail
                         key={attachment.id}
-                        onClick={() => setLightboxImage(attachment.file_url)}
-                        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
-                      >
-                        <ImageWithFallback
-                          src={attachment.file_url}
-                          alt={attachment.file_name}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
+                        url={attachment.file_url}
+                        index={0}
+                        onClick={() => setLightboxMedia({ url: attachment.file_url, isVideo: attachment.file_type === 'video' })}
+                      />
                     ))}
                   </div>
                 )}
-                {/* Non-image attachments as list */}
-                {attachments.filter(a => a.file_type !== 'image').map((attachment) => (
+                {/* Non-image/video attachments as list */}
+                {attachments.filter(a => a.file_type !== 'image' && a.file_type !== 'video').map((attachment) => (
                   <a
                     key={attachment.id}
                     href={attachment.file_url}
@@ -1053,7 +1125,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                   {/* Show inline image if note has an image file */}
                   {note.file_url && note.file_type === 'image' && (
                     <button
-                      onClick={() => setLightboxImage(note.file_url!)}
+                      onClick={() => setLightboxMedia({ url: note.file_url!, isVideo: false })}
                       className="mb-2 rounded-lg overflow-hidden border border-blue-200 hover:border-blue-400 transition-colors cursor-pointer max-w-xs"
                     >
                       <img
@@ -1063,8 +1135,14 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                       />
                     </button>
                   )}
-                  {/* Show file link for non-image files */}
-                  {note.file_url && note.file_type !== 'image' && (
+                  {/* Show inline video if note has a video file */}
+                  {note.file_url && note.file_type === 'video' && (
+                    <div className="mb-2 rounded-lg overflow-hidden border border-blue-200 max-w-sm">
+                      <InlineVideoPlayer src={note.file_url} className="w-full aspect-video" />
+                    </div>
+                  )}
+                  {/* Show file link for non-image/video files */}
+                  {note.file_url && note.file_type !== 'image' && note.file_type !== 'video' && (
                     <a
                       href={note.file_url}
                       target="_blank"
@@ -1274,26 +1352,21 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
             </div>
           )}
 
-          {/* Photos Preview */}
+          {/* Photos & Videos Preview */}
           {request.photo_urls && request.photo_urls.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <Image className="w-4 h-4" />
-                Photos ({request.photo_urls.length})
+                Media ({request.photo_urls.length})
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 {request.photo_urls.map((url, index) => (
-                  <button
+                  <MediaThumbnail
                     key={index}
-                    onClick={() => setLightboxImage(url)}
-                    className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
-                  >
-                    <img
-                      src={url}
-                      alt={`Photo ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
+                    url={url}
+                    index={index}
+                    onClick={() => setLightboxMedia({ url, isVideo: isVideoUrl(url) })}
+                  />
                 ))}
               </div>
             </div>
@@ -1312,26 +1385,21 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
                 <p className="text-sm text-gray-600">No attachments yet</p>
               ) : (
                 <div className="space-y-2">
-                  {/* Image attachments as grid */}
-                  {attachments.filter(a => a.file_type === 'image').length > 0 && (
+                  {/* Image/Video attachments as grid */}
+                  {attachments.filter(a => a.file_type === 'image' || a.file_type === 'video').length > 0 && (
                     <div className="grid grid-cols-2 gap-2 mb-2">
-                      {attachments.filter(a => a.file_type === 'image').map((attachment) => (
-                        <button
+                      {attachments.filter(a => a.file_type === 'image' || a.file_type === 'video').map((attachment) => (
+                        <MediaThumbnail
                           key={attachment.id}
-                          onClick={() => setLightboxImage(attachment.file_url)}
-                          className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
-                        >
-                          <ImageWithFallback
-                            src={attachment.file_url}
-                            alt={attachment.file_name}
-                            className="w-full h-full object-cover"
-                          />
-                        </button>
+                          url={attachment.file_url}
+                          index={0}
+                          onClick={() => setLightboxMedia({ url: attachment.file_url, isVideo: attachment.file_type === 'video' })}
+                        />
                       ))}
                     </div>
                   )}
-                  {/* Non-image attachments as list */}
-                  {attachments.filter(a => a.file_type !== 'image').map((attachment) => (
+                  {/* Non-image/video attachments as list */}
+                  {attachments.filter(a => a.file_type !== 'image' && a.file_type !== 'video').map((attachment) => (
                     <a
                       key={attachment.id}
                       href={attachment.file_url}
@@ -1668,24 +1736,35 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
         </div>
       )}
 
-      {/* Image Lightbox Modal */}
-      {lightboxImage && (
+      {/* Media Lightbox Modal (Images & Videos) */}
+      {lightboxMedia && (
         <div
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60] p-4"
-          onClick={() => setLightboxImage(null)}
+          onClick={() => setLightboxMedia(null)}
         >
           <button
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full transition-colors"
+            onClick={() => setLightboxMedia(null)}
+            className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full transition-colors z-10"
           >
             <X className="w-8 h-8" />
           </button>
-          <img
-            src={lightboxImage}
-            alt="Full size image"
-            className="max-w-full max-h-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {lightboxMedia.isVideo ? (
+            <video
+              src={lightboxMedia.url}
+              className="max-w-full max-h-full object-contain rounded-lg"
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={lightboxMedia.url}
+              alt="Full size image"
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>
       )}
     </div>
