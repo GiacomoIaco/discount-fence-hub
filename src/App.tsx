@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -49,6 +49,7 @@ const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
 const MyTodos = lazy(() => import('./features/my-todos').then(m => ({ default: m.MyTodos })));
 const RoadmapHub = lazy(() => import('./features/roadmap/RoadmapHub'));
 const SurveyHub = lazy(() => import('./features/survey_hub/SurveyHub'));
+const ClientHub = lazy(() => import('./features/client_hub/ClientHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -95,8 +96,8 @@ function App() {
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
-  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub';
+  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, etc.)
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -245,6 +246,7 @@ function App() {
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo },
       { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
       { id: 'survey-hub' as Section, menuId: 'survey-hub', name: 'Surveys', icon: ClipboardList },
+      { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Client Hub', icon: Users },
       { id: 'team' as Section, menuId: 'team', name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
@@ -523,6 +525,15 @@ function App() {
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             <SurveyHub />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'client-hub') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <ClientHub />
           </Suspense>
         </ErrorBoundary>
       );
