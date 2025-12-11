@@ -2820,9 +2820,9 @@ function FormulasTab({
   // Get assigned components for this product type
   const { data: assignedComponents = [], isLoading: loadingAssigned } = useProductTypeComponentsFull(productType.id);
 
-  // Filter to only assigned components, sorted by display_order
+  // Filter to only assigned MATERIAL components (labor handled in Labor tab), sorted by display_order
   const selectedComponents = assignedComponents
-    .filter(c => c.is_assigned)
+    .filter(c => c.is_assigned && !c.is_labor)
     .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
 
   // Build a lookup map for formulas: componentId -> styleId -> formula
