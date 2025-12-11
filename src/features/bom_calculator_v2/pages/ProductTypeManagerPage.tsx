@@ -4209,119 +4209,95 @@ function EligibilityTab({
                 </div>
               </div>
 
-              {/* Quantity Formula */}
+              {/* Quantity/Condition Formula */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Quantity Formula
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Formula (Quantity & Conditions)
                 </label>
-                <p className="text-xs text-gray-500 mb-2">
-                  Optional formula to calculate quantity. Use variables like [post_count], [Quantity], [height].
+                <p className="text-xs text-gray-500 mb-3">
+                  Formula controls both <b>when</b> this labor applies and <b>how much</b>.
+                  Return 0 to skip this labor code, or a positive number for the quantity.
                 </p>
-                <input
-                  type="text"
+                <textarea
                   value={laborFormula}
                   onChange={(e) => setLaborFormula(e.target.value)}
-                  placeholder="e.g., [post_count] * 0.5"
+                  placeholder="e.g., IF(post_type==&quot;STEEL&quot;, [post_count], 0)"
+                  rows={3}
                   className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
 
-              {/* Conditions */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Conditions (Attribute Filter)
-                </label>
-                <p className="text-xs text-gray-500 mb-2">
-                  Only apply this labor when these conditions match.
-                </p>
+              {/* Formula examples - comprehensive */}
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="text-sm font-medium text-purple-900 mb-3">Formula Examples</div>
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <div className="font-medium text-purple-800 mb-1">Simple quantity:</div>
+                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">[post_count] * 0.25</code>
+                  </div>
+                  <div>
+                    <div className="font-medium text-purple-800 mb-1">Conditional (Steel posts only):</div>
+                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">IF(post_type=="STEEL", [Quantity], 0)</code>
+                  </div>
+                  <div>
+                    <div className="font-medium text-purple-800 mb-1">Complex conditions (W05 Additional Rail):</div>
+                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded text-[11px]">IF(OR(AND(height==6,rails==3), AND(height==8,rails==4)), [Quantity], 0)</code>
+                    <div className="text-purple-600 mt-1">↳ 6ft fence with 3 rails, OR 8ft fence with 4 rails</div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-purple-800 mb-1">Height-based:</div>
+                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">IF(height&gt;6, [Quantity], 0)</code>
+                  </div>
+                </div>
+              </div>
 
-                {/* Existing conditions */}
-                <div className="space-y-2 mb-3">
-                  {Object.entries(laborConditions).map(([key, value]) => {
-                    // Find the variable definition to get allowed values
-                    const variable = productVariables.find(v => v.variable_code === key);
-                    const allowedValues = variable?.allowed_values || [];
+              {/* Available Variables */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-gray-700 mb-2">Available Variables</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[Quantity]</span>
+                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[post_count]</span>
+                  {productVariables.map(v => (
+                    <span key={v.variable_code} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">
+                      {v.variable_code}
+                    </span>
+                  ))}
+                </div>
+              </div>
 
-                    return (
-                      <div key={key} className="flex items-center gap-2">
-                        <span className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 font-medium">
-                          {variable?.variable_name || key}
-                        </span>
-                        <span className="text-gray-400">=</span>
-                        {allowedValues.length > 0 ? (
-                          <select
-                            value={value}
-                            onChange={(e) => setLaborConditions({ ...laborConditions, [key]: e.target.value })}
-                            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
+              {/* Legacy Conditions - deprecation notice */}
+              {Object.keys(laborConditions).length > 0 && (
+                <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
+                  <div className="text-xs font-medium text-amber-800 mb-2">
+                    ⚠️ Legacy Conditions (use Formula instead)
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(laborConditions).map(([key, value]) => {
+                      const variable = productVariables.find(v => v.variable_code === key);
+                      return (
+                        <div key={key} className="flex items-center gap-2">
+                          <span className="text-xs text-amber-700">
+                            {variable?.variable_name || key} = {value}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const newConditions = { ...laborConditions };
+                              delete newConditions[key];
+                              setLaborConditions(newConditions);
+                            }}
+                            className="p-0.5 text-amber-600 hover:bg-amber-100 rounded"
                           >
-                            <option value="">Select value...</option>
-                            {allowedValues.map((v: string) => (
-                              <option key={v} value={v}>{v}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            value={value}
-                            onChange={(e) => setLaborConditions({ ...laborConditions, [key]: e.target.value })}
-                            placeholder={key.includes('height') ? 'e.g., 6' : 'Enter value'}
-                            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
-                          />
-                        )}
-                        <button
-                          onClick={() => {
-                            const newConditions = { ...laborConditions };
-                            delete newConditions[key];
-                            setLaborConditions(newConditions);
-                          }}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-amber-600 mt-2">
+                    Migrate to formula: IF({Object.entries(laborConditions).map(([k,v]) => `${k}=="${v}"`).join(' AND ')}, [Quantity], 0)
+                  </p>
                 </div>
-
-                {/* Add new condition - show product variables + common extras */}
-                <div className="flex items-center gap-2">
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value && !laborConditions[e.target.value]) {
-                        setLaborConditions({ ...laborConditions, [e.target.value]: '' });
-                      }
-                      e.target.value = '';
-                    }}
-                    className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
-                  >
-                    <option value="">+ Add condition...</option>
-                    <optgroup label="Product Variables">
-                      {productVariables
-                        .filter(v => !laborConditions[v.variable_code])
-                        .map(v => (
-                          <option key={v.variable_code} value={v.variable_code}>
-                            {v.variable_name} ({v.variable_code})
-                          </option>
-                        ))
-                      }
-                    </optgroup>
-                    <optgroup label="Numeric Ranges">
-                      {!laborConditions['height_min'] && <option value="height_min">Height Minimum</option>}
-                      {!laborConditions['height_max'] && <option value="height_max">Height Maximum</option>}
-                    </optgroup>
-                  </select>
-                </div>
-              </div>
-
-              {/* Formula examples */}
-              <div className="bg-purple-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-purple-900 mb-2">Formula Examples</div>
-                <div className="text-xs text-purple-700 space-y-1 font-mono">
-                  <div>[post_count] * 0.25</div>
-                  <div>[Quantity] / 8</div>
-                  <div>ROUNDUP([Quantity] / [height])</div>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3">
