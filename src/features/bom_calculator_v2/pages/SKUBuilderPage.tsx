@@ -611,15 +611,21 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     );
 
     const selectedMaterialId = componentSelections[component.component_code] || '';
-    const isRequired = !component.is_optional;
+    const isOptional = component.is_optional;
     const hasNoOptions = eligibleMaterials.length === 0;
 
-    // If no eligible materials and not optional, show "Not configured"
+    // Label styling - optional components have distinct styling
+    const labelStyle = isOptional
+      ? "text-xs text-purple-600 w-24 flex-shrink-0 truncate italic"
+      : "text-xs text-gray-700 w-24 flex-shrink-0 truncate font-medium";
+
+    // If no eligible materials, show "Not configured"
     if (hasNoOptions) {
       return (
         <div key={component.component_type_id} className="flex items-center gap-2">
-          <span className="text-xs text-gray-600 w-20 flex-shrink-0 truncate" title={component.component_name}>
+          <span className={labelStyle} title={component.component_name}>
             {component.component_name}
+            {isOptional && <span className="text-[9px] ml-1">(opt)</span>}
           </span>
           <div className="flex-1 px-2 py-1.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-500 flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
@@ -629,8 +635,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       );
     }
 
-    // If only 1 option and required, auto-select and show as disabled
-    if (eligibleMaterials.length === 1 && isRequired) {
+    // If only 1 option and NOT optional, auto-select and show as disabled
+    if (eligibleMaterials.length === 1 && !isOptional) {
       const onlyMaterial = eligibleMaterials[0];
       // Auto-select if not already selected
       if (selectedMaterialId !== onlyMaterial.id) {
@@ -638,7 +644,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       }
       return (
         <div key={component.component_type_id} className="flex items-center gap-2">
-          <span className="text-xs text-gray-600 w-20 flex-shrink-0 truncate" title={component.component_name}>
+          <span className={labelStyle} title={component.component_name}>
             {component.component_name}
           </span>
           <div className="flex-1 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700">
@@ -648,18 +654,23 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       );
     }
 
-    // Normal selector
+    // Normal selector - optional components have dashed border
+    const selectStyle = isOptional
+      ? "flex-1 px-2 py-1.5 border-2 border-dashed border-purple-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-purple-50"
+      : "flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white";
+
     return (
       <div key={component.component_type_id} className="flex items-center gap-2">
-        <span className="text-xs text-gray-600 w-20 flex-shrink-0 truncate" title={component.component_name}>
+        <span className={labelStyle} title={component.component_name}>
           {component.component_name}
+          {isOptional && <span className="text-[9px] ml-1">(opt)</span>}
         </span>
         <select
           value={selectedMaterialId}
           onChange={(e) => setComponentSelection(component.component_code, e.target.value)}
-          className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500 bg-white"
+          className={selectStyle}
         >
-          <option value="">{isRequired ? `Select ${component.component_name.toLowerCase()}...` : 'None'}</option>
+          <option value="">{isOptional ? 'None (optional)' : `Select ${component.component_name.toLowerCase()}...`}</option>
           {eligibleMaterials.map(m => (
             <option key={m.id} value={m.id}>
               {m.material_sku} - {m.material_name} (${m.unit_cost.toFixed(2)})
@@ -851,25 +862,33 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
             <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/Ft</div>
               <div className="text-lg font-bold">
-                ${testLength > 0 ? ((totalMaterialCost + totalLaborCost) / testLength).toFixed(2) : '0.00'}
+                ${testLength > 0 && isFinite((totalMaterialCost + totalLaborCost) / testLength)
+                  ? ((totalMaterialCost + totalLaborCost) / testLength).toFixed(2)
+                  : '0.00'}
               </div>
             </div>
             <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Total Cost</div>
               <div className="text-lg font-bold">
-                ${Math.round(totalMaterialCost + totalLaborCost).toLocaleString()}
+                ${isFinite(totalMaterialCost + totalLaborCost)
+                  ? Math.round(totalMaterialCost + totalLaborCost).toLocaleString()
+                  : '0'}
               </div>
             </div>
             <div className="bg-amber-500 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Material/Ft</div>
               <div className="text-lg font-bold">
-                ${testLength > 0 ? (totalMaterialCost / testLength).toFixed(2) : '0.00'}
+                ${testLength > 0 && isFinite(totalMaterialCost / testLength)
+                  ? (totalMaterialCost / testLength).toFixed(2)
+                  : '0.00'}
               </div>
             </div>
             <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Labor/Ft</div>
               <div className="text-lg font-bold">
-                ${testLength > 0 ? (totalLaborCost / testLength).toFixed(2) : '0.00'}
+                ${testLength > 0 && isFinite(totalLaborCost / testLength)
+                  ? (totalLaborCost / testLength).toFixed(2)
+                  : '0.00'}
               </div>
             </div>
           </div>
@@ -1021,30 +1040,6 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
               </p>
             </div>
           )}
-
-          {/* Selected Materials Summary */}
-          <div className="bg-white rounded-lg border border-gray-200 mt-3 p-3">
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Selected Materials</h3>
-            <div className="space-y-1 text-xs">
-              {Object.entries(componentSelections)
-                .filter(([, materialId]) => materialId)
-                .map(([componentCode, materialId]) => {
-                  const component = assignedComponentsV2.find(c => c.component_code === componentCode);
-                  const material = getMaterial(materialId);
-                  if (!material) return null;
-                  return (
-                    <div key={componentCode} className="flex justify-between text-gray-600">
-                      <span>{component?.component_name || componentCode}:</span>
-                      <span className="font-mono">{material.material_sku} - ${material.unit_cost.toFixed(2)}</span>
-                    </div>
-                  );
-                })
-              }
-              {Object.keys(componentSelections).filter(k => componentSelections[k]).length === 0 && (
-                <div className="text-gray-400">No materials selected</div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>
