@@ -13,7 +13,7 @@
  * - Components (shared from V1)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench, Settings, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { SKUCatalogPage, SKUBuilderPage, CalculatorPage, ComponentTypesPage, ProductTypeManagerPage } from './pages';
 // Shared pages from V1
@@ -41,6 +41,13 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
+
+  // Auto-collapse sidebar when entering Product Types page (needs full width)
+  useEffect(() => {
+    if (activePage === 'product-manager') {
+      setSidebarCollapsed(true);
+    }
+  }, [activePage]);
 
   // Desktop-only check
   if (!isDesktop) {

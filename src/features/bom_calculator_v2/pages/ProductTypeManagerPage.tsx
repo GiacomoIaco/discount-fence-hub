@@ -14,7 +14,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Save, Trash2, X, ChevronRight, ChevronDown, Edit2, Copy,
+  Plus, Save, Trash2, X, ChevronDown, ChevronRight, Edit2, Copy,
   AlertCircle, CheckCircle, Layers, Settings, Variable,
   Box, Calculator, Search, ArrowUp, ArrowDown, Download,
   Link2, Filter, Check, Star
@@ -58,6 +58,8 @@ export default function ProductTypeManagerPage() {
   // Selected product type (context for other tabs)
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ManagerTab>('types');
+  const [showAddTypeModal, setShowAddTypeModal] = useState(false);
+  const [editingProductType, setEditingProductType] = useState<ProductTypeV2 | null>(null);
 
   // Data queries
   const { data: productTypes = [], isLoading: loadingTypes } = useProductTypesV2();
@@ -110,17 +112,51 @@ export default function ProductTypeManagerPage() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      {/* Header */}
+      {/* Header with Product Type Dropdown */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold text-gray-900">Product Type Manager</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Configure product types, styles, variables, components, and formulas
-            </p>
+            {/* Product Type Dropdown */}
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedTypeId || ''}
+                onChange={(e) => setSelectedTypeId(e.target.value || null)}
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 min-w-[180px]"
+                disabled={loadingTypes}
+              >
+                {loadingTypes ? (
+                  <option>Loading...</option>
+                ) : productTypes.length === 0 ? (
+                  <option value="">No product types</option>
+                ) : (
+                  productTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                onClick={() => setShowAddTypeModal(true)}
+                className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                title="Add Product Type"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              {selectedType && (
+                <button
+                  onClick={() => setEditingProductType(selectedType)}
+                  className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                  title="Edit Product Type"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
           {selectedType && (
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-3 text-sm">
               <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full">
                 {stats.styles} styles
               </span>
@@ -135,19 +171,9 @@ export default function ProductTypeManagerPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Product Type List */}
-        <ProductTypeSidebar
-          productTypes={productTypes}
-          selectedTypeId={selectedTypeId}
-          onSelectType={setSelectedTypeId}
-          isLoading={loadingTypes}
-          onRefresh={() => queryClient.invalidateQueries({ queryKey: ['product-types-v2'] })}
-        />
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {selectedType ? (
+      {/* Main Content - Full Width (no sidebar) */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {selectedType ? (
             <>
               {/* Tab Navigation */}
               <div className="bg-white border-b border-gray-200 px-6">
@@ -241,103 +267,20 @@ export default function ProductTypeManagerPage() {
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// SIDEBAR COMPONENT
-// =============================================================================
-
-function ProductTypeSidebar({
-  productTypes,
-  selectedTypeId,
-  onSelectType,
-  isLoading,
-  onRefresh,
-}: {
-  productTypes: ProductTypeV2[];
-  selectedTypeId: string | null;
-  onSelectType: (id: string) => void;
-  isLoading: boolean;
-  onRefresh: () => void;
-}) {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingType, setEditingType] = useState<ProductTypeV2 | null>(null);
-
-  return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold text-gray-900">Product Types</h2>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-            title="Add Product Type"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        <p className="text-xs text-gray-500">{productTypes.length} types configured</p>
       </div>
 
-      <div className="flex-1 overflow-auto p-2">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : productTypes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 text-sm">
-            No product types yet.<br />Click + to add one.
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {productTypes.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => onSelectType(type.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors ${
-                  selectedTypeId === type.id
-                    ? 'bg-purple-100 text-purple-700'
-                    : 'hover:bg-gray-100 text-gray-700'
-                }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{type.name}</div>
-                  <div className="text-xs text-gray-500 truncate">{type.code}</div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingType(type);
-                    }}
-                    className="p-1 hover:bg-gray-200 rounded opacity-0 group-hover:opacity-100"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </button>
-                  <ChevronRight className="w-4 h-4 opacity-50" />
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Add/Edit Modal */}
-      {(showAddModal || editingType) && (
+      {/* Add/Edit Product Type Modal */}
+      {(showAddTypeModal || editingProductType) && (
         <ProductTypeModal
-          productType={editingType}
+          productType={editingProductType}
           onClose={() => {
-            setShowAddModal(false);
-            setEditingType(null);
+            setShowAddTypeModal(false);
+            setEditingProductType(null);
           }}
           onSaved={() => {
-            setShowAddModal(false);
-            setEditingType(null);
-            onRefresh();
+            setShowAddTypeModal(false);
+            setEditingProductType(null);
+            queryClient.invalidateQueries({ queryKey: ['product-types-v2'] });
           }}
         />
       )}
@@ -1608,16 +1551,16 @@ function ComponentsTab({
           <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-4 h-[calc(100vh-300px)]">
-          {/* Panel 1 - Available Components */}
-          <div className="bg-white rounded-lg border border-gray-200 flex flex-col">
+        <div className="flex gap-4 h-[calc(100vh-300px)]">
+          {/* Panel 1 - Available Components (26% width) */}
+          <div className="w-[26%] flex-shrink-0 bg-white rounded-lg border border-gray-200 flex flex-col">
             <div className="p-3 border-b border-gray-200">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-gray-900 text-sm">Available</h3>
+                <h3 className="font-semibold text-gray-900">Available</h3>
                 <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
                   <button
                     onClick={() => setComponentFilter('all')}
-                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                    className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                       componentFilter === 'all'
                         ? 'bg-white text-gray-900 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -1627,7 +1570,7 @@ function ComponentsTab({
                   </button>
                   <button
                     onClick={() => setComponentFilter('material')}
-                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                    className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                       componentFilter === 'material'
                         ? 'bg-white text-blue-600 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -1637,7 +1580,7 @@ function ComponentsTab({
                   </button>
                   <button
                     onClick={() => setComponentFilter('labor')}
-                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                    className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                       componentFilter === 'labor'
                         ? 'bg-white text-orange-600 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -1648,13 +1591,13 @@ function ComponentsTab({
                 </div>
               </div>
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
             </div>
@@ -1690,24 +1633,24 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 2 - Selected Materials */}
-          <div className="bg-white rounded-lg border border-blue-200 flex flex-col">
+          {/* Panel 2 - Selected Materials (37% width via flex-1) */}
+          <div className="flex-1 bg-white rounded-lg border border-blue-200 flex flex-col">
             <div className="p-3 border-b border-blue-100 bg-blue-50/50">
-              <h3 className="font-semibold text-blue-900 text-sm">
+              <h3 className="font-semibold text-blue-900">
                 Materials ({selectedMaterialComponents.length})
               </h3>
-              <p className="text-[10px] text-blue-600 mt-0.5">
+              <p className="text-xs text-blue-600 mt-0.5">
                 Physical items - rails, pickets, posts...
               </p>
             </div>
 
-            <div className="flex-1 overflow-auto p-1.5">
+            <div className="flex-1 overflow-auto p-2">
               {selectedMaterialComponents.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-xs">
+                <div className="text-center py-8 text-gray-500">
                   No materials selected
                 </div>
               ) : (
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {selectedMaterialComponents.map((component, index) => {
                     const hasFormula = componentsWithFormulas.has(component.component_type_id);
                     const hasFilter = !!component.filter_variable_id;
@@ -1715,7 +1658,7 @@ function ComponentsTab({
                     return (
                       <div
                         key={component.component_type_id}
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-gray-50 group"
+                        className="flex items-center gap-2 px-3 py-2 rounded bg-gray-50 group"
                       >
                         <div className="flex flex-col gap-0.5">
                           <button
@@ -1723,42 +1666,42 @@ function ComponentsTab({
                             disabled={index === 0 || saving}
                             className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
                           >
-                            <ArrowUp className="w-2.5 h-2.5 text-gray-500" />
+                            <ArrowUp className="w-3 h-3 text-gray-500" />
                           </button>
                           <button
                             onClick={() => moveComponent(component, 'down')}
                             disabled={index === selectedMaterialComponents.length - 1 || saving}
                             className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
                           >
-                            <ArrowDown className="w-2.5 h-2.5 text-gray-500" />
+                            <ArrowDown className="w-3 h-3 text-gray-500" />
                           </button>
                         </div>
 
-                        <span className="w-4 text-center text-[10px] text-gray-400 font-mono">
+                        <span className="w-5 text-center text-xs text-gray-400 font-mono">
                           {index + 1}
                         </span>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs font-medium text-gray-900 truncate">{component.component_name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-gray-900 truncate">{component.component_name}</span>
                             {hasFormula && (
-                              <CheckCircle className="w-3 h-3 text-green-600 flex-shrink-0" />
+                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                             )}
                           </div>
-                          <div className="flex items-center gap-1 text-[10px] flex-wrap">
+                          <div className="flex items-center gap-1.5 text-xs flex-wrap mt-0.5">
                             <span className="text-gray-500 font-mono">{component.component_code}</span>
                             {hasFormula ? (
-                              <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
+                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
                             ) : (
-                              <span className="px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
+                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
                             )}
                             {hasFilter && (
-                              <span className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded">
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
                                 {component.filter_variable_name}
                               </span>
                             )}
                             {hasVisibility && (
-                              <span className="px-1 py-0.5 bg-amber-100 text-amber-700 rounded">
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
                                 Conditional
                               </span>
                             )}
@@ -1774,7 +1717,7 @@ function ComponentsTab({
                               .eq('id', component.assignment_id);
                             refetchComponents();
                           }}
-                          className={`px-1.5 py-0.5 text-[10px] rounded border transition-colors ${
+                          className={`px-2 py-1 text-xs rounded border transition-colors ${
                             component.is_optional
                               ? 'bg-green-50 border-green-300 text-green-700'
                               : 'bg-gray-50 border-gray-300 text-gray-500'
@@ -1786,17 +1729,17 @@ function ComponentsTab({
 
                         <button
                           onClick={() => setEditingComponent(component)}
-                          className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Edit2 className="w-3 h-3" />
+                          <Edit2 className="w-4 h-4" />
                         </button>
 
                         <button
                           onClick={() => toggleComponent(component)}
                           disabled={saving}
-                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     );
@@ -1806,24 +1749,24 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 3 - Selected Labor */}
-          <div className="bg-white rounded-lg border border-orange-200 flex flex-col">
+          {/* Panel 3 - Selected Labor (37% width via flex-1) */}
+          <div className="flex-1 bg-white rounded-lg border border-orange-200 flex flex-col">
             <div className="p-3 border-b border-orange-100 bg-orange-50/50">
-              <h3 className="font-semibold text-orange-900 text-sm">
+              <h3 className="font-semibold text-orange-900">
                 Labor ({selectedLaborComponents.length})
               </h3>
-              <p className="text-[10px] text-orange-600 mt-0.5">
+              <p className="text-xs text-orange-600 mt-0.5">
                 Work tasks - nail up, set posts...
               </p>
             </div>
 
-            <div className="flex-1 overflow-auto p-1.5">
+            <div className="flex-1 overflow-auto p-2">
               {selectedLaborComponents.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-xs">
+                <div className="text-center py-8 text-gray-500">
                   No labor selected
                 </div>
               ) : (
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {selectedLaborComponents.map((component, index) => {
                     const hasFormula = componentsWithFormulas.has(component.component_type_id);
                     const hasFilter = !!component.filter_variable_id;
@@ -1831,7 +1774,7 @@ function ComponentsTab({
                     return (
                       <div
                         key={component.component_type_id}
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-gray-50 group"
+                        className="flex items-center gap-2 px-3 py-2 rounded bg-gray-50 group"
                       >
                         <div className="flex flex-col gap-0.5">
                           <button
@@ -1839,42 +1782,42 @@ function ComponentsTab({
                             disabled={index === 0 || saving}
                             className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
                           >
-                            <ArrowUp className="w-2.5 h-2.5 text-gray-500" />
+                            <ArrowUp className="w-3 h-3 text-gray-500" />
                           </button>
                           <button
                             onClick={() => moveComponent(component, 'down')}
                             disabled={index === selectedLaborComponents.length - 1 || saving}
                             className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
                           >
-                            <ArrowDown className="w-2.5 h-2.5 text-gray-500" />
+                            <ArrowDown className="w-3 h-3 text-gray-500" />
                           </button>
                         </div>
 
-                        <span className="w-4 text-center text-[10px] text-gray-400 font-mono">
+                        <span className="w-5 text-center text-xs text-gray-400 font-mono">
                           {index + 1}
                         </span>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs font-medium text-gray-900 truncate">{component.component_name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-gray-900 truncate">{component.component_name}</span>
                             {hasFormula && (
-                              <CheckCircle className="w-3 h-3 text-green-600 flex-shrink-0" />
+                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                             )}
                           </div>
-                          <div className="flex items-center gap-1 text-[10px] flex-wrap">
+                          <div className="flex items-center gap-1.5 text-xs flex-wrap mt-0.5">
                             <span className="text-gray-500 font-mono">{component.component_code}</span>
                             {hasFormula ? (
-                              <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
+                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
                             ) : (
-                              <span className="px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
+                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
                             )}
                             {hasFilter && (
-                              <span className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded">
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
                                 {component.filter_variable_name}
                               </span>
                             )}
                             {hasVisibility && (
-                              <span className="px-1 py-0.5 bg-amber-100 text-amber-700 rounded">
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
                                 Conditional
                               </span>
                             )}
@@ -1890,7 +1833,7 @@ function ComponentsTab({
                               .eq('id', component.assignment_id);
                             refetchComponents();
                           }}
-                          className={`px-1.5 py-0.5 text-[10px] rounded border transition-colors ${
+                          className={`px-2 py-1 text-xs rounded border transition-colors ${
                             component.is_optional
                               ? 'bg-green-50 border-green-300 text-green-700'
                               : 'bg-gray-50 border-gray-300 text-gray-500'
@@ -1902,17 +1845,17 @@ function ComponentsTab({
 
                         <button
                           onClick={() => setEditingComponent(component)}
-                          className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Edit2 className="w-3 h-3" />
+                          <Edit2 className="w-4 h-4" />
                         </button>
 
                         <button
                           onClick={() => toggleComponent(component)}
                           disabled={saving}
-                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     );
