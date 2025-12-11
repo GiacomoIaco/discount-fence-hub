@@ -1602,27 +1602,27 @@ function ComponentsTab({
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-1.5">
+            <div className="flex-1 overflow-auto p-2">
               {availableComponents.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-xs">
+                <div className="text-center py-8 text-gray-500">
                   {searchTerm ? 'No matches' : 'All selected'}
                 </div>
               ) : (
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {availableComponents.map((component) => (
                     <button
                       key={component.component_type_id}
                       onClick={() => toggleComponent(component)}
                       disabled={saving}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 text-left transition-colors disabled:opacity-50"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50 text-left transition-colors disabled:opacity-50"
                     >
-                      <div className="w-4 h-4 border-2 border-gray-300 rounded flex-shrink-0" />
+                      <div className="w-5 h-5 border-2 border-gray-300 rounded flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-gray-900 truncate">{component.component_name}</div>
-                        <div className="flex items-center gap-1 text-[10px]">
+                        <div className="text-sm font-medium text-gray-900 truncate">{component.component_name}</div>
+                        <div className="flex items-center gap-1.5 text-xs mt-0.5">
                           <span className="text-gray-500 font-mono">{component.component_code}</span>
                           {component.is_labor && (
-                            <span className="px-1 py-0.5 bg-orange-100 text-orange-700 rounded">Lab</span>
+                            <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
                           )}
                         </div>
                       </div>
@@ -3146,13 +3146,14 @@ function EligibilityTab({
     const rules = materialRules.filter(r => {
       if (r.component_type_id !== selectedComponentId) return false;
 
-      // Check attribute filter match
+      // If a specific attribute value is selected, only show rules matching that value
       if (selectedAttributeValue && filterCode) {
         if (!r.attribute_filter) return false;
         return r.attribute_filter[filterCode] === selectedAttributeValue;
       }
 
-      return !r.attribute_filter;
+      // If no attribute selected, show ALL materials for this component
+      return true;
     });
 
     const eligibleIds = new Set<string>();
@@ -3183,12 +3184,15 @@ function EligibilityTab({
     const rules = laborRules.filter(r => {
       if (r.component_type_id !== selectedComponentId) return false;
 
+      // If a specific attribute value is selected, only show rules matching that value
       if (selectedAttributeValue && filterCode) {
         if (!r.attribute_filter) return false;
         return r.attribute_filter[filterCode] === selectedAttributeValue;
       }
 
-      return !r.attribute_filter;
+      // If no attribute selected, show ALL labor codes for this component
+      // (not just those with null attribute_filter)
+      return true;
     });
 
     return new Set(rules.map(r => r.labor_code_id));
@@ -3784,6 +3788,8 @@ function EligibilityTab({
                     onClick={() => {
                       if (hasFilterValues) {
                         toggleExpansion(comp.component_type_id);
+                        // Also select the component (without attribute) so user can add rules
+                        handleSelectComponent(comp.component_type_id);
                       } else {
                         handleSelectComponent(comp.component_type_id);
                       }
