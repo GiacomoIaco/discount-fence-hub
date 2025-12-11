@@ -73,12 +73,12 @@ export const handler: Handler = async (event) => {
     const realmId = tokenData.realm_id;
 
     // Generate unique suffix to avoid duplicate name errors
-    const timestamp = Date.now().toString().slice(-6);
+    const uniqueId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // Test data - simulating a Client Hub client
     const testClient = {
-      name: `Test Builder Inc ${timestamp}`,
-      code: `TEST-${timestamp}`,
+      name: `Test Builder Inc ${uniqueId}`,
+      code: `TEST-${uniqueId}`,
       primary_contact_name: 'John Builder',
       primary_contact_email: 'john@testbuilder.com',
       primary_contact_phone: '555-123-4567',
@@ -91,8 +91,8 @@ export const handler: Handler = async (event) => {
 
     // Test community - simulating a Client Hub community
     const testCommunity = {
-      name: `Sunset Ridge Phase 1 ${timestamp}`,
-      code: `SR-PH1-${timestamp}`,
+      name: `Sunset Ridge Phase 1 ${uniqueId}`,
+      code: `SR-PH1-${uniqueId}`,
       address_line1: '500 Sunset Ridge Dr',
       city: 'Austin',
       state: 'TX',
