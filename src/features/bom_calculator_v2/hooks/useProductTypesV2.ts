@@ -61,6 +61,7 @@ export interface SKUCatalogV2 {
   post_type: 'WOOD' | 'STEEL';
   variables: Record<string, number | string>;
   components: Record<string, string>;
+  labor_codes: Record<string, string | string[]>;  // {"set_post": "W03", "nail_up": "W01", "other_labor": ["W11", "W23"]}
   custom_formulas: Record<string, string> | null;
   standard_material_cost: number | null;
   standard_labor_cost: number | null;
@@ -71,6 +72,44 @@ export interface SKUCatalogV2 {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Labor Group types
+export interface LaborGroupV2 {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_required: boolean;
+  allow_multiple: boolean;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface ProductTypeLaborGroupV2 {
+  id: string;
+  product_type_id: string;
+  labor_group_id: string;
+  display_order: number;
+  is_active: boolean;
+  labor_group?: LaborGroupV2;
+}
+
+export interface LaborGroupEligibilityV2 {
+  id: string;
+  product_type_id: string;
+  labor_group_id: string;
+  labor_code_id: string;
+  condition_formula: string | null;
+  is_default: boolean;
+  display_order: number;
+  is_active: boolean;
+  labor_code?: {
+    id: string;
+    labor_sku: string;
+    description: string;
+    unit_type: string;
+  };
 }
 
 // Extended SKU with joined product type/style
@@ -425,6 +464,81 @@ export function useLaborEligibilityV2(productTypeId: string | null) {
 
       if (error) throw error;
       return data as LaborEligibilityRuleV2[];
+    },
+    enabled: !!productTypeId,
+  });
+}
+
+// ============================================
+// LABOR GROUPS V2 HOOKS
+// ============================================
+
+/**
+ * Fetch all active labor groups
+ */
+export function useLaborGroupsV2() {
+  return useQuery({
+    queryKey: ['labor-groups-v2'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('labor_groups_v2')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      return data as LaborGroupV2[];
+    },
+  });
+}
+
+/**
+ * Fetch labor groups assigned to a product type
+ */
+export function useProductTypeLaborGroupsV2(productTypeId: string | null) {
+  return useQuery({
+    queryKey: ['product-type-labor-groups-v2', productTypeId],
+    queryFn: async () => {
+      if (!productTypeId) return [];
+
+      const { data, error } = await supabase
+        .from('product_type_labor_groups_v2')
+        .select(`
+          *,
+          labor_group:labor_groups_v2(*)
+        `)
+        .eq('product_type_id', productTypeId)
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      return data as ProductTypeLaborGroupV2[];
+    },
+    enabled: !!productTypeId,
+  });
+}
+
+/**
+ * Fetch labor code eligibility for a product type (grouped by labor group)
+ */
+export function useLaborGroupEligibilityV2(productTypeId: string | null) {
+  return useQuery({
+    queryKey: ['labor-group-eligibility-v2', productTypeId],
+    queryFn: async () => {
+      if (!productTypeId) return [];
+
+      const { data, error } = await supabase
+        .from('labor_group_eligibility_v2')
+        .select(`
+          *,
+          labor_code:labor_codes(id, labor_sku, description, unit_type)
+        `)
+        .eq('product_type_id', productTypeId)
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      return data as LaborGroupEligibilityV2[];
     },
     enabled: !!productTypeId,
   });
