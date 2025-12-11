@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 type VoiceIntent = 'todo' | 'roadmap' | 'request' | 'meeting' | 'unknown';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
 
 interface ClassificationResult {
   intent: VoiceIntent;

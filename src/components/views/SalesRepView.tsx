@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import CustomPricingRequest from './CustomPricingRequest';
 import type { MenuCategory, MobileStyle } from '../../hooks/useMenuVisibility';
 
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
 
 interface NavigationItem {
   id: Section;
@@ -32,6 +32,7 @@ const MyTodos = lazy(() => import('../../features/my-todos').then(m => ({ defaul
 const BOMCalculatorHub = lazy(() => import('../../features/bom_calculator/BOMCalculatorHub'));
 const RoadmapHub = lazy(() => import('../../features/roadmap/RoadmapHub'));
 const SurveyHub = lazy(() => import('../../features/survey_hub/SurveyHub'));
+const ClientHub = lazy(() => import('../../features/client_hub/ClientHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -202,6 +203,14 @@ export default function SalesRepView({
     return (
       <Suspense fallback={<LoadingFallback />}>
         <SurveyHub />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'client-hub') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <ClientHub />
       </Suspense>
     );
   }
