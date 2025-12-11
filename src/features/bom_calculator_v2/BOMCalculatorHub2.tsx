@@ -14,7 +14,7 @@
  */
 
 import { useState } from 'react';
-import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench, Settings } from 'lucide-react';
+import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench, Settings, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { SKUCatalogPage, SKUBuilderPage, CalculatorPage, ComponentTypesPage, ProductTypeManagerPage } from './pages';
 // Shared pages from V1
 import MaterialsPage from '../bom_calculator/pages/MaterialsPage';
@@ -38,6 +38,7 @@ const useIsDesktop = () => {
 export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: _userName }: BOMCalculatorHub2Props) {
   const [activePage, setActivePage] = useState<Hub2Page>('calculator');
   const [editingSKUId, setEditingSKUId] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isDesktop = useIsDesktop();
   const isAdmin = userRole === 'admin';
 
@@ -116,100 +117,121 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2 mb-2">
-            <FlaskConical className="w-6 h-6 text-purple-600" />
-            <h1 className="text-lg font-bold text-gray-900">BOM Calculator</h1>
-            <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-              v2 Beta
-            </span>
+      {/* Sidebar - Collapsible */}
+      {!sidebarCollapsed && (
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <FlaskConical className="w-6 h-6 text-purple-600" />
+                <h1 className="text-lg font-bold text-gray-900">BOM Calculator</h1>
+                <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                  v2 Beta
+                </span>
+              </div>
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                title="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">Smart Hybrid Architecture</p>
           </div>
-          <p className="text-xs text-gray-500">Smart Hybrid Architecture</p>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-1">
+            <NavItem
+              label="Calculator"
+              icon={<FlaskConical className="w-4 h-4" />}
+              isActive={activePage === 'calculator'}
+              onClick={() => setActivePage('calculator')}
+            />
+
+            <div className="pt-4 border-t border-gray-200 mt-4">
+              <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                SKU Management
+              </p>
+              <NavItem
+                label="SKU Catalog"
+                icon={<Package className="w-4 h-4" />}
+                isActive={activePage === 'sku-catalog'}
+                onClick={() => setActivePage('sku-catalog')}
+              />
+              <NavItem
+                label="SKU Builder"
+                icon={<Wrench className="w-4 h-4" />}
+                isActive={activePage === 'sku-builder'}
+                onClick={() => setActivePage('sku-builder')}
+                badge={isAdmin ? undefined : 'Admin'}
+              />
+            </div>
+
+            <div className="pt-4 border-t border-gray-200 mt-4">
+              <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Configuration
+              </p>
+              <NavItem
+                label="Product Types"
+                icon={<Settings className="w-4 h-4" />}
+                isActive={activePage === 'product-manager'}
+                onClick={() => setActivePage('product-manager')}
+                badge={isAdmin ? undefined : 'Admin'}
+              />
+            </div>
+
+            <div className="pt-4 border-t border-gray-200 mt-4">
+              <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Shared Data (V1)
+              </p>
+              <NavItem
+                label="Materials"
+                icon={<Package className="w-4 h-4" />}
+                isActive={activePage === 'materials'}
+                onClick={() => setActivePage('materials')}
+              />
+              <NavItem
+                label="Labor Rates"
+                icon={<DollarSign className="w-4 h-4" />}
+                isActive={activePage === 'labor-rates'}
+                onClick={() => setActivePage('labor-rates')}
+              />
+              <NavItem
+                label="Components"
+                icon={<Wrench className="w-4 h-4" />}
+                isActive={activePage === 'components'}
+                onClick={() => setActivePage('components')}
+              />
+            </div>
+          </nav>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-200">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Hub v1
+            </button>
+          </div>
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
-          <NavItem
-            label="Calculator"
-            icon={<FlaskConical className="w-4 h-4" />}
-            isActive={activePage === 'calculator'}
-            onClick={() => setActivePage('calculator')}
-          />
-
-          <div className="pt-4 border-t border-gray-200 mt-4">
-            <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              SKU Management
-            </p>
-            <NavItem
-              label="SKU Catalog"
-              icon={<Package className="w-4 h-4" />}
-              isActive={activePage === 'sku-catalog'}
-              onClick={() => setActivePage('sku-catalog')}
-            />
-            <NavItem
-              label="SKU Builder"
-              icon={<Wrench className="w-4 h-4" />}
-              isActive={activePage === 'sku-builder'}
-              onClick={() => setActivePage('sku-builder')}
-              badge={isAdmin ? undefined : 'Admin'}
-            />
-          </div>
-
-          <div className="pt-4 border-t border-gray-200 mt-4">
-            <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Configuration
-            </p>
-            <NavItem
-              label="Product Types"
-              icon={<Settings className="w-4 h-4" />}
-              isActive={activePage === 'product-manager'}
-              onClick={() => setActivePage('product-manager')}
-              badge={isAdmin ? undefined : 'Admin'}
-            />
-          </div>
-
-          <div className="pt-4 border-t border-gray-200 mt-4">
-            <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Shared Data (V1)
-            </p>
-            <NavItem
-              label="Materials"
-              icon={<Package className="w-4 h-4" />}
-              isActive={activePage === 'materials'}
-              onClick={() => setActivePage('materials')}
-            />
-            <NavItem
-              label="Labor Rates"
-              icon={<DollarSign className="w-4 h-4" />}
-              isActive={activePage === 'labor-rates'}
-              onClick={() => setActivePage('labor-rates')}
-            />
-            <NavItem
-              label="Components"
-              icon={<Wrench className="w-4 h-4" />}
-              isActive={activePage === 'components'}
-              onClick={() => setActivePage('components')}
-            />
-          </div>
-        </nav>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Hub v1
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto relative">
+        {/* Expand sidebar button when collapsed */}
+        {sidebarCollapsed && (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="absolute top-2 left-2 z-10 p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 shadow-lg transition-colors"
+            title="Expand sidebar"
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
+        )}
         {renderContent()}
       </div>
     </div>
