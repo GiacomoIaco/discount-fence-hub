@@ -14,10 +14,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Save, Trash2, X, ChevronDown, Edit2, Copy,
-  AlertCircle, CheckCircle, Layers, Settings, Variable,
-  Box, Calculator, Search, ArrowUp, ArrowDown, Download,
-  Filter, Check, Star
+  Plus, Save, Trash2, X, ChevronDown, ChevronRight, Edit2, Copy,
+  AlertCircle, Layers, Settings, Variable,
+  Box, Calculator, Search, Download,
+  Filter, Check, Star, Link2
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -1442,7 +1442,7 @@ interface MaterialEligibilityRule {
 function ComponentsTab({
   productType,
   componentTypes: _componentTypes,
-  formulas,
+  formulas: _formulas,
   isLoading,
   variables,
 }: {
@@ -1469,11 +1469,11 @@ function ComponentsTab({
   const [materialRules, setMaterialRules] = useState<MaterialEligibilityRule[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
 
+  // Expanded components state (for filter variable subgroups)
+  const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+
   // Get full component data with assignment status from the view
   const { data: componentsFull = [], isLoading: loadingFull, refetch: refetchComponents } = useProductTypeComponentsFull(productType.id);
-
-  // Determine which components have formulas for this product type
-  const componentsWithFormulas = new Set(formulas.map((f) => f.component_type_id));
 
   // Split into selected Materials only (labor handled in Labor tab)
   const selectedMaterialComponents = componentsFull
@@ -1561,6 +1561,113 @@ function ComponentsTab({
       }
     }
     return countedIds.size;
+  };
+
+  // Get material count for a specific component + attribute value
+  const getMaterialCountForAttribute = (componentId: string, filterCode: string, attrValue: string): number => {
+    const rules = materialRules.filter(r => {
+      if (r.component_type_id !== componentId) return false;
+      if (!r.attribute_filter) return false;
+      return r.attribute_filter[filterCode] === attrValue;
+    });
+
+    const countedIds = new Set<string>();
+    for (const rule of rules) {
+      if (rule.selection_mode === 'specific' && rule.material_id) {
+        countedIds.add(rule.material_id);
+      } else if (rule.selection_mode === 'category' && rule.material_category) {
+        materials
+          .filter(m => m.category === rule.material_category)
+          .forEach(m => countedIds.add(m.id));
+      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
+        materials
+          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
+          .forEach(m => countedIds.add(m.id));
+      }
+    }
+    return countedIds.size;
+  };
+
+  // Get active category/subcategory rules for display as chips
+  const getActiveRuleChips = (): { id: string; label: string; type: 'category' | 'subcategory' }[] => {
+    if (!selectedComponentForMaterials) return [];
+
+    const filterCode = selectedComponentForMaterials.filter_variable_code;
+    const rules = materialRules.filter(r => {
+      if (r.component_type_id !== selectedComponentForMaterials.component_type_id) return false;
+      if (r.selection_mode === 'specific') return false; // Only category/subcategory rules
+
+      if (selectedAttributeValue && filterCode) {
+        if (!r.attribute_filter) return false;
+        return r.attribute_filter[filterCode] === selectedAttributeValue;
+      }
+      return !r.attribute_filter; // Only rules without attribute filter when viewing "All"
+    });
+
+    return rules.map(r => ({
+      id: r.id,
+      label: r.selection_mode === 'category'
+        ? r.material_category!
+        : `${r.material_category} > ${r.material_subcategory}`,
+      type: r.selection_mode as 'category' | 'subcategory'
+    }));
+  };
+
+  // Remove a category/subcategory rule
+  const removeRule = async (ruleId: string) => {
+    setSaving(true);
+    await supabase
+      .from('component_material_eligibility_v2')
+      .delete()
+      .eq('id', ruleId);
+
+    const { data } = await supabase
+      .from('component_material_eligibility_v2')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setMaterialRules(data);
+    setSaving(false);
+  };
+
+  // Add a category or subcategory rule
+  const addCategoryRule = async (category: string, subcategory?: string) => {
+    if (!selectedComponentForMaterials) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_material_eligibility_v2')
+      .insert({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentForMaterials.component_type_id,
+        selection_mode: subcategory ? 'subcategory' : 'category',
+        material_category: category,
+        material_subcategory: subcategory || null,
+        attribute_filter: buildAttributeFilter(),
+      });
+
+    if (!error) {
+      const { data } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setMaterialRules(data);
+    }
+    setSaving(false);
+  };
+
+  // Toggle component expansion (for filter variable subgroups)
+  const toggleComponentExpand = (componentId: string) => {
+    setExpandedComponents(prev => {
+      const next = new Set(prev);
+      if (next.has(componentId)) {
+        next.delete(componentId);
+      } else {
+        next.add(componentId);
+      }
+      return next;
+    });
   };
 
   // Get eligible material IDs for selected component + attribute
@@ -1792,36 +1899,6 @@ function ComponentsTab({
     setSaving(false);
   };
 
-  // Move component up/down in order
-  const moveComponent = async (component: ProductTypeComponentFull, direction: 'up' | 'down') => {
-    // Use material components list (labor is now in Labor tab)
-    const componentList = selectedMaterialComponents;
-    const currentIndex = componentList.findIndex(c => c.component_type_id === component.component_type_id);
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-
-    if (targetIndex < 0 || targetIndex >= componentList.length) return;
-
-    setSaving(true);
-
-    const currentComponent = componentList[currentIndex];
-    const targetComponent = componentList[targetIndex];
-
-    // Swap display_order values
-    await Promise.all([
-      supabase
-        .from('product_type_components_v2')
-        .update({ display_order: targetComponent.display_order })
-        .eq('id', currentComponent.assignment_id),
-      supabase
-        .from('product_type_components_v2')
-        .update({ display_order: currentComponent.display_order })
-        .eq('id', targetComponent.assignment_id),
-    ]);
-
-    await refetchComponents();
-    setSaving(false);
-  };
-
   const loading = isLoading || loadingFull;
 
   return (
@@ -1929,141 +2006,111 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 2 - Selected Material Components (click to see materials) */}
-          <div className={`${selectedComponentForMaterials ? 'w-[35%]' : 'flex-1'} bg-white rounded-lg border border-blue-200 flex flex-col transition-all`}>
+          {/* Panel 2 - Component List with Subgroups */}
+          <div className="w-64 flex-shrink-0 bg-white rounded-lg border border-blue-200 flex flex-col">
             <div className="p-3 border-b border-blue-100 bg-blue-50/50">
-              <h3 className="font-semibold text-blue-900">
-                Materials ({selectedMaterialComponents.length})
-              </h3>
-              <p className="text-xs text-blue-600 mt-0.5">
-                Click a component to configure eligible materials
-              </p>
+              <h3 className="font-semibold text-blue-900 text-sm">COMPONENTS</h3>
             </div>
 
-            <div className="flex-1 overflow-auto p-2">
+            <div className="flex-1 overflow-auto">
               {selectedMaterialComponents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No materials selected
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No components selected
                 </div>
               ) : (
-                <div className="space-y-1">
-                  {selectedMaterialComponents.map((component, index) => {
-                    const hasFormula = componentsWithFormulas.has(component.component_type_id);
+                <div className="divide-y divide-gray-100">
+                  {selectedMaterialComponents.map((component) => {
                     const hasFilter = !!component.filter_variable_id;
-                    const hasVisibility = component.visibility_conditions && Object.keys(component.visibility_conditions).length > 0;
+                    const isExpanded = expandedComponents.has(component.component_type_id);
                     const materialCount = getMaterialCount(component.component_type_id);
-                    const isSelected = selectedComponentForMaterials?.component_type_id === component.component_type_id;
+                    const isComponentSelected = selectedComponentForMaterials?.component_type_id === component.component_type_id && !selectedAttributeValue;
+
                     return (
-                      <div
-                        key={component.component_type_id}
-                        onClick={() => {
-                          setSelectedComponentForMaterials(component);
-                          setSelectedAttributeValue(null);
-                          setMaterialSearch('');
-                          setCategoryFilter('');
-                          setSubcategoryFilter('');
-                        }}
-                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer group transition-colors ${
-                          isSelected
-                            ? 'bg-blue-100 border-2 border-blue-400'
-                            : 'bg-gray-50 hover:bg-blue-50 border-2 border-transparent'
-                        }`}
-                      >
-                        <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => moveComponent(component, 'up')}
-                            disabled={index === 0 || saving}
-                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
-                          >
-                            <ArrowUp className="w-3 h-3 text-gray-500" />
-                          </button>
-                          <button
-                            onClick={() => moveComponent(component, 'down')}
-                            disabled={index === selectedMaterialComponents.length - 1 || saving}
-                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
-                          >
-                            <ArrowDown className="w-3 h-3 text-gray-500" />
-                          </button>
-                        </div>
-
-                        <span className="w-5 text-center text-xs text-gray-400 font-mono">
-                          {index + 1}
-                        </span>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-gray-900 truncate">{component.component_name}</span>
-                            {hasFormula && (
-                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs flex-wrap mt-0.5">
-                            <span className="text-gray-500 font-mono">{component.component_code}</span>
-                            {hasFormula ? (
-                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
-                            )}
-                            {hasFilter && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
-                                {component.filter_variable_name}
-                              </span>
-                            )}
-                            {hasVisibility && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
-                                Conditional
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Material count badge */}
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                          materialCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
-                        }`}>
-                          {materialCount}
-                        </span>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newValue = !component.is_optional;
-                            supabase
-                              .from('product_type_components_v2')
-                              .update({ is_optional: newValue })
-                              .eq('id', component.assignment_id)
-                              .then(() => refetchComponents());
-                          }}
-                          className={`px-2 py-1 text-xs rounded border transition-colors ${
-                            component.is_optional
-                              ? 'bg-green-50 border-green-300 text-green-700'
-                              : 'bg-gray-50 border-gray-300 text-gray-500'
+                      <div key={component.component_type_id}>
+                        {/* Component row */}
+                        <div
+                          className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 ${
+                            isComponentSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                           }`}
-                          title={component.is_optional ? 'Optional' : 'Required'}
-                        >
-                          {component.is_optional ? 'Opt' : 'Req'}
-                        </button>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingComponent(component);
+                          onClick={() => {
+                            if (hasFilter) {
+                              toggleComponentExpand(component.component_type_id);
+                            }
+                            setSelectedComponentForMaterials(component);
+                            setSelectedAttributeValue(null);
+                            setMaterialSearch('');
+                            setCategoryFilter('');
+                            setSubcategoryFilter('');
                           }}
-                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                          {hasFilter ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleComponentExpand(component.component_type_id);
+                              }}
+                              className="p-0.5"
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                          ) : (
+                            <div className="w-5" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900">{component.component_name}</div>
+                            {hasFilter && (
+                              <div className="text-xs text-gray-500">By {component.filter_variable_name?.toLowerCase()}</div>
+                            )}
+                          </div>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                            materialCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {materialCount}
+                          </span>
+                        </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleComponent(component);
-                          }}
-                          disabled={saving}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {/* Subgroup rows (filter variable values) */}
+                        {hasFilter && isExpanded && component.filter_variable_values && (
+                          <div className="bg-gray-50">
+                            {component.filter_variable_values.map(val => {
+                              const attrCount = getMaterialCountForAttribute(
+                                component.component_type_id,
+                                component.filter_variable_code!,
+                                val
+                              );
+                              const isSubSelected = selectedComponentForMaterials?.component_type_id === component.component_type_id && selectedAttributeValue === val;
+
+                              return (
+                                <div
+                                  key={val}
+                                  className={`flex items-center gap-2 pl-10 pr-3 py-1.5 cursor-pointer hover:bg-gray-100 ${
+                                    isSubSelected ? 'bg-green-50 border-l-4 border-green-500' : ''
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedComponentForMaterials(component);
+                                    setSelectedAttributeValue(val);
+                                    setMaterialSearch('');
+                                    setCategoryFilter('');
+                                    setSubcategoryFilter('');
+                                  }}
+                                >
+                                  <span className={`text-sm font-medium ${isSubSelected ? 'text-green-700' : 'text-green-600'}`}>
+                                    {val}
+                                  </span>
+                                  <span className={`ml-auto px-2 py-0.5 text-xs font-medium rounded ${
+                                    attrCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
+                                  }`}>
+                                    {attrCount}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2072,183 +2119,187 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 3 - Material Eligibility (shows when component selected) */}
-          {selectedComponentForMaterials && (
-            <div className="flex-1 bg-white rounded-lg border border-purple-200 flex flex-col">
-              {/* Header */}
-              <div className="p-3 border-b border-purple-100 bg-purple-50/50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-purple-900">
-                      {selectedComponentForMaterials.component_name}
-                      {selectedAttributeValue && (
-                        <span className="text-purple-600 ml-2">→ {selectedAttributeValue}</span>
-                      )}
-                    </h3>
-                    <p className="text-xs text-purple-600 mt-0.5">
-                      {eligibleMaterialIds.size} materials assigned
-                    </p>
+          {/* Panel 3 - Material Eligibility (always visible) */}
+          <div className="flex-1 bg-white rounded-lg border border-purple-200 flex flex-col">
+            {selectedComponentForMaterials ? (
+              <>
+                {/* Header */}
+                <div className="p-3 border-b border-purple-100 bg-purple-50/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-purple-900">
+                        {selectedComponentForMaterials.component_name}
+                        {selectedAttributeValue && (
+                          <span className="text-green-600 ml-2">→ {selectedAttributeValue}</span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-purple-600 mt-0.5">
+                        {eligibleMaterialIds.size} materials eligible
+                      </p>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedComponentForMaterials(null)}
-                    className="p-1.5 hover:bg-purple-100 rounded"
-                  >
-                    <X className="w-4 h-4 text-purple-600" />
-                  </button>
+
+                  {/* Active rule chips */}
+                  {getActiveRuleChips().length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {getActiveRuleChips().map(chip => (
+                        <span
+                          key={chip.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded"
+                        >
+                          {chip.type === 'subcategory' ? 'Sub: ' : ''}{chip.label}
+                          <button
+                            onClick={() => removeRule(chip.id)}
+                            className="hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Attribute value filter if component has filter variable */}
-                {selectedComponentForMaterials.filter_variable_values &&
-                 selectedComponentForMaterials.filter_variable_values.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    <button
-                      onClick={() => setSelectedAttributeValue(null)}
-                      className={`px-2 py-1 text-xs rounded transition-colors ${
-                        !selectedAttributeValue
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                      }`}
-                    >
-                      All
-                    </button>
-                    {selectedComponentForMaterials.filter_variable_values.map(val => (
-                      <button
-                        key={val}
-                        onClick={() => setSelectedAttributeValue(val)}
-                        className={`px-2 py-1 text-xs rounded transition-colors ${
-                          selectedAttributeValue === val
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                        }`}
-                      >
-                        {val}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Material Filters */}
-              <div className="border-b border-gray-200 px-3 py-2 flex items-center gap-2 flex-wrap bg-gray-50">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => {
-                    setCategoryFilter(e.target.value);
-                    setSubcategoryFilter('');
-                  }}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                {subcategories.length > 0 && (
+                {/* Material Filters + Add as Rule */}
+                <div className="border-b border-gray-200 px-3 py-2 flex items-center gap-2 flex-wrap bg-gray-50">
+                  <Filter className="w-4 h-4 text-gray-400" />
                   <select
-                    value={subcategoryFilter}
-                    onChange={(e) => setSubcategoryFilter(e.target.value)}
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value);
+                      setSubcategoryFilter('');
+                    }}
                     className="px-2 py-1 text-xs border border-gray-300 rounded"
                   >
-                    <option value="">All Subcategories</option>
-                    {subcategories.map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
-                )}
-                <div className="flex-1 relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                  <input
-                    type="text"
-                    value={materialSearch}
-                    onChange={(e) => setMaterialSearch(e.target.value)}
-                    placeholder="Search materials..."
-                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded"
-                  />
+                  {subcategories.length > 0 && (
+                    <select
+                      value={subcategoryFilter}
+                      onChange={(e) => setSubcategoryFilter(e.target.value)}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded"
+                    >
+                      <option value="">All Subcategories</option>
+                      {subcategories.map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+                  )}
+                  {/* Add as Rule button */}
+                  {(categoryFilter || subcategoryFilter) && (
+                    <button
+                      onClick={() => addCategoryRule(categoryFilter, subcategoryFilter || undefined)}
+                      disabled={saving}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 whitespace-nowrap"
+                    >
+                      + Add as Rule
+                    </button>
+                  )}
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                    <input
+                      type="text"
+                      value={materialSearch}
+                      onChange={(e) => setMaterialSearch(e.target.value)}
+                      placeholder="Search materials..."
+                      className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded"
+                    />
+                  </div>
+                  {filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length > 0 && (
+                    <button
+                      onClick={addAllVisible}
+                      disabled={saving}
+                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 whitespace-nowrap"
+                    >
+                      + Add All Visible ({filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length})
+                    </button>
+                  )}
                 </div>
-                {filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length > 0 && (
-                  <button
-                    onClick={addAllVisible}
-                    disabled={saving}
-                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 whitespace-nowrap"
-                  >
-                    + Add All Visible ({filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length})
-                  </button>
-                )}
-              </div>
 
-              {/* Material List */}
-              <div className="flex-1 overflow-auto p-2">
-                {loadingMaterials ? (
-                  <div className="flex items-center justify-center h-32">
-                    <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {filteredMaterials.map(material => {
-                      const isEligible = eligibleMaterialIds.has(material.id);
-                      const isDefault = isEligible && isDefaultMaterial(material.id);
+                {/* Material List */}
+                <div className="flex-1 overflow-auto p-2">
+                  {loadingMaterials ? (
+                    <div className="flex items-center justify-center h-32">
+                      <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredMaterials.map(material => {
+                        const isEligible = eligibleMaterialIds.has(material.id);
+                        const isDefault = isEligible && isDefaultMaterial(material.id);
 
-                      return (
-                        <div
-                          key={material.id}
-                          onClick={() => toggleMaterial(material.id)}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
-                            isEligible
-                              ? 'bg-purple-50 border border-purple-200'
-                              : 'bg-white border border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                            isEligible ? 'bg-purple-600 border-purple-600' : 'border-gray-300'
-                          }`}>
-                            {isEligible && <Check className="w-3 h-3 text-white" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
-                              <span className="text-sm text-gray-900 truncate">{material.material_name}</span>
+                        return (
+                          <div
+                            key={material.id}
+                            onClick={() => toggleMaterial(material.id)}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                              isEligible
+                                ? 'bg-green-50 border border-green-200'
+                                : 'bg-white border border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                              isEligible ? 'bg-green-600 border-green-600' : 'border-gray-300'
+                            }`}>
+                              {isEligible && <Check className="w-3 h-3 text-white" />}
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                              <span>{material.category}</span>
-                              {material.sub_category && (
-                                <>
-                                  <span>•</span>
-                                  <span>{material.sub_category}</span>
-                                </>
-                              )}
-                              {material.length_ft && (
-                                <>
-                                  <span>•</span>
-                                  <span>{material.length_ft}ft</span>
-                                </>
-                              )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
+                                <span className="text-sm text-gray-900 truncate">{material.material_name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                <span>{material.category}</span>
+                                {material.sub_category && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{material.sub_category}</span>
+                                  </>
+                                )}
+                                {material.length_ft && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{material.length_ft}ft</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
+                            <div className="text-xs font-medium text-gray-600">
+                              ${material.unit_cost.toFixed(2)}
+                            </div>
+                            {isEligible && (
+                              <button
+                                onClick={(e) => toggleMaterialDefault(material.id, e)}
+                                title={isDefault ? 'Remove as default' : 'Set as default'}
+                                className={`p-1 rounded transition-colors ${
+                                  isDefault
+                                    ? 'text-yellow-500 hover:text-yellow-600'
+                                    : 'text-gray-300 hover:text-yellow-400'
+                                }`}
+                              >
+                                <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
+                              </button>
+                            )}
                           </div>
-                          <div className="text-xs font-medium text-gray-600">
-                            ${material.unit_cost.toFixed(2)}
-                          </div>
-                          {isEligible && (
-                            <button
-                              onClick={(e) => toggleMaterialDefault(material.id, e)}
-                              title={isDefault ? 'Remove as default' : 'Set as default'}
-                              className={`p-1 rounded transition-colors ${
-                                isDefault
-                                  ? 'text-yellow-500 hover:text-yellow-600'
-                                  : 'text-gray-300 hover:text-yellow-400'
-                              }`}
-                            >
-                              <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <Link2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-sm">Select a component to configure</p>
+                  <p className="text-xs text-gray-400 mt-1">eligible materials</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
@@ -2404,7 +2455,7 @@ function EditComponentAssignmentModal({
           {selectedVariable && selectedVariable.allowed_values && selectedVariable.allowed_values.length > 0 && (
             <div className="p-3 bg-purple-50 rounded-lg">
               <div className="text-sm font-medium text-purple-800 mb-2">
-                Material/Labor will be grouped by:
+                Material will be grouped by:
               </div>
               <div className="flex flex-wrap gap-1">
                 {selectedVariable.allowed_values.map((val) => (
