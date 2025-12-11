@@ -14,10 +14,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Save, Trash2, X, ChevronDown, ChevronRight, Edit2, Copy,
+  Plus, Save, Trash2, X, ChevronDown, Edit2, Copy,
   AlertCircle, CheckCircle, Layers, Settings, Variable,
   Box, Calculator, Search, ArrowUp, ArrowDown, Download,
-  Link2, Filter, Check, Star
+  Filter, Check, Star
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -49,8 +49,8 @@ interface FormulaTemplateV2 {
   is_active: boolean;
 }
 
-// Tab types
-type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'materials' | 'labor';
+// Tab types - Materials merged into Components, Labor separate
+type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor';
 
 export default function ProductTypeManagerPage() {
   const queryClient = useQueryClient();
@@ -206,12 +206,6 @@ export default function ProductTypeManagerPage() {
                     count={stats.formulas}
                   />
                   <TabButton
-                    label="Materials"
-                    icon={<Link2 className="w-4 h-4" />}
-                    isActive={activeTab === 'materials'}
-                    onClick={() => setActiveTab('materials')}
-                  />
-                  <TabButton
                     label="Labor"
                     icon={<Settings className="w-4 h-4" />}
                     isActive={activeTab === 'labor'}
@@ -256,11 +250,6 @@ export default function ProductTypeManagerPage() {
                     variables={variables}
                     isLoading={loadingFormulas}
                     onRefresh={() => loadFormulas(selectedTypeId!)}
-                  />
-                )}
-                {activeTab === 'materials' && (
-                  <MaterialsTab
-                    productType={selectedType}
                   />
                 )}
                 {activeTab === 'labor' && (
@@ -1421,8 +1410,34 @@ function VariableModal({
 }
 
 // =============================================================================
-// COMPONENTS TAB - Three-panel design (Available, Materials, Labor)
+// COMPONENTS TAB - Two-panel design with Material Eligibility slide-out
+// Materials tab functionality merged into Components tab
 // =============================================================================
+
+// Types for material eligibility (moved from MaterialsTab)
+interface MaterialItem {
+  id: string;
+  material_sku: string;
+  material_name: string;
+  category: string;
+  sub_category: string | null;
+  unit_cost: number;
+  length_ft: number | null;
+  status: string;
+}
+
+interface MaterialEligibilityRule {
+  id: string;
+  product_type_id: string;
+  component_type_id: string;
+  selection_mode: 'category' | 'subcategory' | 'specific';
+  material_category: string | null;
+  material_subcategory: string | null;
+  material_id: string | null;
+  attribute_filter: Record<string, string> | null;
+  is_default: boolean;
+  is_active: boolean;
+}
 
 function ComponentsTab({
   productType,
@@ -1444,40 +1459,308 @@ function ComponentsTab({
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingComponent, setEditingComponent] = useState<ProductTypeComponentFull | null>(null);
 
+  // Material eligibility panel state
+  const [selectedComponentForMaterials, setSelectedComponentForMaterials] = useState<ProductTypeComponentFull | null>(null);
+  const [selectedAttributeValue, setSelectedAttributeValue] = useState<string | null>(null);
+  const [materialSearch, setMaterialSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [subcategoryFilter, setSubcategoryFilter] = useState('');
+  const [materials, setMaterials] = useState<MaterialItem[]>([]);
+  const [materialRules, setMaterialRules] = useState<MaterialEligibilityRule[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+
   // Get full component data with assignment status from the view
   const { data: componentsFull = [], isLoading: loadingFull, refetch: refetchComponents } = useProductTypeComponentsFull(productType.id);
 
   // Determine which components have formulas for this product type
   const componentsWithFormulas = new Set(formulas.map((f) => f.component_type_id));
 
-  // Split into selected Materials and selected Labor
+  // Split into selected Materials only (labor handled in Labor tab)
   const selectedMaterialComponents = componentsFull
     .filter(c => c.is_assigned && !c.is_labor)
-    .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
-
-  const selectedLaborComponents = componentsFull
-    .filter(c => c.is_assigned && c.is_labor)
     .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
 
   const availableComponents = componentsFull
     .filter(c => !c.is_assigned)
     .filter(c => {
-      // Apply material/labor filter
+      // Only show material components (labor goes to Labor tab)
       if (componentFilter === 'material') return !c.is_labor;
       if (componentFilter === 'labor') return c.is_labor;
-      return true;
+      return !c.is_labor; // Default to materials only
     })
     .filter(c =>
       c.component_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.component_code.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+  // Load materials on mount
+  useEffect(() => {
+    const loadMaterials = async () => {
+      setLoadingMaterials(true);
+      const { data: matData } = await supabase
+        .from('materials')
+        .select('id, material_sku, material_name, category, sub_category, unit_cost, length_ft, status')
+        .eq('status', 'Active')
+        .order('category')
+        .order('material_name');
+
+      if (matData) setMaterials(matData);
+      setLoadingMaterials(false);
+    };
+    loadMaterials();
+  }, []);
+
+  // Load material rules when product type changes
+  useEffect(() => {
+    const loadRules = async () => {
+      const { data: matRules } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+
+      if (matRules) setMaterialRules(matRules);
+    };
+    loadRules();
+  }, [productType.id]);
+
+  // Get unique categories for filters
+  const categories = [...new Set(materials.map(m => m.category))].sort();
+  const subcategories = categoryFilter
+    ? [...new Set(materials.filter(m => m.category === categoryFilter && m.sub_category).map(m => m.sub_category!))]
+    : [];
+
+  // Filter materials for the browser
+  const filteredMaterials = materials.filter(m => {
+    if (categoryFilter && m.category !== categoryFilter) return false;
+    if (subcategoryFilter && m.sub_category !== subcategoryFilter) return false;
+    if (materialSearch) {
+      const search = materialSearch.toLowerCase();
+      return m.material_sku.toLowerCase().includes(search) ||
+             m.material_name.toLowerCase().includes(search);
+    }
+    return true;
+  });
+
+  // Get material count for a component
+  const getMaterialCount = (componentId: string): number => {
+    const rules = materialRules.filter(r => r.component_type_id === componentId);
+    const countedIds = new Set<string>();
+
+    for (const rule of rules) {
+      if (rule.selection_mode === 'specific' && rule.material_id) {
+        countedIds.add(rule.material_id);
+      } else if (rule.selection_mode === 'category' && rule.material_category) {
+        materials
+          .filter(m => m.category === rule.material_category)
+          .forEach(m => countedIds.add(m.id));
+      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
+        materials
+          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
+          .forEach(m => countedIds.add(m.id));
+      }
+    }
+    return countedIds.size;
+  };
+
+  // Get eligible material IDs for selected component + attribute
+  const getEligibleMaterialIds = (): Set<string> => {
+    if (!selectedComponentForMaterials) return new Set();
+
+    const filterCode = selectedComponentForMaterials.filter_variable_code;
+
+    const rules = materialRules.filter(r => {
+      if (r.component_type_id !== selectedComponentForMaterials.component_type_id) return false;
+
+      if (selectedAttributeValue && filterCode) {
+        if (!r.attribute_filter) return false;
+        return r.attribute_filter[filterCode] === selectedAttributeValue;
+      }
+      return true;
+    });
+
+    const eligibleIds = new Set<string>();
+    for (const rule of rules) {
+      if (rule.selection_mode === 'specific' && rule.material_id) {
+        eligibleIds.add(rule.material_id);
+      } else if (rule.selection_mode === 'category' && rule.material_category) {
+        materials
+          .filter(m => m.category === rule.material_category)
+          .forEach(m => eligibleIds.add(m.id));
+      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
+        materials
+          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
+          .forEach(m => eligibleIds.add(m.id));
+      }
+    }
+    return eligibleIds;
+  };
+
+  const eligibleMaterialIds = getEligibleMaterialIds();
+
+  // Build attribute filter for insert
+  const buildAttributeFilter = (): Record<string, string> | null => {
+    const filterCode = selectedComponentForMaterials?.filter_variable_code;
+    if (!filterCode || !selectedAttributeValue) return null;
+    return { [filterCode]: selectedAttributeValue };
+  };
+
+  // Add material to eligibility
+  const addMaterial = async (materialId: string) => {
+    if (!selectedComponentForMaterials) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_material_eligibility_v2')
+      .insert({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentForMaterials.component_type_id,
+        selection_mode: 'specific',
+        material_id: materialId,
+        attribute_filter: buildAttributeFilter(),
+      });
+
+    if (!error) {
+      const { data } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setMaterialRules(data);
+    }
+    setSaving(false);
+  };
+
+  // Remove material from eligibility
+  const removeMaterial = async (materialId: string) => {
+    if (!selectedComponentForMaterials) return;
+    setSaving(true);
+
+    const attrFilter = buildAttributeFilter();
+
+    if (attrFilter) {
+      await supabase
+        .from('component_material_eligibility_v2')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentForMaterials.component_type_id)
+        .eq('material_id', materialId)
+        .eq('selection_mode', 'specific')
+        .contains('attribute_filter', attrFilter);
+    } else {
+      await supabase
+        .from('component_material_eligibility_v2')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentForMaterials.component_type_id)
+        .eq('material_id', materialId)
+        .eq('selection_mode', 'specific')
+        .is('attribute_filter', null);
+    }
+
+    const { data } = await supabase
+      .from('component_material_eligibility_v2')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setMaterialRules(data);
+    setSaving(false);
+  };
+
+  // Toggle material eligibility
+  const toggleMaterial = (materialId: string) => {
+    if (eligibleMaterialIds.has(materialId)) {
+      removeMaterial(materialId);
+    } else {
+      addMaterial(materialId);
+    }
+  };
+
+  // Add all visible materials
+  const addAllVisible = async () => {
+    if (!selectedComponentForMaterials) return;
+    setSaving(true);
+
+    const attrFilter = buildAttributeFilter();
+    const toAdd = filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id));
+
+    if (toAdd.length > 0) {
+      const inserts = toAdd.map(m => ({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentForMaterials.component_type_id,
+        selection_mode: 'specific' as const,
+        material_id: m.id,
+        attribute_filter: attrFilter,
+      }));
+
+      await supabase
+        .from('component_material_eligibility_v2')
+        .insert(inserts);
+
+      const { data } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setMaterialRules(data);
+    }
+    setSaving(false);
+  };
+
+  // Get/toggle material default status
+  const getMaterialRule = (materialId: string): MaterialEligibilityRule | undefined => {
+    const attrFilter = buildAttributeFilter();
+    return materialRules.find(r =>
+      r.component_type_id === selectedComponentForMaterials?.component_type_id &&
+      r.selection_mode === 'specific' &&
+      r.material_id === materialId &&
+      JSON.stringify(r.attribute_filter || null) === JSON.stringify(attrFilter)
+    );
+  };
+
+  const isDefaultMaterial = (materialId: string): boolean => {
+    const rule = getMaterialRule(materialId);
+    return rule?.is_default ?? false;
+  };
+
+  const toggleMaterialDefault = async (materialId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rule = getMaterialRule(materialId);
+    if (!rule) return;
+
+    setSaving(true);
+    const newDefault = !rule.is_default;
+
+    if (newDefault) {
+      // Clear all other defaults for this component
+      await supabase
+        .from('component_material_eligibility_v2')
+        .update({ is_default: false })
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentForMaterials!.component_type_id)
+        .eq('selection_mode', 'specific')
+        .neq('material_id', materialId);
+    }
+
+    await supabase
+      .from('component_material_eligibility_v2')
+      .update({ is_default: newDefault })
+      .eq('id', rule.id);
+
+    const { data } = await supabase
+      .from('component_material_eligibility_v2')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setMaterialRules(data);
+    setSaving(false);
+  };
+
   // Toggle component selection
   const toggleComponent = async (component: ProductTypeComponentFull) => {
     setSaving(true);
 
     if (component.is_assigned && component.assignment_id) {
-      // Unassign: Delete from junction table
       const { error } = await supabase
         .from('product_type_components_v2')
         .delete()
@@ -1486,10 +1769,12 @@ function ComponentsTab({
       if (error) {
         console.error('Error unassigning component:', error);
       }
+      // Close material panel if this component was selected
+      if (selectedComponentForMaterials?.component_type_id === component.component_type_id) {
+        setSelectedComponentForMaterials(null);
+      }
     } else {
-      // Assign: Insert into junction table
-      const allAssigned = [...selectedMaterialComponents, ...selectedLaborComponents];
-      const maxOrder = Math.max(...allAssigned.map(c => c.display_order || 0), 0);
+      const maxOrder = Math.max(...selectedMaterialComponents.map(c => c.display_order || 0), 0);
       const { error } = await supabase
         .from('product_type_components_v2')
         .insert({
@@ -1507,10 +1792,10 @@ function ComponentsTab({
     setSaving(false);
   };
 
-  // Move component up/down in order (within its own category - materials or labor)
+  // Move component up/down in order
   const moveComponent = async (component: ProductTypeComponentFull, direction: 'up' | 'down') => {
-    // Get the appropriate list based on whether it's labor or material
-    const componentList = component.is_labor ? selectedLaborComponents : selectedMaterialComponents;
+    // Use material components list (labor is now in Labor tab)
+    const componentList = selectedMaterialComponents;
     const currentIndex = componentList.findIndex(c => c.component_type_id === component.component_type_id);
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
 
@@ -1644,14 +1929,14 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 2 - Selected Materials (37% width via flex-1) */}
-          <div className="flex-1 bg-white rounded-lg border border-blue-200 flex flex-col">
+          {/* Panel 2 - Selected Material Components (click to see materials) */}
+          <div className={`${selectedComponentForMaterials ? 'w-[35%]' : 'flex-1'} bg-white rounded-lg border border-blue-200 flex flex-col transition-all`}>
             <div className="p-3 border-b border-blue-100 bg-blue-50/50">
               <h3 className="font-semibold text-blue-900">
                 Materials ({selectedMaterialComponents.length})
               </h3>
               <p className="text-xs text-blue-600 mt-0.5">
-                Physical items - rails, pickets, posts...
+                Click a component to configure eligible materials
               </p>
             </div>
 
@@ -1666,12 +1951,25 @@ function ComponentsTab({
                     const hasFormula = componentsWithFormulas.has(component.component_type_id);
                     const hasFilter = !!component.filter_variable_id;
                     const hasVisibility = component.visibility_conditions && Object.keys(component.visibility_conditions).length > 0;
+                    const materialCount = getMaterialCount(component.component_type_id);
+                    const isSelected = selectedComponentForMaterials?.component_type_id === component.component_type_id;
                     return (
                       <div
                         key={component.component_type_id}
-                        className="flex items-center gap-2 px-3 py-2 rounded bg-gray-50 group"
+                        onClick={() => {
+                          setSelectedComponentForMaterials(component);
+                          setSelectedAttributeValue(null);
+                          setMaterialSearch('');
+                          setCategoryFilter('');
+                          setSubcategoryFilter('');
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer group transition-colors ${
+                          isSelected
+                            ? 'bg-blue-100 border-2 border-blue-400'
+                            : 'bg-gray-50 hover:bg-blue-50 border-2 border-transparent'
+                        }`}
                       >
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => moveComponent(component, 'up')}
                             disabled={index === 0 || saving}
@@ -1719,130 +2017,22 @@ function ComponentsTab({
                           </div>
                         </div>
 
-                        <button
-                          onClick={async () => {
-                            const newValue = !component.is_optional;
-                            await supabase
-                              .from('product_type_components_v2')
-                              .update({ is_optional: newValue })
-                              .eq('id', component.assignment_id);
-                            refetchComponents();
-                          }}
-                          className={`px-2 py-1 text-xs rounded border transition-colors ${
-                            component.is_optional
-                              ? 'bg-green-50 border-green-300 text-green-700'
-                              : 'bg-gray-50 border-gray-300 text-gray-500'
-                          }`}
-                          title={component.is_optional ? 'Optional' : 'Required'}
-                        >
-                          {component.is_optional ? 'Opt' : 'Req'}
-                        </button>
-
-                        <button
-                          onClick={() => setEditingComponent(component)}
-                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => toggleComponent(component)}
-                          disabled={saving}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Panel 3 - Selected Labor (37% width via flex-1) */}
-          <div className="flex-1 bg-white rounded-lg border border-orange-200 flex flex-col">
-            <div className="p-3 border-b border-orange-100 bg-orange-50/50">
-              <h3 className="font-semibold text-orange-900">
-                Labor ({selectedLaborComponents.length})
-              </h3>
-              <p className="text-xs text-orange-600 mt-0.5">
-                Work tasks - nail up, set posts...
-              </p>
-            </div>
-
-            <div className="flex-1 overflow-auto p-2">
-              {selectedLaborComponents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No labor selected
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {selectedLaborComponents.map((component, index) => {
-                    const hasFormula = componentsWithFormulas.has(component.component_type_id);
-                    const hasFilter = !!component.filter_variable_id;
-                    const hasVisibility = component.visibility_conditions && Object.keys(component.visibility_conditions).length > 0;
-                    return (
-                      <div
-                        key={component.component_type_id}
-                        className="flex items-center gap-2 px-3 py-2 rounded bg-gray-50 group"
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            onClick={() => moveComponent(component, 'up')}
-                            disabled={index === 0 || saving}
-                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
-                          >
-                            <ArrowUp className="w-3 h-3 text-gray-500" />
-                          </button>
-                          <button
-                            onClick={() => moveComponent(component, 'down')}
-                            disabled={index === selectedLaborComponents.length - 1 || saving}
-                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
-                          >
-                            <ArrowDown className="w-3 h-3 text-gray-500" />
-                          </button>
-                        </div>
-
-                        <span className="w-5 text-center text-xs text-gray-400 font-mono">
-                          {index + 1}
+                        {/* Material count badge */}
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          materialCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
+                        }`}>
+                          {materialCount}
                         </span>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-gray-900 truncate">{component.component_name}</span>
-                            {hasFormula && (
-                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs flex-wrap mt-0.5">
-                            <span className="text-gray-500 font-mono">{component.component_code}</span>
-                            {hasFormula ? (
-                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
-                            )}
-                            {hasFilter && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
-                                {component.filter_variable_name}
-                              </span>
-                            )}
-                            {hasVisibility && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
-                                Conditional
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
                         <button
-                          onClick={async () => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             const newValue = !component.is_optional;
-                            await supabase
+                            supabase
                               .from('product_type_components_v2')
                               .update({ is_optional: newValue })
-                              .eq('id', component.assignment_id);
-                            refetchComponents();
+                              .eq('id', component.assignment_id)
+                              .then(() => refetchComponents());
                           }}
                           className={`px-2 py-1 text-xs rounded border transition-colors ${
                             component.is_optional
@@ -1855,14 +2045,20 @@ function ComponentsTab({
                         </button>
 
                         <button
-                          onClick={() => setEditingComponent(component)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingComponent(component);
+                          }}
                           className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
 
                         <button
-                          onClick={() => toggleComponent(component)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleComponent(component);
+                          }}
                           disabled={saving}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                         >
@@ -1875,6 +2071,192 @@ function ComponentsTab({
               )}
             </div>
           </div>
+
+          {/* Panel 3 - Material Eligibility (shows when component selected) */}
+          {selectedComponentForMaterials && (
+            <div className="flex-1 bg-white rounded-lg border border-purple-200 flex flex-col">
+              {/* Header */}
+              <div className="p-3 border-b border-purple-100 bg-purple-50/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-purple-900">
+                      {selectedComponentForMaterials.component_name}
+                      {selectedAttributeValue && (
+                        <span className="text-purple-600 ml-2">→ {selectedAttributeValue}</span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-purple-600 mt-0.5">
+                      {eligibleMaterialIds.size} materials assigned
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedComponentForMaterials(null)}
+                    className="p-1.5 hover:bg-purple-100 rounded"
+                  >
+                    <X className="w-4 h-4 text-purple-600" />
+                  </button>
+                </div>
+
+                {/* Attribute value filter if component has filter variable */}
+                {selectedComponentForMaterials.filter_variable_values &&
+                 selectedComponentForMaterials.filter_variable_values.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <button
+                      onClick={() => setSelectedAttributeValue(null)}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        !selectedAttributeValue
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {selectedComponentForMaterials.filter_variable_values.map(val => (
+                      <button
+                        key={val}
+                        onClick={() => setSelectedAttributeValue(val)}
+                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                          selectedAttributeValue === val
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Material Filters */}
+              <div className="border-b border-gray-200 px-3 py-2 flex items-center gap-2 flex-wrap bg-gray-50">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setSubcategoryFilter('');
+                  }}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                {subcategories.length > 0 && (
+                  <select
+                    value={subcategoryFilter}
+                    onChange={(e) => setSubcategoryFilter(e.target.value)}
+                    className="px-2 py-1 text-xs border border-gray-300 rounded"
+                  >
+                    <option value="">All Subcategories</option>
+                    {subcategories.map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                )}
+                <div className="flex-1 relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={materialSearch}
+                    onChange={(e) => setMaterialSearch(e.target.value)}
+                    placeholder="Search materials..."
+                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded"
+                  />
+                </div>
+                {filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length > 0 && (
+                  <button
+                    onClick={addAllVisible}
+                    disabled={saving}
+                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 whitespace-nowrap"
+                  >
+                    + Add All Visible ({filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length})
+                  </button>
+                )}
+              </div>
+
+              {/* Material List */}
+              <div className="flex-1 overflow-auto p-2">
+                {loadingMaterials ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredMaterials.map(material => {
+                      const isEligible = eligibleMaterialIds.has(material.id);
+                      const isDefault = isEligible && isDefaultMaterial(material.id);
+
+                      return (
+                        <div
+                          key={material.id}
+                          onClick={() => toggleMaterial(material.id)}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                            isEligible
+                              ? 'bg-purple-50 border border-purple-200'
+                              : 'bg-white border border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            isEligible ? 'bg-purple-600 border-purple-600' : 'border-gray-300'
+                          }`}>
+                            {isEligible && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
+                              <span className="text-sm text-gray-900 truncate">{material.material_name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                              <span>{material.category}</span>
+                              {material.sub_category && (
+                                <>
+                                  <span>•</span>
+                                  <span>{material.sub_category}</span>
+                                </>
+                              )}
+                              {material.length_ft && (
+                                <>
+                                  <span>•</span>
+                                  <span>{material.length_ft}ft</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs font-medium text-gray-600">
+                            ${material.unit_cost.toFixed(2)}
+                          </div>
+                          {isEligible && (
+                            <button
+                              onClick={(e) => toggleMaterialDefault(material.id, e)}
+                              title={isDefault ? 'Remove as default' : 'Set as default'}
+                              className={`p-1 rounded transition-colors ${
+                                isDefault
+                                  ? 'text-yellow-500 hover:text-yellow-600'
+                                  : 'text-gray-300 hover:text-yellow-400'
+                              }`}
+                            >
+                              <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Saving Indicator */}
+      {saving && (
+        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg z-50">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm">Saving...</span>
         </div>
       )}
 
@@ -2961,19 +3343,8 @@ function EmptyState({
 }
 
 // =============================================================================
-// MATERIALS TAB - Material Assignment per Component
+// LABOR TAB TYPES
 // =============================================================================
-
-interface Material {
-  id: string;
-  material_sku: string;
-  material_name: string;
-  category: string;
-  sub_category: string | null;
-  unit_cost: number;
-  length_ft: number | null;
-  status: string;
-}
 
 interface LaborCode {
   id: string;
@@ -2981,19 +3352,6 @@ interface LaborCode {
   description: string;
   unit_type: string;
   fence_category_standard: string[] | null;
-}
-
-interface MaterialEligibilityV2 {
-  id: string;
-  product_type_id: string;
-  component_type_id: string;
-  selection_mode: 'category' | 'subcategory' | 'specific';
-  material_category: string | null;
-  material_subcategory: string | null;
-  material_id: string | null;
-  attribute_filter: Record<string, string> | null;
-  is_active: boolean;
-  is_default: boolean;
 }
 
 interface LaborEligibilityV2 {
@@ -3007,768 +3365,9 @@ interface LaborEligibilityV2 {
   is_default: boolean;
 }
 
-function MaterialsTab({
-  productType,
-}: {
-  productType: ProductTypeV2;
-}) {
-  // UI State - Materials only
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
-  const [selectedAttributeValue, setSelectedAttributeValue] = useState<string | null>(null);
-  const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
-  const [materialSearch, setMaterialSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [subcategoryFilter, setSubcategoryFilter] = useState('');
-  const [saving, setSaving] = useState(false);
+// NOTE: MaterialsTab functionality has been merged into ComponentsTab
+// The Materials panel is now integrated as a slide-out in the Components tab
 
-  // Fetch assigned components for this product type (material components only)
-  const { data: componentsFull = [] } = useProductTypeComponentsFull(productType.id);
-
-  // Get only assigned MATERIAL components (not labor)
-  const assignedComponents = componentsFull.filter(c => c.is_assigned && !c.is_labor);
-
-  // Helper to get the selected component's filter variable info
-  const getSelectedComponentFilterCode = (): string | null => {
-    if (!selectedComponentId) return null;
-    const comp = assignedComponents.find(c => c.component_type_id === selectedComponentId);
-    return comp?.filter_variable_code || null;
-  };
-
-  // Fetch all materials
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [loadingMaterials, setLoadingMaterials] = useState(true);
-
-  // Fetch material eligibility rules for this product type
-  const [materialRules, setMaterialRules] = useState<MaterialEligibilityV2[]>([]);
-
-  // Load materials on mount
-  useEffect(() => {
-    const loadData = async () => {
-      const { data: matData } = await supabase
-        .from('materials')
-        .select('id, material_sku, material_name, category, sub_category, unit_cost, length_ft, status')
-        .eq('status', 'Active')
-        .order('category')
-        .order('material_name');
-
-      if (matData) setMaterials(matData);
-      setLoadingMaterials(false);
-    };
-
-    loadData();
-  }, []);
-
-  // Load material rules when product type changes
-  useEffect(() => {
-    const loadRules = async () => {
-      const { data: matRules } = await supabase
-        .from('component_material_eligibility_v2')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-
-      if (matRules) setMaterialRules(matRules);
-    };
-
-    loadRules();
-  }, [productType.id]);
-
-  // Get unique categories
-  const categories = [...new Set(materials.map(m => m.category))].sort();
-
-  // Get subcategories for selected category
-  const subcategories = categoryFilter
-    ? [...new Set(materials.filter(m => m.category === categoryFilter && m.sub_category).map(m => m.sub_category!))]
-    : [];
-
-  // Filter materials
-  const filteredMaterials = materials.filter(m => {
-    if (categoryFilter && m.category !== categoryFilter) return false;
-    if (subcategoryFilter && m.sub_category !== subcategoryFilter) return false;
-    if (materialSearch) {
-      const search = materialSearch.toLowerCase();
-      return m.material_sku.toLowerCase().includes(search) ||
-             m.material_name.toLowerCase().includes(search);
-    }
-    return true;
-  });
-
-  // Get eligible materials for selected component + attribute
-  const getEligibleMaterialIds = (): Set<string> => {
-    if (!selectedComponentId) return new Set();
-
-    const filterCode = getSelectedComponentFilterCode();
-
-    const rules = materialRules.filter(r => {
-      if (r.component_type_id !== selectedComponentId) return false;
-
-      // If a specific attribute value is selected, only show rules matching that value
-      if (selectedAttributeValue && filterCode) {
-        if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterCode] === selectedAttributeValue;
-      }
-
-      // If no attribute selected, show ALL materials for this component
-      return true;
-    });
-
-    const eligibleIds = new Set<string>();
-
-    for (const rule of rules) {
-      if (rule.selection_mode === 'specific' && rule.material_id) {
-        eligibleIds.add(rule.material_id);
-      } else if (rule.selection_mode === 'category' && rule.material_category) {
-        materials
-          .filter(m => m.category === rule.material_category)
-          .forEach(m => eligibleIds.add(m.id));
-      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
-        materials
-          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
-          .forEach(m => eligibleIds.add(m.id));
-      }
-    }
-
-    return eligibleIds;
-  };
-
-  const eligibleMaterialIds = getEligibleMaterialIds();
-
-  // Helper to get component's filter variable code
-  const getComponentFilterCode = (componentId: string): string | null => {
-    const comp = assignedComponents.find(c => c.component_type_id === componentId);
-    return comp?.filter_variable_code || null;
-  };
-
-  // Get rules for a component (optionally filtered by attribute value)
-  const getRulesForComponent = (componentId: string, attributeValue?: string): MaterialEligibilityV2[] => {
-    const filterCode = getComponentFilterCode(componentId);
-
-    return materialRules.filter(r => {
-      if (r.component_type_id !== componentId) return false;
-
-      if (attributeValue && filterCode) {
-        if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterCode] === attributeValue;
-      }
-
-      // If no attributeValue specified, match rules with matching or null attribute_filter
-      if (!attributeValue) {
-        return !r.attribute_filter;
-      }
-
-      return true;
-    });
-  };
-
-  // Expand rules to count actual materials (category rules count all matching materials)
-  const countMaterialsFromRules = (rules: MaterialEligibilityV2[]): number => {
-    const countedIds = new Set<string>();
-
-    for (const rule of rules) {
-      if (rule.selection_mode === 'specific' && rule.material_id) {
-        countedIds.add(rule.material_id);
-      } else if (rule.selection_mode === 'category' && rule.material_category) {
-        materials
-          .filter(m => m.category === rule.material_category)
-          .forEach(m => countedIds.add(m.id));
-      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
-        materials
-          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
-          .forEach(m => countedIds.add(m.id));
-      }
-    }
-
-    return countedIds.size;
-  };
-
-  // Get material count for a component (counts actual items, not rules)
-  const getMaterialCount = (componentId: string, attributeValue?: string): number => {
-    const rules = getRulesForComponent(componentId, attributeValue);
-    return countMaterialsFromRules(rules);
-  };
-
-  // Get TOTAL count for a component (sum across all subgroups) - counts actual materials
-  const getTotalItemCount = (comp: ProductTypeComponentFull): number => {
-    const rules = materialRules.filter(r => r.component_type_id === comp.component_type_id);
-    return countMaterialsFromRules(rules);
-  };
-
-  // Get rules for the currently selected component + attribute
-  const getActiveRules = (): MaterialEligibilityV2[] => {
-    if (!selectedComponentId) return [];
-    return getRulesForComponent(selectedComponentId, selectedAttributeValue || undefined);
-  };
-
-  // Toggle component expansion
-  const toggleExpansion = (componentId: string) => {
-    const next = new Set(expandedComponents);
-    if (next.has(componentId)) {
-      next.delete(componentId);
-    } else {
-      next.add(componentId);
-    }
-    setExpandedComponents(next);
-  };
-
-  // Select component
-  const handleSelectComponent = (componentId: string, attributeValue?: string) => {
-    setSelectedComponentId(componentId);
-    setSelectedAttributeValue(attributeValue || null);
-  };
-
-  // Build attribute filter for insert
-  const buildAttributeFilter = (): Record<string, string> | null => {
-    const filterCode = getSelectedComponentFilterCode();
-    if (!filterCode || !selectedAttributeValue) return null;
-    return { [filterCode]: selectedAttributeValue };
-  };
-
-  // Add material to eligibility
-  const addMaterial = async (materialId: string) => {
-    if (!selectedComponentId) return;
-    setSaving(true);
-
-    const { error } = await supabase
-      .from('component_material_eligibility_v2')
-      .insert({
-        product_type_id: productType.id,
-        component_type_id: selectedComponentId,
-        selection_mode: 'specific',
-        material_id: materialId,
-        attribute_filter: buildAttributeFilter(),
-      });
-
-    if (!error) {
-      // Refresh rules
-      const { data } = await supabase
-        .from('component_material_eligibility_v2')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-      if (data) setMaterialRules(data);
-    }
-
-    setSaving(false);
-  };
-
-  // Remove material from eligibility
-  const removeMaterial = async (materialId: string) => {
-    if (!selectedComponentId) return;
-    setSaving(true);
-
-    const attrFilter = buildAttributeFilter();
-
-    // For JSONB comparison, use contains instead of eq
-    if (attrFilter) {
-      await supabase
-        .from('component_material_eligibility_v2')
-        .delete()
-        .eq('product_type_id', productType.id)
-        .eq('component_type_id', selectedComponentId)
-        .eq('material_id', materialId)
-        .eq('selection_mode', 'specific')
-        .contains('attribute_filter', attrFilter);
-    } else {
-      await supabase
-        .from('component_material_eligibility_v2')
-        .delete()
-        .eq('product_type_id', productType.id)
-        .eq('component_type_id', selectedComponentId)
-        .eq('material_id', materialId)
-        .eq('selection_mode', 'specific')
-        .is('attribute_filter', null);
-    }
-
-    // Refresh rules
-    const { data } = await supabase
-      .from('component_material_eligibility_v2')
-      .select('*')
-      .eq('product_type_id', productType.id)
-      .eq('is_active', true);
-    if (data) setMaterialRules(data);
-
-    setSaving(false);
-  };
-
-  // Toggle material eligibility
-  const toggleMaterial = (materialId: string) => {
-    if (eligibleMaterialIds.has(materialId)) {
-      removeMaterial(materialId);
-    } else {
-      addMaterial(materialId);
-    }
-  };
-
-  // Add category rule
-  const addCategoryRule = async () => {
-    if (!selectedComponentId || !categoryFilter) return;
-    setSaving(true);
-
-    const { error } = await supabase
-      .from('component_material_eligibility_v2')
-      .insert({
-        product_type_id: productType.id,
-        component_type_id: selectedComponentId,
-        selection_mode: subcategoryFilter ? 'subcategory' : 'category',
-        material_category: categoryFilter,
-        material_subcategory: subcategoryFilter || null,
-        attribute_filter: buildAttributeFilter(),
-      });
-
-    if (!error) {
-      const { data } = await supabase
-        .from('component_material_eligibility_v2')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-      if (data) setMaterialRules(data);
-    }
-
-    setSaving(false);
-  };
-
-  // Remove a rule by ID
-  const removeRule = async (ruleId: string) => {
-    setSaving(true);
-
-    await supabase
-      .from('component_material_eligibility_v2')
-      .delete()
-      .eq('id', ruleId);
-
-    // Refresh rules
-    const { data } = await supabase
-      .from('component_material_eligibility_v2')
-      .select('*')
-      .eq('product_type_id', productType.id)
-      .eq('is_active', true);
-    if (data) setMaterialRules(data);
-
-    setSaving(false);
-  };
-
-  // Get the specific rule for a material (used for defaults)
-  const getMaterialRule = (materialId: string): MaterialEligibilityV2 | undefined => {
-    const attrFilter = buildAttributeFilter();
-    return materialRules.find(r =>
-      r.component_type_id === selectedComponentId &&
-      r.selection_mode === 'specific' &&
-      r.material_id === materialId &&
-      JSON.stringify(r.attribute_filter || null) === JSON.stringify(attrFilter)
-    );
-  };
-
-  // Check if a material is set as default
-  const isDefaultMaterial = (materialId: string): boolean => {
-    const rule = getMaterialRule(materialId);
-    return rule?.is_default ?? false;
-  };
-
-  // Toggle default flag for a material
-  const toggleMaterialDefault = async (materialId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the main click handler
-    const rule = getMaterialRule(materialId);
-    if (!rule) return; // Material not in eligibility list
-
-    setSaving(true);
-    const newDefault = !rule.is_default;
-
-    // If setting as default, clear other defaults for this component+attribute combo
-    if (newDefault) {
-      const attrFilter = buildAttributeFilter();
-      // Clear all other defaults for this component+attribute
-      await supabase
-        .from('component_material_eligibility_v2')
-        .update({ is_default: false })
-        .eq('product_type_id', productType.id)
-        .eq('component_type_id', selectedComponentId!)
-        .eq('selection_mode', 'specific')
-        .neq('material_id', materialId);
-
-      // For attribute-filtered rules, also filter by attribute_filter
-      if (attrFilter) {
-        await supabase
-          .from('component_material_eligibility_v2')
-          .update({ is_default: false })
-          .eq('product_type_id', productType.id)
-          .eq('component_type_id', selectedComponentId!)
-          .contains('attribute_filter', attrFilter);
-      }
-    }
-
-    // Update this material's default status
-    await supabase
-      .from('component_material_eligibility_v2')
-      .update({ is_default: newDefault })
-      .eq('id', rule.id);
-
-    // Refresh rules
-    const { data } = await supabase
-      .from('component_material_eligibility_v2')
-      .select('*')
-      .eq('product_type_id', productType.id)
-      .eq('is_active', true);
-    if (data) setMaterialRules(data);
-
-    setSaving(false);
-  };
-
-  // Add all visible (filtered) materials
-  const addAllVisible = async () => {
-    if (!selectedComponentId) return;
-    setSaving(true);
-
-    const attrFilter = buildAttributeFilter();
-
-    // Get IDs of materials that are already eligible
-    const alreadyEligible = eligibleMaterialIds;
-
-    // Add materials that aren't already eligible
-    const toAdd = filteredMaterials.filter(m => !alreadyEligible.has(m.id));
-
-    if (toAdd.length > 0) {
-      const inserts = toAdd.map(m => ({
-        product_type_id: productType.id,
-        component_type_id: selectedComponentId,
-        selection_mode: 'specific' as const,
-        material_id: m.id,
-        attribute_filter: attrFilter,
-      }));
-
-      await supabase
-        .from('component_material_eligibility_v2')
-        .insert(inserts);
-
-      // Refresh rules
-      const { data } = await supabase
-        .from('component_material_eligibility_v2')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-      if (data) setMaterialRules(data);
-    }
-
-    setSaving(false);
-  };
-
-  const selectedComponent = assignedComponents.find(c => c.component_type_id === selectedComponentId);
-  const activeRules = getActiveRules();
-
-  return (
-    <div className="flex h-full -m-6">
-      {/* Left Panel - Material Components */}
-      <div className="w-72 bg-white border-r border-gray-200 flex flex-col">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <h3 className="font-semibold text-gray-900">Material Components</h3>
-          <p className="text-xs text-gray-500 mt-1">Select a component to configure eligible materials</p>
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          {assignedComponents.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 text-sm">
-              No material components assigned.<br />
-              Go to Components tab to assign components first.
-            </div>
-          ) : (
-            assignedComponents.map(comp => {
-              const isExpanded = expandedComponents.has(comp.component_type_id);
-              const totalCount = getTotalItemCount(comp);
-              const hasFilterValues = comp.filter_variable_values && comp.filter_variable_values.length > 0;
-
-              return (
-                <div key={comp.component_type_id}>
-                  <button
-                    onClick={() => {
-                      if (hasFilterValues) {
-                        toggleExpansion(comp.component_type_id);
-                        handleSelectComponent(comp.component_type_id);
-                      } else {
-                        handleSelectComponent(comp.component_type_id);
-                      }
-                    }}
-                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors border-b border-gray-100 ${
-                      selectedComponentId === comp.component_type_id && !selectedAttributeValue
-                        ? 'bg-purple-50 border-l-2 border-l-purple-600'
-                        : 'hover:bg-gray-50 border-l-2 border-l-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {hasFilterValues && (
-                        <span className="text-gray-400">
-                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        </span>
-                      )}
-                      <div>
-                        <div className="font-medium text-gray-900">{comp.component_name}</div>
-                        {comp.filter_variable_name && (
-                          <div className="text-xs text-purple-600">by {comp.filter_variable_name}</div>
-                        )}
-                      </div>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      totalCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {totalCount}
-                    </span>
-                  </button>
-
-                  {/* Expandable attribute values */}
-                  {hasFilterValues && isExpanded && (
-                    <div className="bg-gray-50 border-b border-gray-100">
-                      {comp.filter_variable_values!.map(value => {
-                        const isSelected = selectedComponentId === comp.component_type_id && selectedAttributeValue === value;
-                        const subgroupCount = getMaterialCount(comp.component_type_id, value);
-
-                        return (
-                          <button
-                            key={value}
-                            onClick={() => handleSelectComponent(comp.component_type_id, value)}
-                            className={`w-full flex items-center justify-between pl-10 pr-4 py-2 text-left transition-colors ${
-                              isSelected
-                                ? 'bg-purple-100 border-l-2 border-l-purple-600'
-                                : 'hover:bg-gray-100 border-l-2 border-l-transparent'
-                            }`}
-                          >
-                            <span className={`text-sm ${isSelected ? 'text-purple-700 font-medium' : 'text-gray-700'}`}>
-                              {value}
-                            </span>
-                            <span className={`text-xs px-2 py-0.5 rounded ${
-                              subgroupCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
-                            }`}>
-                              {subgroupCount}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Right Panel - Material Browser */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-        {selectedComponent ? (
-          <>
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-semibold text-gray-900">
-                    {selectedComponent.component_name}
-                    {selectedAttributeValue && (
-                      <span className="text-purple-600 ml-2">→ {selectedAttributeValue}</span>
-                    )}
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    {eligibleMaterialIds.size} materials assigned
-                  </p>
-                </div>
-
-                <span className="px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-100 text-blue-700">
-                  Material Component
-                </span>
-              </div>
-
-              {/* Active Rules Chips */}
-              {activeRules.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {activeRules.map(rule => {
-                    let label = '';
-                    if (rule.selection_mode === 'specific') {
-                      const mat = materials.find(m => m.id === rule.material_id);
-                      label = mat ? mat.material_sku : 'Specific material';
-                    } else if (rule.selection_mode === 'category') {
-                      label = `Category: ${rule.material_category}`;
-                    } else if (rule.selection_mode === 'subcategory') {
-                      label = `${rule.material_category} > ${rule.material_subcategory}`;
-                    }
-
-                    return (
-                      <button
-                        key={rule.id}
-                        onClick={() => removeRule(rule.id)}
-                        disabled={saving}
-                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${
-                          rule.selection_mode === 'specific'
-                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                        }`}
-                      >
-                        {rule.selection_mode !== 'specific' && (
-                          <span className="font-medium">
-                            {rule.selection_mode === 'category' ? 'Cat:' : 'Sub:'}
-                          </span>
-                        )}
-                        <span className="max-w-[150px] truncate">{label}</span>
-                        <X className="w-3 h-3" />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Material Browser */}
-            <>
-              {/* Material Filters */}
-                <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => {
-                      setCategoryFilter(e.target.value);
-                      setSubcategoryFilter('');
-                    }}
-                    className="px-2 py-1 text-sm border border-gray-300 rounded-lg"
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  {subcategories.length > 0 && (
-                    <select
-                      value={subcategoryFilter}
-                      onChange={(e) => setSubcategoryFilter(e.target.value)}
-                      className="px-2 py-1 text-sm border border-gray-300 rounded-lg"
-                    >
-                      <option value="">All Subcategories</option>
-                      {subcategories.map(sub => (
-                        <option key={sub} value={sub}>{sub}</option>
-                      ))}
-                    </select>
-                  )}
-                  {categoryFilter && (
-                    <button
-                      onClick={addCategoryRule}
-                      disabled={saving}
-                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-                    >
-                      + Add as Rule
-                    </button>
-                  )}
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={materialSearch}
-                      onChange={(e) => setMaterialSearch(e.target.value)}
-                      placeholder="Search materials..."
-                      className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  {/* Add All Visible Button */}
-                  {filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length > 0 && (
-                    <button
-                      onClick={addAllVisible}
-                      disabled={saving}
-                      className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 whitespace-nowrap"
-                    >
-                      + Add All Visible ({filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length})
-                    </button>
-                  )}
-                </div>
-
-                {/* Material List */}
-                <div className="flex-1 overflow-auto p-3">
-                  {loadingMaterials ? (
-                    <div className="flex items-center justify-center h-32">
-                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {filteredMaterials.map(material => {
-                        const isEligible = eligibleMaterialIds.has(material.id);
-                        const isDefault = isEligible && isDefaultMaterial(material.id);
-
-                        return (
-                          <div
-                            key={material.id}
-                            onClick={() => toggleMaterial(material.id)}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                              isEligible
-                                ? 'bg-blue-50 border border-blue-200'
-                                : 'bg-white border border-gray-200 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                              isEligible ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
-                            }`}>
-                              {isEligible && <Check className="w-3 h-3 text-white" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-gray-500">{material.material_sku}</span>
-                                <span className="text-sm font-medium text-gray-900 truncate">{material.material_name}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>{material.category}</span>
-                                {material.sub_category && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{material.sub_category}</span>
-                                  </>
-                                )}
-                                {material.length_ft && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{material.length_ft}ft</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-sm font-medium text-gray-600">
-                              ${material.unit_cost.toFixed(2)}
-                            </div>
-                            {/* Default star - only show for eligible items */}
-                            {isEligible && (
-                              <button
-                                onClick={(e) => toggleMaterialDefault(material.id, e)}
-                                title={isDefault ? 'Remove as default' : 'Set as default for SKU builder'}
-                                className={`p-1 rounded transition-colors ${
-                                  isDefault
-                                    ? 'text-yellow-500 hover:text-yellow-600'
-                                    : 'text-gray-300 hover:text-yellow-400'
-                                }`}
-                              >
-                                <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-            </>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <Link2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-sm">Select a component to configure</p>
-              <p className="text-xs text-gray-400 mt-1">eligible materials</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Saving Indicator */}
-      {saving && (
-        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg">
-          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm">Saving...</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
 // LABOR TAB - Labor Rules Grid
 // =============================================================================
 
