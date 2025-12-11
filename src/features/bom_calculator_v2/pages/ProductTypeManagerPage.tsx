@@ -2941,6 +2941,9 @@ function EligibilityTab({
   // Fetch assigned components for this product type
   const { data: componentsFull = [] } = useProductTypeComponentsFull(productType.id);
 
+  // Fetch product variables for condition dropdowns
+  const { data: productVariables = [] } = useProductVariablesV2(productType.id);
+
   // Get only assigned components
   const allAssignedComponents = componentsFull.filter(c => c.is_assigned);
 
@@ -4149,36 +4152,53 @@ function EligibilityTab({
 
                 {/* Existing conditions */}
                 <div className="space-y-2 mb-3">
-                  {Object.entries(laborConditions).map(([key, value]) => (
-                    <div key={key} className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={key}
-                        readOnly
-                        className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50"
-                      />
-                      <span className="text-gray-400">=</span>
-                      <input
-                        type="text"
-                        value={value}
-                        onChange={(e) => setLaborConditions({ ...laborConditions, [key]: e.target.value })}
-                        className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
-                      />
-                      <button
-                        onClick={() => {
-                          const newConditions = { ...laborConditions };
-                          delete newConditions[key];
-                          setLaborConditions(newConditions);
-                        }}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                  {Object.entries(laborConditions).map(([key, value]) => {
+                    // Find the variable definition to get allowed values
+                    const variable = productVariables.find(v => v.variable_code === key);
+                    const allowedValues = variable?.allowed_values || [];
+
+                    return (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 font-medium">
+                          {variable?.variable_name || key}
+                        </span>
+                        <span className="text-gray-400">=</span>
+                        {allowedValues.length > 0 ? (
+                          <select
+                            value={value}
+                            onChange={(e) => setLaborConditions({ ...laborConditions, [key]: e.target.value })}
+                            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
+                          >
+                            <option value="">Select value...</option>
+                            {allowedValues.map((v: string) => (
+                              <option key={v} value={v}>{v}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={value}
+                            onChange={(e) => setLaborConditions({ ...laborConditions, [key]: e.target.value })}
+                            placeholder={key.includes('height') ? 'e.g., 6' : 'Enter value'}
+                            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
+                          />
+                        )}
+                        <button
+                          onClick={() => {
+                            const newConditions = { ...laborConditions };
+                            delete newConditions[key];
+                            setLaborConditions(newConditions);
+                          }}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Add new condition */}
+                {/* Add new condition - show product variables + common extras */}
                 <div className="flex items-center gap-2">
                   <select
                     onChange={(e) => {
@@ -4190,11 +4210,20 @@ function EligibilityTab({
                     className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
                   >
                     <option value="">+ Add condition...</option>
-                    <option value="post_type">post_type</option>
-                    <option value="height_min">height_min</option>
-                    <option value="height_max">height_max</option>
-                    <option value="rail_count">rail_count</option>
-                    <option value="style">style</option>
+                    <optgroup label="Product Variables">
+                      {productVariables
+                        .filter(v => !laborConditions[v.variable_code])
+                        .map(v => (
+                          <option key={v.variable_code} value={v.variable_code}>
+                            {v.variable_name} ({v.variable_code})
+                          </option>
+                        ))
+                      }
+                    </optgroup>
+                    <optgroup label="Numeric Ranges">
+                      {!laborConditions['height_min'] && <option value="height_min">Height Minimum</option>}
+                      {!laborConditions['height_max'] && <option value="height_max">Height Maximum</option>}
+                    </optgroup>
                   </select>
                 </div>
               </div>
