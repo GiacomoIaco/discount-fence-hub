@@ -2969,8 +2969,8 @@ function EligibilityTab({
     return comp?.filter_variable_code || null;
   };
 
-  // Get material count for a component (optionally filtered by attribute value)
-  const getMaterialCount = (componentId: string, attributeValue?: string): number => {
+  // Get rules for a component (optionally filtered by attribute value)
+  const getRulesForComponent = (componentId: string, attributeValue?: string): MaterialEligibilityV2[] => {
     const filterCode = getComponentFilterCode(componentId);
 
     return materialRules.filter(r => {
@@ -2981,8 +2981,40 @@ function EligibilityTab({
         return r.attribute_filter[filterCode] === attributeValue;
       }
 
-      return !r.attribute_filter;
-    }).length;
+      // If no attributeValue specified, match rules with matching or null attribute_filter
+      if (!attributeValue) {
+        return !r.attribute_filter;
+      }
+
+      return true;
+    });
+  };
+
+  // Expand rules to count actual materials (category rules count all matching materials)
+  const countMaterialsFromRules = (rules: MaterialEligibilityV2[]): number => {
+    const countedIds = new Set<string>();
+
+    for (const rule of rules) {
+      if (rule.selection_mode === 'specific' && rule.material_id) {
+        countedIds.add(rule.material_id);
+      } else if (rule.selection_mode === 'category' && rule.material_category) {
+        materials
+          .filter(m => m.category === rule.material_category)
+          .forEach(m => countedIds.add(m.id));
+      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
+        materials
+          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
+          .forEach(m => countedIds.add(m.id));
+      }
+    }
+
+    return countedIds.size;
+  };
+
+  // Get material count for a component (counts actual items, not rules)
+  const getMaterialCount = (componentId: string, attributeValue?: string): number => {
+    const rules = getRulesForComponent(componentId, attributeValue);
+    return countMaterialsFromRules(rules);
   };
 
   // Get labor count for a component (optionally filtered by attribute value)
@@ -3001,15 +3033,22 @@ function EligibilityTab({
     }).length;
   };
 
-  // Get TOTAL count for a component (sum across all subgroups)
+  // Get TOTAL count for a component (sum across all subgroups) - counts actual items
   const getTotalItemCount = (comp: ProductTypeComponentFull): number => {
     if (comp.is_labor) {
       // Labor component - count all labor rules for this component
       return laborRules.filter(r => r.component_type_id === comp.component_type_id).length;
     } else {
-      // Material component - count all material rules for this component
-      return materialRules.filter(r => r.component_type_id === comp.component_type_id).length;
+      // Material component - count actual materials from all rules
+      const rules = materialRules.filter(r => r.component_type_id === comp.component_type_id);
+      return countMaterialsFromRules(rules);
     }
+  };
+
+  // Get rules for the currently selected component + attribute
+  const getActiveRules = (): MaterialEligibilityV2[] => {
+    if (!selectedComponentId) return [];
+    return getRulesForComponent(selectedComponentId, selectedAttributeValue || undefined);
   };
 
   // Toggle component expansion
@@ -3213,7 +3252,66 @@ function EligibilityTab({
     setSaving(false);
   };
 
+  // Remove a rule by ID
+  const removeRule = async (ruleId: string) => {
+    setSaving(true);
+
+    await supabase
+      .from('component_material_eligibility_v2')
+      .delete()
+      .eq('id', ruleId);
+
+    // Refresh rules
+    const { data } = await supabase
+      .from('component_material_eligibility_v2')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setMaterialRules(data);
+
+    setSaving(false);
+  };
+
+  // Add all visible (filtered) materials
+  const addAllVisible = async () => {
+    if (!selectedComponentId) return;
+    setSaving(true);
+
+    const attrFilter = buildAttributeFilter();
+
+    // Get IDs of materials that are already eligible
+    const alreadyEligible = eligibleMaterialIds;
+
+    // Add materials that aren't already eligible
+    const toAdd = filteredMaterials.filter(m => !alreadyEligible.has(m.id));
+
+    if (toAdd.length > 0) {
+      const inserts = toAdd.map(m => ({
+        product_type_id: productType.id,
+        component_type_id: selectedComponentId,
+        selection_mode: 'specific' as const,
+        material_id: m.id,
+        attribute_filter: attrFilter,
+      }));
+
+      await supabase
+        .from('component_material_eligibility_v2')
+        .insert(inserts);
+
+      // Refresh rules
+      const { data } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setMaterialRules(data);
+    }
+
+    setSaving(false);
+  };
+
   const selectedComponent = allAssignedComponents.find(c => c.component_type_id === selectedComponentId);
+  const activeRules = getActiveRules();
 
   return (
     <div className="flex h-full -m-6">
@@ -3388,6 +3486,44 @@ function EligibilityTab({
                   {selectedComponent.is_labor ? 'Labor Component' : 'Material Component'}
                 </span>
               </div>
+
+              {/* Active Rules Chips */}
+              {!selectedComponent.is_labor && activeRules.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {activeRules.map(rule => {
+                    let label = '';
+                    if (rule.selection_mode === 'specific') {
+                      const mat = materials.find(m => m.id === rule.material_id);
+                      label = mat ? mat.material_sku : 'Specific material';
+                    } else if (rule.selection_mode === 'category') {
+                      label = `Category: ${rule.material_category}`;
+                    } else if (rule.selection_mode === 'subcategory') {
+                      label = `${rule.material_category} > ${rule.material_subcategory}`;
+                    }
+
+                    return (
+                      <button
+                        key={rule.id}
+                        onClick={() => removeRule(rule.id)}
+                        disabled={saving}
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${
+                          rule.selection_mode === 'specific'
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        }`}
+                      >
+                        {rule.selection_mode !== 'specific' && (
+                          <span className="font-medium">
+                            {rule.selection_mode === 'category' ? 'Cat:' : 'Sub:'}
+                          </span>
+                        )}
+                        <span className="max-w-[150px] truncate">{label}</span>
+                        <X className="w-3 h-3" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Browser content based on component type */}
@@ -3440,6 +3576,16 @@ function EligibilityTab({
                       className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-lg"
                     />
                   </div>
+                  {/* Add All Visible Button */}
+                  {filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length > 0 && (
+                    <button
+                      onClick={addAllVisible}
+                      disabled={saving}
+                      className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 whitespace-nowrap"
+                    >
+                      + Add All Visible ({filteredMaterials.filter(m => !eligibleMaterialIds.has(m.id)).length})
+                    </button>
+                  )}
                 </div>
 
                 {/* Material List */}
