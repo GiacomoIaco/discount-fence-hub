@@ -50,7 +50,7 @@ interface FormulaTemplateV2 {
 }
 
 // Tab types
-type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'eligibility';
+type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'materials' | 'labor';
 
 export default function ProductTypeManagerPage() {
   const queryClient = useQueryClient();
@@ -206,10 +206,16 @@ export default function ProductTypeManagerPage() {
                     count={stats.formulas}
                   />
                   <TabButton
-                    label="Materials/Labor"
+                    label="Materials"
                     icon={<Link2 className="w-4 h-4" />}
-                    isActive={activeTab === 'eligibility'}
-                    onClick={() => setActiveTab('eligibility')}
+                    isActive={activeTab === 'materials'}
+                    onClick={() => setActiveTab('materials')}
+                  />
+                  <TabButton
+                    label="Labor"
+                    icon={<Settings className="w-4 h-4" />}
+                    isActive={activeTab === 'labor'}
+                    onClick={() => setActiveTab('labor')}
                   />
                 </nav>
               </div>
@@ -252,8 +258,13 @@ export default function ProductTypeManagerPage() {
                     onRefresh={() => loadFormulas(selectedTypeId!)}
                   />
                 )}
-                {activeTab === 'eligibility' && (
-                  <EligibilityTab
+                {activeTab === 'materials' && (
+                  <MaterialsTab
+                    productType={selectedType}
+                  />
+                )}
+                {activeTab === 'labor' && (
+                  <LaborTab
                     productType={selectedType}
                   />
                 )}
@@ -2950,7 +2961,7 @@ function EmptyState({
 }
 
 // =============================================================================
-// ELIGIBILITY TAB - Material/Labor Assignment
+// MATERIALS TAB - Material Assignment per Component
 // =============================================================================
 
 interface Material {
@@ -2996,48 +3007,30 @@ interface LaborEligibilityV2 {
   is_default: boolean;
 }
 
-function EligibilityTab({
+function MaterialsTab({
   productType,
 }: {
   productType: ProductTypeV2;
 }) {
-  // UI State
-  const [componentFilter, setComponentFilter] = useState<'all' | 'material' | 'labor'>('all');
+  // UI State - Materials only
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedAttributeValue, setSelectedAttributeValue] = useState<string | null>(null);
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   const [materialSearch, setMaterialSearch] = useState('');
-  const [laborSearch, setLaborSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [subcategoryFilter, setSubcategoryFilter] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Labor Edit Modal
-  const [editingLaborRule, setEditingLaborRule] = useState<LaborEligibilityV2 | null>(null);
-  const [laborFormula, setLaborFormula] = useState('');
-  const [laborConditions, setLaborConditions] = useState<Record<string, string>>({});
-
-  // Fetch assigned components for this product type
+  // Fetch assigned components for this product type (material components only)
   const { data: componentsFull = [] } = useProductTypeComponentsFull(productType.id);
 
-  // Fetch product variables for condition dropdowns
-  const { data: productVariables = [] } = useProductVariablesV2(productType.id);
-
-  // Get only assigned components
-  const allAssignedComponents = componentsFull.filter(c => c.is_assigned);
-
-  // Filter components by type
-  const assignedComponents = allAssignedComponents.filter(c => {
-    if (componentFilter === 'all') return true;
-    if (componentFilter === 'material') return !c.is_labor;
-    if (componentFilter === 'labor') return c.is_labor;
-    return true;
-  });
+  // Get only assigned MATERIAL components (not labor)
+  const assignedComponents = componentsFull.filter(c => c.is_assigned && !c.is_labor);
 
   // Helper to get the selected component's filter variable info
   const getSelectedComponentFilterCode = (): string | null => {
     if (!selectedComponentId) return null;
-    const comp = allAssignedComponents.find(c => c.component_type_id === selectedComponentId);
+    const comp = assignedComponents.find(c => c.component_type_id === selectedComponentId);
     return comp?.filter_variable_code || null;
   };
 
@@ -3045,20 +3038,12 @@ function EligibilityTab({
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(true);
 
-  // Fetch all labor codes
-  const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
-  const [loadingLabor, setLoadingLabor] = useState(true);
-
   // Fetch material eligibility rules for this product type
   const [materialRules, setMaterialRules] = useState<MaterialEligibilityV2[]>([]);
 
-  // Fetch labor eligibility rules for this product type
-  const [laborRules, setLaborRules] = useState<LaborEligibilityV2[]>([]);
-
-  // Load materials and labor codes on mount
+  // Load materials on mount
   useEffect(() => {
     const loadData = async () => {
-      // Load materials
       const { data: matData } = await supabase
         .from('materials')
         .select('id, material_sku, material_name, category, sub_category, unit_cost, length_ft, status')
@@ -3068,24 +3053,14 @@ function EligibilityTab({
 
       if (matData) setMaterials(matData);
       setLoadingMaterials(false);
-
-      // Load labor codes
-      const { data: laborData } = await supabase
-        .from('labor_codes')
-        .select('id, labor_sku, description, unit_type, fence_category_standard')
-        .order('labor_sku');
-
-      if (laborData) setLaborCodes(laborData);
-      setLoadingLabor(false);
     };
 
     loadData();
   }, []);
 
-  // Load eligibility rules when product type changes
+  // Load material rules when product type changes
   useEffect(() => {
     const loadRules = async () => {
-      // Material rules - using V2 table
       const { data: matRules } = await supabase
         .from('component_material_eligibility_v2')
         .select('*')
@@ -3093,15 +3068,6 @@ function EligibilityTab({
         .eq('is_active', true);
 
       if (matRules) setMaterialRules(matRules);
-
-      // Labor rules
-      const { data: labRules } = await supabase
-        .from('component_labor_eligibility')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-
-      if (labRules) setLaborRules(labRules);
     };
 
     loadRules();
@@ -3123,16 +3089,6 @@ function EligibilityTab({
       const search = materialSearch.toLowerCase();
       return m.material_sku.toLowerCase().includes(search) ||
              m.material_name.toLowerCase().includes(search);
-    }
-    return true;
-  });
-
-  // Filter labor codes
-  const filteredLabor = laborCodes.filter(lc => {
-    if (laborSearch) {
-      const search = laborSearch.toLowerCase();
-      return lc.labor_sku.toLowerCase().includes(search) ||
-             lc.description.toLowerCase().includes(search);
     }
     return true;
   });
@@ -3175,35 +3131,11 @@ function EligibilityTab({
     return eligibleIds;
   };
 
-  // Get eligible labor codes for selected component + attribute
-  const getEligibleLaborIds = (): Set<string> => {
-    if (!selectedComponentId) return new Set();
-
-    const filterCode = getSelectedComponentFilterCode();
-
-    const rules = laborRules.filter(r => {
-      if (r.component_type_id !== selectedComponentId) return false;
-
-      // If a specific attribute value is selected, only show rules matching that value
-      if (selectedAttributeValue && filterCode) {
-        if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterCode] === selectedAttributeValue;
-      }
-
-      // If no attribute selected, show ALL labor codes for this component
-      // (not just those with null attribute_filter)
-      return true;
-    });
-
-    return new Set(rules.map(r => r.labor_code_id));
-  };
-
   const eligibleMaterialIds = getEligibleMaterialIds();
-  const eligibleLaborIds = getEligibleLaborIds();
 
   // Helper to get component's filter variable code
   const getComponentFilterCode = (componentId: string): string | null => {
-    const comp = allAssignedComponents.find(c => c.component_type_id === componentId);
+    const comp = assignedComponents.find(c => c.component_type_id === componentId);
     return comp?.filter_variable_code || null;
   };
 
@@ -3255,32 +3187,10 @@ function EligibilityTab({
     return countMaterialsFromRules(rules);
   };
 
-  // Get labor count for a component (optionally filtered by attribute value)
-  const getLaborCount = (componentId: string, attributeValue?: string): number => {
-    const filterCode = getComponentFilterCode(componentId);
-
-    return laborRules.filter(r => {
-      if (r.component_type_id !== componentId) return false;
-
-      if (attributeValue && filterCode) {
-        if (!r.attribute_filter) return false;
-        return r.attribute_filter[filterCode] === attributeValue;
-      }
-
-      return !r.attribute_filter;
-    }).length;
-  };
-
-  // Get TOTAL count for a component (sum across all subgroups) - counts actual items
+  // Get TOTAL count for a component (sum across all subgroups) - counts actual materials
   const getTotalItemCount = (comp: ProductTypeComponentFull): number => {
-    if (comp.is_labor) {
-      // Labor component - count all labor rules for this component
-      return laborRules.filter(r => r.component_type_id === comp.component_type_id).length;
-    } else {
-      // Material component - count actual materials from all rules
-      const rules = materialRules.filter(r => r.component_type_id === comp.component_type_id);
-      return countMaterialsFromRules(rules);
-    }
+    const rules = materialRules.filter(r => r.component_type_id === comp.component_type_id);
+    return countMaterialsFromRules(rules);
   };
 
   // Get rules for the currently selected component + attribute
@@ -3386,79 +3296,6 @@ function EligibilityTab({
       removeMaterial(materialId);
     } else {
       addMaterial(materialId);
-    }
-  };
-
-  // Add labor code to eligibility
-  const addLabor = async (laborCodeId: string) => {
-    if (!selectedComponentId) return;
-    setSaving(true);
-
-    const { error } = await supabase
-      .from('component_labor_eligibility')
-      .insert({
-        product_type_id: productType.id,
-        component_type_id: selectedComponentId,
-        labor_code_id: laborCodeId,
-        attribute_filter: buildAttributeFilter(),
-      });
-
-    if (!error) {
-      // Refresh rules
-      const { data } = await supabase
-        .from('component_labor_eligibility')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-      if (data) setLaborRules(data);
-    }
-
-    setSaving(false);
-  };
-
-  // Remove labor code from eligibility
-  const removeLabor = async (laborCodeId: string) => {
-    if (!selectedComponentId) return;
-    setSaving(true);
-
-    const attrFilter = buildAttributeFilter();
-
-    // For JSONB comparison, use contains instead of eq
-    if (attrFilter) {
-      await supabase
-        .from('component_labor_eligibility')
-        .delete()
-        .eq('product_type_id', productType.id)
-        .eq('component_type_id', selectedComponentId)
-        .eq('labor_code_id', laborCodeId)
-        .contains('attribute_filter', attrFilter);
-    } else {
-      await supabase
-        .from('component_labor_eligibility')
-        .delete()
-        .eq('product_type_id', productType.id)
-        .eq('component_type_id', selectedComponentId)
-        .eq('labor_code_id', laborCodeId)
-        .is('attribute_filter', null);
-    }
-
-    // Refresh rules
-    const { data } = await supabase
-      .from('component_labor_eligibility')
-      .select('*')
-      .eq('product_type_id', productType.id)
-      .eq('is_active', true);
-    if (data) setLaborRules(data);
-
-    setSaving(false);
-  };
-
-  // Toggle labor eligibility
-  const toggleLabor = (laborCodeId: string) => {
-    if (eligibleLaborIds.has(laborCodeId)) {
-      removeLabor(laborCodeId);
-    } else {
-      addLabor(laborCodeId);
     }
   };
 
@@ -3576,68 +3413,6 @@ function EligibilityTab({
     setSaving(false);
   };
 
-  // Get the specific labor rule
-  const getLaborRule = (laborCodeId: string): LaborEligibilityV2 | undefined => {
-    const attrFilter = buildAttributeFilter();
-    return laborRules.find(r =>
-      r.component_type_id === selectedComponentId &&
-      r.labor_code_id === laborCodeId &&
-      JSON.stringify(r.attribute_filter || null) === JSON.stringify(attrFilter)
-    );
-  };
-
-  // Check if a labor code is set as default
-  const isDefaultLabor = (laborCodeId: string): boolean => {
-    const rule = getLaborRule(laborCodeId);
-    return rule?.is_default ?? false;
-  };
-
-  // Toggle default flag for a labor code
-  const toggleLaborDefault = async (laborCodeId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const rule = getLaborRule(laborCodeId);
-    if (!rule) return;
-
-    setSaving(true);
-    const newDefault = !rule.is_default;
-
-    // If setting as default, clear other defaults for this component+attribute combo
-    if (newDefault) {
-      const attrFilter = buildAttributeFilter();
-      await supabase
-        .from('component_labor_eligibility')
-        .update({ is_default: false })
-        .eq('product_type_id', productType.id)
-        .eq('component_type_id', selectedComponentId!)
-        .neq('labor_code_id', laborCodeId);
-
-      if (attrFilter) {
-        await supabase
-          .from('component_labor_eligibility')
-          .update({ is_default: false })
-          .eq('product_type_id', productType.id)
-          .eq('component_type_id', selectedComponentId!)
-          .contains('attribute_filter', attrFilter);
-      }
-    }
-
-    // Update this labor code's default status
-    await supabase
-      .from('component_labor_eligibility')
-      .update({ is_default: newDefault })
-      .eq('id', rule.id);
-
-    // Refresh rules
-    const { data } = await supabase
-      .from('component_labor_eligibility')
-      .select('*')
-      .eq('product_type_id', productType.id)
-      .eq('is_active', true);
-    if (data) setLaborRules(data);
-
-    setSaving(false);
-  };
-
   // Add all visible (filtered) materials
   const addAllVisible = async () => {
     if (!selectedComponentId) return;
@@ -3676,110 +3451,28 @@ function EligibilityTab({
     setSaving(false);
   };
 
-  // Open labor edit modal
-  const openLaborEdit = (laborCodeId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const rule = getLaborRule(laborCodeId);
-    if (!rule) return;
-    setEditingLaborRule(rule);
-    setLaborFormula(rule.quantity_formula || '');
-    setLaborConditions(rule.attribute_filter || {});
-  };
-
-  // Save labor rule changes
-  const saveLaborRule = async () => {
-    if (!editingLaborRule) return;
-    setSaving(true);
-
-    const { error } = await supabase
-      .from('component_labor_eligibility')
-      .update({
-        quantity_formula: laborFormula || null,
-        attribute_filter: Object.keys(laborConditions).length > 0 ? laborConditions : null,
-      })
-      .eq('id', editingLaborRule.id);
-
-    if (error) {
-      console.error('Failed to update labor rule:', error);
-    } else {
-      // Refresh rules
-      const { data } = await supabase
-        .from('component_labor_eligibility')
-        .select('*')
-        .eq('product_type_id', productType.id)
-        .eq('is_active', true);
-      if (data) setLaborRules(data);
-    }
-
-    setSaving(false);
-    setEditingLaborRule(null);
-  };
-
-  // Check if a labor rule has conditions
-  const hasLaborConditions = (laborCodeId: string): boolean => {
-    const rule = getLaborRule(laborCodeId);
-    return !!rule?.quantity_formula || (!!rule?.attribute_filter && Object.keys(rule.attribute_filter).length > 0);
-  };
-
-  const selectedComponent = allAssignedComponents.find(c => c.component_type_id === selectedComponentId);
+  const selectedComponent = assignedComponents.find(c => c.component_type_id === selectedComponentId);
   const activeRules = getActiveRules();
 
   return (
     <div className="flex h-full -m-6">
-      {/* Left Panel - Components */}
+      {/* Left Panel - Material Components */}
       <div className="w-72 bg-white border-r border-gray-200 flex flex-col">
         <div className="px-4 py-3 border-b border-gray-200">
-          <h3 className="font-semibold text-gray-900">Components</h3>
-          {/* Filter toggle for Material/Labor components */}
-          <div className="flex items-center gap-1 mt-2 bg-gray-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setComponentFilter('all')}
-              className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-                componentFilter === 'all'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setComponentFilter('material')}
-              className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-                componentFilter === 'material'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Material
-            </button>
-            <button
-              onClick={() => setComponentFilter('labor')}
-              className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-                componentFilter === 'labor'
-                  ? 'bg-white text-green-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Labor
-            </button>
-          </div>
+          <h3 className="font-semibold text-gray-900">Material Components</h3>
+          <p className="text-xs text-gray-500 mt-1">Select a component to configure eligible materials</p>
         </div>
 
         <div className="flex-1 overflow-auto">
-          {allAssignedComponents.length === 0 ? (
+          {assignedComponents.length === 0 ? (
             <div className="p-4 text-center text-gray-500 text-sm">
-              No components assigned.<br />
+              No material components assigned.<br />
               Go to Components tab to assign components first.
-            </div>
-          ) : assignedComponents.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 text-sm">
-              No {componentFilter} components found.
             </div>
           ) : (
             assignedComponents.map(comp => {
               const isExpanded = expandedComponents.has(comp.component_type_id);
               const totalCount = getTotalItemCount(comp);
-              // Each component can have its own filter variable values
               const hasFilterValues = comp.filter_variable_values && comp.filter_variable_values.length > 0;
 
               return (
@@ -3788,7 +3481,6 @@ function EligibilityTab({
                     onClick={() => {
                       if (hasFilterValues) {
                         toggleExpansion(comp.component_type_id);
-                        // Also select the component (without attribute) so user can add rules
                         handleSelectComponent(comp.component_type_id);
                       } else {
                         handleSelectComponent(comp.component_type_id);
@@ -3808,33 +3500,24 @@ function EligibilityTab({
                       )}
                       <div>
                         <div className="font-medium text-gray-900">{comp.component_name}</div>
-                        <div className="text-xs text-gray-500">
-                          {comp.is_labor ? 'Labor' : 'Material'}
-                          {comp.filter_variable_name && (
-                            <span className="ml-1 text-purple-600">• by {comp.filter_variable_name}</span>
-                          )}
-                        </div>
+                        {comp.filter_variable_name && (
+                          <div className="text-xs text-purple-600">by {comp.filter_variable_name}</div>
+                        )}
                       </div>
                     </div>
-                    {/* Single count badge - color based on component type */}
                     <span className={`text-xs px-2 py-0.5 rounded ${
-                      totalCount > 0
-                        ? comp.is_labor ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-200 text-gray-500'
+                      totalCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
                     }`}>
                       {totalCount}
                     </span>
                   </button>
 
-                  {/* Expandable attribute values - uses component's own filter_variable_values */}
+                  {/* Expandable attribute values */}
                   {hasFilterValues && isExpanded && (
                     <div className="bg-gray-50 border-b border-gray-100">
                       {comp.filter_variable_values!.map(value => {
                         const isSelected = selectedComponentId === comp.component_type_id && selectedAttributeValue === value;
-                        // Get count for this specific subgroup
-                        const subgroupCount = comp.is_labor
-                          ? getLaborCount(comp.component_type_id, value)
-                          : getMaterialCount(comp.component_type_id, value);
+                        const subgroupCount = getMaterialCount(comp.component_type_id, value);
 
                         return (
                           <button
@@ -3850,9 +3533,7 @@ function EligibilityTab({
                               {value}
                             </span>
                             <span className={`text-xs px-2 py-0.5 rounded ${
-                              subgroupCount > 0
-                                ? comp.is_labor ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-200 text-gray-500'
+                              subgroupCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
                             }`}>
                               {subgroupCount}
                             </span>
@@ -3868,7 +3549,7 @@ function EligibilityTab({
         </div>
       </div>
 
-      {/* Right Panel - Material/Labor Browser */}
+      {/* Right Panel - Material Browser */}
       <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
         {selectedComponent ? (
           <>
@@ -3883,25 +3564,17 @@ function EligibilityTab({
                     )}
                   </h2>
                   <p className="text-xs text-gray-500">
-                    {!selectedComponent.is_labor
-                      ? `${eligibleMaterialIds.size} materials assigned`
-                      : `${eligibleLaborIds.size} labor codes assigned`
-                    }
+                    {eligibleMaterialIds.size} materials assigned
                   </p>
                 </div>
 
-                {/* Component Type Badge */}
-                <span className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
-                  selectedComponent.is_labor
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {selectedComponent.is_labor ? 'Labor Component' : 'Material Component'}
+                <span className="px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-100 text-blue-700">
+                  Material Component
                 </span>
               </div>
 
               {/* Active Rules Chips */}
-              {!selectedComponent.is_labor && activeRules.length > 0 && (
+              {activeRules.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {activeRules.map(rule => {
                     let label = '';
@@ -3939,10 +3612,9 @@ function EligibilityTab({
               )}
             </div>
 
-            {/* Browser content based on component type */}
-            {!selectedComponent.is_labor ? (
-              <>
-                {/* Material Filters */}
+            {/* Material Browser */}
+            <>
+              {/* Material Filters */}
                 <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
                   <Filter className="w-4 h-4 text-gray-400" />
                   <select
@@ -4072,183 +3744,374 @@ function EligibilityTab({
                     </div>
                   )}
                 </div>
-              </>
-            ) : (
-              <>
-                {/* Labor Filters */}
-                <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
-                  <Search className="w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={laborSearch}
-                    onChange={(e) => setLaborSearch(e.target.value)}
-                    placeholder="Search labor codes..."
-                    className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-lg"
-                  />
-                </div>
-
-                {/* Labor List */}
-                <div className="flex-1 overflow-auto p-3">
-                  {loadingLabor ? (
-                    <div className="flex items-center justify-center h-32">
-                      <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {filteredLabor.map(labor => {
-                        const isEligible = eligibleLaborIds.has(labor.id);
-                        const isDefault = isEligible && isDefaultLabor(labor.id);
-
-                        return (
-                          <div
-                            key={labor.id}
-                            onClick={() => toggleLabor(labor.id)}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                              isEligible
-                                ? 'bg-green-50 border border-green-200'
-                                : 'bg-white border border-gray-200 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                              isEligible ? 'bg-green-600 border-green-600' : 'border-gray-300'
-                            }`}>
-                              {isEligible && <Check className="w-3 h-3 text-white" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-gray-500">{labor.labor_sku}</span>
-                                <span className="text-sm font-medium text-gray-900 truncate">{labor.description}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>{labor.unit_type}</span>
-                                {labor.fence_category_standard && labor.fence_category_standard.length > 0 && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{labor.fence_category_standard.slice(0, 2).join(', ')}</span>
-                                    {labor.fence_category_standard.length > 2 && (
-                                      <span className="text-gray-400">+{labor.fence_category_standard.length - 2} more</span>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {/* Action buttons - only show for eligible items */}
-                            {isEligible && (
-                              <div className="flex items-center gap-0.5">
-                                {/* Conditions indicator */}
-                                {hasLaborConditions(labor.id) && (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
-                                    Cond
-                                  </span>
-                                )}
-                                {/* Settings button */}
-                                <button
-                                  onClick={(e) => openLaborEdit(labor.id, e)}
-                                  title="Edit formula & conditions"
-                                  className="p-1 rounded transition-colors text-gray-400 hover:text-purple-600 hover:bg-purple-50"
-                                >
-                                  <Settings className="w-4 h-4" />
-                                </button>
-                                {/* Default star */}
-                                <button
-                                  onClick={(e) => toggleLaborDefault(labor.id, e)}
-                                  title={isDefault ? 'Remove as default' : 'Set as default for SKU builder'}
-                                  className={`p-1 rounded transition-colors ${
-                                    isDefault
-                                      ? 'text-yellow-500 hover:text-yellow-600'
-                                      : 'text-gray-300 hover:text-yellow-400'
-                                  }`}
-                                >
-                                  <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+            </>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <Link2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-sm">Select a component to configure</p>
-              <p className="text-xs text-gray-400 mt-1">eligible materials and labor codes</p>
+              <p className="text-xs text-gray-400 mt-1">eligible materials</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Labor Edit Modal */}
-      {editingLaborRule && (
+      {/* Saving Indicator */}
+      {saving && (
+        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm">Saving...</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// LABOR TAB - Labor Rules Grid
+// =============================================================================
+
+function LaborTab({
+  productType,
+}: {
+  productType: ProductTypeV2;
+}) {
+  const [laborRules, setLaborRules] = useState<LaborEligibilityV2[]>([]);
+  const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingRule, setEditingRule] = useState<LaborEligibilityV2 | null>(null);
+  const [laborSearch, setLaborSearch] = useState('');
+
+  // Form state for add/edit modal
+  const [selectedLaborCodeId, setSelectedLaborCodeId] = useState('');
+  const [formula, setFormula] = useState('');
+
+  // Fetch product variables for formula reference
+  const { data: productVariables = [] } = useProductVariablesV2(productType.id);
+
+  // Load labor codes and rules
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+
+      // Load all labor codes
+      const { data: laborData } = await supabase
+        .from('labor_codes')
+        .select('id, labor_sku, description, unit_type, fence_category_standard')
+        .order('labor_sku');
+
+      if (laborData) setLaborCodes(laborData);
+
+      // Load labor rules for this product type
+      const { data: rulesData } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+
+      if (rulesData) setLaborRules(rulesData);
+
+      setLoading(false);
+    };
+
+    loadData();
+  }, [productType.id]);
+
+  // Get labor code info by ID
+  const getLaborCode = (id: string) => laborCodes.find(l => l.id === id);
+
+  // Filter rules by search
+  const filteredRules = laborRules.filter(rule => {
+    if (!laborSearch) return true;
+    const labor = getLaborCode(rule.labor_code_id);
+    if (!labor) return false;
+    const search = laborSearch.toLowerCase();
+    return labor.labor_sku.toLowerCase().includes(search) ||
+           labor.description.toLowerCase().includes(search);
+  });
+
+  // Get labor codes not yet added
+  const availableLaborCodes = laborCodes.filter(lc =>
+    !laborRules.some(r => r.labor_code_id === lc.id)
+  );
+
+  // Add new labor rule
+  const handleAddRule = async () => {
+    if (!selectedLaborCodeId) return;
+    setSaving(true);
+
+    // Use a dummy component_type_id since we're moving away from component-based labor
+    // This should be removed in future migration, but for now we need it for the table constraint
+    const dummyComponentId = 'labor-rules-v2';
+
+    const { error } = await supabase
+      .from('component_labor_eligibility')
+      .insert({
+        product_type_id: productType.id,
+        component_type_id: dummyComponentId,
+        labor_code_id: selectedLaborCodeId,
+        quantity_formula: formula || null,
+      });
+
+    if (!error) {
+      // Refresh rules
+      const { data } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setLaborRules(data);
+
+      setShowAddModal(false);
+      setSelectedLaborCodeId('');
+      setFormula('');
+    }
+
+    setSaving(false);
+  };
+
+  // Update existing rule
+  const handleUpdateRule = async () => {
+    if (!editingRule) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_labor_eligibility')
+      .update({ quantity_formula: formula || null })
+      .eq('id', editingRule.id);
+
+    if (!error) {
+      const { data } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setLaborRules(data);
+
+      setEditingRule(null);
+      setFormula('');
+    }
+
+    setSaving(false);
+  };
+
+  // Delete rule
+  const handleDeleteRule = async (ruleId: string) => {
+    if (!confirm('Remove this labor code from this product type?')) return;
+    setSaving(true);
+
+    await supabase
+      .from('component_labor_eligibility')
+      .delete()
+      .eq('id', ruleId);
+
+    const { data } = await supabase
+      .from('component_labor_eligibility')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setLaborRules(data);
+
+    setSaving(false);
+  };
+
+  // Open edit modal
+  const openEditModal = (rule: LaborEligibilityV2) => {
+    setEditingRule(rule);
+    setFormula(rule.quantity_formula || '');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Labor Rules</h2>
+          <p className="text-sm text-gray-500">
+            Configure which labor codes apply to {productType.name} and when
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          disabled={availableLaborCodes.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add Labor Code
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative w-64">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          value={laborSearch}
+          onChange={(e) => setLaborSearch(e.target.value)}
+          placeholder="Search labor codes..."
+          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg"
+        />
+      </div>
+
+      {/* Labor Rules Grid */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Labor Code
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Description
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Formula / Conditions
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredRules.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  {laborRules.length === 0
+                    ? 'No labor codes configured for this product type. Click "Add Labor Code" to get started.'
+                    : 'No labor codes match your search.'}
+                </td>
+              </tr>
+            ) : (
+              filteredRules.map(rule => {
+                const labor = getLaborCode(rule.labor_code_id);
+                return (
+                  <tr key={rule.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-sm text-gray-900">
+                        {labor?.labor_sku || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-gray-700">
+                        {labor?.description || 'Unknown labor code'}
+                      </span>
+                      <div className="text-xs text-gray-400">{labor?.unit_type}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {rule.quantity_formula ? (
+                        <code className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded font-mono">
+                          {rule.quantity_formula}
+                        </code>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">
+                          Default: [Quantity]
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEditModal(rule)}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                          title="Edit formula"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRule(rule.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Formula Examples Card */}
+      <div className="bg-purple-50 rounded-lg p-4">
+        <div className="text-sm font-medium text-purple-900 mb-3">Formula Examples</div>
+        <div className="grid grid-cols-2 gap-4 text-xs">
+          <div>
+            <div className="font-medium text-purple-800 mb-1">Always apply (default):</div>
+            <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">[Quantity]</code>
+          </div>
+          <div>
+            <div className="font-medium text-purple-800 mb-1">Conditional (Steel posts):</div>
+            <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">IF(post_type=="STEEL", [Quantity], 0)</code>
+          </div>
+          <div>
+            <div className="font-medium text-purple-800 mb-1">Complex (W05 Additional Rail):</div>
+            <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded text-[11px]">IF(OR(AND(height==6,rails==3), AND(height==8,rails==4)), [Quantity], 0)</code>
+          </div>
+          <div>
+            <div className="font-medium text-purple-800 mb-1">Height-based:</div>
+            <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">IF(height&gt;6, [Quantity], 0)</code>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Modal */}
+      {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Labor Code Settings</h2>
-              <button
-                onClick={() => setEditingLaborRule(null)}
-                className="p-1 hover:bg-gray-100 rounded-full"
-              >
+              <h2 className="text-lg font-semibold text-gray-900">Add Labor Code</h2>
+              <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-gray-100 rounded-full">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              {/* Labor code info */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-xs text-gray-500 mb-1">Labor Code</div>
-                <div className="font-mono text-sm">
-                  {laborCodes.find(l => l.id === editingLaborRule.labor_code_id)?.labor_sku}
-                </div>
-                <div className="text-sm text-gray-700 mt-1">
-                  {laborCodes.find(l => l.id === editingLaborRule.labor_code_id)?.description}
-                </div>
+            <div className="p-6 space-y-4">
+              {/* Labor Code Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Labor Code</label>
+                <select
+                  value={selectedLaborCodeId}
+                  onChange={(e) => setSelectedLaborCodeId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Select a labor code...</option>
+                  {availableLaborCodes.map(lc => (
+                    <option key={lc.id} value={lc.id}>
+                      {lc.labor_sku} - {lc.description}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Quantity/Condition Formula */}
+              {/* Formula */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Formula (Quantity & Conditions)
+                  Formula (optional)
                 </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Formula controls both <b>when</b> this labor applies and <b>how much</b>.
-                  Return 0 to skip this labor code, or a positive number for the quantity.
+                <p className="text-xs text-gray-500 mb-2">
+                  Leave blank for default quantity. Use a formula to conditionally apply this labor.
                 </p>
                 <textarea
-                  value={laborFormula}
-                  onChange={(e) => setLaborFormula(e.target.value)}
-                  placeholder="e.g., IF(post_type==&quot;STEEL&quot;, [post_count], 0)"
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  value={formula}
+                  onChange={(e) => setFormula(e.target.value)}
+                  placeholder="e.g., IF(post_type==&quot;STEEL&quot;, [Quantity], 0)"
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg"
                 />
-              </div>
-
-              {/* Formula examples - comprehensive */}
-              <div className="bg-purple-50 rounded-lg p-4">
-                <div className="text-sm font-medium text-purple-900 mb-3">Formula Examples</div>
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <div className="font-medium text-purple-800 mb-1">Simple quantity:</div>
-                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">[post_count] * 0.25</code>
-                  </div>
-                  <div>
-                    <div className="font-medium text-purple-800 mb-1">Conditional (Steel posts only):</div>
-                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">IF(post_type=="STEEL", [Quantity], 0)</code>
-                  </div>
-                  <div>
-                    <div className="font-medium text-purple-800 mb-1">Complex conditions (W05 Additional Rail):</div>
-                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded text-[11px]">IF(OR(AND(height==6,rails==3), AND(height==8,rails==4)), [Quantity], 0)</code>
-                    <div className="text-purple-600 mt-1">↳ 6ft fence with 3 rails, OR 8ft fence with 4 rails</div>
-                  </div>
-                  <div>
-                    <div className="font-medium text-purple-800 mb-1">Height-based:</div>
-                    <code className="block text-purple-700 bg-purple-100 px-2 py-1 rounded">IF(height&gt;6, [Quantity], 0)</code>
-                  </div>
-                </div>
               </div>
 
               {/* Available Variables */}
@@ -4264,53 +4127,87 @@ function EligibilityTab({
                   ))}
                 </div>
               </div>
-
-              {/* Legacy Conditions - deprecation notice */}
-              {Object.keys(laborConditions).length > 0 && (
-                <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
-                  <div className="text-xs font-medium text-amber-800 mb-2">
-                    ⚠️ Legacy Conditions (use Formula instead)
-                  </div>
-                  <div className="space-y-2">
-                    {Object.entries(laborConditions).map(([key, value]) => {
-                      const variable = productVariables.find(v => v.variable_code === key);
-                      return (
-                        <div key={key} className="flex items-center gap-2">
-                          <span className="text-xs text-amber-700">
-                            {variable?.variable_name || key} = {value}
-                          </span>
-                          <button
-                            onClick={() => {
-                              const newConditions = { ...laborConditions };
-                              delete newConditions[key];
-                              setLaborConditions(newConditions);
-                            }}
-                            className="p-0.5 text-amber-600 hover:bg-amber-100 rounded"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[10px] text-amber-600 mt-2">
-                    Migrate to formula: IF({Object.entries(laborConditions).map(([k,v]) => `${k}=="${v}"`).join(' AND ')}, [Quantity], 0)
-                  </p>
-                </div>
-              )}
             </div>
 
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3">
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button
-                onClick={() => setEditingLaborRule(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
               >
                 Cancel
               </button>
               <button
-                onClick={saveLaborRule}
+                onClick={handleAddRule}
+                disabled={!selectedLaborCodeId || saving}
+                className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300"
+              >
+                {saving ? 'Adding...' : 'Add Labor Code'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingRule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Edit Labor Formula</h2>
+              <button onClick={() => setEditingRule(null)} className="p-1 hover:bg-gray-100 rounded-full">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Labor code info */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500 mb-1">Labor Code</div>
+                <div className="font-mono text-sm">{getLaborCode(editingRule.labor_code_id)?.labor_sku}</div>
+                <div className="text-sm text-gray-700 mt-1">{getLaborCode(editingRule.labor_code_id)?.description}</div>
+              </div>
+
+              {/* Formula */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Formula</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Controls when and how much. Return 0 to skip, or a positive number for quantity.
+                </p>
+                <textarea
+                  value={formula}
+                  onChange={(e) => setFormula(e.target.value)}
+                  placeholder="[Quantity] (default)"
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              {/* Available Variables */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-gray-700 mb-2">Available Variables</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[Quantity]</span>
+                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[post_count]</span>
+                  {productVariables.map(v => (
+                    <span key={v.variable_code} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">
+                      {v.variable_code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setEditingRule(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateRule}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-purple-300 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
