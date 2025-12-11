@@ -86,9 +86,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
   // Get the V2 product type ID based on UI selection
   const selectedProductTypeV2 = useMemo(() => {
-    const typeCode = productType === 'wood-vertical' ? 'wood_vertical' :
-                    productType === 'wood-horizontal' ? 'wood_horizontal' : 'iron';
-    return productTypesV2.find(t => t.code === typeCode);
+    // Database uses dashes: wood-vertical, wood-horizontal, iron
+    return productTypesV2.find(t => t.code === productType);
   }, [productTypesV2, productType]);
 
   // V2 Styles for selected type
@@ -132,11 +131,9 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
   useEffect(() => {
     if (editingSKU) {
-      // Determine product type from V2 data
-      const typeCode = editingSKU.product_type?.code;
-      if (typeCode === 'wood_vertical') setProductType('wood-vertical');
-      else if (typeCode === 'wood_horizontal') setProductType('wood-horizontal');
-      else if (typeCode === 'iron') setProductType('iron');
+      // Determine product type from V2 data (database uses dashes)
+      const typeCode = editingSKU.product_type?.code as ProductType;
+      if (typeCode) setProductType(typeCode);
 
       setSkuCode(editingSKU.sku_code);
       setSkuName(editingSKU.sku_name);
