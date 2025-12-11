@@ -10,6 +10,12 @@
   to = "/qr.html"
   status = 200
 
+# Allow Netlify functions to pass through (must come before catch-all)
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
 # SPA catch-all - serves index.html for all other routes
 [[redirects]]
   from = "/*"
