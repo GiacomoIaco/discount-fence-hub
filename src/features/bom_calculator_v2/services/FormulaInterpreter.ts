@@ -178,7 +178,7 @@ export class FormulaInterpreter {
       const fn = new Function(`return ${expr}`);
       const result = fn();
 
-      return typeof result === 'number' && !isNaN(result) ? result : 0;
+      return typeof result === 'number' && isFinite(result) ? result : 0;
     } catch (err) {
       console.error('[FormulaInterpreter] Formula error:', formula, err);
       return 0;

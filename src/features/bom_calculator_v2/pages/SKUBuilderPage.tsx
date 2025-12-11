@@ -1108,16 +1108,16 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                         )}
                       </td>
                       <td className="px-3 py-2 text-right text-gray-500 font-mono">
-                        {result.raw_value.toFixed(2)}
+                        {isFinite(result.raw_value) ? result.raw_value.toFixed(2) : '0.00'}
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
-                        {result.rounded_value}
+                        {isFinite(result.rounded_value) ? result.rounded_value : 0}
                       </td>
                       <td className="px-3 py-2 text-right text-gray-500 font-mono">
-                        {result.unit_cost ? `$${result.unit_cost.toFixed(2)}` : '-'}
+                        {result.unit_cost && isFinite(result.unit_cost) ? `$${result.unit_cost.toFixed(2)}` : '-'}
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
-                        {result.total_cost ? `$${result.total_cost.toFixed(2)}` : '-'}
+                        {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
                       </td>
                       <td className="px-3 py-2 text-center">
                         <span className={`px-1.5 py-0.5 rounded text-[9px] ${

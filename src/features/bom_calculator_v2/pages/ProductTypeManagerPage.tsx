@@ -3121,8 +3121,9 @@ function FormulaEditorModal({
 
       const fn = new Function(`return ${expr}`);
       const result = fn();
-      setTestResult(typeof result === 'number' ? result : null);
-      setError(null);
+      // Handle NaN and Infinity - return 0 instead
+      setTestResult(typeof result === 'number' && isFinite(result) ? result : 0);
+      setError(typeof result === 'number' && !isFinite(result) ? 'Formula returned Infinity (division by zero?)' : null);
     } catch (e: any) {
       setError(`Formula error: ${e.message}`);
       setTestResult(null);
