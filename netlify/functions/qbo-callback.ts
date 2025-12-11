@@ -51,7 +51,11 @@ export const handler: Handler = async (event) => {
     const authResponse = await oauthClient.createToken(fullUrl);
     const token = authResponse.getJson();
 
-    console.log('Token received for realmId:', token.realmId);
+    // realmId comes from query string, not token response
+    const realmId = event.queryStringParameters?.realmId || token.realmId;
+
+    console.log('Token received for realmId:', realmId);
+    console.log('Token keys:', Object.keys(token));
 
     // Calculate expiration timestamps
     const now = new Date();
@@ -63,7 +67,7 @@ export const handler: Handler = async (event) => {
       .from('qbo_tokens')
       .upsert({
         id: 'primary', // Single row for now, could support multiple companies later
-        realm_id: token.realmId,
+        realm_id: realmId,
         access_token: token.access_token,
         refresh_token: token.refresh_token,
         access_token_expires_at: accessTokenExpiresAt.toISOString(),
@@ -91,7 +95,7 @@ export const handler: Handler = async (event) => {
           <body style="font-family: sans-serif; padding: 40px; text-align: center;">
             <h1>✅ QuickBooks Connected!</h1>
             <p>Your QuickBooks account has been successfully connected.</p>
-            <p><strong>Company ID (Realm):</strong> ${token.realmId}</p>
+            <p><strong>Company ID (Realm):</strong> ${realmId}</p>
             <p><strong>Environment:</strong> ${process.env.QBO_ENVIRONMENT || 'sandbox'}</p>
             <p><strong>Access Token Expires:</strong> ${accessTokenExpiresAt.toLocaleString()}</p>
             <p><strong>Refresh Token Expires:</strong> ${refreshTokenExpiresAt.toLocaleDateString()} (100 days)</p>
