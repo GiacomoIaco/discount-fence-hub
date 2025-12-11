@@ -2933,6 +2933,11 @@ function EligibilityTab({
   const [subcategoryFilter, setSubcategoryFilter] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Labor Edit Modal
+  const [editingLaborRule, setEditingLaborRule] = useState<LaborEligibilityV2 | null>(null);
+  const [laborFormula, setLaborFormula] = useState('');
+  const [laborConditions, setLaborConditions] = useState<Record<string, string>>({});
+
   // Fetch assigned components for this product type
   const { data: componentsFull = [] } = useProductTypeComponentsFull(productType.id);
 
@@ -3585,6 +3590,51 @@ function EligibilityTab({
     setSaving(false);
   };
 
+  // Open labor edit modal
+  const openLaborEdit = (laborCodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rule = getLaborRule(laborCodeId);
+    if (!rule) return;
+    setEditingLaborRule(rule);
+    setLaborFormula(rule.quantity_formula || '');
+    setLaborConditions(rule.attribute_filter || {});
+  };
+
+  // Save labor rule changes
+  const saveLaborRule = async () => {
+    if (!editingLaborRule) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('component_labor_eligibility')
+      .update({
+        quantity_formula: laborFormula || null,
+        attribute_filter: Object.keys(laborConditions).length > 0 ? laborConditions : null,
+      })
+      .eq('id', editingLaborRule.id);
+
+    if (error) {
+      console.error('Failed to update labor rule:', error);
+    } else {
+      // Refresh rules
+      const { data } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .eq('is_active', true);
+      if (data) setLaborRules(data);
+    }
+
+    setSaving(false);
+    setEditingLaborRule(null);
+  };
+
+  // Check if a labor rule has conditions
+  const hasLaborConditions = (laborCodeId: string): boolean => {
+    const rule = getLaborRule(laborCodeId);
+    return !!rule?.quantity_formula || (!!rule?.attribute_filter && Object.keys(rule.attribute_filter).length > 0);
+  };
+
   const selectedComponent = allAssignedComponents.find(c => c.component_type_id === selectedComponentId);
   const activeRules = getActiveRules();
 
@@ -3994,19 +4044,36 @@ function EligibilityTab({
                                 )}
                               </div>
                             </div>
-                            {/* Default star - only show for eligible items */}
+                            {/* Action buttons - only show for eligible items */}
                             {isEligible && (
-                              <button
-                                onClick={(e) => toggleLaborDefault(labor.id, e)}
-                                title={isDefault ? 'Remove as default' : 'Set as default for SKU builder'}
-                                className={`p-1 rounded transition-colors ${
-                                  isDefault
-                                    ? 'text-yellow-500 hover:text-yellow-600'
-                                    : 'text-gray-300 hover:text-yellow-400'
-                                }`}
-                              >
-                                <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
-                              </button>
+                              <div className="flex items-center gap-0.5">
+                                {/* Conditions indicator */}
+                                {hasLaborConditions(labor.id) && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
+                                    Cond
+                                  </span>
+                                )}
+                                {/* Settings button */}
+                                <button
+                                  onClick={(e) => openLaborEdit(labor.id, e)}
+                                  title="Edit formula & conditions"
+                                  className="p-1 rounded transition-colors text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                </button>
+                                {/* Default star */}
+                                <button
+                                  onClick={(e) => toggleLaborDefault(labor.id, e)}
+                                  title={isDefault ? 'Remove as default' : 'Set as default for SKU builder'}
+                                  className={`p-1 rounded transition-colors ${
+                                    isDefault
+                                      ? 'text-yellow-500 hover:text-yellow-600'
+                                      : 'text-gray-300 hover:text-yellow-400'
+                                  }`}
+                                >
+                                  <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -4027,6 +4094,140 @@ function EligibilityTab({
           </div>
         )}
       </div>
+
+      {/* Labor Edit Modal */}
+      {editingLaborRule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Labor Code Settings</h2>
+              <button
+                onClick={() => setEditingLaborRule(null)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Labor code info */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500 mb-1">Labor Code</div>
+                <div className="font-mono text-sm">
+                  {laborCodes.find(l => l.id === editingLaborRule.labor_code_id)?.labor_sku}
+                </div>
+                <div className="text-sm text-gray-700 mt-1">
+                  {laborCodes.find(l => l.id === editingLaborRule.labor_code_id)?.description}
+                </div>
+              </div>
+
+              {/* Quantity Formula */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quantity Formula
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Optional formula to calculate quantity. Use variables like [post_count], [Quantity], [height].
+                </p>
+                <input
+                  type="text"
+                  value={laborFormula}
+                  onChange={(e) => setLaborFormula(e.target.value)}
+                  placeholder="e.g., [post_count] * 0.5"
+                  className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+              </div>
+
+              {/* Conditions */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Conditions (Attribute Filter)
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Only apply this labor when these conditions match.
+                </p>
+
+                {/* Existing conditions */}
+                <div className="space-y-2 mb-3">
+                  {Object.entries(laborConditions).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={key}
+                        readOnly
+                        className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50"
+                      />
+                      <span className="text-gray-400">=</span>
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => setLaborConditions({ ...laborConditions, [key]: e.target.value })}
+                        className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
+                      />
+                      <button
+                        onClick={() => {
+                          const newConditions = { ...laborConditions };
+                          delete newConditions[key];
+                          setLaborConditions(newConditions);
+                        }}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add new condition */}
+                <div className="flex items-center gap-2">
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value && !laborConditions[e.target.value]) {
+                        setLaborConditions({ ...laborConditions, [e.target.value]: '' });
+                      }
+                      e.target.value = '';
+                    }}
+                    className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded"
+                  >
+                    <option value="">+ Add condition...</option>
+                    <option value="post_type">post_type</option>
+                    <option value="height_min">height_min</option>
+                    <option value="height_max">height_max</option>
+                    <option value="rail_count">rail_count</option>
+                    <option value="style">style</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Formula examples */}
+              <div className="bg-purple-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-purple-900 mb-2">Formula Examples</div>
+                <div className="text-xs text-purple-700 space-y-1 font-mono">
+                  <div>[post_count] * 0.25</div>
+                  <div>[Quantity] / 8</div>
+                  <div>ROUNDUP([Quantity] / [height])</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setEditingLaborRule(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveLaborRule}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-purple-300 transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Saving Indicator */}
       {saving && (
