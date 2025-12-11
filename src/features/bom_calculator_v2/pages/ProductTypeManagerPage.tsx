@@ -2969,7 +2969,7 @@ function EligibilityTab({
     return comp?.filter_variable_code || null;
   };
 
-  // Get material count for a component
+  // Get material count for a component (optionally filtered by attribute value)
   const getMaterialCount = (componentId: string, attributeValue?: string): number => {
     const filterCode = getComponentFilterCode(componentId);
 
@@ -2985,7 +2985,7 @@ function EligibilityTab({
     }).length;
   };
 
-  // Get labor count for a component
+  // Get labor count for a component (optionally filtered by attribute value)
   const getLaborCount = (componentId: string, attributeValue?: string): number => {
     const filterCode = getComponentFilterCode(componentId);
 
@@ -2999,6 +2999,17 @@ function EligibilityTab({
 
       return !r.attribute_filter;
     }).length;
+  };
+
+  // Get TOTAL count for a component (sum across all subgroups)
+  const getTotalItemCount = (comp: ProductTypeComponentFull): number => {
+    if (comp.is_labor) {
+      // Labor component - count all labor rules for this component
+      return laborRules.filter(r => r.component_type_id === comp.component_type_id).length;
+    } else {
+      // Material component - count all material rules for this component
+      return materialRules.filter(r => r.component_type_id === comp.component_type_id).length;
+    }
   };
 
   // Toggle component expansion
@@ -3060,21 +3071,26 @@ function EligibilityTab({
 
     const attrFilter = buildAttributeFilter();
 
-    let query = supabase
-      .from('component_material_eligibility_v2')
-      .delete()
-      .eq('product_type_id', productType.id)
-      .eq('component_type_id', selectedComponentId)
-      .eq('material_id', materialId)
-      .eq('selection_mode', 'specific');
-
+    // For JSONB comparison, use contains instead of eq
     if (attrFilter) {
-      query = query.eq('attribute_filter', attrFilter);
+      await supabase
+        .from('component_material_eligibility_v2')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentId)
+        .eq('material_id', materialId)
+        .eq('selection_mode', 'specific')
+        .contains('attribute_filter', attrFilter);
     } else {
-      query = query.is('attribute_filter', null);
+      await supabase
+        .from('component_material_eligibility_v2')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentId)
+        .eq('material_id', materialId)
+        .eq('selection_mode', 'specific')
+        .is('attribute_filter', null);
     }
-
-    await query;
 
     // Refresh rules
     const { data } = await supabase
@@ -3130,20 +3146,24 @@ function EligibilityTab({
 
     const attrFilter = buildAttributeFilter();
 
-    let query = supabase
-      .from('component_labor_eligibility')
-      .delete()
-      .eq('product_type_id', productType.id)
-      .eq('component_type_id', selectedComponentId)
-      .eq('labor_code_id', laborCodeId);
-
+    // For JSONB comparison, use contains instead of eq
     if (attrFilter) {
-      query = query.eq('attribute_filter', attrFilter);
+      await supabase
+        .from('component_labor_eligibility')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentId)
+        .eq('labor_code_id', laborCodeId)
+        .contains('attribute_filter', attrFilter);
     } else {
-      query = query.is('attribute_filter', null);
+      await supabase
+        .from('component_labor_eligibility')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentId)
+        .eq('labor_code_id', laborCodeId)
+        .is('attribute_filter', null);
     }
-
-    await query;
 
     // Refresh rules
     const { data } = await supabase
@@ -3249,8 +3269,7 @@ function EligibilityTab({
           ) : (
             assignedComponents.map(comp => {
               const isExpanded = expandedComponents.has(comp.component_type_id);
-              const materialCount = getMaterialCount(comp.component_type_id);
-              const laborCount = getLaborCount(comp.component_type_id);
+              const totalCount = getTotalItemCount(comp);
               // Each component can have its own filter variable values
               const hasFilterValues = comp.filter_variable_values && comp.filter_variable_values.length > 0;
 
@@ -3286,14 +3305,14 @@ function EligibilityTab({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                        {materialCount}
-                      </span>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">
-                        {laborCount}
-                      </span>
-                    </div>
+                    {/* Single count badge - color based on component type */}
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      totalCount > 0
+                        ? comp.is_labor ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {totalCount}
+                    </span>
                   </button>
 
                   {/* Expandable attribute values - uses component's own filter_variable_values */}
@@ -3301,8 +3320,10 @@ function EligibilityTab({
                     <div className="bg-gray-50 border-b border-gray-100">
                       {comp.filter_variable_values!.map(value => {
                         const isSelected = selectedComponentId === comp.component_type_id && selectedAttributeValue === value;
-                        const matCount = getMaterialCount(comp.component_type_id, value);
-                        const labCount = getLaborCount(comp.component_type_id, value);
+                        // Get count for this specific subgroup
+                        const subgroupCount = comp.is_labor
+                          ? getLaborCount(comp.component_type_id, value)
+                          : getMaterialCount(comp.component_type_id, value);
 
                         return (
                           <button
@@ -3317,14 +3338,13 @@ function EligibilityTab({
                             <span className={`text-sm ${isSelected ? 'text-purple-700 font-medium' : 'text-gray-700'}`}>
                               {value}
                             </span>
-                            <div className="flex items-center gap-1">
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${matCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
-                                {matCount}
-                              </span>
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${labCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
-                                {labCount}
-                              </span>
-                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              subgroupCount > 0
+                                ? comp.is_labor ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-200 text-gray-500'
+                            }`}>
+                              {subgroupCount}
+                            </span>
                           </button>
                         );
                       })}
