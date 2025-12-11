@@ -1945,8 +1945,8 @@ function ComponentsTab({
         </div>
       ) : (
         <div className="flex gap-4 h-[calc(100vh-300px)]">
-          {/* Panel 1 - Available Components (26% width) */}
-          <div className="w-[26%] flex-shrink-0 bg-white rounded-lg border border-gray-200 flex flex-col">
+          {/* Panel 1 - Available Components (22% width) */}
+          <div className="w-[22%] flex-shrink-0 bg-white rounded-lg border border-gray-200 flex flex-col">
             <div className="p-3 border-b border-gray-200">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-gray-900">Available</h3>
@@ -2026,8 +2026,8 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 2 - Component List with Subgroups */}
-          <div className="w-64 flex-shrink-0 bg-white rounded-lg border border-blue-200 flex flex-col">
+          {/* Panel 2 - Component List with Subgroups (34% width) */}
+          <div className="w-[34%] flex-shrink-0 bg-white rounded-lg border border-blue-200 flex flex-col">
             <div className="p-3 border-b border-blue-100 bg-blue-50/50">
               <h3 className="font-semibold text-blue-900 text-sm">COMPONENTS</h3>
             </div>
@@ -2182,8 +2182,8 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Panel 3 - Material Eligibility (always visible) */}
-          <div className="flex-1 bg-white rounded-lg border border-purple-200 flex flex-col">
+          {/* Panel 3 - Material Eligibility (44% width) */}
+          <div className="w-[44%] flex-shrink-0 bg-white rounded-lg border border-purple-200 flex flex-col">
             {selectedComponentForMaterials ? (
               <>
                 {/* Header */}
