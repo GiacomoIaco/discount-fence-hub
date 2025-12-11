@@ -488,60 +488,60 @@ export default function LaborRatesPage() {
         ) : (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 w-[70px]">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 w-[80px]">
                       Code
                     </th>
-                    <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-[70px] bg-gray-50 z-10 min-w-[280px]">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600 uppercase tracking-wider sticky left-[80px] bg-gray-50 z-10 min-w-[300px]">
                       Description
                     </th>
-                    <th className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider w-[45px]">
+                    <th className="px-2 py-2 text-center font-semibold text-gray-600 uppercase tracking-wider w-[60px]">
                       UOM
                     </th>
-                    <th className="px-1 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider w-[120px]">
+                    <th className="px-2 py-2 text-left font-semibold text-gray-600 uppercase tracking-wider w-[140px]">
                       Products
                     </th>
                     {businessUnits.map(bu => (
                       <th
                         key={bu.id}
-                        className="px-0.5 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider w-[55px]"
+                        className="px-1 py-2 text-center font-semibold text-gray-600 uppercase tracking-wider w-[70px]"
                         title={bu.name}
                       >
                         {bu.code}
                       </th>
                     ))}
-                    <th className="px-1 py-1.5 text-center font-semibold text-gray-600 uppercase tracking-wider w-[30px]">
+                    <th className="px-2 py-2 text-center font-semibold text-gray-600 uppercase tracking-wider w-[40px]">
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredLaborCodes.map(code => (
                     <tr key={code.id} className="hover:bg-gray-50 group">
-                      <td className="px-2 py-1 font-mono text-gray-900 sticky left-0 bg-white z-10 group-hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-gray-900 sticky left-0 bg-white z-10 group-hover:bg-gray-50">
                         {code.labor_sku}
                       </td>
-                      <td className="px-2 py-1 text-gray-700 sticky left-[70px] bg-white z-10 group-hover:bg-gray-50" title={code.description}>
-                        <div className="truncate max-w-[280px]">{code.description}</div>
+                      <td className="px-3 py-2 text-gray-700 sticky left-[80px] bg-white z-10 group-hover:bg-gray-50" title={code.description}>
+                        <div className="truncate max-w-[300px]">{code.description}</div>
                         {code.notes && (
-                          <div className="text-[10px] text-gray-400 truncate" title={code.notes}>
+                          <div className="text-xs text-gray-400 truncate" title={code.notes}>
                             {code.notes}
                           </div>
                         )}
                       </td>
-                      <td className="px-1 py-1 text-center text-gray-500">
+                      <td className="px-2 py-2 text-center text-gray-500">
                         {formatUOM(code.unit_type)}
                       </td>
-                      <td className="px-1 py-1 text-gray-500">
-                        <div className="flex flex-wrap gap-0.5">
+                      <td className="px-2 py-2 text-gray-500">
+                        <div className="flex flex-wrap gap-1">
                           {(code.fence_category_standard || []).slice(0, 2).map((pt, i) => (
-                            <span key={i} className="text-[9px] bg-gray-100 text-gray-600 px-1 rounded">
+                            <span key={i} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                               {pt.split(' ').map(w => w[0]).join('')}
                             </span>
                           ))}
                           {(code.fence_category_standard?.length || 0) > 2 && (
-                            <span className="text-[9px] text-gray-400">+{(code.fence_category_standard?.length || 0) - 2}</span>
+                            <span className="text-xs text-gray-400">+{(code.fence_category_standard?.length || 0) - 2}</span>
                           )}
                         </div>
                       </td>
@@ -550,7 +550,7 @@ export default function LaborRatesPage() {
                         const isPending = hasPendingChange(code.id, bu.id);
 
                         return (
-                          <td key={bu.id} className="px-0.5 py-0.5 text-center">
+                          <td key={bu.id} className="px-1 py-1 text-center">
                             <div className="relative">
                               <input
                                 type="number"
@@ -558,7 +558,7 @@ export default function LaborRatesPage() {
                                 min="0"
                                 value={rate ?? ''}
                                 onChange={(e) => handleRateChange(code.id, bu.id, e.target.value)}
-                                className={`w-full px-0.5 py-0.5 text-[11px] text-right border rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
+                                className={`w-full px-1 py-1 text-sm text-right border rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
                                   isPending
                                     ? 'border-amber-400 bg-amber-50'
                                     : 'border-gray-200'
@@ -566,19 +566,19 @@ export default function LaborRatesPage() {
                                 placeholder="0"
                               />
                               {isPending && (
-                                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full" />
                               )}
                             </div>
                           </td>
                         );
                       })}
-                      <td className="px-1 py-0.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <button
                           onClick={() => setEditingCode(code)}
-                          className="p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover:opacity-100"
                           title="Edit labor code"
                         >
-                          <Pencil className="w-3 h-3" />
+                          <Pencil className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
