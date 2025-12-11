@@ -16,7 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Save, Trash2, X, ChevronDown, ChevronRight, Edit2, Copy,
   AlertCircle, Layers, Settings, Variable,
-  Box, Calculator, Search, Download,
+  Box, Calculator, Search, Download, ArrowUp, ArrowDown,
   Filter, Check, Star, Link2
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
@@ -1899,6 +1899,26 @@ function ComponentsTab({
     setSaving(false);
   };
 
+  // Move component up or down in order (affects formula execution sequence)
+  const moveComponent = async (component: ProductTypeComponentFull, direction: 'up' | 'down') => {
+    const componentList = selectedMaterialComponents;
+    const currentIndex = componentList.findIndex(c => c.component_type_id === component.component_type_id);
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= componentList.length) return;
+
+    setSaving(true);
+    const currentComponent = componentList[currentIndex];
+    const targetComponent = componentList[targetIndex];
+
+    await Promise.all([
+      supabase.from('product_type_components_v2').update({ display_order: targetComponent.display_order }).eq('id', currentComponent.assignment_id),
+      supabase.from('product_type_components_v2').update({ display_order: currentComponent.display_order }).eq('id', targetComponent.assignment_id),
+    ]);
+
+    await refetchComponents();
+    setSaving(false);
+  };
+
   const loading = isLoading || loadingFull;
 
   return (
@@ -2071,6 +2091,49 @@ function ComponentsTab({
                           }`}>
                             {materialCount}
                           </span>
+                          {/* Action buttons: reorder, edit, remove */}
+                          <div className="flex items-center gap-0.5 ml-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveComponent(component, 'up');
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                              title="Move up"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveComponent(component, 'down');
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                              title="Move down"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingComponent(component);
+                              }}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                              title="Edit component settings"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleComponent(component);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Remove component"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Subgroup rows (filter variable values) */}
