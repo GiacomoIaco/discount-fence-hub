@@ -11,7 +11,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package, AlertCircle
+  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package, AlertCircle, Play, ChevronDown, ChevronRight
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -24,6 +24,13 @@ import {
   useProductTypeComponentsFull,
 } from '../hooks';
 import type { ProductTypeComponentFull, ProductVariableV2 } from '../hooks';
+import {
+  FormulaInterpreter,
+  buildMaterialAttributes,
+  createFormulaContext,
+  applyProjectRounding,
+} from '../services/FormulaInterpreter';
+import type { FormulaResult } from '../services/FormulaInterpreter';
 
 // =============================================================================
 // TYPES
@@ -70,6 +77,14 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
   // Dynamic component selections (component_code -> material_id)
   const [componentSelections, setComponentSelections] = useState<Record<string, string>>({});
+
+  // Test panel state
+  const [testLength, setTestLength] = useState(100);
+  const [testLines, setTestLines] = useState(1);
+  const [testGates, setTestGates] = useState(0);
+  const [testResults, setTestResults] = useState<FormulaResult[]>([]);
+  const [testExpanded, setTestExpanded] = useState(true);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   // =============================================================================
   // DATA FETCHING
@@ -352,6 +367,82 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       [componentCode]: materialId
     }));
   };
+
+  // =============================================================================
+  // BOM TEST CALCULATION
+  // =============================================================================
+
+  const runBOMTest = useCallback(async () => {
+    if (!selectedProductTypeV2 || !selectedStyleV2) {
+      showError('Select a product type and style first');
+      return;
+    }
+
+    setIsCalculating(true);
+    try {
+      const interpreter = new FormulaInterpreter(supabase);
+
+      // Build components JSONB (material SKUs for attributes)
+      const components: Record<string, string> = {};
+      Object.entries(componentSelections).forEach(([componentCode, materialId]) => {
+        if (materialId) {
+          components[componentCode] = getMaterialSku(materialId);
+        }
+      });
+
+      // Build material attributes
+      const materialAttrs = await buildMaterialAttributes(supabase, components);
+
+      // Build variables
+      const vars: Record<string, number | string> = {
+        ...variableValues,
+        height,
+        rail_count: railCount,
+        post_spacing: selectedStyleV2.formula_adjustments?.post_spacing ||
+                     selectedProductTypeV2.default_post_spacing || 8,
+      };
+
+      // Create context
+      const context = createFormulaContext(
+        testLength,
+        testLines,
+        testGates,
+        height,
+        vars,
+        selectedStyleV2.formula_adjustments || {},
+        materialAttrs
+      );
+
+      // Execute formulas
+      const results = await interpreter.executeAllFormulas(
+        selectedProductTypeV2.id,
+        selectedStyleV2.id,
+        context
+      );
+
+      // Apply project-level rounding
+      const roundedResults = applyProjectRounding(results);
+
+      // Enrich with component names from assignedComponentsV2
+      const enrichedResults = roundedResults.map(r => {
+        const comp = assignedComponentsV2.find(c => c.component_code === r.component_code);
+        return {
+          ...r,
+          component_name: comp?.component_name || r.component_code,
+        };
+      });
+
+      setTestResults(enrichedResults);
+    } catch (err) {
+      console.error('BOM Test error:', err);
+      showError('Failed to calculate BOM');
+    } finally {
+      setIsCalculating(false);
+    }
+  }, [
+    selectedProductTypeV2, selectedStyleV2, componentSelections, variableValues,
+    height, railCount, testLength, testLines, testGates, assignedComponentsV2, getMaterialSku
+  ]);
 
   // =============================================================================
   // SAVE MUTATION
@@ -783,6 +874,124 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
               JSONB variables and components for formula-based BOM calculation.
             </p>
           </div>
+        </div>
+
+        {/* Test Panel */}
+        <div className="bg-white rounded-lg border border-gray-200 mt-4">
+          <button
+            onClick={() => setTestExpanded(!testExpanded)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50"
+          >
+            <div className="flex items-center gap-2">
+              {testExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <h2 className="text-sm font-semibold text-gray-900">Test BOM Calculation</h2>
+            </div>
+            <span className="text-xs text-gray-500">
+              {testResults.length > 0 ? `${testResults.length} components` : 'Not tested'}
+            </span>
+          </button>
+
+          {testExpanded && (
+            <div className="px-4 pb-4 border-t border-gray-100">
+              {/* Test Inputs */}
+              <div className="flex items-end gap-3 mt-3">
+                <div className="w-20">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Length (ft)</label>
+                  <input
+                    type="number"
+                    value={testLength}
+                    onChange={(e) => setTestLength(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="w-16">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Lines</label>
+                  <select
+                    value={testLines}
+                    onChange={(e) => setTestLines(parseInt(e.target.value))}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+                  >
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-16">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Gates</label>
+                  <select
+                    value={testGates}
+                    onChange={(e) => setTestGates(parseInt(e.target.value))}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
+                  >
+                    {[0, 1, 2, 3].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={runBOMTest}
+                  disabled={isCalculating}
+                  className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium flex items-center gap-1.5 hover:bg-green-700 disabled:bg-gray-400"
+                >
+                  {isCalculating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5" />
+                  )}
+                  Calculate
+                </button>
+              </div>
+
+              {/* Test Results */}
+              {testResults.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                    BOM Preview ({testLength}ft × {testLines}L × {testGates}G)
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-100 text-gray-600">
+                          <th className="px-2 py-1.5 text-left font-medium">Component</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Raw</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Qty</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Round</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {testResults.map((result, idx) => (
+                          <tr key={result.component_code} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-2 py-1.5 text-gray-900">{result.component_name}</td>
+                            <td className="px-2 py-1.5 text-right text-gray-500 font-mono">
+                              {result.raw_value.toFixed(2)}
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-mono font-medium text-gray-900">
+                              {result.rounded_value}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <span className={`px-1 py-0.5 rounded text-[10px] ${
+                                result.rounding_level === 'sku' ? 'bg-blue-100 text-blue-700' :
+                                result.rounding_level === 'project' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {result.rounding_level}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {testResults.length === 0 && (
+                <div className="mt-4 text-xs text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                  Enter test values and click "Calculate" to preview BOM quantities
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
