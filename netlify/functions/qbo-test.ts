@@ -92,9 +92,25 @@ export const handler: Handler = async () => {
       method: 'GET',
     });
 
-    // response.text is a property, not a function in newer SDK versions
-    const responseText = typeof response.text === 'function' ? response.text() : response.text;
-    const companyInfo = JSON.parse(responseText);
+    // Debug: log response structure
+    console.log('Response type:', typeof response);
+    console.log('Response keys:', Object.keys(response));
+    console.log('Response.body:', response.body);
+    console.log('Response.json:', response.json);
+
+    // Try different ways to get the response data
+    let companyInfo;
+    if (response.json) {
+      companyInfo = typeof response.json === 'function' ? response.json() : response.json;
+    } else if (response.body) {
+      companyInfo = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+    } else if (response.text) {
+      const text = typeof response.text === 'function' ? response.text() : response.text;
+      companyInfo = JSON.parse(text);
+    } else {
+      // Response might be the data itself
+      companyInfo = response;
+    }
 
     // Also get customer count (to test query capability)
     const customerCountUrl = `${baseUrl}/v3/company/${tokenData.realm_id}/query?query=SELECT COUNT(*) FROM Customer`;
@@ -102,8 +118,15 @@ export const handler: Handler = async () => {
       url: customerCountUrl,
       method: 'GET',
     });
-    const customerCountText = typeof customerCountResponse.text === 'function' ? customerCountResponse.text() : customerCountResponse.text;
-    const customerCount = JSON.parse(customerCountText);
+
+    let customerCount;
+    if (customerCountResponse.json) {
+      customerCount = typeof customerCountResponse.json === 'function' ? customerCountResponse.json() : customerCountResponse.json;
+    } else if (customerCountResponse.body) {
+      customerCount = typeof customerCountResponse.body === 'string' ? JSON.parse(customerCountResponse.body) : customerCountResponse.body;
+    } else {
+      customerCount = customerCountResponse;
+    }
 
     const company = companyInfo.CompanyInfo;
     const count = customerCount.QueryResponse?.totalCount || 0;
