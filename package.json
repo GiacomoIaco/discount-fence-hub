@@ -27,6 +27,7 @@
     "axios": "^1.12.2",
     "date-fns": "^4.1.0",
     "form-data": "^4.0.4",
+    "intuit-oauth": "^4.2.2",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.544.0",
