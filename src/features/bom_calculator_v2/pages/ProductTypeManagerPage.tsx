@@ -255,6 +255,7 @@ export default function ProductTypeManagerPage() {
                 {activeTab === 'labor' && (
                   <LaborTab
                     productType={selectedType}
+                    styles={styles}
                   />
                 )}
               </div>
@@ -3488,8 +3489,10 @@ interface LaborEligibilityV2 {
 
 function LaborTab({
   productType,
+  styles,
 }: {
   productType: ProductTypeV2;
+  styles: ProductStyleV2[];
 }) {
   const [laborRules, setLaborRules] = useState<LaborEligibilityV2[]>([]);
   const [laborCodes, setLaborCodes] = useState<LaborCode[]>([]);
@@ -3505,6 +3508,10 @@ function LaborTab({
 
   // Fetch product variables for formula reference
   const { data: productVariables = [] } = useProductVariablesV2(productType.id);
+
+  // Fetch assigned components for optional material component variables
+  const { data: assignedComponents = [] } = useProductTypeComponentsFull(productType.id);
+  const materialComponents = assignedComponents.filter(c => c.is_assigned && !c.is_labor);
 
   // Load labor codes and rules
   useEffect(() => {
@@ -3637,6 +3644,39 @@ function LaborTab({
     setEditingRule(rule);
     setFormula(rule.quantity_formula || '');
   };
+
+  // Insert variable into formula field
+  const insertVariable = (varCode: string) => {
+    setFormula(prev => prev + varCode);
+  };
+
+  // Build all available variables for the formula
+  const allVariables = [
+    // Project inputs
+    { code: '[Quantity]', name: 'Net Length (ft)', group: 'Project' },
+    { code: '[Lines]', name: 'Number of Lines', group: 'Project' },
+    { code: '[Gates]', name: 'Number of Gates', group: 'Project' },
+    { code: '[height]', name: 'Height', group: 'Project' },
+    { code: '[post_count]', name: 'Post Count', group: 'Calculated' },
+    // Product variables
+    ...productVariables.map(v => ({
+      code: `[${v.variable_code}]`,
+      name: v.variable_name,
+      group: 'Variables',
+    })),
+    // Fence styles (for conditional logic like IF(fence_style=="A01", ...))
+    ...styles.map(s => ({
+      code: `"${s.code}"`,
+      name: `Style: ${s.name}`,
+      group: 'Styles',
+    })),
+    // Material components (for checking what was selected)
+    ...materialComponents.map(c => ({
+      code: `[${c.component_code}]`,
+      name: c.component_name,
+      group: 'Components',
+    })),
+  ];
 
   if (loading) {
     return (
@@ -3828,18 +3868,33 @@ function LaborTab({
                 />
               </div>
 
-              {/* Available Variables */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-gray-700 mb-2">Available Variables</div>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[Quantity]</span>
-                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[post_count]</span>
-                  {productVariables.map(v => (
-                    <span key={v.variable_code} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">
-                      {v.variable_code}
-                    </span>
-                  ))}
+              {/* Available Variables - Clickable */}
+              <div className="bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                <div className="text-xs font-medium text-gray-700 mb-2">
+                  Click to insert variable into formula
                 </div>
+                {['Project', 'Calculated', 'Variables', 'Styles', 'Components'].map(group => {
+                  const groupVars = allVariables.filter(v => v.group === group);
+                  if (groupVars.length === 0) return null;
+                  return (
+                    <div key={group} className="mb-2">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">{group}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {groupVars.map(v => (
+                          <button
+                            key={v.code}
+                            type="button"
+                            onClick={() => insertVariable(v.code)}
+                            className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors"
+                            title={v.name}
+                          >
+                            {v.code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -3896,18 +3951,33 @@ function LaborTab({
                 />
               </div>
 
-              {/* Available Variables */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-gray-700 mb-2">Available Variables</div>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[Quantity]</span>
-                  <span className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">[post_count]</span>
-                  {productVariables.map(v => (
-                    <span key={v.variable_code} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">
-                      {v.variable_code}
-                    </span>
-                  ))}
+              {/* Available Variables - Clickable */}
+              <div className="bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                <div className="text-xs font-medium text-gray-700 mb-2">
+                  Click to insert variable into formula
                 </div>
+                {['Project', 'Calculated', 'Variables', 'Styles', 'Components'].map(group => {
+                  const groupVars = allVariables.filter(v => v.group === group);
+                  if (groupVars.length === 0) return null;
+                  return (
+                    <div key={group} className="mb-2">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">{group}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {groupVars.map(v => (
+                          <button
+                            key={v.code}
+                            type="button"
+                            onClick={() => insertVariable(v.code)}
+                            className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors"
+                            title={v.name}
+                          >
+                            {v.code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
