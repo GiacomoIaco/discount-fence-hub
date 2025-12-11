@@ -232,6 +232,8 @@ export interface ProductTypeComponentFull {
   filter_variable_code: string | null;
   filter_variable_name: string | null;
   filter_variable_values: string[] | null;
+  // Visibility conditions for SKU builder (e.g., {"post_type": ["STEEL"]} = only show for steel posts)
+  visibility_conditions: Record<string, string[]> | null;
 }
 
 /**

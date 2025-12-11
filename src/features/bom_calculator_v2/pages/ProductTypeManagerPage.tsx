@@ -17,7 +17,7 @@ import {
   Plus, Save, Trash2, X, ChevronRight, ChevronDown, Edit2, Copy,
   AlertCircle, CheckCircle, Layers, Settings, Variable,
   Box, Calculator, Search, ArrowUp, ArrowDown, Download,
-  Link2, Filter, Check
+  Link2, Filter, Check, Star
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -1686,6 +1686,7 @@ function ComponentsTab({
                   {selectedComponents.map((component, index) => {
                     const hasFormula = componentsWithFormulas.has(component.component_type_id);
                     const hasFilter = !!component.filter_variable_id;
+                    const hasVisibility = component.visibility_conditions && Object.keys(component.visibility_conditions).length > 0;
                     return (
                       <div
                         key={component.component_type_id}
@@ -1732,6 +1733,11 @@ function ComponentsTab({
                             {hasFilter && (
                               <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
                                 Filter: {component.filter_variable_name}
+                              </span>
+                            )}
+                            {hasVisibility && (
+                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">
+                                Conditional
                               </span>
                             )}
                           </div>
@@ -1791,7 +1797,7 @@ function ComponentsTab({
   );
 }
 
-// Edit Component Assignment Modal - set filter variable
+// Edit Component Assignment Modal - set filter variable and visibility conditions
 function EditComponentAssignmentModal({
   component,
   variables,
@@ -1806,18 +1812,39 @@ function EditComponentAssignmentModal({
   const [filterVariableId, setFilterVariableId] = useState<string>(component.filter_variable_id || '');
   const [saving, setSaving] = useState(false);
 
+  // Visibility conditions state
+  const [visibilityEnabled, setVisibilityEnabled] = useState<boolean>(
+    component.visibility_conditions !== null && Object.keys(component.visibility_conditions || {}).length > 0
+  );
+  const [visibilityVariable, setVisibilityVariable] = useState<string>(
+    Object.keys(component.visibility_conditions || {})[0] || ''
+  );
+  const [visibilityValues, setVisibilityValues] = useState<string[]>(
+    component.visibility_conditions?.[Object.keys(component.visibility_conditions || {})[0]] || []
+  );
+
   // Only show select-type variables (those with allowed_values)
   const selectVariables = variables.filter(v =>
     v.variable_type === 'select' || (v.allowed_values && v.allowed_values.length > 0)
   );
 
+  // Get the selected visibility variable
+  const selectedVisibilityVar = variables.find(v => v.variable_code === visibilityVariable);
+
   const handleSave = async () => {
     setSaving(true);
+
+    // Build visibility_conditions
+    let visibilityConditions: Record<string, string[]> | null = null;
+    if (visibilityEnabled && visibilityVariable && visibilityValues.length > 0) {
+      visibilityConditions = { [visibilityVariable]: visibilityValues };
+    }
 
     const { error } = await supabase
       .from('product_type_components_v2')
       .update({
         filter_variable_id: filterVariableId || null,
+        visibility_conditions: visibilityConditions,
       })
       .eq('id', component.assignment_id);
 
@@ -1831,6 +1858,15 @@ function EditComponentAssignmentModal({
   };
 
   const selectedVariable = variables.find(v => v.id === filterVariableId);
+
+  // Toggle a value in visibilityValues
+  const toggleVisibilityValue = (val: string) => {
+    if (visibilityValues.includes(val)) {
+      setVisibilityValues(visibilityValues.filter(v => v !== val));
+    } else {
+      setVisibilityValues([...visibilityValues, val]);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -1891,6 +1927,96 @@ function EditComponentAssignmentModal({
               </div>
             </div>
           )}
+
+          {/* Visibility Conditions */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-gray-700">
+                Visibility Conditions (for SKU Builder)
+              </label>
+              <button
+                onClick={() => {
+                  setVisibilityEnabled(!visibilityEnabled);
+                  if (visibilityEnabled) {
+                    setVisibilityVariable('');
+                    setVisibilityValues([]);
+                  }
+                }}
+                className={`px-3 py-1 text-xs rounded-full ${
+                  visibilityEnabled
+                    ? 'bg-orange-100 text-orange-700'
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {visibilityEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+
+            {visibilityEnabled && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Show this component only when:
+                  </label>
+                  <select
+                    value={visibilityVariable}
+                    onChange={(e) => {
+                      setVisibilityVariable(e.target.value);
+                      setVisibilityValues([]);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="">Select a variable...</option>
+                    {selectVariables.map((v) => (
+                      <option key={v.id} value={v.variable_code}>
+                        {v.variable_name} ({v.variable_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {visibilityVariable && selectedVisibilityVar?.allowed_values && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-2">
+                      equals one of:
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedVisibilityVar.allowed_values.map((val) => (
+                        <button
+                          key={val}
+                          onClick={() => toggleVisibilityValue(val)}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                            visibilityValues.includes(val)
+                              ? 'bg-orange-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                    {visibilityValues.length > 0 && (
+                      <p className="mt-2 text-xs text-orange-600">
+                        Component visible when {visibilityVariable} = {visibilityValues.join(' or ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {visibilityEnabled && !visibilityVariable && (
+                  <p className="text-xs text-amber-600">
+                    Select a variable to set visibility conditions
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!visibilityEnabled && (
+              <p className="text-xs text-gray-500">
+                Component is always visible in SKU Builder (no conditions)
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
@@ -2758,6 +2884,7 @@ interface MaterialEligibilityV2 {
   material_id: string | null;
   attribute_filter: Record<string, string> | null;
   is_active: boolean;
+  is_default: boolean;
 }
 
 interface LaborEligibilityV2 {
@@ -2768,6 +2895,7 @@ interface LaborEligibilityV2 {
   attribute_filter: Record<string, string> | null;
   quantity_formula: string | null;
   is_active: boolean;
+  is_default: boolean;
 }
 
 function EligibilityTab({
@@ -3272,6 +3400,134 @@ function EligibilityTab({
     setSaving(false);
   };
 
+  // Get the specific rule for a material (used for defaults)
+  const getMaterialRule = (materialId: string): MaterialEligibilityV2 | undefined => {
+    const attrFilter = buildAttributeFilter();
+    return materialRules.find(r =>
+      r.component_type_id === selectedComponentId &&
+      r.selection_mode === 'specific' &&
+      r.material_id === materialId &&
+      JSON.stringify(r.attribute_filter || null) === JSON.stringify(attrFilter)
+    );
+  };
+
+  // Check if a material is set as default
+  const isDefaultMaterial = (materialId: string): boolean => {
+    const rule = getMaterialRule(materialId);
+    return rule?.is_default ?? false;
+  };
+
+  // Toggle default flag for a material
+  const toggleMaterialDefault = async (materialId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the main click handler
+    const rule = getMaterialRule(materialId);
+    if (!rule) return; // Material not in eligibility list
+
+    setSaving(true);
+    const newDefault = !rule.is_default;
+
+    // If setting as default, clear other defaults for this component+attribute combo
+    if (newDefault) {
+      const attrFilter = buildAttributeFilter();
+      // Clear all other defaults for this component+attribute
+      await supabase
+        .from('component_material_eligibility_v2')
+        .update({ is_default: false })
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentId!)
+        .eq('selection_mode', 'specific')
+        .neq('material_id', materialId);
+
+      // For attribute-filtered rules, also filter by attribute_filter
+      if (attrFilter) {
+        await supabase
+          .from('component_material_eligibility_v2')
+          .update({ is_default: false })
+          .eq('product_type_id', productType.id)
+          .eq('component_type_id', selectedComponentId!)
+          .contains('attribute_filter', attrFilter);
+      }
+    }
+
+    // Update this material's default status
+    await supabase
+      .from('component_material_eligibility_v2')
+      .update({ is_default: newDefault })
+      .eq('id', rule.id);
+
+    // Refresh rules
+    const { data } = await supabase
+      .from('component_material_eligibility_v2')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setMaterialRules(data);
+
+    setSaving(false);
+  };
+
+  // Get the specific labor rule
+  const getLaborRule = (laborCodeId: string): LaborEligibilityV2 | undefined => {
+    const attrFilter = buildAttributeFilter();
+    return laborRules.find(r =>
+      r.component_type_id === selectedComponentId &&
+      r.labor_code_id === laborCodeId &&
+      JSON.stringify(r.attribute_filter || null) === JSON.stringify(attrFilter)
+    );
+  };
+
+  // Check if a labor code is set as default
+  const isDefaultLabor = (laborCodeId: string): boolean => {
+    const rule = getLaborRule(laborCodeId);
+    return rule?.is_default ?? false;
+  };
+
+  // Toggle default flag for a labor code
+  const toggleLaborDefault = async (laborCodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rule = getLaborRule(laborCodeId);
+    if (!rule) return;
+
+    setSaving(true);
+    const newDefault = !rule.is_default;
+
+    // If setting as default, clear other defaults for this component+attribute combo
+    if (newDefault) {
+      const attrFilter = buildAttributeFilter();
+      await supabase
+        .from('component_labor_eligibility')
+        .update({ is_default: false })
+        .eq('product_type_id', productType.id)
+        .eq('component_type_id', selectedComponentId!)
+        .neq('labor_code_id', laborCodeId);
+
+      if (attrFilter) {
+        await supabase
+          .from('component_labor_eligibility')
+          .update({ is_default: false })
+          .eq('product_type_id', productType.id)
+          .eq('component_type_id', selectedComponentId!)
+          .contains('attribute_filter', attrFilter);
+      }
+    }
+
+    // Update this labor code's default status
+    await supabase
+      .from('component_labor_eligibility')
+      .update({ is_default: newDefault })
+      .eq('id', rule.id);
+
+    // Refresh rules
+    const { data } = await supabase
+      .from('component_labor_eligibility')
+      .select('*')
+      .eq('product_type_id', productType.id)
+      .eq('is_active', true);
+    if (data) setLaborRules(data);
+
+    setSaving(false);
+  };
+
   // Add all visible (filtered) materials
   const addAllVisible = async () => {
     if (!selectedComponentId) return;
@@ -3598,6 +3854,7 @@ function EligibilityTab({
                     <div className="space-y-1">
                       {filteredMaterials.map(material => {
                         const isEligible = eligibleMaterialIds.has(material.id);
+                        const isDefault = isEligible && isDefaultMaterial(material.id);
 
                         return (
                           <div
@@ -3638,6 +3895,20 @@ function EligibilityTab({
                             <div className="text-sm font-medium text-gray-600">
                               ${material.unit_cost.toFixed(2)}
                             </div>
+                            {/* Default star - only show for eligible items */}
+                            {isEligible && (
+                              <button
+                                onClick={(e) => toggleMaterialDefault(material.id, e)}
+                                title={isDefault ? 'Remove as default' : 'Set as default for SKU builder'}
+                                className={`p-1 rounded transition-colors ${
+                                  isDefault
+                                    ? 'text-yellow-500 hover:text-yellow-600'
+                                    : 'text-gray-300 hover:text-yellow-400'
+                                }`}
+                              >
+                                <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
+                              </button>
+                            )}
                           </div>
                         );
                       })}
@@ -3669,6 +3940,7 @@ function EligibilityTab({
                     <div className="space-y-1">
                       {filteredLabor.map(labor => {
                         const isEligible = eligibleLaborIds.has(labor.id);
+                        const isDefault = isEligible && isDefaultLabor(labor.id);
 
                         return (
                           <div
@@ -3703,6 +3975,20 @@ function EligibilityTab({
                                 )}
                               </div>
                             </div>
+                            {/* Default star - only show for eligible items */}
+                            {isEligible && (
+                              <button
+                                onClick={(e) => toggleLaborDefault(labor.id, e)}
+                                title={isDefault ? 'Remove as default' : 'Set as default for SKU builder'}
+                                className={`p-1 rounded transition-colors ${
+                                  isDefault
+                                    ? 'text-yellow-500 hover:text-yellow-600'
+                                    : 'text-gray-300 hover:text-yellow-400'
+                                }`}
+                              >
+                                <Star className={`w-4 h-4 ${isDefault ? 'fill-current' : ''}`} />
+                              </button>
+                            )}
                           </div>
                         );
                       })}
