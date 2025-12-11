@@ -183,6 +183,7 @@ export interface ClientFormData {
   city: string;
   state: string;
   zip: string;
+  default_rate_sheet_id: string | null;
   invoicing_frequency: 'per_job' | 'weekly' | 'monthly';
   payment_terms: number;
   requires_po: boolean;
@@ -198,6 +199,7 @@ export interface CommunityFormData {
   city: string;
   state: string;
   zip: string;
+  rate_sheet_id: string | null;
   restrict_skus: boolean;
   approved_sku_ids: string[];
   notes: string;
@@ -231,4 +233,107 @@ export const COMMUNITY_STATUS_LABELS: Record<CommunityStatus, string> = {
   active: 'Active',
   inactive: 'Inactive',
   completed: 'Completed',
+};
+
+// ============================================
+// RATE SHEETS (Phase 4)
+// ============================================
+
+export type PricingType = 'custom' | 'formula' | 'hybrid';
+export type PricingMethod = 'fixed' | 'markup' | 'margin' | 'cost_plus';
+
+export interface RateSheet {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  pricing_type: PricingType;
+
+  // Default pricing rules (for formula/hybrid types)
+  default_labor_markup: number;
+  default_material_markup: number;
+  default_margin_target: number | null;
+
+  // Validity
+  effective_date: string;
+  expires_at: string | null;
+
+  // Status
+  is_active: boolean;
+  is_template: boolean;
+
+  // Metadata
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+export interface RateSheetItem {
+  id: string;
+  rate_sheet_id: string;
+  sku_id: string;
+
+  // Pricing method
+  pricing_method: PricingMethod;
+
+  // Fixed pricing
+  fixed_price: number | null;
+  fixed_labor_price: number | null;
+  fixed_material_price: number | null;
+
+  // Formula pricing
+  labor_markup_percent: number | null;
+  material_markup_percent: number | null;
+  margin_target_percent: number | null;
+
+  // Unit info
+  unit: string | null;
+  min_quantity: number;
+
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RateSheetAssignment {
+  id: string;
+  rate_sheet_id: string;
+  client_id: string | null;
+  community_id: string | null;
+  is_default: boolean;
+  priority: number;
+  effective_date: string;
+  expires_at: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+export interface RateSheetFormData {
+  name: string;
+  code: string;
+  description: string;
+  pricing_type: PricingType;
+  default_labor_markup: number;
+  default_material_markup: number;
+  default_margin_target: number | null;
+  effective_date: string;
+  expires_at: string | null;
+  is_active: boolean;
+  is_template: boolean;
+  notes: string;
+}
+
+export const PRICING_TYPE_LABELS: Record<PricingType, string> = {
+  custom: 'Custom Prices',
+  formula: 'Formula-Based',
+  hybrid: 'Hybrid',
+};
+
+export const PRICING_METHOD_LABELS: Record<PricingMethod, string> = {
+  fixed: 'Fixed Price',
+  markup: 'Markup %',
+  margin: 'Target Margin %',
+  cost_plus: 'Cost Plus',
 };

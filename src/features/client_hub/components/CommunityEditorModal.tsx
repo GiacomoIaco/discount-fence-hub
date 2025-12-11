@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, FileSpreadsheet } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
 import { useClients, useGeographies } from '../hooks/useClients';
+import { useRateSheets } from '../hooks/useRateSheets';
 import type { Community, CommunityFormData } from '../types';
 
 interface Props {
@@ -16,6 +17,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
 
   const { data: clients } = useClients({});
   const { data: geographies } = useGeographies();
+  const { data: rateSheets } = useRateSheets({ is_active: true });
 
   const [formData, setFormData] = useState<CommunityFormData>({
     client_id: community?.client_id || defaultClientId || '',
@@ -26,6 +28,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
     city: community?.city || '',
     state: community?.state || 'TX',
     zip: community?.zip || '',
+    rate_sheet_id: community?.rate_sheet_id || null,
     restrict_skus: community?.restrict_skus || false,
     approved_sku_ids: community?.approved_sku_ids || [],
     notes: community?.notes || '',
@@ -156,6 +159,31 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
             </select>
             <p className="text-xs text-gray-500 mt-1">
               Geography determines labor rates for this community
+            </p>
+          </div>
+
+          {/* Rate Sheet Override */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-gray-400" />
+                Rate Sheet (Override)
+              </div>
+            </label>
+            <select
+              value={formData.rate_sheet_id || ''}
+              onChange={(e) => setFormData({ ...formData, rate_sheet_id: e.target.value || null })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Use client's default rate sheet</option>
+              {rateSheets?.map((sheet) => (
+                <option key={sheet.id} value={sheet.id}>
+                  {sheet.name} {sheet.code ? `(${sheet.code})` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Override the client's default rate sheet for this community only
             </p>
           </div>
 

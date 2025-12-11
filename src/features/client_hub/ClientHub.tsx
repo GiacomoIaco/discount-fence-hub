@@ -4,12 +4,14 @@ import {
   MapPin,
   Users,
   Home,
+  FileSpreadsheet,
 } from 'lucide-react';
 import ClientsList from './components/ClientsList';
 import CommunitiesList from './components/CommunitiesList';
 import GeographiesList from './components/GeographiesList';
+import RateSheetsList from './components/RateSheetsList';
 
-type Tab = 'clients' | 'communities' | 'geographies';
+type Tab = 'clients' | 'communities' | 'geographies' | 'rate-sheets';
 
 interface ClientHubProps {
   onBack?: () => void;
@@ -21,6 +23,7 @@ export default function ClientHub({ onBack: _onBack }: ClientHubProps) {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'clients', label: 'Clients', icon: <Building2 className="w-4 h-4" /> },
     { id: 'communities', label: 'Communities', icon: <Home className="w-4 h-4" /> },
+    { id: 'rate-sheets', label: 'Rate Sheets', icon: <FileSpreadsheet className="w-4 h-4" /> },
     { id: 'geographies', label: 'Geographies', icon: <MapPin className="w-4 h-4" /> },
   ];
 
@@ -65,6 +68,7 @@ export default function ClientHub({ onBack: _onBack }: ClientHubProps) {
       <div className="p-6">
         {activeTab === 'clients' && <ClientsList />}
         {activeTab === 'communities' && <CommunitiesList />}
+        {activeTab === 'rate-sheets' && <RateSheetsList />}
         {activeTab === 'geographies' && <GeographiesList />}
       </div>
     </div>
