@@ -92,25 +92,8 @@ export const handler: Handler = async () => {
       method: 'GET',
     });
 
-    // Debug: log response structure
-    console.log('Response type:', typeof response);
-    console.log('Response keys:', Object.keys(response));
-    console.log('Response.body:', response.body);
-    console.log('Response.json:', response.json);
-
-    // Try different ways to get the response data
-    let companyInfo;
-    if (response.json) {
-      companyInfo = typeof response.json === 'function' ? response.json() : response.json;
-    } else if (response.body) {
-      companyInfo = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
-    } else if (response.text) {
-      const text = typeof response.text === 'function' ? response.text() : response.text;
-      companyInfo = JSON.parse(text);
-    } else {
-      // Response might be the data itself
-      companyInfo = response;
-    }
+    // intuit-oauth v4.0+ uses response.json directly (not a method)
+    const companyInfo = response.json;
 
     // Also get customer count (to test query capability)
     const customerCountUrl = `${baseUrl}/v3/company/${tokenData.realm_id}/query?query=SELECT COUNT(*) FROM Customer`;
@@ -119,14 +102,7 @@ export const handler: Handler = async () => {
       method: 'GET',
     });
 
-    let customerCount;
-    if (customerCountResponse.json) {
-      customerCount = typeof customerCountResponse.json === 'function' ? customerCountResponse.json() : customerCountResponse.json;
-    } else if (customerCountResponse.body) {
-      customerCount = typeof customerCountResponse.body === 'string' ? JSON.parse(customerCountResponse.body) : customerCountResponse.body;
-    } else {
-      customerCount = customerCountResponse;
-    }
+    const customerCount = customerCountResponse.json;
 
     const company = companyInfo.CompanyInfo;
     const count = customerCount.QueryResponse?.totalCount || 0;
