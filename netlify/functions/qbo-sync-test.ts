@@ -130,11 +130,18 @@ export const handler: Handler = async (event) => {
     });
 
     const customerResult = customerResponse.json;
-    const customerId = customerResult.Customer.Id;
+    console.log('Customer API Response:', JSON.stringify(customerResult, null, 2));
+
+    // Handle potential response structure variations
+    const customer = customerResult.Customer || customerResult.customer || customerResult;
+    if (!customer || !customer.Id) {
+      throw new Error(`Unexpected API response structure: ${JSON.stringify(customerResult)}`);
+    }
+    const customerId = customer.Id;
     results.customer = {
       id: customerId,
-      displayName: customerResult.Customer.DisplayName,
-      syncToken: customerResult.Customer.SyncToken,
+      displayName: customer.DisplayName,
+      syncToken: customer.SyncToken,
     };
     results.steps.push({ step: 1, status: 'success', customerId });
 
@@ -166,13 +173,19 @@ export const handler: Handler = async (event) => {
     });
 
     const subCustomerResult = subCustomerResponse.json;
-    const subCustomerId = subCustomerResult.Customer.Id;
+    console.log('Sub-Customer API Response:', JSON.stringify(subCustomerResult, null, 2));
+
+    const subCustomer = subCustomerResult.Customer || subCustomerResult.customer || subCustomerResult;
+    if (!subCustomer || !subCustomer.Id) {
+      throw new Error(`Unexpected sub-customer API response: ${JSON.stringify(subCustomerResult)}`);
+    }
+    const subCustomerId = subCustomer.Id;
     results.subCustomer = {
       id: subCustomerId,
-      displayName: subCustomerResult.Customer.DisplayName,
+      displayName: subCustomer.DisplayName,
       parentId: customerId,
-      isJob: subCustomerResult.Customer.Job,
-      syncToken: subCustomerResult.Customer.SyncToken,
+      isJob: subCustomer.Job,
+      syncToken: subCustomer.SyncToken,
     };
     results.steps.push({ step: 2, status: 'success', subCustomerId });
 
