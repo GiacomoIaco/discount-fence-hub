@@ -11,7 +11,7 @@
  * O-026: The "game changer" - database-driven product configuration
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Save, Trash2, X, ChevronRight, ChevronDown, Edit2, Copy,
@@ -33,7 +33,6 @@ import {
   type ProductVariableV2,
   type ComponentTypeV2,
   type ProductTypeComponentFull,
-  type VariableValueOption,
 } from '../hooks/useProductTypesV2';
 
 // Formula template type
@@ -1183,6 +1182,22 @@ function VariableModal({
   // Fetch global value options for this variable code
   const { data: globalOptions = [], refetch: refetchOptions } = useVariableValueOptions(normalizedCode);
 
+  // Fetch all product variables with the same code to aggregate values
+  const { data: allVariablesWithCode = [] } = useAllProductVariablesV2();
+
+  // Aggregate values from all product types' allowed_values + global pool
+  const aggregatedValues = useMemo(() => {
+    // Start with global options
+    const values = new Set<string>(globalOptions.map(opt => opt.value));
+
+    // Add values from all product types that use this variable code
+    allVariablesWithCode
+      .filter(v => v.variable_code === normalizedCode && v.allowed_values)
+      .forEach(v => v.allowed_values?.forEach(val => values.add(val)));
+
+    return Array.from(values).sort();
+  }, [globalOptions, allVariablesWithCode, normalizedCode]);
+
   // Update selected values when global options load (for new variables)
   const toggleValueSelection = (value: string) => {
     setSelectedValues(prev =>
@@ -1350,36 +1365,40 @@ function VariableModal({
                 </span>
               </div>
 
-              {/* Existing global options as checkboxes */}
-              {globalOptions.length > 0 ? (
+              {/* Aggregated values from global pool + all product types */}
+              {aggregatedValues.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
-                  {globalOptions.map((opt: VariableValueOption) => (
-                    <label
-                      key={opt.id}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                        selectedValues.includes(opt.value)
-                          ? 'bg-purple-50 border-purple-300'
-                          : 'bg-white border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedValues.includes(opt.value)}
-                        onChange={() => toggleValueSelection(opt.value)}
-                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <span className="text-sm">
-                        {opt.display_label || opt.value}
-                        {opt.display_label && (
-                          <span className="text-gray-400 ml-1">({opt.value})</span>
-                        )}
-                      </span>
-                    </label>
-                  ))}
+                  {aggregatedValues.map((value: string) => {
+                    // Find label from global options if exists
+                    const globalOpt = globalOptions.find(opt => opt.value === value);
+                    return (
+                      <label
+                        key={value}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                          selectedValues.includes(value)
+                            ? 'bg-purple-50 border-purple-300'
+                            : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedValues.includes(value)}
+                          onChange={() => toggleValueSelection(value)}
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <span className="text-sm">
+                          {globalOpt?.display_label || value}
+                          {globalOpt?.display_label && (
+                            <span className="text-gray-400 ml-1">({value})</span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 italic">
-                  No global values defined for "{normalizedCode}" yet. Add some below.
+                  No values defined for "{normalizedCode}" yet. Add some below.
                 </p>
               )}
 
