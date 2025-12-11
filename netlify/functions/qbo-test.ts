@@ -92,7 +92,9 @@ export const handler: Handler = async () => {
       method: 'GET',
     });
 
-    const companyInfo = JSON.parse(response.text());
+    // response.text is a property, not a function in newer SDK versions
+    const responseText = typeof response.text === 'function' ? response.text() : response.text;
+    const companyInfo = JSON.parse(responseText);
 
     // Also get customer count (to test query capability)
     const customerCountUrl = `${baseUrl}/v3/company/${tokenData.realm_id}/query?query=SELECT COUNT(*) FROM Customer`;
@@ -100,7 +102,8 @@ export const handler: Handler = async () => {
       url: customerCountUrl,
       method: 'GET',
     });
-    const customerCount = JSON.parse(customerCountResponse.text());
+    const customerCountText = typeof customerCountResponse.text === 'function' ? customerCountResponse.text() : customerCountResponse.text;
+    const customerCount = JSON.parse(customerCountText);
 
     const company = companyInfo.CompanyInfo;
     const count = customerCount.QueryResponse?.totalCount || 0;
