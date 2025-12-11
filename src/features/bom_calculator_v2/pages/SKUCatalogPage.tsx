@@ -5,12 +5,13 @@
  * Uses the V2 tables with JSONB for variables and components.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Search, Pencil, Info, Package, Archive } from 'lucide-react';
+import { Loader2, Search, Pencil, Info, Package, Archive, RefreshCw, Calculator } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import toast from 'react-hot-toast';
 import { useProductTypesV2, useSKUCatalogV2, type SKUCatalogV2WithRelations } from '../hooks';
+import { FormulaInterpreter, buildMaterialAttributes, createFormulaContext } from '../services/FormulaInterpreter';
 
 // SKU row for table display
 interface SKURow {
@@ -51,6 +52,162 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
 
   // Fetch all SKUs from sku_catalog_v2
   const { data: skus = [], isLoading: loadingSKUs } = useSKUCatalogV2();
+
+  // Recalculation state
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcProgress, setRecalcProgress] = useState({ current: 0, total: 0 });
+
+  // Standard inputs for cost calculation (100ft, 1 line, 0 gates)
+  const STANDARD_LENGTH = 100;
+  const STANDARD_LINES = 1;
+  const STANDARD_GATES = 0;
+
+  /**
+   * Recalculate costs for a single SKU using V2 formulas
+   */
+  const recalculateSKU = useCallback(async (sku: SKUCatalogV2WithRelations): Promise<boolean> => {
+    try {
+      const interpreter = new FormulaInterpreter(supabase);
+
+      // Build material attributes from SKU's component assignments
+      const materialAttrs = await buildMaterialAttributes(supabase, sku.components || {});
+
+      // Get style adjustments
+      const styleAdjustments = sku.product_style?.formula_adjustments || {};
+
+      // Create formula context
+      const context = createFormulaContext(
+        STANDARD_LENGTH,
+        STANDARD_LINES,
+        STANDARD_GATES,
+        sku.height,
+        sku.variables || {},
+        styleAdjustments,
+        materialAttrs
+      );
+
+      // Execute all formulas
+      const results = await interpreter.executeAllFormulas(
+        sku.product_type_id,
+        sku.product_style_id,
+        context
+      );
+
+      // Fetch material prices for components
+      const materialSkus = Object.values(sku.components || {}).filter(Boolean) as string[];
+
+      let totalMaterialCost = 0;
+
+      if (materialSkus.length > 0) {
+        const { data: materials } = await supabase
+          .from('materials')
+          .select('material_sku, unit_cost')
+          .in('material_sku', materialSkus);
+
+        // Calculate cost per component
+        for (const result of results) {
+          const materialSku = (sku.components || {})[result.component_code];
+          if (!materialSku) continue;
+
+          const material = materials?.find(m => m.material_sku === materialSku);
+          if (!material?.unit_cost) continue;
+
+          totalMaterialCost += result.rounded_value * material.unit_cost;
+        }
+      }
+
+      // Calculate cost per foot
+      const costPerFoot = totalMaterialCost / STANDARD_LENGTH;
+
+      // Update SKU record
+      const { error } = await supabase
+        .from('sku_catalog_v2')
+        .update({
+          standard_material_cost: totalMaterialCost,
+          standard_cost_per_foot: costPerFoot,
+          standard_cost_calculated_at: new Date().toISOString(),
+        })
+        .eq('id', sku.id);
+
+      if (error) {
+        console.error(`Failed to update SKU ${sku.sku_code}:`, error);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error(`Error recalculating SKU ${sku.sku_code}:`, err);
+      return false;
+    }
+  }, []);
+
+  /**
+   * Recalculate costs for all filtered SKUs
+   */
+  const handleRecalculateAll = useCallback(async () => {
+    const skusToRecalc = skus.filter(sku => {
+      if (productTypeFilter !== 'all' && sku.product_type_id !== productTypeFilter) return false;
+      if (heightFilter !== 'all' && sku.height !== Number(heightFilter)) return false;
+      if (postTypeFilter !== 'all' && sku.post_type !== postTypeFilter) return false;
+      return true;
+    });
+
+    if (skusToRecalc.length === 0) {
+      toast.error('No SKUs to recalculate');
+      return;
+    }
+
+    const confirmMsg = `Recalculate costs for ${skusToRecalc.length} SKU${skusToRecalc.length > 1 ? 's' : ''}? This will update their standard costs based on V2 formulas.`;
+    if (!confirm(confirmMsg)) return;
+
+    setRecalculating(true);
+    setRecalcProgress({ current: 0, total: skusToRecalc.length });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < skusToRecalc.length; i++) {
+      const success = await recalculateSKU(skusToRecalc[i]);
+      if (success) successCount++;
+      else failCount++;
+      setRecalcProgress({ current: i + 1, total: skusToRecalc.length });
+    }
+
+    setRecalculating(false);
+    queryClient.invalidateQueries({ queryKey: ['sku-catalog-v2'] });
+
+    if (failCount === 0) {
+      toast.success(`Recalculated ${successCount} SKU${successCount > 1 ? 's' : ''}`);
+    } else {
+      toast.error(`Completed with errors: ${successCount} success, ${failCount} failed`);
+    }
+  }, [skus, productTypeFilter, heightFilter, postTypeFilter, recalculateSKU, queryClient]);
+
+  /**
+   * Handle single SKU recalculation from row action
+   */
+  const handleRecalculateSingle = useCallback(async (skuId: string, skuCode: string) => {
+    const sku = skus.find(s => s.id === skuId);
+    if (!sku) {
+      toast.error('SKU not found');
+      return;
+    }
+
+    setRecalculating(true);
+    setRecalcProgress({ current: 0, total: 1 });
+
+    const success = await recalculateSKU(sku);
+    setRecalcProgress({ current: 1, total: 1 });
+
+    setRecalculating(false);
+    queryClient.invalidateQueries({ queryKey: ['sku-catalog-v2'] });
+
+    if (success) {
+      toast.success(`Recalculated ${skuCode}`);
+    } else {
+      toast.error(`Failed to recalculate ${skuCode}`);
+    }
+  }, [skus, recalculateSKU, queryClient]);
 
   // Transform SKUs into table rows
   const allRows: SKURow[] = useMemo(() => {
@@ -214,6 +371,25 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
               <span>Costs based on 100ft, 1 line</span>
             </div>
           </div>
+          {isAdmin && (
+            <button
+              onClick={handleRecalculateAll}
+              disabled={recalculating}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {recalculating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Recalculating... {recalcProgress.current}/{recalcProgress.total}</span>
+                </>
+              ) : (
+                <>
+                  <Calculator className="w-4 h-4" />
+                  <span>Recalculate Costs</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -334,7 +510,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
               <th className="text-right py-3 px-4 font-medium">Material/FT</th>
               <th className="text-right py-3 px-4 font-medium">Labor/FT</th>
               <th className="text-right py-3 px-4 font-medium bg-yellow-50">$/FT</th>
-              {isAdmin && <th className="text-center py-3 px-2 font-medium w-24">Actions</th>}
+              {isAdmin && <th className="text-center py-3 px-2 font-medium w-32">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -379,6 +555,17 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
                         title="Edit in SKU Builder"
                       >
                         <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRecalculateSingle(row.id, row.sku_code);
+                        }}
+                        disabled={recalculating}
+                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                        title="Recalculate costs"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
                       </button>
                       <button
                         onClick={(e) => {
