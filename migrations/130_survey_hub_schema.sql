@@ -351,38 +351,64 @@ ALTER TABLE survey_responses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE survey_analytics_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- Admin/manager can see all surveys
+DROP POLICY IF EXISTS surveys_select ON surveys;
+DROP POLICY IF EXISTS surveys_insert ON surveys;
+DROP POLICY IF EXISTS surveys_update ON surveys;
+DROP POLICY IF EXISTS surveys_delete ON surveys;
 CREATE POLICY surveys_select ON surveys FOR SELECT USING (true);
 CREATE POLICY surveys_insert ON surveys FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY surveys_update ON surveys FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY surveys_delete ON surveys FOR DELETE USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS populations_select ON survey_populations;
+DROP POLICY IF EXISTS populations_insert ON survey_populations;
+DROP POLICY IF EXISTS populations_update ON survey_populations;
+DROP POLICY IF EXISTS populations_delete ON survey_populations;
 CREATE POLICY populations_select ON survey_populations FOR SELECT USING (true);
 CREATE POLICY populations_insert ON survey_populations FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY populations_update ON survey_populations FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY populations_delete ON survey_populations FOR DELETE USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS contacts_select ON survey_population_contacts;
+DROP POLICY IF EXISTS contacts_insert ON survey_population_contacts;
+DROP POLICY IF EXISTS contacts_update ON survey_population_contacts;
+DROP POLICY IF EXISTS contacts_delete ON survey_population_contacts;
 CREATE POLICY contacts_select ON survey_population_contacts FOR SELECT USING (true);
 CREATE POLICY contacts_insert ON survey_population_contacts FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY contacts_update ON survey_population_contacts FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY contacts_delete ON survey_population_contacts FOR DELETE USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS campaigns_select ON survey_campaigns;
+DROP POLICY IF EXISTS campaigns_insert ON survey_campaigns;
+DROP POLICY IF EXISTS campaigns_update ON survey_campaigns;
+DROP POLICY IF EXISTS campaigns_delete ON survey_campaigns;
 CREATE POLICY campaigns_select ON survey_campaigns FOR SELECT USING (true);
 CREATE POLICY campaigns_insert ON survey_campaigns FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY campaigns_update ON survey_campaigns FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY campaigns_delete ON survey_campaigns FOR DELETE USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS distributions_select ON survey_distributions;
+DROP POLICY IF EXISTS distributions_insert ON survey_distributions;
+DROP POLICY IF EXISTS distributions_update ON survey_distributions;
 CREATE POLICY distributions_select ON survey_distributions FOR SELECT USING (true);
 CREATE POLICY distributions_insert ON survey_distributions FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY distributions_update ON survey_distributions FOR UPDATE USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS recipients_select ON survey_recipients;
+DROP POLICY IF EXISTS recipients_insert ON survey_recipients;
+DROP POLICY IF EXISTS recipients_update ON survey_recipients;
 CREATE POLICY recipients_select ON survey_recipients FOR SELECT USING (true);
 CREATE POLICY recipients_insert ON survey_recipients FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY recipients_update ON survey_recipients FOR UPDATE USING (auth.uid() IS NOT NULL);
 
 -- Responses can be inserted without auth (public survey submissions)
+DROP POLICY IF EXISTS responses_select ON survey_responses;
+DROP POLICY IF EXISTS responses_insert ON survey_responses;
 CREATE POLICY responses_select ON survey_responses FOR SELECT USING (true);
 CREATE POLICY responses_insert ON survey_responses FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS analytics_select ON survey_analytics_snapshots;
+DROP POLICY IF EXISTS analytics_insert ON survey_analytics_snapshots;
 CREATE POLICY analytics_select ON survey_analytics_snapshots FOR SELECT USING (true);
 CREATE POLICY analytics_insert ON survey_analytics_snapshots FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
