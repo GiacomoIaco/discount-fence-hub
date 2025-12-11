@@ -13,7 +13,10 @@ import {
 // TYPES
 // ============================================
 
-export type RequestType = 'pricing' | 'material' | 'support' | 'new_builder' | 'warranty' | 'other';
+export type RequestType =
+  | 'pricing' | 'material' | 'support' | 'new_builder' | 'warranty' | 'other'
+  // Client Hub types:
+  | 'new_client' | 'new_community' | 'pricing_change' | 'contact_update';
 export type RequestStage = 'new' | 'pending' | 'completed' | 'archived';
 export type QuoteStatus = 'won' | 'lost' | 'awaiting' | null;
 export type Urgency = 'low' | 'medium' | 'high' | 'critical';
@@ -81,6 +84,10 @@ export interface Request {
   operations_attachments?: string[];
   priority_score?: number;
 
+  // Client Hub links
+  client_id?: string;
+  community_id?: string;
+
   // Timestamps
   created_at: string;
   updated_at: string;
@@ -107,6 +114,9 @@ export interface CreateRequestInput {
   transcript?: string;
   transcript_confidence?: number;
   photo_urls?: string[];
+  // Client Hub links
+  client_id?: string;
+  community_id?: string;
 }
 
 export interface RequestNote {

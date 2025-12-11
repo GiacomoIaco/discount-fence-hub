@@ -274,6 +274,11 @@ function RequestCard({
       case 'warranty': return 'text-red-600 bg-red-100';
       case 'new_builder': return 'text-blue-600 bg-blue-100';
       case 'support': return 'text-purple-600 bg-purple-100';
+      // Client Hub types
+      case 'new_client': return 'text-emerald-600 bg-emerald-100';
+      case 'new_community': return 'text-teal-600 bg-teal-100';
+      case 'pricing_change': return 'text-amber-600 bg-amber-100';
+      case 'contact_update': return 'text-sky-600 bg-sky-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };

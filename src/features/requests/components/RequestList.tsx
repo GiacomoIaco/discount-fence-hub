@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X, Star } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, Archive, DollarSign, Package, Wrench, Building2, AlertTriangle, ChevronRight, Filter, ChevronDown, ChevronUp, MessageCircle, User, X, Star, Users } from 'lucide-react';
 import type { Request, RequestStage, RequestType, SLAStatus } from '../lib/requests';
 import { useMyRequestsQuery, useAllRequestsQuery } from '../hooks/useRequestsQuery';
 import { useUsers, useRequestAge } from '../hooks/useRequests';
@@ -23,6 +23,15 @@ const RequestTypeIcon = ({ type }: { type: RequestType }) => {
       return <Building2 className="w-5 h-5 text-blue-600" />;
     case 'warranty':
       return <Wrench className="w-5 h-5 text-red-600" />;
+    // Client Hub types
+    case 'new_client':
+      return <Users className="w-5 h-5 text-emerald-600" />;
+    case 'new_community':
+      return <Building2 className="w-5 h-5 text-teal-600" />;
+    case 'pricing_change':
+      return <DollarSign className="w-5 h-5 text-amber-600" />;
+    case 'contact_update':
+      return <Users className="w-5 h-5 text-sky-600" />;
     default:
       return <AlertCircle className="w-5 h-5 text-gray-600" />;
   }

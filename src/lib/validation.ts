@@ -35,7 +35,11 @@ const nonEmptyString = z.string().min(1, 'This field is required').trim();
 // REQUEST SCHEMAS
 // ============================================
 
-export const RequestTypeSchema = z.enum(['pricing', 'material', 'support', 'new_builder', 'warranty', 'other'], {
+export const RequestTypeSchema = z.enum([
+  'pricing', 'material', 'support', 'new_builder', 'warranty', 'other',
+  // Client Hub types
+  'new_client', 'new_community', 'pricing_change', 'contact_update'
+], {
   message: 'Invalid request type',
 });
 

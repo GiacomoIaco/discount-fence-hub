@@ -300,6 +300,15 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
         return { label: 'New Builder', icon: <Building2 className="w-5 h-5" />, color: 'blue' };
       case 'support':
         return { label: 'Support', icon: <AlertTriangle className="w-5 h-5" />, color: 'purple' };
+      // Client Hub types
+      case 'new_client':
+        return { label: 'New Client', icon: <Users className="w-5 h-5" />, color: 'emerald' };
+      case 'new_community':
+        return { label: 'New Community', icon: <Building2 className="w-5 h-5" />, color: 'teal' };
+      case 'pricing_change':
+        return { label: 'Pricing Change', icon: <DollarSign className="w-5 h-5" />, color: 'amber' };
+      case 'contact_update':
+        return { label: 'Contact Update', icon: <Users className="w-5 h-5" />, color: 'sky' };
       default:
         return { label: 'Request', icon: <AlertTriangle className="w-5 h-5" />, color: 'gray' };
     }

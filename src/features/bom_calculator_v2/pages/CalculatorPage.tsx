@@ -9,10 +9,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Trash2, Loader2, Save, Search, X
+  Plus, Trash2, Loader2, Save, Search, X, Users, Building2
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import { useRateSheetPrices, resolvePrice } from '../../client_hub/hooks/usePricingResolution';
+import type { RateSheetItem, RateSheet } from '../../client_hub/types';
 import {
   FormulaInterpreter,
   buildMaterialAttributes,
@@ -403,6 +405,10 @@ export function CalculatorPage({
   const [projectNotes, setProjectNotes] = useState('');
   const [concreteType, setConcreteType] = useState<'3-part' | 'yellow-bags' | 'red-bags'>('3-part');
 
+  // Client Hub pricing state
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [communityId, setCommunityId] = useState<string | null>(null);
+
   // Line items
   const [lineItems, setLineItems] = useState<LineItem[]>([{
     id: `line-${Date.now()}`,
@@ -511,6 +517,45 @@ export function CalculatorPage({
     enabled: !!businessUnitId,
   });
 
+  // Client Hub: Clients
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients-for-calc'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name, code, default_rate_sheet_id')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Client Hub: Communities (filtered by selected client)
+  const { data: communities = [] } = useQuery({
+    queryKey: ['communities-for-calc', clientId],
+    queryFn: async () => {
+      let query = supabase
+        .from('communities')
+        .select('id, name, code, client_id, rate_sheet_id')
+        .eq('is_active', true)
+        .order('name');
+
+      if (clientId) {
+        query = query.eq('client_id', clientId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Rate sheet pricing from Client Hub
+  const { data: rateSheetPricing } = useRateSheetPrices({ communityId, clientId });
+  const rateSheetItems = rateSheetPricing?.items || new Map<string, RateSheetItem>();
+  const activeRateSheet = rateSheetPricing?.rateSheet as RateSheet | null;
+
   // =============================================================================
   // DEFAULTS
   // =============================================================================
@@ -591,6 +636,15 @@ export function CalculatorPage({
           const key = material.id;
           const existing = allMaterialResults.get(key);
 
+          // Get resolved price (rate sheet override or catalog)
+          const resolvedPricing = resolvePrice(
+            material.id,
+            material.unit_cost,
+            rateSheetItems,
+            activeRateSheet
+          );
+          const effectivePrice = resolvedPricing.price;
+
           if (existing) {
             existing.calculated_qty += result.raw_value;
             existing.rounded_qty = Math.ceil(existing.calculated_qty);
@@ -601,12 +655,12 @@ export function CalculatorPage({
               material_id: material.id,
               material_sku: material.material_sku,
               material_name: material.material_name,
-              unit_cost: material.unit_cost,
+              unit_cost: effectivePrice,
               calculated_qty: result.raw_value,
               rounded_qty: result.rounded_value,
               adjustment: 0,
               total_qty: result.rounded_value,
-              total_cost: result.rounded_value * material.unit_cost,
+              total_cost: result.rounded_value * effectivePrice,
               is_manual: false,
             });
           }
@@ -638,7 +692,7 @@ export function CalculatorPage({
     } finally {
       setIsCalculating(false);
     }
-  }, [businessUnitId, lineItems, allSKUs, allMaterials, formulaInterpreter]);
+  }, [businessUnitId, lineItems, allSKUs, allMaterials, formulaInterpreter, rateSheetItems, activeRateSheet]);
 
   // Auto-calculate
   useEffect(() => {
@@ -807,6 +861,9 @@ export function CalculatorPage({
       const projectData = {
         project_name: projectName.trim(),
         customer_name: customerName.trim() || null,
+        client_id: clientId,
+        community_id: communityId,
+        pricing_source: activeRateSheet ? 'rate_sheet' : 'catalog',
         net_length: totals.footage,
         number_of_lines: lineItems.reduce((sum, i) => sum + i.numberOfLines, 0),
         number_of_gates: lineItems.reduce((sum, i) => sum + i.numberOfGates, 0),
@@ -900,14 +957,50 @@ export function CalculatorPage({
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Customer</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                placeholder="Customer name"
-              />
+              <label className="block text-xs text-gray-600 mb-1 flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                Client
+              </label>
+              <select
+                value={clientId || ''}
+                onChange={(e) => {
+                  const newClientId = e.target.value || null;
+                  setClientId(newClientId);
+                  setCommunityId(null); // Reset community when client changes
+                  // Update customer name from client
+                  const client = clients.find(c => c.id === newClientId);
+                  setCustomerName(client?.name || '');
+                }}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">No client (catalog prices)</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.code ? `(${c.code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1 flex items-center gap-1">
+                <Building2 className="w-3 h-3" />
+                Community
+              </label>
+              <select
+                value={communityId || ''}
+                onChange={(e) => setCommunityId(e.target.value || null)}
+                disabled={!clientId && communities.length === 0}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">
+                  {clientId ? 'All communities' : 'Select client first'}
+                </option>
+                {communities.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.code ? `(${c.code})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Business Unit *</label>
@@ -1000,6 +1093,18 @@ export function CalculatorPage({
             </button>
           </div>
         </div>
+
+        {/* Rate Sheet Indicator */}
+        {activeRateSheet && (
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+              Rate Sheet: {activeRateSheet.name}
+            </span>
+            <span className="text-gray-500">
+              Prices adjusted from {clientId ? (communityId ? 'community' : 'client') : 'catalog'} rate sheet
+            </span>
+          </div>
+        )}
 
         {/* Summary Stats */}
         <div className="grid grid-cols-6 gap-3 mt-4">
