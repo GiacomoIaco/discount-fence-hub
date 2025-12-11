@@ -122,17 +122,27 @@ export const handler: Handler = async (event) => {
       Notes: `Synced from Client Hub. Code: ${testClient.code}`,
     };
 
-    const customerResponse = await oauthClient.makeApiCall({
-      url: `${baseUrl}/v3/company/${realmId}/customer`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(customerPayload),
-    });
+    let customerResponse;
+    try {
+      customerResponse = await oauthClient.makeApiCall({
+        url: `${baseUrl}/v3/company/${realmId}/customer`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerPayload),
+      });
+    } catch (apiError: any) {
+      console.error('API Call Error:', apiError);
+      const errorBody = apiError.response?.json || apiError.response?.body || apiError.message;
+      throw new Error(`QBO API Error: ${JSON.stringify(errorBody)}`);
+    }
 
     const customerResult = customerResponse.json;
     console.log('Customer API Response:', JSON.stringify(customerResult, null, 2));
 
     // Handle potential response structure variations
+    if (!customerResult) {
+      throw new Error(`Empty API response. Full response object: ${JSON.stringify(customerResponse)}`);
+    }
     const customer = customerResult.Customer || customerResult.customer || customerResult;
     if (!customer || !customer.Id) {
       throw new Error(`Unexpected API response structure: ${JSON.stringify(customerResult)}`);
