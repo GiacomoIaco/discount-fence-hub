@@ -11,7 +11,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package, AlertCircle, Play, ChevronDown, ChevronRight
+  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package, AlertCircle, Play
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -80,11 +80,15 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
   // Test panel state
   const [testLength, setTestLength] = useState(100);
-  const [testLines, setTestLines] = useState(1);
+  const [testLines, setTestLines] = useState(4);
   const [testGates, setTestGates] = useState(0);
   const [testResults, setTestResults] = useState<FormulaResult[]>([]);
-  const [testExpanded, setTestExpanded] = useState(true);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [concreteType, setConcreteType] = useState<'3-part' | 'yellow-bags' | 'red-bags'>('3-part');
+
+  // Computed costs from test results
+  const [totalMaterialCost, setTotalMaterialCost] = useState(0);
+  const [totalLaborCost, setTotalLaborCost] = useState(0);
 
   // =============================================================================
   // DATA FETCHING
@@ -393,13 +397,14 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       // Build material attributes
       const materialAttrs = await buildMaterialAttributes(supabase, components);
 
-      // Build variables
+      // Build variables including concrete_type
       const vars: Record<string, number | string> = {
         ...variableValues,
         height,
         rail_count: railCount,
         post_spacing: selectedStyleV2.formula_adjustments?.post_spacing ||
                      selectedProductTypeV2.default_post_spacing || 8,
+        concrete_type: concreteType,
       };
 
       // Create context
@@ -423,16 +428,41 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       // Apply project-level rounding
       const roundedResults = applyProjectRounding(results);
 
-      // Enrich with component names from assignedComponentsV2
-      const enrichedResults = roundedResults.map(r => {
+      // Enrich with component names and material costs
+      let matCost = 0;
+      let labCost = 0;
+
+      const enrichedResults = await Promise.all(roundedResults.map(async (r) => {
         const comp = assignedComponentsV2.find(c => c.component_code === r.component_code);
+        const materialSku = components[r.component_code];
+
+        // Get material cost if we have a material selected
+        let unitCost = 0;
+        if (materialSku) {
+          const mat = materials.find(m => m.material_sku === materialSku);
+          if (mat) {
+            unitCost = mat.unit_cost;
+            matCost += r.rounded_value * unitCost;
+          }
+        }
+
+        // Check if it's a labor component
+        if (comp?.is_labor) {
+          labCost += r.rounded_value * unitCost;
+        }
+
         return {
           ...r,
           component_name: comp?.component_name || r.component_code,
+          unit_cost: unitCost,
+          total_cost: r.rounded_value * unitCost,
+          is_labor: comp?.is_labor || false,
         };
-      });
+      }));
 
       setTestResults(enrichedResults);
+      setTotalMaterialCost(matCost);
+      setTotalLaborCost(labCost);
     } catch (err) {
       console.error('BOM Test error:', err);
       showError('Failed to calculate BOM');
@@ -441,7 +471,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     }
   }, [
     selectedProductTypeV2, selectedStyleV2, componentSelections, variableValues,
-    height, railCount, testLength, testLines, testGates, assignedComponentsV2, getMaterialSku
+    height, railCount, testLength, testLines, testGates, assignedComponentsV2, getMaterialSku,
+    concreteType, materials
   ]);
 
   // =============================================================================
@@ -812,39 +843,187 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         </div>
       </div>
 
-      {/* Preview Panel */}
-      <div className="flex-1 bg-gray-50 p-4 overflow-auto">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">SKU Preview</h2>
-
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">SKU Code:</span>
-              <span className="ml-2 font-mono font-medium">{skuCode || '-'}</span>
+      {/* Right Panel - Preview & BOM (V1 Style) */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Key Stats Bar */}
+        <div className="bg-white border-b border-gray-200 px-3 py-2">
+          <div className="grid grid-cols-4 gap-2">
+            <div className="bg-purple-600 text-white rounded-lg px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Cost/Ft</div>
+              <div className="text-lg font-bold">
+                ${testLength > 0 ? ((totalMaterialCost + totalLaborCost) / testLength).toFixed(2) : '0.00'}
+              </div>
             </div>
-            <div>
-              <span className="text-gray-500">SKU Name:</span>
-              <span className="ml-2">{skuName || suggestedSkuName || '-'}</span>
+            <div className="bg-green-600 text-white rounded-lg px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Total Cost</div>
+              <div className="text-lg font-bold">
+                ${Math.round(totalMaterialCost + totalLaborCost).toLocaleString()}
+              </div>
             </div>
-            <div>
-              <span className="text-gray-500">Type:</span>
-              <span className="ml-2">{selectedProductTypeV2?.name || '-'}</span>
+            <div className="bg-amber-500 text-white rounded-lg px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Material/Ft</div>
+              <div className="text-lg font-bold">
+                ${testLength > 0 ? (totalMaterialCost / testLength).toFixed(2) : '0.00'}
+              </div>
             </div>
-            <div>
-              <span className="text-gray-500">Style:</span>
-              <span className="ml-2">{selectedStyleV2?.name || '-'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Height:</span>
-              <span className="ml-2">{height} ft</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Post Type:</span>
-              <span className="ml-2">{postType}</span>
+            <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Labor/Ft</div>
+              <div className="text-lg font-bold">
+                ${testLength > 0 ? (totalLaborCost / testLength).toFixed(2) : '0.00'}
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-200">
+        {/* Test Parameters Bar */}
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="text-xs font-medium text-gray-600">Test:</span>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">Length</label>
+              <input
+                type="number"
+                value={testLength}
+                onChange={(e) => setTestLength(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-16 px-2 py-1 border border-gray-300 rounded text-xs"
+              />
+              <span className="text-[10px] text-gray-400">ft</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">Lines</label>
+              <select
+                value={testLines}
+                onChange={(e) => setTestLines(parseInt(e.target.value))}
+                className="w-12 px-1 py-1 border border-gray-300 rounded text-xs"
+              >
+                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">Gates</label>
+              <select
+                value={testGates}
+                onChange={(e) => setTestGates(parseInt(e.target.value))}
+                className="w-12 px-1 py-1 border border-gray-300 rounded text-xs"
+              >
+                {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">Concrete</label>
+              <select
+                value={concreteType}
+                onChange={(e) => setConcreteType(e.target.value as '3-part' | 'yellow-bags' | 'red-bags')}
+                className="w-24 px-1 py-1 border border-gray-300 rounded text-xs"
+              >
+                <option value="3-part">3-Part Mix</option>
+                <option value="yellow-bags">Yellow Bags</option>
+                <option value="red-bags">Red Bags</option>
+              </select>
+            </div>
+            <button
+              onClick={runBOMTest}
+              disabled={isCalculating}
+              className="px-3 py-1 bg-green-600 text-white rounded text-xs font-medium flex items-center gap-1.5 hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {isCalculating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Play className="w-3.5 h-3.5" />
+              )}
+              Calculate
+            </button>
+          </div>
+        </div>
+
+        {/* BOM Preview */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {/* Warning if no materials selected */}
+          {Object.keys(componentSelections).filter(k => componentSelections[k]).length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 mb-3">
+              <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-amber-800">Select materials to see BOM preview</p>
+              </div>
+            </div>
+          )}
+
+          {/* Test Results Table */}
+          {testResults.length > 0 && (
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
+                <h3 className="text-xs font-semibold text-gray-700">
+                  BOM Preview • {testLength}ft × {testLines} Lines × {testGates} Gates
+                </h3>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                    <th className="px-3 py-2 text-left font-medium">Component</th>
+                    <th className="px-3 py-2 text-right font-medium">Raw</th>
+                    <th className="px-3 py-2 text-right font-medium">Qty</th>
+                    <th className="px-3 py-2 text-right font-medium">Unit $</th>
+                    <th className="px-3 py-2 text-right font-medium">Total $</th>
+                    <th className="px-3 py-2 text-center font-medium">Round</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testResults.map((result: FormulaResult & { unit_cost?: number; total_cost?: number; is_labor?: boolean }, idx) => (
+                    <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                      <td className="px-3 py-2 text-gray-900">
+                        {result.component_name}
+                        {result.is_labor && (
+                          <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-700 rounded text-[9px]">Labor</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-500 font-mono">
+                        {result.raw_value.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                        {result.rounded_value}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-500 font-mono">
+                        {result.unit_cost ? `$${result.unit_cost.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                        {result.total_cost ? `$${result.total_cost.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] ${
+                          result.rounding_level === 'sku' ? 'bg-blue-100 text-blue-700' :
+                          result.rounding_level === 'project' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {result.rounding_level}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-100 font-medium">
+                    <td className="px-3 py-2 text-gray-700" colSpan={4}>Total</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-900">
+                      ${(totalMaterialCost + totalLaborCost).toFixed(2)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {testResults.length === 0 && Object.keys(componentSelections).filter(k => componentSelections[k]).length > 0 && (
+            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+              <Play className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">
+                Click "Calculate" to preview BOM quantities
+              </p>
+            </div>
+          )}
+
+          {/* Selected Materials Summary */}
+          <div className="bg-white rounded-lg border border-gray-200 mt-3 p-3">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Selected Materials</h3>
             <div className="space-y-1 text-xs">
               {Object.entries(componentSelections)
@@ -866,132 +1045,6 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
               )}
             </div>
           </div>
-
-          <div className="mt-4 p-3 bg-purple-50 rounded-lg text-xs text-purple-700">
-            <p className="font-medium">V2 Architecture</p>
-            <p className="mt-1 text-purple-600">
-              This SKU will be saved to <code className="bg-purple-100 px-1 rounded">sku_catalog_v2</code> with
-              JSONB variables and components for formula-based BOM calculation.
-            </p>
-          </div>
-        </div>
-
-        {/* Test Panel */}
-        <div className="bg-white rounded-lg border border-gray-200 mt-4">
-          <button
-            onClick={() => setTestExpanded(!testExpanded)}
-            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50"
-          >
-            <div className="flex items-center gap-2">
-              {testExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <h2 className="text-sm font-semibold text-gray-900">Test BOM Calculation</h2>
-            </div>
-            <span className="text-xs text-gray-500">
-              {testResults.length > 0 ? `${testResults.length} components` : 'Not tested'}
-            </span>
-          </button>
-
-          {testExpanded && (
-            <div className="px-4 pb-4 border-t border-gray-100">
-              {/* Test Inputs */}
-              <div className="flex items-end gap-3 mt-3">
-                <div className="w-20">
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Length (ft)</label>
-                  <input
-                    type="number"
-                    value={testLength}
-                    onChange={(e) => setTestLength(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-                <div className="w-16">
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Lines</label>
-                  <select
-                    value={testLines}
-                    onChange={(e) => setTestLines(parseInt(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
-                  >
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-16">
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Gates</label>
-                  <select
-                    value={testGates}
-                    onChange={(e) => setTestGates(parseInt(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
-                  >
-                    {[0, 1, 2, 3].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={runBOMTest}
-                  disabled={isCalculating}
-                  className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium flex items-center gap-1.5 hover:bg-green-700 disabled:bg-gray-400"
-                >
-                  {isCalculating ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5" />
-                  )}
-                  Calculate
-                </button>
-              </div>
-
-              {/* Test Results */}
-              {testResults.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    BOM Preview ({testLength}ft × {testLines}L × {testGates}G)
-                  </h3>
-                  <div className="bg-gray-50 rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-gray-100 text-gray-600">
-                          <th className="px-2 py-1.5 text-left font-medium">Component</th>
-                          <th className="px-2 py-1.5 text-right font-medium">Raw</th>
-                          <th className="px-2 py-1.5 text-right font-medium">Qty</th>
-                          <th className="px-2 py-1.5 text-left font-medium">Round</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {testResults.map((result, idx) => (
-                          <tr key={result.component_code} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="px-2 py-1.5 text-gray-900">{result.component_name}</td>
-                            <td className="px-2 py-1.5 text-right text-gray-500 font-mono">
-                              {result.raw_value.toFixed(2)}
-                            </td>
-                            <td className="px-2 py-1.5 text-right font-mono font-medium text-gray-900">
-                              {result.rounded_value}
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <span className={`px-1 py-0.5 rounded text-[10px] ${
-                                result.rounding_level === 'sku' ? 'bg-blue-100 text-blue-700' :
-                                result.rounding_level === 'project' ? 'bg-amber-100 text-amber-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {result.rounding_level}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {testResults.length === 0 && (
-                <div className="mt-4 text-xs text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
-                  Enter test values and click "Calculate" to preview BOM quantities
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
