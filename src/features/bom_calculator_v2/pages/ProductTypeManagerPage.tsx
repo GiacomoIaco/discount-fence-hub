@@ -1467,7 +1467,7 @@ function VariableModal({
 }
 
 // =============================================================================
-// COMPONENTS TAB - Two-panel design
+// COMPONENTS TAB - Three-panel design (Available, Materials, Labor)
 // =============================================================================
 
 function ComponentsTab({
@@ -1496,9 +1496,13 @@ function ComponentsTab({
   // Determine which components have formulas for this product type
   const componentsWithFormulas = new Set(formulas.map((f) => f.component_type_id));
 
-  // Split into selected and unselected
-  const selectedComponents = componentsFull
-    .filter(c => c.is_assigned)
+  // Split into selected Materials and selected Labor
+  const selectedMaterialComponents = componentsFull
+    .filter(c => c.is_assigned && !c.is_labor)
+    .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+
+  const selectedLaborComponents = componentsFull
+    .filter(c => c.is_assigned && c.is_labor)
     .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
 
   const availableComponents = componentsFull
@@ -1530,7 +1534,8 @@ function ComponentsTab({
       }
     } else {
       // Assign: Insert into junction table
-      const maxOrder = Math.max(...selectedComponents.map(c => c.display_order || 0), 0);
+      const allAssigned = [...selectedMaterialComponents, ...selectedLaborComponents];
+      const maxOrder = Math.max(...allAssigned.map(c => c.display_order || 0), 0);
       const { error } = await supabase
         .from('product_type_components_v2')
         .insert({
@@ -1548,17 +1553,19 @@ function ComponentsTab({
     setSaving(false);
   };
 
-  // Move component up/down in order
+  // Move component up/down in order (within its own category - materials or labor)
   const moveComponent = async (component: ProductTypeComponentFull, direction: 'up' | 'down') => {
-    const currentIndex = selectedComponents.findIndex(c => c.component_type_id === component.component_type_id);
+    // Get the appropriate list based on whether it's labor or material
+    const componentList = component.is_labor ? selectedLaborComponents : selectedMaterialComponents;
+    const currentIndex = componentList.findIndex(c => c.component_type_id === component.component_type_id);
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
 
-    if (targetIndex < 0 || targetIndex >= selectedComponents.length) return;
+    if (targetIndex < 0 || targetIndex >= componentList.length) return;
 
     setSaving(true);
 
-    const currentComponent = selectedComponents[currentIndex];
-    const targetComponent = selectedComponents[targetIndex];
+    const currentComponent = componentList[currentIndex];
+    const targetComponent = componentList[targetIndex];
 
     // Swap display_order values
     await Promise.all([
@@ -1601,16 +1608,16 @@ function ComponentsTab({
           <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-6 h-[calc(100vh-300px)]">
-          {/* Left Panel - Available Components */}
+        <div className="grid grid-cols-3 gap-4 h-[calc(100vh-300px)]">
+          {/* Panel 1 - Available Components */}
           <div className="bg-white rounded-lg border border-gray-200 flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-900">Available Components</h3>
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+            <div className="p-3 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-gray-900 text-sm">Available</h3>
+                <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
                   <button
                     onClick={() => setComponentFilter('all')}
-                    className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
                       componentFilter === 'all'
                         ? 'bg-white text-gray-900 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -1620,59 +1627,59 @@ function ComponentsTab({
                   </button>
                   <button
                     onClick={() => setComponentFilter('material')}
-                    className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
                       componentFilter === 'material'
-                        ? 'bg-white text-gray-900 shadow-sm'
+                        ? 'bg-white text-blue-600 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Material
+                    Mat
                   </button>
                   <button
                     onClick={() => setComponentFilter('labor')}
-                    className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
                       componentFilter === 'labor'
                         ? 'bg-white text-orange-600 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Labor
+                    Lab
                   </button>
                 </div>
               </div>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search components..."
+                  placeholder="Search..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-2">
+            <div className="flex-1 overflow-auto p-1.5">
               {availableComponents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 text-sm">
-                  {searchTerm ? 'No matching components' : 'All components are selected'}
+                <div className="text-center py-6 text-gray-500 text-xs">
+                  {searchTerm ? 'No matches' : 'All selected'}
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {availableComponents.map((component) => (
                     <button
                       key={component.component_type_id}
                       onClick={() => toggleComponent(component)}
                       disabled={saving}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-left transition-colors disabled:opacity-50"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 text-left transition-colors disabled:opacity-50"
                     >
-                      <div className="w-5 h-5 border-2 border-gray-300 rounded flex-shrink-0" />
+                      <div className="w-4 h-4 border-2 border-gray-300 rounded flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">{component.component_name}</div>
-                        <div className="flex items-center gap-2 text-xs">
+                        <div className="text-xs font-medium text-gray-900 truncate">{component.component_name}</div>
+                        <div className="flex items-center gap-1 text-[10px]">
                           <span className="text-gray-500 font-mono">{component.component_code}</span>
                           {component.is_labor && (
-                            <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
+                            <span className="px-1 py-0.5 bg-orange-100 text-orange-700 rounded">Lab</span>
                           )}
                         </div>
                       </div>
@@ -1683,93 +1690,81 @@ function ComponentsTab({
             </div>
           </div>
 
-          {/* Right Panel - Selected Components */}
-          <div className="bg-white rounded-lg border border-gray-200 flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">
-                Selected Components ({selectedComponents.length})
+          {/* Panel 2 - Selected Materials */}
+          <div className="bg-white rounded-lg border border-blue-200 flex flex-col">
+            <div className="p-3 border-b border-blue-100 bg-blue-50/50">
+              <h3 className="font-semibold text-blue-900 text-sm">
+                Materials ({selectedMaterialComponents.length})
               </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                Formula execution order (top to bottom)
+              <p className="text-[10px] text-blue-600 mt-0.5">
+                Physical items - rails, pickets, posts...
               </p>
             </div>
 
-            <div className="flex-1 overflow-auto p-2">
-              {selectedComponents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 text-sm">
-                  No components selected.<br />
-                  Click a component on the left to add it.
+            <div className="flex-1 overflow-auto p-1.5">
+              {selectedMaterialComponents.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 text-xs">
+                  No materials selected
                 </div>
               ) : (
-                <div className="space-y-1">
-                  {selectedComponents.map((component, index) => {
+                <div className="space-y-0.5">
+                  {selectedMaterialComponents.map((component, index) => {
                     const hasFormula = componentsWithFormulas.has(component.component_type_id);
                     const hasFilter = !!component.filter_variable_id;
                     const hasVisibility = component.visibility_conditions && Object.keys(component.visibility_conditions).length > 0;
                     return (
                       <div
                         key={component.component_type_id}
-                        className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-50 group"
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-gray-50 group"
                       >
                         <div className="flex flex-col gap-0.5">
                           <button
                             onClick={() => moveComponent(component, 'up')}
                             disabled={index === 0 || saving}
-                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
                           >
-                            <ArrowUp className="w-3 h-3 text-gray-500" />
+                            <ArrowUp className="w-2.5 h-2.5 text-gray-500" />
                           </button>
                           <button
                             onClick={() => moveComponent(component, 'down')}
-                            disabled={index === selectedComponents.length - 1 || saving}
-                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                            disabled={index === selectedMaterialComponents.length - 1 || saving}
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
                           >
-                            <ArrowDown className="w-3 h-3 text-gray-500" />
+                            <ArrowDown className="w-2.5 h-2.5 text-gray-500" />
                           </button>
                         </div>
 
-                        <span className="w-6 text-center text-xs text-gray-400 font-mono">
+                        <span className="w-4 text-center text-[10px] text-gray-400 font-mono">
                           {index + 1}
                         </span>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900 truncate">{component.component_name}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-medium text-gray-900 truncate">{component.component_name}</span>
                             {hasFormula && (
-                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                              <CheckCircle className="w-3 h-3 text-green-600 flex-shrink-0" />
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs flex-wrap">
+                          <div className="flex items-center gap-1 text-[10px] flex-wrap">
                             <span className="text-gray-500 font-mono">{component.component_code}</span>
-                            {component.is_labor && (
-                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Labor</span>
-                            )}
                             {hasFormula ? (
-                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Has formula</span>
+                              <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
                             ) : (
-                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Needs formula</span>
+                              <span className="px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
                             )}
                             {hasFilter && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
-                                Filter: {component.filter_variable_name}
+                              <span className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded">
+                                {component.filter_variable_name}
                               </span>
                             )}
-                            {/* Visibility Status Badge */}
-                            {hasVisibility ? (
-                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
-                                Hidden unless: {Object.entries(component.visibility_conditions || {}).map(([key, vals]) =>
-                                  `${key}=${(vals as string[]).join('/')}`
-                                ).join(', ')}
-                              </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
-                                Visible
+                            {hasVisibility && (
+                              <span className="px-1 py-0.5 bg-amber-100 text-amber-700 rounded">
+                                Conditional
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Is Optional Toggle */}
                         <button
                           onClick={async () => {
                             const newValue = !component.is_optional;
@@ -1779,31 +1774,145 @@ function ComponentsTab({
                               .eq('id', component.assignment_id);
                             refetchComponents();
                           }}
-                          className={`px-2 py-1 text-xs rounded border transition-colors ${
+                          className={`px-1.5 py-0.5 text-[10px] rounded border transition-colors ${
                             component.is_optional
-                              ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
-                              : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
+                              ? 'bg-green-50 border-green-300 text-green-700'
+                              : 'bg-gray-50 border-gray-300 text-gray-500'
                           }`}
-                          title={component.is_optional ? 'Component is optional (click to make required)' : 'Component is required (click to make optional)'}
+                          title={component.is_optional ? 'Optional' : 'Required'}
                         >
-                          {component.is_optional ? 'Optional' : 'Required'}
+                          {component.is_optional ? 'Opt' : 'Req'}
                         </button>
 
                         <button
                           onClick={() => setEditingComponent(component)}
-                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Edit component settings"
+                          className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3 h-3" />
                         </button>
 
                         <button
                           onClick={() => toggleComponent(component)}
                           disabled={saving}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                          title="Remove from product type"
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Panel 3 - Selected Labor */}
+          <div className="bg-white rounded-lg border border-orange-200 flex flex-col">
+            <div className="p-3 border-b border-orange-100 bg-orange-50/50">
+              <h3 className="font-semibold text-orange-900 text-sm">
+                Labor ({selectedLaborComponents.length})
+              </h3>
+              <p className="text-[10px] text-orange-600 mt-0.5">
+                Work tasks - nail up, set posts...
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-auto p-1.5">
+              {selectedLaborComponents.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 text-xs">
+                  No labor selected
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {selectedLaborComponents.map((component, index) => {
+                    const hasFormula = componentsWithFormulas.has(component.component_type_id);
+                    const hasFilter = !!component.filter_variable_id;
+                    const hasVisibility = component.visibility_conditions && Object.keys(component.visibility_conditions).length > 0;
+                    return (
+                      <div
+                        key={component.component_type_id}
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-gray-50 group"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            onClick={() => moveComponent(component, 'up')}
+                            disabled={index === 0 || saving}
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
+                          >
+                            <ArrowUp className="w-2.5 h-2.5 text-gray-500" />
+                          </button>
+                          <button
+                            onClick={() => moveComponent(component, 'down')}
+                            disabled={index === selectedLaborComponents.length - 1 || saving}
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
+                          >
+                            <ArrowDown className="w-2.5 h-2.5 text-gray-500" />
+                          </button>
+                        </div>
+
+                        <span className="w-4 text-center text-[10px] text-gray-400 font-mono">
+                          {index + 1}
+                        </span>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-medium text-gray-900 truncate">{component.component_name}</span>
+                            {hasFormula && (
+                              <CheckCircle className="w-3 h-3 text-green-600 flex-shrink-0" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] flex-wrap">
+                            <span className="text-gray-500 font-mono">{component.component_code}</span>
+                            {hasFormula ? (
+                              <span className="px-1 py-0.5 bg-green-100 text-green-700 rounded">Formula</span>
+                            ) : (
+                              <span className="px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded">No formula</span>
+                            )}
+                            {hasFilter && (
+                              <span className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded">
+                                {component.filter_variable_name}
+                              </span>
+                            )}
+                            {hasVisibility && (
+                              <span className="px-1 py-0.5 bg-amber-100 text-amber-700 rounded">
+                                Conditional
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={async () => {
+                            const newValue = !component.is_optional;
+                            await supabase
+                              .from('product_type_components_v2')
+                              .update({ is_optional: newValue })
+                              .eq('id', component.assignment_id);
+                            refetchComponents();
+                          }}
+                          className={`px-1.5 py-0.5 text-[10px] rounded border transition-colors ${
+                            component.is_optional
+                              ? 'bg-green-50 border-green-300 text-green-700'
+                              : 'bg-gray-50 border-gray-300 text-gray-500'
+                          }`}
+                          title={component.is_optional ? 'Optional' : 'Required'}
+                        >
+                          {component.is_optional ? 'Opt' : 'Req'}
+                        </button>
+
+                        <button
+                          onClick={() => setEditingComponent(component)}
+                          className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+
+                        <button
+                          onClick={() => toggleComponent(component)}
+                          disabled={saving}
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        >
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     );
