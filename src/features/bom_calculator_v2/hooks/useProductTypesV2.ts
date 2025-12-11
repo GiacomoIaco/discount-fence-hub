@@ -226,6 +226,7 @@ export interface ProductTypeComponentFull {
   assignment_id: string | null;
   display_order: number | null;
   is_assigned: boolean;
+  is_optional: boolean | null;
   has_formula: boolean;
   // Filter variable for subgrouping in Materials/Labor tab
   filter_variable_id: string | null;

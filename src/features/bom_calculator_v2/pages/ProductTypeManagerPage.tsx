@@ -1754,13 +1754,40 @@ function ComponentsTab({
                                 Filter: {component.filter_variable_name}
                               </span>
                             )}
-                            {hasVisibility && (
-                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">
-                                Conditional
+                            {/* Visibility Status Badge */}
+                            {hasVisibility ? (
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+                                Hidden unless: {Object.entries(component.visibility_conditions || {}).map(([key, vals]) =>
+                                  `${key}=${(vals as string[]).join('/')}`
+                                ).join(', ')}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                Visible
                               </span>
                             )}
                           </div>
                         </div>
+
+                        {/* Is Optional Toggle */}
+                        <button
+                          onClick={async () => {
+                            const newValue = !component.is_optional;
+                            await supabase
+                              .from('product_type_components_v2')
+                              .update({ is_optional: newValue })
+                              .eq('id', component.assignment_id);
+                            refetchComponents();
+                          }}
+                          className={`px-2 py-1 text-xs rounded border transition-colors ${
+                            component.is_optional
+                              ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                              : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
+                          }`}
+                          title={component.is_optional ? 'Component is optional (click to make required)' : 'Component is required (click to make optional)'}
+                        >
+                          {component.is_optional ? 'Optional' : 'Required'}
+                        </button>
 
                         <button
                           onClick={() => setEditingComponent(component)}
