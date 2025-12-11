@@ -8,7 +8,9 @@ import {
   Users,
   Calendar,
   Filter,
+  Download,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import {
   LineChart,
   Line,
@@ -155,6 +157,113 @@ export default function AnalyticsDashboard() {
 
   const npsTrend = getNPSTrend();
 
+  const exportResponsesToCSV = async () => {
+    try {
+      // Fetch all responses with related data
+      let query = supabase
+        .from('survey_responses')
+        .select(`
+          id,
+          nps_score,
+          csat_score,
+          respondent_name,
+          respondent_email,
+          respondent_phone,
+          respondent_company,
+          response_data,
+          device_type,
+          completed_at,
+          time_to_complete,
+          distribution:survey_distributions(
+            sent_at,
+            campaign:survey_campaigns(name, code),
+            survey:surveys(title, code)
+          )
+        `)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false });
+
+      if (selectedCampaignId !== 'all') {
+        // Filter by campaign through distribution
+        const { data: distIds } = await supabase
+          .from('survey_distributions')
+          .select('id')
+          .eq('campaign_id', selectedCampaignId);
+
+        if (distIds && distIds.length > 0) {
+          query = query.in('distribution_id', distIds.map(d => d.id));
+        }
+      }
+
+      const { data: allResponses, error } = await query;
+
+      if (error) throw error;
+      if (!allResponses || allResponses.length === 0) {
+        toast.error('No responses to export');
+        return;
+      }
+
+      // Build CSV content
+      const headers = [
+        'Response Date',
+        'Survey',
+        'Campaign',
+        'Respondent Name',
+        'Respondent Email',
+        'Respondent Phone',
+        'Respondent Company',
+        'NPS Score',
+        'CSAT Score',
+        'Device Type',
+        'Time to Complete (sec)',
+        'Response Data (JSON)'
+      ];
+
+      const rows = allResponses.map((r: any) => [
+        r.completed_at ? new Date(r.completed_at).toLocaleString() : '',
+        r.distribution?.survey?.title || '',
+        r.distribution?.campaign?.name || 'Ad-hoc',
+        r.respondent_name || '',
+        r.respondent_email || '',
+        r.respondent_phone || '',
+        r.respondent_company || '',
+        r.nps_score ?? '',
+        r.csat_score ?? '',
+        r.device_type || '',
+        r.time_to_complete || '',
+        JSON.stringify(r.response_data || {})
+      ]);
+
+      // Escape CSV values
+      const escapeCSV = (val: string | number) => {
+        const str = String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(escapeCSV).join(','))
+      ].join('\n');
+
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `survey_responses_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${allResponses.length} responses`);
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('Failed to export responses');
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -163,18 +272,27 @@ export default function AnalyticsDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
           <p className="text-gray-500 mt-1">Track survey performance and trends over time</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <select
-            value={selectedCampaignId}
-            onChange={(e) => setSelectedCampaignId(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+        <div className="flex items-center gap-4">
+          <button
+            onClick={exportResponsesToCSV}
+            className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <option value="all">All Campaigns</option>
-            {campaigns?.map(c => (
-              <option key={c.id} value={c.id}>[{c.code}] {c.name}</option>
-            ))}
-          </select>
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="all">All Campaigns</option>
+              {campaigns?.map(c => (
+                <option key={c.id} value={c.id}>[{c.code}] {c.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

@@ -10,6 +10,7 @@ import {
   Trash2,
   Upload,
   Eye,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SurveyPopulation } from '../types';
@@ -67,6 +68,37 @@ export default function PopulationsList() {
       deleteMutation.mutate(id);
     }
     setMenuOpen(null);
+  };
+
+  const [syncing, setSyncing] = useState<string | null>(null);
+
+  const handleSyncAppUsers = async (population: SurveyPopulation) => {
+    setMenuOpen(null);
+    setSyncing(population.id);
+
+    try {
+      const response = await fetch('/.netlify/functions/survey-sync-app-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          populationId: population.id,
+          filters: population.filters || {},
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Sync failed');
+      }
+
+      toast.success(`Synced ${result.added} users (${result.skipped} already existed)`);
+      queryClient.invalidateQueries({ queryKey: ['survey-populations'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to sync app users');
+    } finally {
+      setSyncing(null);
+    }
   };
 
   const getTypeLabel = (type: string) => {
@@ -187,6 +219,16 @@ export default function PopulationsList() {
                           <Upload className="w-4 h-4" />
                           Import CSV
                         </button>
+                        {(population.population_type === 'app_users' || population.population_type === 'mixed') && (
+                          <button
+                            onClick={() => handleSyncAppUsers(population)}
+                            disabled={syncing === population.id}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <RefreshCw className={`w-4 h-4 ${syncing === population.id ? 'animate-spin' : ''}`} />
+                            {syncing === population.id ? 'Syncing...' : 'Sync App Users'}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEdit(population)}
                           className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"

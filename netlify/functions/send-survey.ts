@@ -152,6 +152,7 @@ export const handler: Handler = async (event) => {
         }
 
         const surveyUrl = `${appUrl}/survey?token=${recipient.response_token}`;
+        const unsubscribeUrl = `${appUrl}/.netlify/functions/survey-unsubscribe?token=${recipient.response_token}`;
 
         // Send email
         if (deliveryMethods.includes('email') && contact.contact_email && sendgridApiKey) {
@@ -167,6 +168,7 @@ export const handler: Handler = async (event) => {
                 companyName,
                 primaryColor,
                 logoUrl: brandConfig.logo,
+                unsubscribeUrl,
               }),
             });
 
@@ -265,10 +267,11 @@ interface EmailParams {
   companyName: string;
   primaryColor: string;
   logoUrl?: string;
+  unsubscribeUrl: string;
 }
 
 function generateEmailHtml(params: EmailParams): string {
-  const { recipientName, surveyTitle, surveyDescription, surveyUrl, companyName, primaryColor, logoUrl } = params;
+  const { recipientName, surveyTitle, surveyDescription, surveyUrl, companyName, primaryColor, logoUrl, unsubscribeUrl } = params;
 
   return `
 <!DOCTYPE html>
@@ -325,6 +328,9 @@ function generateEmailHtml(params: EmailParams): string {
         <p style="color: #9ca3af; font-size: 12px; margin: 0;">
           ${companyName}<br>
           You received this because you are a valued customer.
+        </p>
+        <p style="color: #9ca3af; font-size: 11px; margin: 16px 0 0;">
+          <a href="${unsubscribeUrl}" style="color: #9ca3af;">Unsubscribe from survey emails</a>
         </p>
       </td>
     </tr>
