@@ -354,3 +354,77 @@ export function useSKUV2(skuId: string | null) {
     enabled: !!skuId,
   });
 }
+
+/**
+ * Material eligibility rule from V2 table
+ */
+export interface MaterialEligibilityRuleV2 {
+  id: string;
+  product_type_id: string;
+  component_type_id: string;
+  selection_mode: 'category' | 'subcategory' | 'specific';
+  material_category: string | null;
+  material_subcategory: string | null;
+  material_id: string | null;
+  attribute_filter: Record<string, string> | null;
+  is_default: boolean;
+  is_active: boolean;
+}
+
+/**
+ * Fetch material eligibility rules for a product type (V2)
+ */
+export function useMaterialEligibilityV2(productTypeId: string | null) {
+  return useQuery({
+    queryKey: ['material-eligibility-v2', productTypeId],
+    queryFn: async () => {
+      if (!productTypeId) return [];
+
+      const { data, error } = await supabase
+        .from('component_material_eligibility_v2')
+        .select('*')
+        .eq('product_type_id', productTypeId)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      return data as MaterialEligibilityRuleV2[];
+    },
+    enabled: !!productTypeId,
+  });
+}
+
+/**
+ * Labor eligibility rule from V2 table
+ */
+export interface LaborEligibilityRuleV2 {
+  id: string;
+  product_type_id: string;
+  component_type_id: string;
+  labor_code_id: string;
+  attribute_filter: Record<string, string> | null;
+  quantity_formula: string | null;
+  is_default: boolean;
+  is_active: boolean;
+}
+
+/**
+ * Fetch labor eligibility rules for a product type (V2)
+ */
+export function useLaborEligibilityV2(productTypeId: string | null) {
+  return useQuery({
+    queryKey: ['labor-eligibility-v2', productTypeId],
+    queryFn: async () => {
+      if (!productTypeId) return [];
+
+      const { data, error } = await supabase
+        .from('component_labor_eligibility')
+        .select('*')
+        .eq('product_type_id', productTypeId)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      return data as LaborEligibilityRuleV2[];
+    },
+    enabled: !!productTypeId,
+  });
+}

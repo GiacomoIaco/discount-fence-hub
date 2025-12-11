@@ -17,6 +17,8 @@ import {
   useProductStylesV2,
   useProductVariablesV2,
   useSKUV2,
+  useMaterialEligibilityV2,
+  useProductTypeComponentsFull,
 } from '../hooks';
 
 // =============================================================================
@@ -36,18 +38,6 @@ interface Material {
   actual_width: number | null;
 }
 
-interface EligibleMaterial {
-  fence_type: string;
-  component_code: string;
-  material_id: string;
-  material_sku: string;
-  material_name: string;
-  category: string;
-  sub_category: string | null;
-  unit_cost: number;
-  length_ft: number | null;
-  attribute_filter: Record<string, string> | null;
-}
 
 // =============================================================================
 // COMPONENT
@@ -130,21 +120,11 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     },
   });
 
-  // Fetch eligible materials from V1 Component Configurator (shared table)
-  const fenceTypeDb = productType === 'wood-vertical' ? 'wood_vertical' :
-                     productType === 'wood-horizontal' ? 'wood_horizontal' : 'iron';
+  // V2: Fetch material eligibility rules for this product type
+  const { data: materialEligibilityRulesV2 = [] } = useMaterialEligibilityV2(selectedProductTypeV2?.id || null);
 
-  const { data: eligibleMaterials = [] } = useQuery({
-    queryKey: ['eligible-materials-sku-builder-v2', fenceTypeDb],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('v_component_eligible_materials')
-        .select('*')
-        .eq('fence_type', fenceTypeDb);
-      if (error) throw error;
-      return data as EligibleMaterial[];
-    },
-  });
+  // V2: Fetch assigned components for this product type
+  const { data: assignedComponentsV2 = [] } = useProductTypeComponentsFull(selectedProductTypeV2?.id || null);
 
   // =============================================================================
   // LOAD EDITING SKU
@@ -189,29 +169,64 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   }, [editingSKU, materials]);
 
   // =============================================================================
-  // MATERIAL FILTERING
+  // V2 MATERIAL FILTERING
   // =============================================================================
 
+  // Get component type ID from component code
+  const getComponentTypeId = (componentCode: string): string | null => {
+    const component = assignedComponentsV2.find(c => c.component_code === componentCode && c.is_assigned);
+    return component?.component_type_id || null;
+  };
+
+  // TODO: Use visibility_conditions from assignedComponentsV2 for dynamic component rendering
+  // TODO: Use is_default from materialEligibilityRulesV2 for auto-selecting defaults
+
+  // V2: Get eligible materials for a component by expanding rules
   const getEligibleMaterialsForComponent = (
     componentCode: string,
     attributeFilter?: Record<string, string>
   ): Material[] => {
-    let eligible = eligibleMaterials.filter(em => em.component_code === componentCode);
+    const componentTypeId = getComponentTypeId(componentCode);
+    if (!componentTypeId) return [];
 
+    // Get rules for this component
+    let rules = materialEligibilityRulesV2.filter(r => r.component_type_id === componentTypeId);
+
+    // Apply attribute filter if provided
     if (attributeFilter) {
-      eligible = eligible.filter(em => {
-        if (!em.attribute_filter) return false;
+      rules = rules.filter(rule => {
+        // Rules with no attribute_filter match any attribute (when no filter required)
+        if (!rule.attribute_filter && !attributeFilter) return true;
+        if (!rule.attribute_filter) return true; // Rule applies to all if it has no filter
+        // Rule must match all filter keys
         return Object.entries(attributeFilter).every(
-          ([key, value]) => em.attribute_filter?.[key] === value
+          ([key, value]) => rule.attribute_filter?.[key] === value
         );
       });
     }
 
-    const materialIds = new Set(eligible.map(em => em.material_id));
-    return materials.filter(m => materialIds.has(m.id));
+    // Expand rules to get material IDs
+    const eligibleMaterialIds = new Set<string>();
+    for (const rule of rules) {
+      if (rule.selection_mode === 'specific' && rule.material_id) {
+        eligibleMaterialIds.add(rule.material_id);
+      } else if (rule.selection_mode === 'category' && rule.material_category) {
+        // Add all materials in this category
+        materials
+          .filter(m => m.category === rule.material_category)
+          .forEach(m => eligibleMaterialIds.add(m.id));
+      } else if (rule.selection_mode === 'subcategory' && rule.material_category && rule.material_subcategory) {
+        // Add all materials in this category+subcategory
+        materials
+          .filter(m => m.category === rule.material_category && m.sub_category === rule.material_subcategory)
+          .forEach(m => eligibleMaterialIds.add(m.id));
+      }
+    }
+
+    return materials.filter(m => eligibleMaterialIds.has(m.id));
   };
 
-  // Filtered materials per component (with fallbacks)
+  // Filtered materials per component (with fallbacks to category-based search)
   const filteredPostMaterials = useMemo(() => {
     if (productType !== 'iron') {
       const configured = getEligibleMaterialsForComponent('post', { post_type: postType });
@@ -226,7 +241,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       const configured = getEligibleMaterialsForComponent('post');
       if (configured.length > 0) return configured;
     }
-    // Fallback
+    // Fallback: use material categories
     const posts = materials.filter(m => m.category === '01-Post');
     if (productType === 'iron') {
       return posts.filter(m => m.sub_category === 'Iron' || m.material_name.toLowerCase().includes('iron'));
@@ -239,7 +254,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       (m.sub_category === 'Wood' || m.material_name.toLowerCase().includes('ptp')) &&
       (m.length_ft === null || m.length_ft >= requiredLength)
     );
-  }, [materials, eligibleMaterials, postType, height, productType]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2, postType, height, productType]);
 
   const filteredPicketMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('picket');
@@ -248,13 +263,13 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     }
     const pickets = materials.filter(m => m.category === '02-Pickets');
     return pickets.filter(m => m.length_ft === null || m.length_ft === height);
-  }, [materials, eligibleMaterials, height]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2, height]);
 
   const filteredRailMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('rail');
     if (configured.length > 0) return configured;
     return materials.filter(m => m.category === '03-Rails');
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredCapTrimMaterials = useMemo(() => {
     const configuredCap = getEligibleMaterialsForComponent('cap');
@@ -263,7 +278,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       return [...configuredCap, ...configuredTrim];
     }
     return materials.filter(m => m.category === '04-Cap/Trim');
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredHorizontalBoardMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('board');
@@ -272,26 +287,26 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     }
     const boards = materials.filter(m => m.category === '07-Horizontal Boards');
     return boards.filter(m => m.length_ft === null || m.length_ft === 6 || m.length_ft === 8);
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredIronPanelMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('panel');
     if (configured.length > 0) return configured;
     const panels = materials.filter(m => m.category === '09-Iron' && m.sub_category === 'Panel');
     return panels.filter(m => m.length_ft === null || m.length_ft === 8);
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredBracketMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('bracket');
     if (configured.length > 0) return configured;
     return materials.filter(m => m.category === '08-Hardware' || m.material_name.toLowerCase().includes('bracket'));
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredNailerMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('nailer');
     if (configured.length > 0) return configured;
     return materials.filter(m => m.category === '03-Rails');
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredRotBoardMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('rot_board');
@@ -300,13 +315,13 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       m.material_name.toLowerCase().includes('rot') ||
       m.sub_category?.toLowerCase().includes('rot')
     );
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   const filteredVerticalTrimMaterials = useMemo(() => {
     const configured = getEligibleMaterialsForComponent('vertical_trim');
     if (configured.length > 0) return configured;
     return materials.filter(m => m.category === '04-Cap/Trim' && m.sub_category === 'Trim');
-  }, [materials, eligibleMaterials]);
+  }, [materials, materialEligibilityRulesV2, assignedComponentsV2]);
 
   // =============================================================================
   // HELPERS
