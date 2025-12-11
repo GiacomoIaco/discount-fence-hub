@@ -14,7 +14,10 @@ import {
   Mail,
 } from 'lucide-react';
 import { useCommunity, useCreateCommunityContact, useDeleteCommunityContact, useUpdateCommunitySkus } from '../hooks/useCommunities';
-import { COMMUNITY_STATUS_LABELS } from '../types';
+import { useContactRoles } from '../hooks/useContacts';
+import { COMMUNITY_STATUS_LABELS, type Property } from '../types';
+import PropertiesList from './PropertiesList';
+import PropertyEditorModal from './PropertyEditorModal';
 
 interface Props {
   communityId: string;
@@ -24,12 +27,18 @@ interface Props {
 
 export default function CommunityDetailModal({ communityId, onClose, onEdit }: Props) {
   const { data: community, isLoading } = useCommunity(communityId);
+  const { data: contactRoles } = useContactRoles('community');
   const [showAddContact, setShowAddContact] = useState(false);
-  const [newContact, setNewContact] = useState({ name: '', role: 'superintendent', email: '', phone: '' });
+  const [newContact, setNewContact] = useState({ name: '', role_id: '', email: '', phone: '' });
+  const [showPropertyEditor, setShowPropertyEditor] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const createContactMutation = useCreateCommunityContact();
   const deleteContactMutation = useDeleteCommunityContact();
   const updateSkusMutation = useUpdateCommunitySkus();
+
+  // Get default superintendent role ID
+  const superintendentRole = contactRoles?.find(r => r.code === 'superintendent');
 
   const handleAddContact = async () => {
     if (!newContact.name.trim()) return;
@@ -37,14 +46,15 @@ export default function CommunityDetailModal({ communityId, onClose, onEdit }: P
     await createContactMutation.mutateAsync({
       community_id: communityId,
       name: newContact.name,
-      role: newContact.role || 'superintendent',
+      role: null, // Legacy field - keep null
+      role_id: newContact.role_id || superintendentRole?.id || null,
       email: newContact.email || null,
       phone: newContact.phone || null,
       is_primary: false,
       notes: null,
     });
 
-    setNewContact({ name: '', role: 'superintendent', email: '', phone: '' });
+    setNewContact({ name: '', role_id: '', email: '', phone: '' });
     setShowAddContact(false);
   };
 
@@ -157,6 +167,21 @@ export default function CommunityDetailModal({ communityId, onClose, onEdit }: P
             </div>
           )}
 
+          {/* Properties */}
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <PropertiesList
+              communityId={communityId}
+              onAddProperty={() => {
+                setSelectedProperty(null);
+                setShowPropertyEditor(true);
+              }}
+              onSelectProperty={(property) => {
+                setSelectedProperty(property);
+                setShowPropertyEditor(true);
+              }}
+            />
+          </div>
+
           {/* SKU Restrictions */}
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
@@ -250,14 +275,16 @@ export default function CommunityDetailModal({ communityId, onClose, onEdit }: P
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                   />
                   <select
-                    value={newContact.role}
-                    onChange={(e) => setNewContact({ ...newContact, role: e.target.value })}
+                    value={newContact.role_id}
+                    onChange={(e) => setNewContact({ ...newContact, role_id: e.target.value })}
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                   >
-                    <option value="superintendent">Superintendent</option>
-                    <option value="foreman">Foreman</option>
-                    <option value="assistant">Assistant</option>
-                    <option value="other">Other</option>
+                    <option value="">Select Role...</option>
+                    {contactRoles?.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.label}
+                      </option>
+                    ))}
                   </select>
                   <input
                     type="email"
@@ -294,42 +321,50 @@ export default function CommunityDetailModal({ communityId, onClose, onEdit }: P
 
             {community.contacts && community.contacts.length > 0 ? (
               <div className="space-y-2">
-                {community.contacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded-lg">
-                        <User className="w-4 h-4 text-gray-400" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">{contact.name}</div>
-                        <div className="flex items-center gap-3 text-sm text-gray-500">
-                          <span className="capitalize">{contact.role}</span>
-                          {contact.phone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              {contact.phone}
-                            </span>
-                          )}
-                          {contact.email && (
-                            <span className="flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {contact.email}
-                            </span>
-                          )}
+                {community.contacts.map((contact) => {
+                  // Get role label from joined contact_role or legacy role field
+                  const roleLabel = (contact as any).contact_role?.label || contact.role;
+                  return (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white rounded-lg">
+                          <User className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{contact.name}</div>
+                          <div className="flex items-center gap-3 text-sm text-gray-500">
+                            {roleLabel && (
+                              <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                                {roleLabel}
+                              </span>
+                            )}
+                            {contact.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {contact.phone}
+                              </span>
+                            )}
+                            {contact.email && (
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-3 h-3" />
+                                {contact.email}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() => deleteContactMutation.mutate({ id: contact.id, communityId })}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => deleteContactMutation.mutate({ id: contact.id, communityId })}
-                      className="p-1 text-gray-400 hover:text-red-500"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-gray-500">No contacts added yet</p>
@@ -345,6 +380,18 @@ export default function CommunityDetailModal({ communityId, onClose, onEdit }: P
           )}
         </div>
       </div>
+
+      {/* Property Editor Modal */}
+      {showPropertyEditor && (
+        <PropertyEditorModal
+          property={selectedProperty}
+          communityId={communityId}
+          onClose={() => {
+            setShowPropertyEditor(false);
+            setSelectedProperty(null);
+          }}
+        />
+      )}
     </div>
   );
 }

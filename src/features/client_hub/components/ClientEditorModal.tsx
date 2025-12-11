@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen } from 'lucide-react';
 import { useCreateClient, useUpdateClient } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
+import { useQboClasses } from '../hooks/useQboClasses';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
@@ -20,6 +21,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
   const createMutation = useCreateClient();
   const updateMutation = useUpdateClient();
   const { data: rateSheets } = useRateSheets({ is_active: true });
+  const { data: qboClasses } = useQboClasses(true); // Only selectable classes
 
   const [formData, setFormData] = useState<ClientFormData>({
     name: client?.name || '',
@@ -36,6 +38,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     state: client?.state || 'TX',
     zip: client?.zip || '',
     default_rate_sheet_id: client?.default_rate_sheet_id || null,
+    default_qbo_class_id: client?.default_qbo_class_id || null,
     invoicing_frequency: client?.invoicing_frequency || 'per_job',
     payment_terms: client?.payment_terms || 30,
     requires_po: client?.requires_po || false,
@@ -245,33 +248,57 @@ export default function ClientEditorModal({ client, onClose }: Props) {
             </div>
           </div>
 
-          {/* Pricing */}
+          {/* Pricing & QBO */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Pricing</h3>
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Pricing & QuickBooks</h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-gray-400" />
-                  Default Rate Sheet
-                </div>
-              </label>
-              <select
-                value={formData.default_rate_sheet_id || ''}
-                onChange={(e) => setFormData({ ...formData, default_rate_sheet_id: e.target.value || null })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">None (use catalog prices)</option>
-                {rateSheets?.map((sheet) => (
-                  <option key={sheet.id} value={sheet.id}>
-                    {sheet.name} {sheet.code ? `(${sheet.code})` : ''}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                This rate sheet will be used as the default for all quotes and jobs for this client
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-gray-400" />
+                    Default Rate Sheet
+                  </div>
+                </label>
+                <select
+                  value={formData.default_rate_sheet_id || ''}
+                  onChange={(e) => setFormData({ ...formData, default_rate_sheet_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">None (use catalog prices)</option>
+                  {rateSheets?.map((sheet) => (
+                    <option key={sheet.id} value={sheet.id}>
+                      {sheet.name} {sheet.code ? `(${sheet.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-gray-400" />
+                    QBO Class (P&L)
+                  </div>
+                </label>
+                <select
+                  value={formData.default_qbo_class_id || ''}
+                  onChange={(e) => setFormData({ ...formData, default_qbo_class_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">None</option>
+                  {qboClasses?.map((qboClass) => (
+                    <option key={qboClass.id} value={qboClass.id}>
+                      {qboClass.fully_qualified_name || qboClass.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            <p className="text-xs text-gray-500">
+              Rate sheet is used for pricing. QBO Class is used for P&L tracking in QuickBooks.
+            </p>
           </div>
 
           {/* Invoicing */}

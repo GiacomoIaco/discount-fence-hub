@@ -1,5 +1,39 @@
 // Client Hub Types - O-027
 
+// ============================================
+// CONTACT ROLES (Phase A - O-028)
+// ============================================
+
+export type ContactEntityType = 'client' | 'community' | 'property';
+
+export interface ContactRole {
+  id: string;
+  code: string;
+  label: string;
+  entity_types: ContactEntityType[];
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ============================================
+// QBO CLASSES (Phase B - O-028)
+// ============================================
+
+export interface QboClass {
+  id: string;                      // QBO Class ID (string from API)
+  name: string;
+  fully_qualified_name: string | null;
+  parent_id: string | null;
+  is_active: boolean;
+  is_selectable: boolean;          // User can toggle which appear in dropdowns
+  synced_at: string;
+}
+
+// ============================================
+// GEOGRAPHIES
+// ============================================
+
 export interface Geography {
   id: string;
   code: string;
@@ -40,6 +74,9 @@ export interface Client {
   // Pricing
   default_rate_sheet_id: string | null;
 
+  // QBO Integration
+  default_qbo_class_id: string | null;
+
   // Invoicing
   invoicing_frequency: 'per_job' | 'weekly' | 'monthly';
   payment_terms: number;
@@ -69,12 +106,15 @@ export interface ClientContact {
   id: string;
   client_id: string;
   name: string;
-  role: string | null;
+  role: string | null;           // Legacy text field
+  role_id: string | null;        // FK to contact_roles
   email: string | null;
   phone: string | null;
   is_primary: boolean;
   notes: string | null;
   created_at: string;
+  // Joined
+  contact_role?: ContactRole;
 }
 
 export interface Community {
@@ -92,6 +132,10 @@ export interface Community {
 
   // Pricing
   rate_sheet_id: string | null;
+
+  // QBO Integration
+  quickbooks_id: string | null;
+  override_qbo_class_id: string | null;
 
   // SKU Restrictions
   approved_sku_ids: string[];
@@ -117,13 +161,98 @@ export interface CommunityContact {
   id: string;
   community_id: string;
   name: string;
-  role: string;
+  role: string | null;           // Legacy text field
+  role_id: string | null;        // FK to contact_roles
   email: string | null;
   phone: string | null;
   is_primary: boolean;
   notes: string | null;
   created_at: string;
+  // Joined
+  contact_role?: ContactRole;
 }
+
+// ============================================
+// PROPERTIES/LOTS (Level 3 in hierarchy)
+// ============================================
+
+export type PropertyStatus = 'available' | 'sold' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface Property {
+  id: string;
+  community_id: string;
+
+  // Identification
+  lot_number: string | null;
+  block_number: string | null;
+  address_line1: string;
+  city: string | null;
+  state: string;
+  zip: string | null;
+
+  // Geolocation
+  latitude: number | null;
+  longitude: number | null;
+
+  // Site info
+  gate_code: string | null;
+  access_notes: string | null;
+  homeowner_name: string | null;
+  homeowner_phone: string | null;
+  homeowner_email: string | null;
+
+  // Status
+  status: PropertyStatus;
+
+  // Metadata
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined
+  community?: Community;
+  contacts?: PropertyContact[];
+}
+
+export interface PropertyContact {
+  id: string;
+  property_id: string;
+  name: string;
+  role: string | null;           // Legacy text field
+  role_id: string | null;        // FK to contact_roles
+  email: string | null;
+  phone: string | null;
+  is_primary: boolean;
+  notes: string | null;
+  created_at: string;
+  // Joined
+  contact_role?: ContactRole;
+}
+
+export interface PropertyFormData {
+  community_id: string;
+  lot_number: string;
+  block_number: string;
+  address_line1: string;
+  city: string;
+  state: string;
+  zip: string;
+  gate_code: string;
+  access_notes: string;
+  homeowner_name: string;
+  homeowner_phone: string;
+  homeowner_email: string;
+  status: PropertyStatus;
+  notes: string;
+}
+
+export const PROPERTY_STATUS_LABELS: Record<PropertyStatus, string> = {
+  available: 'Available',
+  sold: 'Sold',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
 
 export interface OnboardingChecklistTemplate {
   id: string;
@@ -184,6 +313,7 @@ export interface ClientFormData {
   state: string;
   zip: string;
   default_rate_sheet_id: string | null;
+  default_qbo_class_id: string | null;
   invoicing_frequency: 'per_job' | 'weekly' | 'monthly';
   payment_terms: number;
   requires_po: boolean;
@@ -200,6 +330,7 @@ export interface CommunityFormData {
   state: string;
   zip: string;
   rate_sheet_id: string | null;
+  override_qbo_class_id: string | null;
   restrict_skus: boolean;
   approved_sku_ids: string[];
   notes: string;

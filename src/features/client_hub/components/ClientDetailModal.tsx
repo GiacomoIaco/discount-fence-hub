@@ -11,6 +11,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useClient, useCreateClientContact, useDeleteClientContact } from '../hooks/useClients';
+import { useContactRoles } from '../hooks/useContacts';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
@@ -26,8 +27,9 @@ interface Props {
 
 export default function ClientDetailModal({ clientId, onClose, onEdit }: Props) {
   const { data: client, isLoading } = useClient(clientId);
+  const { data: contactRoles } = useContactRoles('client');
   const [showAddContact, setShowAddContact] = useState(false);
-  const [newContact, setNewContact] = useState({ name: '', role: '', email: '', phone: '' });
+  const [newContact, setNewContact] = useState({ name: '', role_id: '', email: '', phone: '' });
 
   const createContactMutation = useCreateClientContact();
   const deleteContactMutation = useDeleteClientContact();
@@ -38,14 +40,15 @@ export default function ClientDetailModal({ clientId, onClose, onEdit }: Props) 
     await createContactMutation.mutateAsync({
       client_id: clientId,
       name: newContact.name,
-      role: newContact.role || null,
+      role: null, // Legacy field - keep null
+      role_id: newContact.role_id || null,
       email: newContact.email || null,
       phone: newContact.phone || null,
       is_primary: false,
       notes: null,
     });
 
-    setNewContact({ name: '', role: '', email: '', phone: '' });
+    setNewContact({ name: '', role_id: '', email: '', phone: '' });
     setShowAddContact(false);
   };
 
@@ -204,13 +207,18 @@ export default function ClientDetailModal({ clientId, onClose, onEdit }: Props) 
                     onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                   />
-                  <input
-                    type="text"
-                    placeholder="Role (e.g., Purchaser)"
-                    value={newContact.role}
-                    onChange={(e) => setNewContact({ ...newContact, role: e.target.value })}
+                  <select
+                    value={newContact.role_id}
+                    onChange={(e) => setNewContact({ ...newContact, role_id: e.target.value })}
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  />
+                  >
+                    <option value="">Select Role...</option>
+                    {contactRoles?.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="email"
                     placeholder="Email"
@@ -246,27 +254,35 @@ export default function ClientDetailModal({ clientId, onClose, onEdit }: Props) 
 
             {client.contacts && client.contacts.length > 0 ? (
               <div className="space-y-2">
-                {client.contacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div>
-                      <div className="font-medium text-gray-900">{contact.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {contact.role && <span>{contact.role}</span>}
-                        {contact.email && <span> • {contact.email}</span>}
-                        {contact.phone && <span> • {contact.phone}</span>}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => deleteContactMutation.mutate({ id: contact.id, clientId })}
-                      className="p-1 text-gray-400 hover:text-red-500"
+                {client.contacts.map((contact) => {
+                  // Get role label from joined contact_role or legacy role field
+                  const roleLabel = contact.contact_role?.label || contact.role;
+                  return (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                      <div>
+                        <div className="font-medium text-gray-900">{contact.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {roleLabel && (
+                            <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs mr-2">
+                              {roleLabel}
+                            </span>
+                          )}
+                          {contact.email && <span>{contact.email}</span>}
+                          {contact.phone && <span> • {contact.phone}</span>}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteContactMutation.mutate({ id: contact.id, clientId })}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-gray-500">No additional contacts</p>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
 import { useClients, useGeographies } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
+import { useQboClasses } from '../hooks/useQboClasses';
 import type { Community, CommunityFormData } from '../types';
 
 interface Props {
@@ -18,6 +19,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
   const { data: clients } = useClients({});
   const { data: geographies } = useGeographies();
   const { data: rateSheets } = useRateSheets({ is_active: true });
+  const { data: qboClasses } = useQboClasses(true); // Only selectable classes
 
   const [formData, setFormData] = useState<CommunityFormData>({
     client_id: community?.client_id || defaultClientId || '',
@@ -29,6 +31,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
     state: community?.state || 'TX',
     zip: community?.zip || '',
     rate_sheet_id: community?.rate_sheet_id || null,
+    override_qbo_class_id: community?.override_qbo_class_id || null,
     restrict_skus: community?.restrict_skus || false,
     approved_sku_ids: community?.approved_sku_ids || [],
     notes: community?.notes || '',
@@ -162,30 +165,53 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
             </p>
           </div>
 
-          {/* Rate Sheet Override */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-gray-400" />
-                Rate Sheet (Override)
-              </div>
-            </label>
-            <select
-              value={formData.rate_sheet_id || ''}
-              onChange={(e) => setFormData({ ...formData, rate_sheet_id: e.target.value || null })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Use client's default rate sheet</option>
-              {rateSheets?.map((sheet) => (
-                <option key={sheet.id} value={sheet.id}>
-                  {sheet.name} {sheet.code ? `(${sheet.code})` : ''}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Override the client's default rate sheet for this community only
-            </p>
+          {/* Rate Sheet & QBO Class Override */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-gray-400" />
+                  Rate Sheet (Override)
+                </div>
+              </label>
+              <select
+                value={formData.rate_sheet_id || ''}
+                onChange={(e) => setFormData({ ...formData, rate_sheet_id: e.target.value || null })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Use client's default</option>
+                {rateSheets?.map((sheet) => (
+                  <option key={sheet.id} value={sheet.id}>
+                    {sheet.name} {sheet.code ? `(${sheet.code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-gray-400" />
+                  QBO Class (Override)
+                </div>
+              </label>
+              <select
+                value={formData.override_qbo_class_id || ''}
+                onChange={(e) => setFormData({ ...formData, override_qbo_class_id: e.target.value || null })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Use client's default</option>
+                {qboClasses?.map((qboClass) => (
+                  <option key={qboClass.id} value={qboClass.id}>
+                    {qboClass.fully_qualified_name || qboClass.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+          <p className="text-xs text-gray-500 -mt-4">
+            Override the client's default rate sheet or QBO class for this community only
+          </p>
 
           {/* Address */}
           <div className="space-y-4">

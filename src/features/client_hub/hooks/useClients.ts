@@ -59,11 +59,17 @@ export function useClient(id: string | null) {
         .from('clients')
         .select(`
           *,
-          contacts:client_contacts(*),
+          contacts:client_contacts(
+            *,
+            contact_role:contact_roles(*)
+          ),
           communities:communities(
             *,
             geography:geographies(*),
-            contacts:community_contacts(*)
+            contacts:community_contacts(
+              *,
+              contact_role:contact_roles(*)
+            )
           )
         `)
         .eq('id', id)

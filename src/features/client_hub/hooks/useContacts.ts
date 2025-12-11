@@ -1,14 +1,44 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import type { ClientContact, CommunityContact } from '../types';
+import type { ClientContact, CommunityContact, ContactRole, ContactEntityType } from '../types';
+
+// ============================================
+// CONTACT ROLES
+// ============================================
+
+/**
+ * Get all contact roles, optionally filtered by entity type
+ */
+export function useContactRoles(entityType?: ContactEntityType) {
+  return useQuery({
+    queryKey: ['contact-roles', entityType],
+    queryFn: async () => {
+      let query = supabase
+        .from('contact_roles')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      // Filter by entity type if provided
+      if (entityType) {
+        query = query.contains('entity_types', [entityType]);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ContactRole[];
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes - roles don't change often
+  });
+}
 
 // ============================================
 // CLIENT CONTACTS (supplements useClients.ts)
 // ============================================
 
 /**
- * Get all contacts for a client
+ * Get all contacts for a client with role information
  */
 export function useClientContacts(clientId: string | null) {
   return useQuery({
@@ -18,7 +48,10 @@ export function useClientContacts(clientId: string | null) {
 
       const { data, error } = await supabase
         .from('client_contacts')
-        .select('*')
+        .select(`
+          *,
+          contact_role:contact_roles(*)
+        `)
         .eq('client_id', clientId)
         .order('is_primary', { ascending: false })
         .order('name');
@@ -64,7 +97,7 @@ export function useUpdateClientContact() {
 // ============================================
 
 /**
- * Get all contacts for a community
+ * Get all contacts for a community with role information
  */
 export function useCommunityContacts(communityId: string | null) {
   return useQuery({
@@ -74,7 +107,10 @@ export function useCommunityContacts(communityId: string | null) {
 
       const { data, error } = await supabase
         .from('community_contacts')
-        .select('*')
+        .select(`
+          *,
+          contact_role:contact_roles(*)
+        `)
         .eq('community_id', communityId)
         .order('is_primary', { ascending: false })
         .order('name');
