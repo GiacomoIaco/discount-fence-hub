@@ -21,6 +21,7 @@ import {
   useProductVariablesV2,
   useSKUV2,
   useMaterialEligibilityV2,
+  useLaborEligibilityV2,
   useProductTypeComponentsFull,
 } from '../hooks';
 import type { ProductTypeComponentFull, ProductVariableV2 } from '../hooks';
@@ -47,6 +48,30 @@ interface Material {
   unit_cost: number;
   length_ft: number | null;
   actual_width: number | null;
+}
+
+interface LaborCode {
+  id: string;
+  labor_sku: string;
+  description: string;
+  fence_category_standard: string | null;
+  unit_type: string;
+  is_active: boolean;
+}
+
+interface LaborRate {
+  id: string;
+  labor_code_id: string;
+  business_unit_id: string;
+  rate: number;
+  labor_code?: LaborCode;
+}
+
+interface BusinessUnit {
+  id: string;
+  code: string;
+  name: string;
+  city_code: string;
 }
 
 
@@ -85,6 +110,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   const [testResults, setTestResults] = useState<FormulaResult[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [concreteType, setConcreteType] = useState<'3-part' | 'yellow-bags' | 'red-bags'>('3-part');
+  const [businessUnitId, setBusinessUnitId] = useState<string>('');
 
   // Computed costs from test results
   const [totalMaterialCost, setTotalMaterialCost] = useState(0);
@@ -137,6 +163,48 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
   // V2: Fetch assigned components for this product type
   const { data: assignedComponentsV2 = [] } = useProductTypeComponentsFull(selectedProductTypeV2?.id || null);
+
+  // V2: Fetch labor eligibility rules
+  const { data: laborEligibilityRulesV2 = [] } = useLaborEligibilityV2(selectedProductTypeV2?.id || null);
+
+  // Fetch business units (shared V1 table)
+  const { data: businessUnits = [] } = useQuery({
+    queryKey: ['business-units-for-sku-builder-v2'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('business_units')
+        .select('*')
+        .eq('is_active', true)
+        .order('code');
+      if (error) throw error;
+      return data as BusinessUnit[];
+    },
+  });
+
+  // Fetch labor rates for selected business unit (shared V1 table)
+  const { data: laborRates = [] } = useQuery({
+    queryKey: ['labor-rates-for-sku-builder-v2', businessUnitId],
+    queryFn: async () => {
+      if (!businessUnitId) return [];
+      const { data, error } = await supabase
+        .from('labor_rates')
+        .select(`
+          *,
+          labor_code:labor_codes(*)
+        `)
+        .eq('business_unit_id', businessUnitId);
+      if (error) throw error;
+      return data as LaborRate[];
+    },
+    enabled: !!businessUnitId,
+  });
+
+  // Set default business unit
+  useEffect(() => {
+    if (businessUnits.length > 0 && !businessUnitId) {
+      setBusinessUnitId(businessUnits[0].id);
+    }
+  }, [businessUnits, businessUnitId]);
 
   // =============================================================================
   // DERIVED VALUES
@@ -428,27 +496,56 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       // Apply project-level rounding
       const roundedResults = applyProjectRounding(results);
 
-      // Enrich with component names and material costs
+      // Enrich with component names and material/labor costs
       let matCost = 0;
       let labCost = 0;
+
+      // Helper to get labor rate for a component
+      const getLaborRateForComponent = (componentTypeId: string): number => {
+        // Find labor eligibility rule for this component
+        const eligibilityRule = laborEligibilityRulesV2.find(
+          rule => rule.component_type_id === componentTypeId
+        );
+        if (!eligibilityRule) return 0;
+
+        // Find the labor rate for this labor code and current business unit
+        const laborRate = laborRates.find(
+          lr => lr.labor_code_id === eligibilityRule.labor_code_id
+        );
+        return laborRate?.rate || 0;
+      };
 
       const enrichedResults = await Promise.all(roundedResults.map(async (r) => {
         const comp = assignedComponentsV2.find(c => c.component_code === r.component_code);
         const materialSku = components[r.component_code];
 
-        // Get material cost if we have a material selected
         let unitCost = 0;
-        if (materialSku) {
-          const mat = materials.find(m => m.material_sku === materialSku);
-          if (mat) {
-            unitCost = mat.unit_cost;
-            matCost += r.rounded_value * unitCost;
-          }
-        }
+        let laborSku = '';
 
-        // Check if it's a labor component
         if (comp?.is_labor) {
+          // Labor component - look up rate from labor_rates
+          unitCost = getLaborRateForComponent(comp.component_type_id);
           labCost += r.rounded_value * unitCost;
+
+          // Get labor SKU for display
+          const eligibilityRule = laborEligibilityRulesV2.find(
+            rule => rule.component_type_id === comp.component_type_id
+          );
+          if (eligibilityRule) {
+            const laborRate = laborRates.find(
+              lr => lr.labor_code_id === eligibilityRule.labor_code_id
+            );
+            laborSku = laborRate?.labor_code?.labor_sku || '';
+          }
+        } else {
+          // Material component - look up cost from materials
+          if (materialSku) {
+            const mat = materials.find(m => m.material_sku === materialSku);
+            if (mat) {
+              unitCost = mat.unit_cost;
+              matCost += r.rounded_value * unitCost;
+            }
+          }
         }
 
         return {
@@ -457,6 +554,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           unit_cost: unitCost,
           total_cost: r.rounded_value * unitCost,
           is_labor: comp?.is_labor || false,
+          labor_sku: laborSku,
         };
       }));
 
@@ -472,7 +570,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   }, [
     selectedProductTypeV2, selectedStyleV2, componentSelections, variableValues,
     height, railCount, testLength, testLines, testGates, assignedComponentsV2, getMaterialSku,
-    concreteType, materials
+    concreteType, materials, laborEligibilityRulesV2, laborRates
   ]);
 
   // =============================================================================
@@ -940,6 +1038,18 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                 <option value="red-bags">Red Bags</option>
               </select>
             </div>
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-gray-500">BU</label>
+              <select
+                value={businessUnitId}
+                onChange={(e) => setBusinessUnitId(e.target.value)}
+                className="w-20 px-1 py-1 border border-gray-300 rounded text-xs"
+              >
+                {businessUnits.map(bu => (
+                  <option key={bu.id} value={bu.id}>{bu.code}</option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={runBOMTest}
               disabled={isCalculating}
@@ -987,12 +1097,14 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                   </tr>
                 </thead>
                 <tbody>
-                  {testResults.map((result: FormulaResult & { unit_cost?: number; total_cost?: number; is_labor?: boolean }, idx) => (
+                  {testResults.map((result: FormulaResult & { unit_cost?: number; total_cost?: number; is_labor?: boolean; labor_sku?: string }, idx) => (
                     <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                       <td className="px-3 py-2 text-gray-900">
                         {result.component_name}
                         {result.is_labor && (
-                          <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-700 rounded text-[9px]">Labor</span>
+                          <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-700 rounded text-[9px]">
+                            {result.labor_sku || 'Labor'}
+                          </span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right text-gray-500 font-mono">
