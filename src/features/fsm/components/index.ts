@@ -6,3 +6,5 @@ export { default as CrewsList } from './CrewsList';
 export { default as CrewEditorModal } from './CrewEditorModal';
 export { default as SalesRepsList } from './SalesRepsList';
 export { default as SalesRepEditorModal } from './SalesRepEditorModal';
+export { default as RequestsList } from './RequestsList';
+export { default as RequestEditorModal } from './RequestEditorModal';

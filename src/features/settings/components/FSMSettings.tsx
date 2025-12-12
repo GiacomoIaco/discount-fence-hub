@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { MapPin, Users, User } from 'lucide-react';
-import { TerritoriesList, CrewsList, SalesRepsList } from '../../fsm/components';
+import { MapPin, Users, User, ClipboardList } from 'lucide-react';
+import { TerritoriesList, CrewsList, SalesRepsList, RequestsList } from '../../fsm/components';
 
-type TabId = 'territories' | 'crews' | 'sales_reps';
+type TabId = 'requests' | 'territories' | 'crews' | 'sales_reps';
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'requests', label: 'Service Requests', icon: ClipboardList },
   { id: 'territories', label: 'Territories', icon: MapPin },
   { id: 'crews', label: 'Crews', icon: Users },
   { id: 'sales_reps', label: 'Sales Reps', icon: User },
 ];
 
 export default function FSMSettings() {
-  const [activeTab, setActiveTab] = useState<TabId>('territories');
+  const [activeTab, setActiveTab] = useState<TabId>('requests');
 
   return (
     <div className="space-y-6">
@@ -47,6 +48,7 @@ export default function FSMSettings() {
 
       {/* Content */}
       <div>
+        {activeTab === 'requests' && <RequestsList />}
         {activeTab === 'territories' && <TerritoriesList />}
         {activeTab === 'crews' && <CrewsList />}
         {activeTab === 'sales_reps' && <SalesRepsList />}
