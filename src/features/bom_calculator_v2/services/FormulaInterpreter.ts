@@ -283,7 +283,8 @@ export class FormulaInterpreter {
         : rawValue;
 
       // Store in calculated values for subsequent formulas
-      context.calculatedValues[`${formula.component_code}_count`] = roundedValue;
+      // Use _qty suffix to avoid collision with input variables (e.g., rail_count)
+      context.calculatedValues[`${formula.component_code}_qty`] = roundedValue;
 
       results.push({
         component_code: formula.component_code,
