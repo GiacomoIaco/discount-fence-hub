@@ -3101,14 +3101,18 @@ function FormulaEditorModal({
       const hasFormula = formulas.some(f => f.component_type_id === comp.component_type_id);
       if (hasFormula) {
         // Provide reasonable test values for calculated components
-        inputs[`${comp.component_code}_count`] = 10; // Generic placeholder
+        // Note: FormulaInterpreter stores as _qty suffix to avoid collision with input vars
+        inputs[`${comp.component_code}_qty`] = 10; // Generic placeholder
       }
     });
 
-    // Common calculated values with better defaults based on 100ft test
-    inputs.post_count = 14; // ~100ft / 8ft spacing + 1
-    inputs.picket_count = 166; // ~100ft * 20 pickets/8ft panel
-    inputs.panel_count = 13; // ~100ft / 8ft spacing
+    // Calculated values use _qty suffix to match FormulaInterpreter output
+    inputs.post_qty = 14; // ~100ft / 8ft spacing + 1
+    inputs.picket_qty = 166; // ~100ft * 20 pickets/8ft panel
+    inputs.rail_qty = 26; // ~13 sections * 2 rails
+    inputs.panel_qty = 13; // ~100ft / 8ft spacing
+    inputs.board_qty = 120; // Horizontal boards estimate
+    inputs.nailer_qty = 78; // Nailers estimate
 
     return inputs;
   }, [variables, assignedComponents, formulas]);
@@ -3140,6 +3144,7 @@ function FormulaEditorModal({
   }, [variables]);
 
   // Calculated variables from other component formulas (can reference in subsequent formulas)
+  // Uses _qty suffix to match FormulaInterpreter output and avoid collision with input vars
   const calculatedVariables = useMemo(() => {
     // Build from assigned components that have formulas
     return assignedComponents
@@ -3148,8 +3153,8 @@ function FormulaEditorModal({
         return formulas.some(f => f.component_type_id === comp.component_type_id);
       })
       .map(comp => ({
-        code: `${comp.component_code}_count`,
-        name: `${comp.component_name} Count`,
+        code: `${comp.component_code}_qty`,
+        name: `${comp.component_name} Qty`,
       }));
   }, [assignedComponents, formulas]);
 

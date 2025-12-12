@@ -187,7 +187,13 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
     { code: '[Lines]', name: 'Number of Lines', group: 'Project' },
     { code: '[Gates]', name: 'Number of Gates', group: 'Project' },
     { code: '[height]', name: 'Height', group: 'Project' },
-    { code: '[post_count]', name: 'Post Count', group: 'Calculated' },
+    // Calculated values use _qty suffix to avoid collision with input variables
+    { code: '[post_qty]', name: 'Post Quantity', group: 'Calculated' },
+    { code: '[picket_qty]', name: 'Picket Quantity', group: 'Calculated' },
+    { code: '[rail_qty]', name: 'Rail Quantity', group: 'Calculated' },
+    { code: '[panel_qty]', name: 'Panel Quantity', group: 'Calculated' },
+    { code: '[board_qty]', name: 'Board Quantity', group: 'Calculated' },
+    { code: '[nailer_qty]', name: 'Nailer Quantity', group: 'Calculated' },
     ...productVariables.map(v => ({
       code: `[${v.variable_code}]`,
       name: v.variable_name,

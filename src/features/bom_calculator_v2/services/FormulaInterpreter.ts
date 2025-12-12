@@ -10,7 +10,7 @@
  * - SKU variables: [rail_count], [post_spacing], [height]
  * - Material attributes: [picket.width_inches], [cap.length_feet]
  * - Style adjustments: [picket_multiplier] from formula_adjustments JSONB
- * - Calculated values: [post_count], [picket_count] from previous formulas
+ * - Calculated values: [post_qty], [picket_qty], [rail_qty] from previous formulas (use _qty suffix)
  *
  * O-026 Implementation
  */
@@ -39,7 +39,7 @@ export interface FormulaContext {
   materialAttributes: Record<string, number>;
 
   // Calculated values from previous formulas
-  // e.g., { post_count: 13, picket_count: 200 }
+  // e.g., { post_qty: 13, picket_qty: 200, rail_qty: 26 }
   calculatedValues: Record<string, number>;
 }
 
@@ -242,10 +242,10 @@ export class FormulaInterpreter {
 
     // Define execution order (dependencies first)
     const executionOrder = [
-      'post',           // Posts first (many depend on post_count)
+      'post',           // Posts first (many depend on post_qty)
       'picket',         // Pickets
       'rail',           // Rails
-      'bracket',        // Brackets (depend on posts + rails)
+      'bracket',        // Brackets (depend on post_qty + rail_qty)
       'cap',            // Cap
       'trim',           // Trim
       'rot_board',      // Rot board
@@ -255,9 +255,9 @@ export class FormulaInterpreter {
       'vertical_trim',  // Vertical trim
       'panel',          // Iron panels
       'iron_post_cap',  // Iron post caps
-      'nails_picket',   // Picket nails (depend on picket_count)
+      'nails_picket',   // Picket nails (depend on picket_qty)
       'nails_frame',    // Frame nails
-      'concrete_sand',  // Concrete (depend on post_count)
+      'concrete_sand',  // Concrete (depend on post_qty)
       'concrete_portland',
       'concrete_quickrock',
     ];
