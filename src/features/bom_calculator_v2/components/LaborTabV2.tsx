@@ -5,12 +5,17 @@
  * - Post Setting (Required, Single)
  * - Nail Up (Required, Single)
  * - Other Labor (Optional, Multiple)
+ *
+ * Features:
+ * - Manage Labor Groups: Assign/unassign groups to product type
+ * - Auto-populate Other Labor: All codes appear in Other Labor by default
+ * - Fixed column widths for consistent alignment
  */
 
 import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, X, ChevronDown, ChevronRight, Edit2,
-  AlertCircle, Check
+  AlertCircle, Check, Settings
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -18,9 +23,11 @@ import {
   useProductTypeComponentsFull,
   useProductTypeLaborGroupsV2,
   useLaborGroupEligibilityV2,
+  useLaborGroupsV2,
   type ProductTypeV2,
   type ProductStyleV2,
   type LaborGroupEligibilityV2,
+  type LaborGroupV2,
 } from '../hooks/useProductTypesV2';
 
 interface LaborCode {
@@ -40,6 +47,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['set_post', 'nail_up', 'other_labor']));
   const [editingEligibility, setEditingEligibility] = useState<LaborGroupEligibilityV2 | null>(null);
   const [showAddModal, setShowAddModal] = useState<{ groupId: string; groupCode: string; groupName: string } | null>(null);
+  const [showManageGroups, setShowManageGroups] = useState(false);
   const [formula, setFormula] = useState('');
   const [selectedLaborCodeId, setSelectedLaborCodeId] = useState('');
 
@@ -50,8 +58,11 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
   const { data: assignedComponents = [] } = useProductTypeComponentsFull(productType.id);
   const materialComponents = assignedComponents.filter(c => c.is_assigned && !c.is_labor);
 
+  // Fetch ALL available labor groups
+  const { data: allLaborGroups = [], isLoading: loadingAllGroups } = useLaborGroupsV2();
+
   // Fetch labor groups assigned to this product type
-  const { data: laborGroups = [], isLoading: loadingGroups } = useProductTypeLaborGroupsV2(productType.id);
+  const { data: laborGroups = [], isLoading: loadingGroups, refetch: refetchLaborGroups } = useProductTypeLaborGroupsV2(productType.id);
 
   // Fetch labor code eligibility for this product type
   const { data: eligibilityRules = [], isLoading: loadingEligibility, refetch: refetchEligibility } = useLaborGroupEligibilityV2(productType.id);
@@ -89,10 +100,74 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
     });
   };
 
+  // Get which labor groups are assigned to this product type
+  const assignedGroupIds = useMemo(() => {
+    return new Set(laborGroups.map(ptlg => ptlg.labor_group_id));
+  }, [laborGroups]);
+
+  // For Other Labor group: Get all labor codes NOT assigned to other specific groups
+  const getOtherLaborAvailableCodes = (otherLaborGroupId: string) => {
+    // Get all codes that are assigned to specific groups (not other_labor)
+    const codesInSpecificGroups = new Set<string>();
+    eligibilityRules.forEach(rule => {
+      const group = laborGroups.find(lg => lg.labor_group_id === rule.labor_group_id)?.labor_group;
+      if (group && group.code !== 'other_labor') {
+        codesInSpecificGroups.add(rule.labor_code_id);
+      }
+    });
+
+    // Get codes already in other_labor
+    const existingOtherCodes = eligibilityByGroup.get(otherLaborGroupId)?.map(e => e.labor_code_id) || [];
+
+    // Return codes not in specific groups AND not already in other_labor
+    return allLaborCodes.filter(lc =>
+      !codesInSpecificGroups.has(lc.id) && !existingOtherCodes.includes(lc.id)
+    );
+  };
+
   // Get available labor codes for a group (not already added)
-  const getAvailableLaborCodes = (groupId: string) => {
+  const getAvailableLaborCodes = (groupId: string, groupCode: string) => {
+    // For other_labor, use special logic
+    if (groupCode === 'other_labor') {
+      return getOtherLaborAvailableCodes(groupId);
+    }
+    // For other groups, just exclude codes already in THIS group
     const existingCodes = eligibilityByGroup.get(groupId)?.map(e => e.labor_code_id) || [];
     return allLaborCodes.filter(lc => !existingCodes.includes(lc.id));
+  };
+
+  // Toggle labor group assignment for this product type
+  const handleToggleLaborGroup = async (group: LaborGroupV2) => {
+    setSaving(true);
+    const isAssigned = assignedGroupIds.has(group.id);
+
+    if (isAssigned) {
+      // Remove group (also removes eligibility rules)
+      await supabase
+        .from('labor_group_eligibility_v2')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('labor_group_id', group.id);
+
+      await supabase
+        .from('product_type_labor_groups_v2')
+        .delete()
+        .eq('product_type_id', productType.id)
+        .eq('labor_group_id', group.id);
+    } else {
+      // Add group
+      await supabase
+        .from('product_type_labor_groups_v2')
+        .insert({
+          product_type_id: productType.id,
+          labor_group_id: group.id,
+          display_order: group.display_order,
+        });
+    }
+
+    await refetchLaborGroups();
+    await refetchEligibility();
+    setSaving(false);
   };
 
   // Get labor code info by ID
@@ -199,7 +274,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
     setFormula(eligibility.condition_formula || '');
   };
 
-  if (loadingGroups || loadingEligibility) {
+  if (loadingGroups || loadingEligibility || loadingAllGroups) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
@@ -217,7 +292,72 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
             Configure which labor codes apply to {productType.name} and when
           </p>
         </div>
+        <button
+          onClick={() => setShowManageGroups(!showManageGroups)}
+          className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+            showManageGroups
+              ? 'bg-purple-100 text-purple-700'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          Manage Groups
+        </button>
       </div>
+
+      {/* Manage Groups Panel */}
+      {showManageGroups && (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+          <div className="text-sm font-medium text-gray-700 mb-3">
+            Assign Labor Groups to {productType.name}
+          </div>
+          <div className="space-y-2">
+            {allLaborGroups.map(group => {
+              const isAssigned = assignedGroupIds.has(group.id);
+              return (
+                <label
+                  key={group.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    isAssigned
+                      ? 'bg-purple-50 border-purple-200'
+                      : 'bg-white border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isAssigned}
+                    onChange={() => handleToggleLaborGroup(group)}
+                    disabled={saving}
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{group.name}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        group.is_required
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {group.is_required ? 'Required' : 'Optional'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        group.allow_multiple
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {group.allow_multiple ? 'Multiple' : 'Single'}
+                      </span>
+                    </div>
+                    {group.description && (
+                      <p className="text-sm text-gray-500 mt-0.5">{group.description}</p>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* No groups message */}
       {laborGroups.length === 0 && (
@@ -242,7 +382,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
 
           const groupEligibility = eligibilityByGroup.get(group.id) || [];
           const isExpanded = expandedGroups.has(group.code);
-          const availableCodes = getAvailableLaborCodes(group.id);
+          const availableCodes = getAvailableLaborCodes(group.id, group.code);
 
           return (
             <div key={group.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -284,24 +424,24 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
               {/* Group Content */}
               {isExpanded && (
                 <div className="border-t border-gray-200">
-                  {/* Labor Codes Table */}
+                  {/* Labor Codes Table - Fixed column widths for alignment */}
                   {groupEligibility.length > 0 ? (
-                    <table className="w-full">
+                    <table className="w-full table-fixed">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
-                            Default
+                          <th className="w-[60px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Def
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Labor Code
+                          <th className="w-[100px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Code
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Description
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="w-[200px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Condition
                           </th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                          <th className="w-[80px] px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -311,7 +451,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                           const laborCode = eligibility.labor_code || getLaborCode(eligibility.labor_code_id);
                           return (
                             <tr key={eligibility.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-2">
+                              <td className="w-[60px] px-3 py-2">
                                 <button
                                   onClick={() => handleToggleDefault(eligibility)}
                                   className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
@@ -324,18 +464,18 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                                   <Check className="w-4 h-4" />
                                 </button>
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="w-[100px] px-3 py-2">
                                 <span className="font-mono text-sm text-gray-900">
                                   {laborCode?.labor_sku || 'Unknown'}
                                 </span>
                               </td>
-                              <td className="px-4 py-2">
-                                <span className="text-sm text-gray-700">
+                              <td className="px-3 py-2">
+                                <span className="text-sm text-gray-700 line-clamp-1">
                                   {laborCode?.description || 'Unknown labor code'}
                                 </span>
                                 <div className="text-xs text-gray-400">{laborCode?.unit_type}</div>
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="w-[200px] px-3 py-2">
                                 {eligibility.condition_formula ? (
                                   <code className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded font-mono">
                                     {eligibility.condition_formula}
@@ -346,7 +486,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                                   </span>
                                 )}
                               </td>
-                              <td className="px-4 py-2 text-right">
+                              <td className="w-[80px] px-3 py-2 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <button
                                     onClick={() => openEditModal(eligibility)}
@@ -439,7 +579,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
                   <option value="">Select a labor code...</option>
-                  {getAvailableLaborCodes(showAddModal.groupId).map(lc => (
+                  {getAvailableLaborCodes(showAddModal.groupId, showAddModal.groupCode).map(lc => (
                     <option key={lc.id} value={lc.id}>
                       {lc.labor_sku} - {lc.description}
                     </option>
