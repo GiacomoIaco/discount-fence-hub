@@ -196,6 +196,34 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
       }
 
       // =============================================================================
+      // CONCRETE: Calculate based on post quantity (default to 3-part mix)
+      // =============================================================================
+      const postQty = context.calculatedValues.post_qty || 0;
+
+      if (postQty > 0) {
+        // Fetch concrete material prices
+        const { data: concreteMats } = await supabase
+          .from('materials')
+          .select('material_sku, unit_cost')
+          .in('material_sku', ['CTS', 'CTP', 'CTQ']);
+
+        // 3-part concrete (default for standard cost calculation)
+        const cts = concreteMats?.find(m => m.material_sku === 'CTS');
+        const ctp = concreteMats?.find(m => m.material_sku === 'CTP');
+        const ctq = concreteMats?.find(m => m.material_sku === 'CTQ');
+
+        if (cts?.unit_cost) {
+          totalMaterialCost += Math.ceil(postQty / 10) * cts.unit_cost;
+        }
+        if (ctp?.unit_cost) {
+          totalMaterialCost += Math.ceil(postQty / 20) * ctp.unit_cost;
+        }
+        if (ctq?.unit_cost) {
+          totalMaterialCost += Math.ceil(postQty * 0.5) * ctq.unit_cost;
+        }
+      }
+
+      // =============================================================================
       // NEW: Calculate labor using Labor Groups V2
       // =============================================================================
       let totalLaborCost = 0;

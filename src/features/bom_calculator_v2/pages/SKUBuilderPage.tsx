@@ -573,6 +573,112 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       const materialResults = enrichedResults.filter((r): r is EnrichedFormulaResult => r !== null);
 
       // =============================================================================
+      // CONCRETE: Calculate based on concreteType and post quantity (like V1)
+      // =============================================================================
+      const concreteResults: EnrichedFormulaResult[] = [];
+
+      // Get post quantity from calculated values
+      const postQty = context.calculatedValues.post_qty || 0;
+
+      if (postQty > 0) {
+        // Concrete formulas (matching V1 exactly):
+        // 3-part: CTS = posts/10, CTP = posts/20, CTQ = posts*0.5
+        // yellow-bags: CTY = posts*0.65
+        // red-bags: CTR = posts*1
+
+        if (concreteType === '3-part') {
+          const cts = materials.find(m => m.material_sku === 'CTS');
+          const ctp = materials.find(m => m.material_sku === 'CTP');
+          const ctq = materials.find(m => m.material_sku === 'CTQ');
+
+          if (cts) {
+            const qty = Math.ceil(postQty / 10);
+            matCost += qty * (cts.unit_cost || 0);
+            concreteResults.push({
+              component_code: 'concrete_sand',
+              component_name: cts.material_name || 'Concrete Sand',
+              raw_value: postQty / 10,
+              rounded_value: qty,
+              rounding_level: 'project',
+              formula_used: '[post_qty]/10',
+              unit_cost: cts.unit_cost || 0,
+              total_cost: qty * (cts.unit_cost || 0),
+              is_labor: false,
+              labor_sku: '',
+            });
+          }
+          if (ctp) {
+            const qty = Math.ceil(postQty / 20);
+            matCost += qty * (ctp.unit_cost || 0);
+            concreteResults.push({
+              component_code: 'concrete_portland',
+              component_name: ctp.material_name || 'Concrete Portland',
+              raw_value: postQty / 20,
+              rounded_value: qty,
+              rounding_level: 'project',
+              formula_used: '[post_qty]/20',
+              unit_cost: ctp.unit_cost || 0,
+              total_cost: qty * (ctp.unit_cost || 0),
+              is_labor: false,
+              labor_sku: '',
+            });
+          }
+          if (ctq) {
+            const qty = Math.ceil(postQty * 0.5);
+            matCost += qty * (ctq.unit_cost || 0);
+            concreteResults.push({
+              component_code: 'concrete_quickrock',
+              component_name: ctq.material_name || 'Concrete Quickite',
+              raw_value: postQty * 0.5,
+              rounded_value: qty,
+              rounding_level: 'project',
+              formula_used: '[post_qty]*0.5',
+              unit_cost: ctq.unit_cost || 0,
+              total_cost: qty * (ctq.unit_cost || 0),
+              is_labor: false,
+              labor_sku: '',
+            });
+          }
+        } else if (concreteType === 'yellow-bags') {
+          const cty = materials.find(m => m.material_sku === 'CTY');
+          if (cty) {
+            const qty = Math.ceil(postQty * 0.65);
+            matCost += qty * (cty.unit_cost || 0);
+            concreteResults.push({
+              component_code: 'concrete_yellow',
+              component_name: cty.material_name || 'Concrete Yellow Bags',
+              raw_value: postQty * 0.65,
+              rounded_value: qty,
+              rounding_level: 'project',
+              formula_used: '[post_qty]*0.65',
+              unit_cost: cty.unit_cost || 0,
+              total_cost: qty * (cty.unit_cost || 0),
+              is_labor: false,
+              labor_sku: '',
+            });
+          }
+        } else if (concreteType === 'red-bags') {
+          const ctr = materials.find(m => m.material_sku === 'CTR');
+          if (ctr) {
+            const qty = Math.ceil(postQty * 1);
+            matCost += qty * (ctr.unit_cost || 0);
+            concreteResults.push({
+              component_code: 'concrete_red',
+              component_name: ctr.material_name || 'Concrete Red Bags',
+              raw_value: postQty * 1,
+              rounded_value: qty,
+              rounding_level: 'project',
+              formula_used: '[post_qty]*1',
+              unit_cost: ctr.unit_cost || 0,
+              total_cost: qty * (ctr.unit_cost || 0),
+              is_labor: false,
+              labor_sku: '',
+            });
+          }
+        }
+      }
+
+      // =============================================================================
       // NEW: Calculate labor using Labor Groups V2
       // =============================================================================
       const laborResults: EnrichedFormulaResult[] = [];
@@ -700,8 +806,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         }
       }
 
-      // Combine material and labor results
-      const allResults = [...materialResults, ...laborResults];
+      // Combine material, concrete, and labor results
+      const allResults = [...materialResults, ...concreteResults, ...laborResults];
 
       setTestResults(allResults);
       setTotalMaterialCost(matCost);
