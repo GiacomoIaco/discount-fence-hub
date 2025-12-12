@@ -24,8 +24,13 @@ export { default as BOMCalculatorHub2 } from './BOMCalculatorHub2';
 // Hooks
 export * from './hooks';
 
-// Calculator utilities
-export { getCalculator, hasCalculator, getAvailableCalculators } from './calculators';
+// Formula interpreter (replaces TypeScript calculators)
+export {
+  FormulaInterpreter,
+  buildMaterialAttributes,
+  createFormulaContext,
+  applyProjectRounding,
+} from './services/FormulaInterpreter';
 
 // Types
 export type * from './types';
