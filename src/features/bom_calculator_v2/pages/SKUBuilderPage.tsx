@@ -599,7 +599,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           evalFormula = evalFormula.replace(/\bheight\b/g, String(height));
           evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
           evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
-          evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${componentSelections.post_type || 'WOOD'}"`);
+          evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${postType}"`);
 
           // Replace product variables
           variablesV2.forEach(v => {
