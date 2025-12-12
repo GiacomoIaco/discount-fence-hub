@@ -2969,6 +2969,8 @@ function FormulasTab({
           componentTypes={componentTypes}
           styles={styles}
           variables={variables}
+          formulas={formulas}
+          assignedComponents={selectedComponents}
           onClose={() => setEditingFormula(null)}
           onSaved={() => {
             setEditingFormula(null);
@@ -3037,6 +3039,8 @@ function FormulaEditorModal({
   componentTypes,
   styles,
   variables,
+  formulas,
+  assignedComponents,
   onClose,
   onSaved,
 }: {
@@ -3047,6 +3051,8 @@ function FormulaEditorModal({
   componentTypes: ComponentTypeV2[];
   styles: ProductStyleV2[];
   variables: ProductVariableV2[];
+  formulas: FormulaTemplateV2[];
+  assignedComponents: ProductTypeComponentFull[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -3063,50 +3069,89 @@ function FormulaEditorModal({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Test formula state
-  const [testInputs, setTestInputs] = useState<Record<string, number>>({
-    Quantity: 100,
-    Lines: 1,
-    Gates: 0,
-    height: 6,
-    post_spacing: 8,
-    rail_count: 2,
-    // Pre-calculated values for testing dependent formulas
-    post_count: 14,
-    picket_count: 166,
-    panel_count: 13,
-  });
+  // Build dynamic test inputs from product type variables
+  const buildDefaultTestInputs = useMemo(() => {
+    const inputs: Record<string, number> = {
+      // Project-level inputs (always present)
+      Quantity: 100,
+      Lines: 1,
+      Gates: 0,
+    };
+
+    // Add product type variables with their default values
+    variables.forEach(v => {
+      if (v.variable_type === 'integer' || v.variable_type === 'decimal') {
+        inputs[v.variable_code] = v.default_value ? parseFloat(v.default_value) : 0;
+      } else if (v.variable_type === 'select' && v.allowed_values?.length) {
+        // For select types that might be numeric (like rail_count)
+        const firstVal = v.allowed_values[0];
+        if (!isNaN(parseFloat(firstVal))) {
+          inputs[v.variable_code] = parseFloat(firstVal);
+        }
+      }
+    });
+
+    // Ensure common variables have sensible defaults
+    if (!inputs.height) inputs.height = 6;
+    if (!inputs.post_spacing) inputs.post_spacing = 8;
+    if (!inputs.rail_count) inputs.rail_count = 2;
+
+    // Add calculated values from existing formulas (use placeholder values for testing)
+    assignedComponents.forEach(comp => {
+      const hasFormula = formulas.some(f => f.component_type_id === comp.component_type_id);
+      if (hasFormula) {
+        // Provide reasonable test values for calculated components
+        inputs[`${comp.component_code}_count`] = 10; // Generic placeholder
+      }
+    });
+
+    // Common calculated values with better defaults based on 100ft test
+    inputs.post_count = 14; // ~100ft / 8ft spacing + 1
+    inputs.picket_count = 166; // ~100ft * 20 pickets/8ft panel
+    inputs.panel_count = 13; // ~100ft / 8ft spacing
+
+    return inputs;
+  }, [variables, assignedComponents, formulas]);
+
+  const [testInputs, setTestInputs] = useState<Record<string, number>>(buildDefaultTestInputs);
   const [testResult, setTestResult] = useState<number | null>(null);
 
   const isEditing = !!existingFormula;
 
-  // Available variables for the formula
-  const availableVariables = [
-    { code: 'Quantity', name: 'Net Length (ft)', type: 'project' },
-    { code: 'Lines', name: 'Number of Lines', type: 'project' },
-    { code: 'Gates', name: 'Number of Gates', type: 'project' },
-    { code: 'height', name: 'Height', type: 'sku' },
-    { code: 'post_spacing', name: 'Post Spacing', type: 'sku' },
-    { code: 'rail_count', name: 'Rail Count (variable)', type: 'sku' },
-    ...variables.map((v) => ({ code: v.variable_code, name: v.variable_name, type: 'variable' })),
-  ];
+  // Available variables for the formula - built from actual product type variables
+  const availableVariables = useMemo(() => {
+    const vars = [
+      { code: 'Quantity', name: 'Net Length (ft)', type: 'project' },
+      { code: 'Lines', name: 'Number of Lines', type: 'project' },
+      { code: 'Gates', name: 'Number of Gates', type: 'project' },
+      { code: 'height', name: 'Height', type: 'sku' },
+      { code: 'post_spacing', name: 'Post Spacing', type: 'sku' },
+    ];
 
-  // Calculated variables from other formulas (can reference in subsequent formulas)
-  const calculatedVariables = [
-    { code: 'post_count', name: 'Post Count' },
-    { code: 'picket_count', name: 'Picket Count' },
-    { code: 'panel_count', name: 'Panel Count' },
-    { code: 'board_count', name: 'Board Count' },
-    { code: 'rail_count', name: 'Rail Count (calc)' },
-    { code: 'trim_count', name: 'Trim Count' },
-    { code: 'nailer_count', name: 'Nailer Count' },
-    { code: 'rot_board_count', name: 'Rot Board Count' },
-    { code: 'nails_picket_count', name: 'Nails (Picket)' },
-    { code: 'nails_frame_count', name: 'Nails (Frame)' },
-    { code: 'concrete_sand_count', name: 'Concrete Sand' },
-    { code: 'concrete_portland_count', name: 'Concrete Portland' },
-    { code: 'concrete_quickrock_count', name: 'Concrete Quickrock' },
-  ];
+    // Add product type specific variables
+    variables.forEach(v => {
+      // Avoid duplicates if variable is already in the list
+      if (!vars.some(existing => existing.code === v.variable_code)) {
+        vars.push({ code: v.variable_code, name: v.variable_name, type: 'variable' });
+      }
+    });
+
+    return vars;
+  }, [variables]);
+
+  // Calculated variables from other component formulas (can reference in subsequent formulas)
+  const calculatedVariables = useMemo(() => {
+    // Build from assigned components that have formulas
+    return assignedComponents
+      .filter(comp => {
+        // Check if this component has at least one formula defined
+        return formulas.some(f => f.component_type_id === comp.component_type_id);
+      })
+      .map(comp => ({
+        code: `${comp.component_code}_count`,
+        name: `${comp.component_name} Count`,
+      }));
+  }, [assignedComponents, formulas]);
 
   const insertVariable = (code: string) => {
     setFormData((prev) => ({
@@ -3351,66 +3396,50 @@ function FormulaEditorModal({
               {/* Test Section */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Test Formula</h4>
-                {/* Row 1: Project inputs */}
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  <div>
-                    <label className="text-xs text-gray-500">Quantity (ft)</label>
-                    <input
-                      type="number"
-                      value={testInputs.Quantity}
-                      onChange={(e) => setTestInputs({ ...testInputs, Quantity: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Lines</label>
-                    <input
-                      type="number"
-                      value={testInputs.Lines}
-                      onChange={(e) => setTestInputs({ ...testInputs, Lines: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Gates</label>
-                    <input
-                      type="number"
-                      value={testInputs.Gates}
-                      onChange={(e) => setTestInputs({ ...testInputs, Gates: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
+
+                {/* Dynamic test inputs based on availableVariables */}
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {availableVariables.map(v => (
+                    <div key={v.code}>
+                      <label className="text-xs text-gray-500 truncate block" title={v.name}>
+                        {v.code}
+                      </label>
+                      <input
+                        type="number"
+                        value={testInputs[v.code] ?? 0}
+                        onChange={(e) => setTestInputs({ ...testInputs, [v.code]: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  ))}
                 </div>
-                {/* Row 2: SKU variables */}
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div>
-                    <label className="text-xs text-gray-500">height</label>
-                    <input
-                      type="number"
-                      value={testInputs.height || 6}
-                      onChange={(e) => setTestInputs({ ...testInputs, height: parseFloat(e.target.value) || 6 })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
+
+                {/* Calculated values (from other formulas) - collapsible */}
+                {calculatedVariables.length > 0 && (
+                  <div className="mb-3">
+                    <details className="group">
+                      <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 mb-2">
+                        Calculated values ({calculatedVariables.length}) - click to edit test values
+                      </summary>
+                      <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-200">
+                        {calculatedVariables.map(v => (
+                          <div key={v.code}>
+                            <label className="text-xs text-purple-600 truncate block" title={v.name}>
+                              {v.code}
+                            </label>
+                            <input
+                              type="number"
+                              value={testInputs[v.code] ?? 10}
+                              onChange={(e) => setTestInputs({ ...testInputs, [v.code]: parseFloat(e.target.value) || 0 })}
+                              className="w-full px-2 py-1 border border-purple-200 bg-purple-50 rounded text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-500">post_spacing</label>
-                    <input
-                      type="number"
-                      value={testInputs.post_spacing || 8}
-                      onChange={(e) => setTestInputs({ ...testInputs, post_spacing: parseFloat(e.target.value) || 8 })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">rail_count</label>
-                    <input
-                      type="number"
-                      value={testInputs.rail_count || 2}
-                      onChange={(e) => setTestInputs({ ...testInputs, rail_count: parseInt(e.target.value) || 2 })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
-                </div>
+                )}
+
                 <div className="flex items-center gap-4">
                   <button
                     onClick={testFormula}
