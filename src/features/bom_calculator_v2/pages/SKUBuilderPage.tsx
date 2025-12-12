@@ -40,6 +40,15 @@ import type { FormulaResult } from '../services/FormulaInterpreter';
 
 type ProductType = 'wood-vertical' | 'wood-horizontal' | 'iron';
 
+// Extended FormulaResult with cost fields
+interface EnrichedFormulaResult extends FormulaResult {
+  component_name: string;
+  unit_cost: number;
+  total_cost: number;
+  is_labor: boolean;
+  labor_sku: string;
+}
+
 interface Material {
   id: string;
   material_sku: string;
@@ -108,7 +117,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   const [testLength, setTestLength] = useState(100);
   const [testLines, setTestLines] = useState(4);
   const [testGates, setTestGates] = useState(0);
-  const [testResults, setTestResults] = useState<FormulaResult[]>([]);
+  const [testResults, setTestResults] = useState<EnrichedFormulaResult[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [concreteType, setConcreteType] = useState<'3-part' | 'yellow-bags' | 'red-bags'>('3-part');
   const [businessUnitId, setBusinessUnitId] = useState<string>('');
@@ -536,12 +545,12 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       }));
 
       // Filter out nulls (old labor components)
-      const materialResults = enrichedResults.filter(r => r !== null);
+      const materialResults = enrichedResults.filter((r): r is EnrichedFormulaResult => r !== null);
 
       // =============================================================================
       // NEW: Calculate labor using Labor Groups V2
       // =============================================================================
-      const laborResults: typeof materialResults = [];
+      const laborResults: EnrichedFormulaResult[] = [];
 
       // Helper to evaluate a condition formula
       const evaluateCondition = (formula: string | null): boolean => {
@@ -1178,70 +1187,151 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
             </div>
           )}
 
-          {/* Test Results Table */}
+          {/* Test Results - Separate Material and Labor Panels */}
           {testResults.length > 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
-                <h3 className="text-xs font-semibold text-gray-700">
-                  BOM Preview • {testLength}ft × {testLines} Lines × {testGates} Gates
-                </h3>
+            <div className="space-y-4">
+              {/* Materials Panel (BOM) */}
+              {(() => {
+                const materialItems = testResults.filter(r => !r.is_labor);
+                if (materialItems.length === 0) return null;
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100 flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-blue-800">
+                        Materials (BOM) • {materialItems.length} items
+                      </h3>
+                      <span className="text-xs font-medium text-blue-700">
+                        ${totalMaterialCost.toFixed(2)}
+                      </span>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                          <th className="px-3 py-2 text-left font-medium">Material</th>
+                          <th className="px-3 py-2 text-right font-medium">Raw</th>
+                          <th className="px-3 py-2 text-right font-medium">Qty</th>
+                          <th className="px-3 py-2 text-right font-medium">Unit $</th>
+                          <th className="px-3 py-2 text-right font-medium">Total $</th>
+                          <th className="px-3 py-2 text-center font-medium">Round</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materialItems.map((result, idx) => (
+                          <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                            <td className="px-3 py-2 text-gray-900">{result.component_name}</td>
+                            <td className="px-3 py-2 text-right text-gray-500 font-mono">
+                              {isFinite(result.raw_value) ? result.raw_value.toFixed(2) : '0.00'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                              {isFinite(result.rounded_value) ? result.rounded_value : 0}
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-500 font-mono">
+                              {result.unit_cost && isFinite(result.unit_cost) ? `$${result.unit_cost.toFixed(2)}` : '-'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                              {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] ${
+                                result.rounding_level === 'sku' ? 'bg-blue-100 text-blue-700' :
+                                result.rounding_level === 'project' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {result.rounding_level}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-blue-50 font-medium">
+                          <td className="px-3 py-2 text-blue-800" colSpan={4}>Materials Subtotal</td>
+                          <td className="px-3 py-2 text-right font-mono text-blue-900">
+                            ${totalMaterialCost.toFixed(2)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              {/* Labor Panel (BOL) */}
+              {(() => {
+                const laborItems = testResults.filter(r => r.is_labor);
+                if (laborItems.length === 0) return null;
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100 flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-orange-800">
+                        Labor (BOL) • {laborItems.length} items
+                      </h3>
+                      <span className="text-xs font-medium text-orange-700">
+                        ${totalLaborCost.toFixed(2)}
+                      </span>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                          <th className="px-3 py-2 text-left font-medium">Labor</th>
+                          <th className="px-3 py-2 text-center font-medium">Code</th>
+                          <th className="px-3 py-2 text-right font-medium">Rate/ft</th>
+                          <th className="px-3 py-2 text-right font-medium">Linear Ft</th>
+                          <th className="px-3 py-2 text-right font-medium">Total $</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {laborItems.map((result, idx) => (
+                          <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-orange-50/30'}`}>
+                            <td className="px-3 py-2 text-gray-900">{result.component_name}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-medium">
+                                {result.labor_sku || '-'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600 font-mono">
+                              ${(result.unit_cost || 0).toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono text-gray-900">
+                              {isFinite(result.rounded_value) ? result.rounded_value : 0}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                              {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-orange-50 font-medium">
+                          <td className="px-3 py-2 text-orange-800" colSpan={4}>Labor Subtotal</td>
+                          <td className="px-3 py-2 text-right font-mono text-orange-900">
+                            ${totalLaborCost.toFixed(2)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              {/* Combined Total */}
+              <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg border border-purple-200 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-purple-800">Total Cost</span>
+                  <span className="text-xs text-purple-600 ml-2">
+                    ({testLength}ft × {testLines} lines)
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-purple-900 font-mono">
+                    ${(totalMaterialCost + totalLaborCost).toFixed(2)}
+                  </div>
+                  <div className="text-xs text-purple-600">
+                    ${((totalMaterialCost + totalLaborCost) / testLength).toFixed(2)}/ft
+                  </div>
+                </div>
               </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
-                    <th className="px-3 py-2 text-left font-medium">Component</th>
-                    <th className="px-3 py-2 text-right font-medium">Raw</th>
-                    <th className="px-3 py-2 text-right font-medium">Qty</th>
-                    <th className="px-3 py-2 text-right font-medium">Unit $</th>
-                    <th className="px-3 py-2 text-right font-medium">Total $</th>
-                    <th className="px-3 py-2 text-center font-medium">Round</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {testResults.map((result: FormulaResult & { unit_cost?: number; total_cost?: number; is_labor?: boolean; labor_sku?: string }, idx) => (
-                    <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                      <td className="px-3 py-2 text-gray-900">
-                        {result.component_name}
-                        {result.is_labor && (
-                          <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-700 rounded text-[9px]">
-                            {result.labor_sku || 'Labor'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-500 font-mono">
-                        {isFinite(result.raw_value) ? result.raw_value.toFixed(2) : '0.00'}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
-                        {isFinite(result.rounded_value) ? result.rounded_value : 0}
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-500 font-mono">
-                        {result.unit_cost && isFinite(result.unit_cost) ? `$${result.unit_cost.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
-                        {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] ${
-                          result.rounding_level === 'sku' ? 'bg-blue-100 text-blue-700' :
-                          result.rounding_level === 'project' ? 'bg-amber-100 text-amber-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {result.rounding_level}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-gray-100 font-medium">
-                    <td className="px-3 py-2 text-gray-700" colSpan={4}>Total</td>
-                    <td className="px-3 py-2 text-right font-mono text-gray-900">
-                      ${(totalMaterialCost + totalLaborCost).toFixed(2)}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
             </div>
           )}
 
