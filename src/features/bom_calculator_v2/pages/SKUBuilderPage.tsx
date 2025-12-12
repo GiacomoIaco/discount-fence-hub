@@ -21,10 +21,11 @@ import {
   useProductVariablesV2,
   useSKUV2,
   useMaterialEligibilityV2,
-  useLaborEligibilityV2,
   useProductTypeComponentsFull,
+  useProductTypeLaborGroupsV2,
+  useLaborGroupEligibilityV2,
 } from '../hooks';
-import type { ProductTypeComponentFull, ProductVariableV2 } from '../hooks';
+import type { ProductTypeComponentFull, ProductVariableV2, LaborGroupEligibilityV2 } from '../hooks';
 import {
   FormulaInterpreter,
   buildMaterialAttributes,
@@ -164,8 +165,11 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   // V2: Fetch assigned components for this product type
   const { data: assignedComponentsV2 = [] } = useProductTypeComponentsFull(selectedProductTypeV2?.id || null);
 
-  // V2: Fetch labor eligibility rules
-  const { data: laborEligibilityRulesV2 = [] } = useLaborEligibilityV2(selectedProductTypeV2?.id || null);
+  // V2: Fetch labor groups for this product type
+  const { data: laborGroupsV2 = [] } = useProductTypeLaborGroupsV2(selectedProductTypeV2?.id || null);
+
+  // V2: Fetch labor group eligibility rules (which labor codes apply to which groups with conditions)
+  const { data: laborGroupEligibilityV2 = [] } = useLaborGroupEligibilityV2(selectedProductTypeV2?.id || null);
 
   // Fetch business units (shared V1 table)
   const { data: businessUnits = [] } = useQuery({
@@ -496,55 +500,28 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       // Apply project-level rounding
       const roundedResults = applyProjectRounding(results);
 
-      // Enrich with component names and material/labor costs
+      // Enrich with component names and material costs
       let matCost = 0;
       let labCost = 0;
 
-      // Helper to get labor rate for a component
-      const getLaborRateForComponent = (componentTypeId: string): number => {
-        // Find labor eligibility rule for this component
-        const eligibilityRule = laborEligibilityRulesV2.find(
-          rule => rule.component_type_id === componentTypeId
-        );
-        if (!eligibilityRule) return 0;
-
-        // Find the labor rate for this labor code and current business unit
-        const laborRate = laborRates.find(
-          lr => lr.labor_code_id === eligibilityRule.labor_code_id
-        );
-        return laborRate?.rate || 0;
-      };
-
+      // Enrich material results with costs
       const enrichedResults = await Promise.all(roundedResults.map(async (r) => {
         const comp = assignedComponentsV2.find(c => c.component_code === r.component_code);
         const materialSku = components[r.component_code];
 
         let unitCost = 0;
-        let laborSku = '';
 
+        // Skip labor components from old system - we calculate labor separately now
         if (comp?.is_labor) {
-          // Labor component - look up rate from labor_rates
-          unitCost = getLaborRateForComponent(comp.component_type_id);
-          labCost += r.rounded_value * unitCost;
+          return null; // Filter out old labor components
+        }
 
-          // Get labor SKU for display
-          const eligibilityRule = laborEligibilityRulesV2.find(
-            rule => rule.component_type_id === comp.component_type_id
-          );
-          if (eligibilityRule) {
-            const laborRate = laborRates.find(
-              lr => lr.labor_code_id === eligibilityRule.labor_code_id
-            );
-            laborSku = laborRate?.labor_code?.labor_sku || '';
-          }
-        } else {
-          // Material component - look up cost from materials
-          if (materialSku) {
-            const mat = materials.find(m => m.material_sku === materialSku);
-            if (mat) {
-              unitCost = mat.unit_cost;
-              matCost += r.rounded_value * unitCost;
-            }
+        // Material component - look up cost from materials
+        if (materialSku) {
+          const mat = materials.find(m => m.material_sku === materialSku);
+          if (mat) {
+            unitCost = mat.unit_cost;
+            matCost += r.rounded_value * unitCost;
           }
         }
 
@@ -553,12 +530,136 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           component_name: comp?.component_name || r.component_code,
           unit_cost: unitCost,
           total_cost: r.rounded_value * unitCost,
-          is_labor: comp?.is_labor || false,
-          labor_sku: laborSku,
+          is_labor: false,
+          labor_sku: '',
         };
       }));
 
-      setTestResults(enrichedResults);
+      // Filter out nulls (old labor components)
+      const materialResults = enrichedResults.filter(r => r !== null);
+
+      // =============================================================================
+      // NEW: Calculate labor using Labor Groups V2
+      // =============================================================================
+      const laborResults: typeof materialResults = [];
+
+      // Helper to evaluate a condition formula
+      const evaluateCondition = (formula: string | null): boolean => {
+        if (!formula || formula.trim() === '') return true; // Always eligible if no condition
+
+        // Simple condition parser - handles basic comparisons
+        // Examples: "post_spacing == 8", "height > 6", "rails == 3"
+        try {
+          // Replace variable names with actual values
+          let evalFormula = formula;
+
+          // Replace standard variables
+          evalFormula = evalFormula.replace(/\bpost_spacing\b/g, String(vars.post_spacing || 8));
+          evalFormula = evalFormula.replace(/\bheight\b/g, String(height));
+          evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
+          evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
+
+          // Replace product variables
+          variablesV2.forEach(v => {
+            const val = variableValues[v.variable_code];
+            if (val !== undefined) {
+              evalFormula = evalFormula.replace(
+                new RegExp(`\\b${v.variable_code}\\b`, 'g'),
+                String(val)
+              );
+            }
+          });
+
+          // Evaluate the condition
+          // eslint-disable-next-line no-eval
+          return Boolean(eval(evalFormula));
+        } catch {
+          console.warn('Failed to evaluate condition:', formula);
+          return false;
+        }
+      };
+
+      // Process each labor group
+      for (const ptlg of laborGroupsV2) {
+        const group = ptlg.labor_group;
+        if (!group) continue;
+
+        // Get eligibility rules for this group
+        const groupRules = laborGroupEligibilityV2.filter(
+          (r: LaborGroupEligibilityV2) => r.labor_group_id === group.id
+        );
+
+        // Find matching labor codes based on conditions
+        const matchingRules: LaborGroupEligibilityV2[] = [];
+
+        for (const rule of groupRules) {
+          if (evaluateCondition(rule.condition_formula)) {
+            matchingRules.push(rule);
+          }
+        }
+
+        // For single-select groups, prefer default or first match
+        if (!group.allow_multiple && matchingRules.length > 0) {
+          const defaultRule = matchingRules.find((r: LaborGroupEligibilityV2) => r.is_default);
+          const selectedRule = defaultRule || matchingRules[0];
+
+          // Get rate for this labor code
+          const laborRate = laborRates.find(
+            lr => lr.labor_code_id === selectedRule.labor_code_id
+          );
+          const rate = laborRate?.rate || 0;
+          const laborSku = laborRate?.labor_code?.labor_sku || selectedRule.labor_code?.labor_sku || '';
+          const description = laborRate?.labor_code?.description || selectedRule.labor_code?.description || group.name;
+
+          // Labor is calculated per linear foot (testLength)
+          const laborCost = testLength * rate;
+          labCost += laborCost;
+
+          laborResults.push({
+            component_code: group.code,
+            component_name: description,
+            raw_value: testLength,
+            rounded_value: testLength,
+            unit_cost: rate,
+            total_cost: laborCost,
+            is_labor: true,
+            labor_sku: laborSku,
+            rounding_level: 'none',
+            formula_used: `${laborSku} @ $${rate}/ft`,
+          });
+        } else if (group.allow_multiple) {
+          // For multiple-select groups, include all matching rules
+          for (const rule of matchingRules) {
+            const laborRate = laborRates.find(
+              lr => lr.labor_code_id === rule.labor_code_id
+            );
+            const rate = laborRate?.rate || 0;
+            const laborSku = laborRate?.labor_code?.labor_sku || rule.labor_code?.labor_sku || '';
+            const description = laborRate?.labor_code?.description || rule.labor_code?.description || group.name;
+
+            const laborCost = testLength * rate;
+            labCost += laborCost;
+
+            laborResults.push({
+              component_code: `${group.code}_${laborSku}`,
+              component_name: description,
+              raw_value: testLength,
+              rounded_value: testLength,
+              unit_cost: rate,
+              total_cost: laborCost,
+              is_labor: true,
+              labor_sku: laborSku,
+              rounding_level: 'none',
+              formula_used: `${laborSku} @ $${rate}/ft`,
+            });
+          }
+        }
+      }
+
+      // Combine material and labor results
+      const allResults = [...materialResults, ...laborResults];
+
+      setTestResults(allResults);
       setTotalMaterialCost(matCost);
       setTotalLaborCost(labCost);
     } catch (err) {
@@ -570,7 +671,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   }, [
     selectedProductTypeV2, selectedStyleV2, componentSelections, variableValues,
     height, railCount, testLength, testLines, testGates, assignedComponentsV2, getMaterialSku,
-    concreteType, materials, laborEligibilityRulesV2, laborRates
+    concreteType, materials, laborGroupsV2, laborGroupEligibilityV2, laborRates, variablesV2
   ]);
 
   // =============================================================================
