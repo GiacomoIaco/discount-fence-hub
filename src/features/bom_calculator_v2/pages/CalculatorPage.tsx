@@ -590,7 +590,7 @@ export function CalculatorPage({
 
     try {
       const allMaterialResults: Map<string, MaterialRow> = new Map();
-      // Labor results will be populated when labor formulas are implemented
+      const allLaborResults: Map<string, LaborRow> = new Map();
 
       for (const item of validItems) {
         const sku = allSKUs.find(s => s.id === item.skuId);
@@ -666,7 +666,51 @@ export function CalculatorPage({
           }
         }
 
-        // TODO: Add labor calculation when labor formulas are implemented
+        // Calculate labor using SKU's labor_codes JSONB
+        const laborCodes = sku.labor_codes as Record<string, string | string[]> | null;
+        if (laborCodes) {
+          // Process each labor group's code(s)
+          for (const [_groupCode, codeOrCodes] of Object.entries(laborCodes)) {
+            const codes = Array.isArray(codeOrCodes) ? codeOrCodes : [codeOrCodes];
+
+            for (const laborSku of codes) {
+              if (!laborSku) continue;
+
+              // Find labor code by SKU
+              const laborCode = allLaborCodes.find(lc => lc.labor_sku === laborSku);
+              if (!laborCode) continue;
+
+              // Find rate for this labor code
+              const rateEntry = laborRates.find(lr => lr.labor_code_id === laborCode.id);
+              const rate = rateEntry?.rate || 0;
+
+              // Calculate labor cost (rate * net footage)
+              const laborQty = item.netLength;
+              const laborCost = laborQty * rate;
+
+              const key = laborCode.id;
+              const existing = allLaborResults.get(key);
+
+              if (existing) {
+                existing.quantity += laborQty;
+                existing.calculated_cost += laborCost;
+                existing.total_cost = existing.calculated_cost + existing.adjustment;
+              } else {
+                allLaborResults.set(key, {
+                  labor_code_id: laborCode.id,
+                  labor_sku: laborCode.labor_sku,
+                  description: laborCode.description,
+                  rate: rate,
+                  quantity: laborQty,
+                  calculated_cost: laborCost,
+                  adjustment: 0,
+                  total_cost: laborCost,
+                  is_manual: false,
+                });
+              }
+            }
+          }
+        }
       }
 
       // Preserve existing adjustments for materials
@@ -683,8 +727,18 @@ export function CalculatorPage({
         }).concat(prev.filter(p => p.is_manual));
       });
 
-      // Preserve manual labor entries
-      setLaborRows(prev => prev.filter(p => p.is_manual));
+      // Preserve existing adjustments for labor
+      const newLaborRows = Array.from(allLaborResults.values());
+      setLaborRows(prev => {
+        return newLaborRows.map(row => {
+          const existing = prev.find(p => p.labor_code_id === row.labor_code_id);
+          if (existing && !existing.is_manual) {
+            row.adjustment = existing.adjustment;
+            row.total_cost = row.calculated_cost + row.adjustment;
+          }
+          return row;
+        }).concat(prev.filter(p => p.is_manual));
+      });
 
     } catch (error) {
       console.error('Calculation error:', error);
@@ -692,7 +746,7 @@ export function CalculatorPage({
     } finally {
       setIsCalculating(false);
     }
-  }, [businessUnitId, lineItems, allSKUs, allMaterials, formulaInterpreter, rateSheetItems, activeRateSheet]);
+  }, [businessUnitId, lineItems, allSKUs, allMaterials, formulaInterpreter, rateSheetItems, activeRateSheet, allLaborCodes, laborRates]);
 
   // Auto-calculate
   useEffect(() => {
