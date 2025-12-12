@@ -5,13 +5,27 @@
  * Uses the V2 tables with JSONB for variables and components.
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { Loader2, Search, Pencil, Info, Package, Archive, RefreshCw, Calculator } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import toast from 'react-hot-toast';
-import { useProductTypesV2, useSKUCatalogV2, type SKUCatalogV2WithRelations } from '../hooks';
+import { useProductTypesV2, useSKUCatalogV2, type SKUCatalogV2WithRelations, type LaborGroupEligibilityV2 } from '../hooks';
 import { FormulaInterpreter, buildMaterialAttributes, createFormulaContext } from '../services/FormulaInterpreter';
+
+// Labor types
+interface LaborGroupV2 {
+  id: string;
+  code: string;
+  name: string;
+  is_required: boolean;
+  allow_multiple: boolean;
+}
+
+interface LaborRate {
+  labor_code_id: string;
+  rate: number;
+}
 
 // SKU row for table display
 interface SKURow {
@@ -52,6 +66,45 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
 
   // Fetch all SKUs from sku_catalog_v2
   const { data: skus = [], isLoading: loadingSKUs } = useSKUCatalogV2();
+
+  // Fetch labor rates for default business unit (ATX-HB typically)
+  const [defaultBusinessUnitId, setDefaultBusinessUnitId] = useState<string | null>(null);
+
+  // Get default business unit
+  const { data: businessUnits = [] } = useQuery({
+    queryKey: ['business-units-catalog'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('business_units')
+        .select('id, code')
+        .eq('is_active', true);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Set default business unit (prefer ATX-HB)
+  useEffect(() => {
+    if (businessUnits.length > 0 && !defaultBusinessUnitId) {
+      const atxHb = businessUnits.find(bu => bu.code === 'ATX-HB');
+      setDefaultBusinessUnitId(atxHb?.id || businessUnits[0]?.id || null);
+    }
+  }, [businessUnits, defaultBusinessUnitId]);
+
+  // Fetch labor rates
+  const { data: laborRates = [] } = useQuery({
+    queryKey: ['labor-rates-catalog', defaultBusinessUnitId],
+    queryFn: async () => {
+      if (!defaultBusinessUnitId) return [];
+      const { data, error } = await supabase
+        .from('labor_rates')
+        .select('labor_code_id, rate')
+        .eq('business_unit_id', defaultBusinessUnitId);
+      if (error) throw error;
+      return data as LaborRate[];
+    },
+    enabled: !!defaultBusinessUnitId,
+  });
 
   // Recalculation state
   const [recalculating, setRecalculating] = useState(false);
@@ -116,15 +169,116 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         }
       }
 
-      // Calculate cost per foot
-      const costPerFoot = totalMaterialCost / STANDARD_LENGTH;
+      // =============================================================================
+      // NEW: Calculate labor using Labor Groups V2
+      // =============================================================================
+      let totalLaborCost = 0;
+      const laborCodesSelected: Record<string, string | string[]> = {};
 
-      // Update SKU record
+      // Fetch labor groups for this product type
+      const { data: laborGroups } = await supabase
+        .from('product_type_labor_groups_v2')
+        .select(`
+          id,
+          labor_group_id,
+          labor_group:labor_groups_v2(id, code, name, is_required, allow_multiple)
+        `)
+        .eq('product_type_id', sku.product_type_id)
+        .eq('is_active', true);
+
+      // Fetch labor eligibility rules
+      const { data: laborEligibility } = await supabase
+        .from('labor_group_eligibility_v2')
+        .select(`
+          *,
+          labor_code:labor_codes(id, labor_sku, description)
+        `)
+        .eq('product_type_id', sku.product_type_id)
+        .eq('is_active', true);
+
+      if (laborGroups && laborEligibility) {
+        const vars = sku.variables || {};
+        const postSpacing = vars.post_spacing as number || styleAdjustments.post_spacing || 8;
+        const railCount = vars.rail_count as number || 2;
+
+        // Helper to evaluate conditions
+        const evaluateCondition = (formula: string | null): boolean => {
+          if (!formula || formula.trim() === '') return true;
+          try {
+            let evalFormula = formula;
+            evalFormula = evalFormula.replace(/\bpost_spacing\b/g, String(postSpacing));
+            evalFormula = evalFormula.replace(/\bheight\b/g, String(sku.height));
+            evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
+            evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
+
+            // Replace other variables
+            Object.entries(vars).forEach(([key, val]) => {
+              if (val !== undefined) {
+                evalFormula = evalFormula.replace(new RegExp(`\\b${key}\\b`, 'g'), String(val));
+              }
+            });
+
+            // eslint-disable-next-line no-eval
+            return Boolean(eval(evalFormula));
+          } catch {
+            return false;
+          }
+        };
+
+        // Process each labor group
+        for (const ptlg of laborGroups) {
+          // Supabase returns nested join as single object (not array) when using select
+          const group = ptlg.labor_group as unknown as LaborGroupV2;
+          if (!group || !group.id) continue;
+
+          const groupRules = (laborEligibility as LaborGroupEligibilityV2[]).filter(
+            r => r.labor_group_id === group.id
+          );
+
+          const matchingRules: LaborGroupEligibilityV2[] = [];
+          for (const rule of groupRules) {
+            if (evaluateCondition(rule.condition_formula)) {
+              matchingRules.push(rule);
+            }
+          }
+
+          if (!group.allow_multiple && matchingRules.length > 0) {
+            // Single-select: prefer default
+            const defaultRule = matchingRules.find(r => r.is_default);
+            const selectedRule = defaultRule || matchingRules[0];
+
+            const rate = laborRates.find(lr => lr.labor_code_id === selectedRule.labor_code_id)?.rate || 0;
+            totalLaborCost += STANDARD_LENGTH * rate;
+
+            const laborSku = selectedRule.labor_code?.labor_sku || '';
+            laborCodesSelected[group.code] = laborSku;
+          } else if (group.allow_multiple && matchingRules.length > 0) {
+            // Multiple-select: include all
+            const skus: string[] = [];
+            for (const rule of matchingRules) {
+              const rate = laborRates.find(lr => lr.labor_code_id === rule.labor_code_id)?.rate || 0;
+              totalLaborCost += STANDARD_LENGTH * rate;
+              const laborSku = rule.labor_code?.labor_sku || '';
+              if (laborSku) skus.push(laborSku);
+            }
+            if (skus.length > 0) {
+              laborCodesSelected[group.code] = skus;
+            }
+          }
+        }
+      }
+
+      // Calculate cost per foot
+      const materialCostPerFoot = totalMaterialCost / STANDARD_LENGTH;
+
+      // Update SKU record with both material and labor costs
       const { error } = await supabase
         .from('sku_catalog_v2')
         .update({
           standard_material_cost: totalMaterialCost,
-          standard_cost_per_foot: costPerFoot,
+          standard_cost_per_foot: materialCostPerFoot,
+          standard_labor_cost: totalLaborCost,
+          labor_codes: laborCodesSelected,
           standard_cost_calculated_at: new Date().toISOString(),
         })
         .eq('id', sku.id);
@@ -139,7 +293,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
       console.error(`Error recalculating SKU ${sku.sku_code}:`, err);
       return false;
     }
-  }, []);
+  }, [laborRates]);
 
   /**
    * Recalculate costs for all filtered SKUs
