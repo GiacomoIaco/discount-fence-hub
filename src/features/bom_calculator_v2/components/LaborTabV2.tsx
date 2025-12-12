@@ -15,7 +15,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, X, ChevronDown, ChevronRight, Edit2,
-  AlertCircle, Check, Settings
+  AlertCircle, Check, Settings, Search
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -48,8 +48,11 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
   const [editingEligibility, setEditingEligibility] = useState<LaborGroupEligibilityV2 | null>(null);
   const [showAddModal, setShowAddModal] = useState<{ groupId: string; groupCode: string; groupName: string } | null>(null);
   const [showManageGroups, setShowManageGroups] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<LaborGroupV2 | null>(null);
   const [formula, setFormula] = useState('');
   const [selectedLaborCodeId, setSelectedLaborCodeId] = useState('');
+  const [laborCodeSearch, setLaborCodeSearch] = useState('');
 
   // Fetch product variables for formula reference
   const { data: productVariables = [] } = useProductVariablesV2(productType.id);
@@ -59,7 +62,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
   const materialComponents = assignedComponents.filter(c => c.is_assigned && !c.is_labor);
 
   // Fetch ALL available labor groups
-  const { data: allLaborGroups = [], isLoading: loadingAllGroups } = useLaborGroupsV2();
+  const { data: allLaborGroups = [], isLoading: loadingAllGroups, refetch: refetchAllGroups } = useLaborGroupsV2();
 
   // Fetch labor groups assigned to this product type
   const { data: laborGroups = [], isLoading: loadingGroups, refetch: refetchLaborGroups } = useProductTypeLaborGroupsV2(productType.id);
@@ -308,16 +311,25 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
       {/* Manage Groups Panel */}
       {showManageGroups && (
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-          <div className="text-sm font-medium text-gray-700 mb-3">
-            Assign Labor Groups to {productType.name}
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-medium text-gray-700">
+              Assign Labor Groups to {productType.name}
+            </div>
+            <button
+              onClick={() => setShowCreateGroupModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Group
+            </button>
           </div>
           <div className="space-y-2">
             {allLaborGroups.map(group => {
               const isAssigned = assignedGroupIds.has(group.id);
               return (
-                <label
+                <div
                   key={group.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                     isAssigned
                       ? 'bg-purple-50 border-purple-200'
                       : 'bg-white border-gray-200 hover:bg-gray-50'
@@ -328,11 +340,12 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                     checked={isAssigned}
                     onChange={() => handleToggleLaborGroup(group)}
                     disabled={saving}
-                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
                   />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-900">{group.name}</span>
+                      <span className="text-xs text-gray-400 font-mono">{group.code}</span>
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         group.is_required
                           ? 'bg-red-100 text-red-700'
@@ -352,7 +365,14 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                       <p className="text-sm text-gray-500 mt-0.5">{group.description}</p>
                     )}
                   </div>
-                </label>
+                  <button
+                    onClick={() => setEditingGroup(group)}
+                    className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors flex-shrink-0"
+                    title="Edit group settings"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -424,24 +444,24 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
               {/* Group Content */}
               {isExpanded && (
                 <div className="border-t border-gray-200">
-                  {/* Labor Codes Table - Fixed column widths for alignment */}
+                  {/* Labor Codes Table - Auto layout for natural column widths */}
                   {groupEligibility.length > 0 ? (
-                    <table className="w-full table-fixed">
+                    <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="w-[60px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="w-14 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Def
                           </th>
-                          <th className="w-[100px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Code
                           </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px', maxWidth: '350px' }}>
                             Description
                           </th>
-                          <th className="w-[200px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px' }}>
                             Condition
                           </th>
-                          <th className="w-[80px] px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="w-20 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -451,7 +471,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                           const laborCode = eligibility.labor_code || getLaborCode(eligibility.labor_code_id);
                           return (
                             <tr key={eligibility.id} className="hover:bg-gray-50">
-                              <td className="w-[60px] px-3 py-2">
+                              <td className="w-14 px-3 py-2">
                                 <button
                                   onClick={() => handleToggleDefault(eligibility)}
                                   className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
@@ -464,20 +484,20 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                                   <Check className="w-4 h-4" />
                                 </button>
                               </td>
-                              <td className="w-[100px] px-3 py-2">
+                              <td className="w-20 px-3 py-2">
                                 <span className="font-mono text-sm text-gray-900">
                                   {laborCode?.labor_sku || 'Unknown'}
                                 </span>
                               </td>
-                              <td className="px-3 py-2">
-                                <span className="text-sm text-gray-700 line-clamp-1">
+                              <td className="px-3 py-2" style={{ minWidth: '200px', maxWidth: '350px' }}>
+                                <span className="text-sm text-gray-700 line-clamp-2">
                                   {laborCode?.description || 'Unknown labor code'}
                                 </span>
                                 <div className="text-xs text-gray-400">{laborCode?.unit_type}</div>
                               </td>
-                              <td className="w-[200px] px-3 py-2">
+                              <td className="px-3 py-2" style={{ minWidth: '180px' }}>
                                 {eligibility.condition_formula ? (
-                                  <code className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded font-mono">
+                                  <code className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded font-mono block truncate" title={eligibility.condition_formula}>
                                     {eligibility.condition_formula}
                                   </code>
                                 ) : (
@@ -486,7 +506,7 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
                                   </span>
                                 )}
                               </td>
-                              <td className="w-[80px] px-3 py-2 text-right">
+                              <td className="w-20 px-3 py-2 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <button
                                     onClick={() => openEditModal(eligibility)}
@@ -556,102 +576,182 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
         </div>
       </div>
 
-      {/* Add Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Add Labor Code to {showAddModal.groupName}
-              </h2>
-              <button onClick={() => setShowAddModal(null)} className="p-1 hover:bg-gray-100 rounded-full">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
+      {/* Add Modal - Improved with filterable list */}
+      {showAddModal && (() => {
+        const availableCodes = getAvailableLaborCodes(showAddModal.groupId, showAddModal.groupCode);
+        const filteredCodes = availableCodes.filter(lc =>
+          laborCodeSearch === '' ||
+          lc.labor_sku.toLowerCase().includes(laborCodeSearch.toLowerCase()) ||
+          lc.description.toLowerCase().includes(laborCodeSearch.toLowerCase())
+        );
+        const selectedCode = allLaborCodes.find(lc => lc.id === selectedLaborCodeId);
 
-            <div className="p-6 space-y-4">
-              {/* Labor Code Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Labor Code</label>
-                <select
-                  value={selectedLaborCodeId}
-                  onChange={(e) => setSelectedLaborCodeId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Add Labor Code to {showAddModal.groupName}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowAddModal(null);
+                    setSelectedLaborCodeId('');
+                    setLaborCodeSearch('');
+                    setFormula('');
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full"
                 >
-                  <option value="">Select a labor code...</option>
-                  {getAvailableLaborCodes(showAddModal.groupId, showAddModal.groupCode).map(lc => (
-                    <option key={lc.id} value={lc.id}>
-                      {lc.labor_sku} - {lc.description}
-                    </option>
-                  ))}
-                </select>
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
               </div>
 
-              {/* Condition Formula */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Condition Formula (optional)
-                </label>
-                <p className="text-xs text-gray-500 mb-2">
-                  Leave blank for always eligible. Use a formula to conditionally enable.
-                </p>
-                <textarea
-                  value={formula}
-                  onChange={(e) => setFormula(e.target.value)}
-                  placeholder="e.g., post_spacing == 8"
-                  rows={2}
-                  className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg"
-                />
-              </div>
-
-              {/* Available Variables - Clickable */}
-              <div className="bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
-                <div className="text-xs font-medium text-gray-700 mb-2">
-                  Click to insert variable into formula
-                </div>
-                {['Project', 'Calculated', 'Variables', 'Styles', 'Components'].map(group => {
-                  const groupVars = allVariables.filter(v => v.group === group);
-                  if (groupVars.length === 0) return null;
-                  return (
-                    <div key={group} className="mb-2">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">{group}</div>
-                      <div className="flex flex-wrap gap-1">
-                        {groupVars.map(v => (
-                          <button
-                            key={v.code}
-                            type="button"
-                            onClick={() => insertVariable(v.code)}
-                            className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors"
-                            title={v.name}
-                          >
-                            {v.code}
-                          </button>
-                        ))}
+              <div className="flex-1 overflow-hidden flex flex-col">
+                {/* Two-panel layout */}
+                <div className="flex flex-1 overflow-hidden">
+                  {/* Left Panel - Labor Code List */}
+                  <div className="w-1/2 border-r border-gray-200 flex flex-col">
+                    <div className="p-3 border-b border-gray-100">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={laborCodeSearch}
+                          onChange={(e) => setLaborCodeSearch(e.target.value)}
+                          placeholder="Search labor codes..."
+                          className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">
+                        {filteredCodes.length} of {availableCodes.length} codes available
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="flex-1 overflow-y-auto p-2">
+                      {filteredCodes.length === 0 ? (
+                        <div className="text-center text-sm text-gray-500 py-8">
+                          {availableCodes.length === 0
+                            ? 'All labor codes are already assigned'
+                            : 'No matching labor codes'}
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {filteredCodes.map(lc => (
+                            <button
+                              key={lc.id}
+                              onClick={() => setSelectedLaborCodeId(lc.id)}
+                              className={`w-full text-left p-2 rounded-lg transition-colors ${
+                                selectedLaborCodeId === lc.id
+                                  ? 'bg-purple-100 border-purple-300 border'
+                                  : 'hover:bg-gray-50 border border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm font-medium text-gray-900">
+                                  {lc.labor_sku}
+                                </span>
+                                <span className="text-xs text-gray-400">{lc.unit_type}</span>
+                              </div>
+                              <div className="text-sm text-gray-600 line-clamp-2 mt-0.5">
+                                {lc.description}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Panel - Selected Code & Formula */}
+                  <div className="w-1/2 flex flex-col">
+                    {selectedCode ? (
+                      <div className="p-4 flex-1 overflow-y-auto space-y-4">
+                        {/* Selected Code Display */}
+                        <div className="bg-purple-50 rounded-lg p-3">
+                          <div className="text-xs text-purple-600 font-medium mb-1">Selected</div>
+                          <div className="font-mono text-lg font-bold text-purple-900">
+                            {selectedCode.labor_sku}
+                          </div>
+                          <div className="text-sm text-purple-800 mt-1">
+                            {selectedCode.description}
+                          </div>
+                          <div className="text-xs text-purple-600 mt-1">
+                            Unit: {selectedCode.unit_type}
+                          </div>
+                        </div>
+
+                        {/* Condition Formula */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Condition Formula (optional)
+                          </label>
+                          <p className="text-xs text-gray-500 mb-2">
+                            Leave blank for always eligible. Use AND/OR for multiple conditions.
+                          </p>
+                          <textarea
+                            value={formula}
+                            onChange={(e) => setFormula(e.target.value)}
+                            placeholder="e.g., [height]==6 AND [post_type]=='Wood'"
+                            rows={2}
+                            className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+
+                        {/* Available Variables - Compact */}
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="text-xs font-medium text-gray-700 mb-2">
+                            Click to insert variable
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                            {allVariables.slice(0, 20).map(v => (
+                              <button
+                                key={v.code}
+                                type="button"
+                                onClick={() => insertVariable(v.code)}
+                                className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors"
+                                title={`${v.name} (${v.group})`}
+                              >
+                                {v.code}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center p-4">
+                        <div className="text-center text-gray-500">
+                          <div className="text-4xl mb-2">←</div>
+                          <div className="text-sm">Select a labor code from the list</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    setShowAddModal(null);
+                    setSelectedLaborCodeId('');
+                    setLaborCodeSearch('');
+                    setFormula('');
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddLaborCode}
+                  disabled={!selectedLaborCodeId || saving}
+                  className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {saving ? 'Adding...' : 'Add Labor Code'}
+                </button>
               </div>
             </div>
-
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddModal(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddLaborCode}
-                disabled={!selectedLaborCodeId || saving}
-                className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300"
-              >
-                {saving ? 'Adding...' : 'Add Labor Code'}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Edit Modal */}
       {editingEligibility && (
@@ -740,6 +840,23 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
         </div>
       )}
 
+      {/* Create/Edit Group Modal */}
+      {(showCreateGroupModal || editingGroup) && (
+        <LaborGroupModal
+          group={editingGroup}
+          onClose={() => {
+            setShowCreateGroupModal(false);
+            setEditingGroup(null);
+          }}
+          onSaved={async () => {
+            setShowCreateGroupModal(false);
+            setEditingGroup(null);
+            await refetchAllGroups();
+            await refetchLaborGroups();
+          }}
+        />
+      )}
+
       {/* Saving Indicator */}
       {saving && (
         <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg">
@@ -747,6 +864,199 @@ export default function LaborTabV2({ productType, styles }: LaborTabV2Props) {
           <span className="text-sm">Saving...</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// =============================================================================
+// LABOR GROUP MODAL - Create/Edit labor groups
+// =============================================================================
+
+interface LaborGroupModalProps {
+  group: LaborGroupV2 | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function LaborGroupModal({ group, onClose, onSaved }: LaborGroupModalProps) {
+  const isEditing = !!group;
+  const [formData, setFormData] = useState({
+    code: group?.code || '',
+    name: group?.name || '',
+    description: group?.description || '',
+    is_required: group?.is_required ?? false,
+    allow_multiple: group?.allow_multiple ?? false,
+    display_order: group?.display_order ?? 10,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    if (!formData.code.trim() || !formData.name.trim()) {
+      setError('Code and Name are required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const data = {
+      code: formData.code.toLowerCase().replace(/\s+/g, '_'),
+      name: formData.name,
+      description: formData.description || null,
+      is_required: formData.is_required,
+      allow_multiple: formData.allow_multiple,
+      display_order: formData.display_order,
+    };
+
+    let result;
+    if (isEditing && group) {
+      result = await supabase
+        .from('labor_groups_v2')
+        .update(data)
+        .eq('id', group.id);
+    } else {
+      result = await supabase
+        .from('labor_groups_v2')
+        .insert(data);
+    }
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+    } else {
+      onSaved();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {isEditing ? 'Edit Labor Group' : 'Create Labor Group'}
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              placeholder="e.g., demo_labor"
+              disabled={isEditing}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-50 disabled:text-gray-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Unique identifier (cannot be changed after creation)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Demo Labor"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={2}
+              placeholder="Optional description of this labor group"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            />
+          </div>
+
+          {/* Required/Optional Toggle */}
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-gray-900">Required</div>
+                <p className="text-xs text-gray-500">SKUs must have a labor code from this group</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, is_required: !formData.is_required })}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                  formData.is_required ? 'bg-purple-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    formData.is_required ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Single/Multiple Toggle */}
+            <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+              <div>
+                <div className="text-sm font-medium text-gray-900">Allow Multiple</div>
+                <p className="text-xs text-gray-500">SKUs can have multiple codes from this group</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, allow_multiple: !formData.allow_multiple })}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                  formData.allow_multiple ? 'bg-purple-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    formData.allow_multiple ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
+            <input
+              type="number"
+              value={formData.display_order}
+              onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+              min={0}
+              className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300"
+          >
+            {saving ? 'Saving...' : (isEditing ? 'Update' : 'Create')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

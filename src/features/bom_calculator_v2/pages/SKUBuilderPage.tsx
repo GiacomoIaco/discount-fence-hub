@@ -375,6 +375,21 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
   }, [assignedComponentsV2, isComponentVisible]);
 
+  // Check if all required fields are filled (for auto-calculation)
+  const allRequiredFieldsFilled = useMemo(() => {
+    // Need at least style selected
+    if (!selectedStyleV2) return false;
+
+    // Check all required (non-optional) visible components have materials selected
+    const requiredComponents = visibleMaterialComponents.filter(c => !c.is_optional);
+    const allHaveMaterials = requiredComponents.every(c => {
+      const selectedId = componentSelections[c.component_code];
+      return selectedId && selectedId !== '';
+    });
+
+    return allHaveMaterials && requiredComponents.length > 0;
+  }, [selectedStyleV2, visibleMaterialComponents, componentSelections]);
+
   // =============================================================================
   // HELPERS
   // =============================================================================
@@ -558,23 +573,33 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
 
         // Simple condition parser - handles basic comparisons
         // Examples: "post_spacing == 8", "height > 6", "rails == 3"
+        // Supports: AND/OR keywords, [variable] bracket syntax
         try {
-          // Replace variable names with actual values
           let evalFormula = formula;
+
+          // Convert AND/OR to JavaScript operators (case insensitive)
+          evalFormula = evalFormula.replace(/\bAND\b/gi, '&&');
+          evalFormula = evalFormula.replace(/\bOR\b/gi, '||');
+
+          // Remove brackets around variable names: [height] -> height
+          evalFormula = evalFormula.replace(/\[(\w+)\]/g, '$1');
 
           // Replace standard variables
           evalFormula = evalFormula.replace(/\bpost_spacing\b/g, String(vars.post_spacing || 8));
           evalFormula = evalFormula.replace(/\bheight\b/g, String(height));
           evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
           evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
+          evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${componentSelections.post_type || 'WOOD'}"`);
 
           // Replace product variables
           variablesV2.forEach(v => {
             const val = variableValues[v.variable_code];
             if (val !== undefined) {
+              // For string values, wrap in quotes
+              const replacement = typeof val === 'string' ? `"${val}"` : String(val);
               evalFormula = evalFormula.replace(
                 new RegExp(`\\b${v.variable_code}\\b`, 'g'),
-                String(val)
+                replacement
               );
             }
           });
@@ -755,6 +780,41 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       showError(err.message || 'Failed to save SKU');
     },
   });
+
+  // =============================================================================
+  // AUTO-CALCULATION
+  // =============================================================================
+
+  // Auto-calculate when all required fields are filled
+  const lastAutoCalcKey = useMemo(() => {
+    return JSON.stringify({
+      productType,
+      styleCode,
+      variableValues,
+      componentSelections,
+      testLength,
+      testLines,
+      testGates,
+      concreteType,
+    });
+  }, [productType, styleCode, variableValues, componentSelections, testLength, testLines, testGates, concreteType]);
+
+  const [lastCalcKey, setLastCalcKey] = useState<string>('');
+
+  useEffect(() => {
+    // Auto-calculate when:
+    // 1. All required fields are filled
+    // 2. Not currently calculating
+    // 3. Configuration changed since last calculation
+    if (allRequiredFieldsFilled && !isCalculating && lastAutoCalcKey !== lastCalcKey) {
+      // Small delay to avoid too rapid recalculation
+      const timer = setTimeout(() => {
+        runBOMTest();
+        setLastCalcKey(lastAutoCalcKey);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [allRequiredFieldsFilled, isCalculating, lastAutoCalcKey, lastCalcKey, runBOMTest]);
 
   // =============================================================================
   // RENDER HELPERS

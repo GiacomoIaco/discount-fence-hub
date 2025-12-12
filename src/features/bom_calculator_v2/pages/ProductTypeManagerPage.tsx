@@ -3068,6 +3068,13 @@ function FormulaEditorModal({
     Quantity: 100,
     Lines: 1,
     Gates: 0,
+    height: 6,
+    post_spacing: 8,
+    rail_count: 2,
+    // Pre-calculated values for testing dependent formulas
+    post_count: 14,
+    picket_count: 166,
+    panel_count: 13,
   });
   const [testResult, setTestResult] = useState<number | null>(null);
 
@@ -3078,17 +3085,27 @@ function FormulaEditorModal({
     { code: 'Quantity', name: 'Net Length (ft)', type: 'project' },
     { code: 'Lines', name: 'Number of Lines', type: 'project' },
     { code: 'Gates', name: 'Number of Gates', type: 'project' },
-    { code: 'height', name: 'Height', type: 'project' },
+    { code: 'height', name: 'Height', type: 'sku' },
+    { code: 'post_spacing', name: 'Post Spacing', type: 'sku' },
+    { code: 'rail_count', name: 'Rail Count (variable)', type: 'sku' },
     ...variables.map((v) => ({ code: v.variable_code, name: v.variable_name, type: 'variable' })),
   ];
 
-  // Calculated variables from other formulas
+  // Calculated variables from other formulas (can reference in subsequent formulas)
   const calculatedVariables = [
     { code: 'post_count', name: 'Post Count' },
     { code: 'picket_count', name: 'Picket Count' },
     { code: 'panel_count', name: 'Panel Count' },
     { code: 'board_count', name: 'Board Count' },
-    { code: 'rail_count', name: 'Rail Count' },
+    { code: 'rail_count', name: 'Rail Count (calc)' },
+    { code: 'trim_count', name: 'Trim Count' },
+    { code: 'nailer_count', name: 'Nailer Count' },
+    { code: 'rot_board_count', name: 'Rot Board Count' },
+    { code: 'nails_picket_count', name: 'Nails (Picket)' },
+    { code: 'nails_frame_count', name: 'Nails (Frame)' },
+    { code: 'concrete_sand_count', name: 'Concrete Sand' },
+    { code: 'concrete_portland_count', name: 'Concrete Portland' },
+    { code: 'concrete_quickrock_count', name: 'Concrete Quickrock' },
   ];
 
   const insertVariable = (code: string) => {
@@ -3334,7 +3351,8 @@ function FormulaEditorModal({
               {/* Test Section */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Test Formula</h4>
-                <div className="grid grid-cols-4 gap-2 mb-3">
+                {/* Row 1: Project inputs */}
+                <div className="grid grid-cols-3 gap-2 mb-2">
                   <div>
                     <label className="text-xs text-gray-500">Quantity (ft)</label>
                     <input
@@ -3362,12 +3380,33 @@ function FormulaEditorModal({
                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   </div>
+                </div>
+                {/* Row 2: SKU variables */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
                   <div>
-                    <label className="text-xs text-gray-500">panel_width</label>
+                    <label className="text-xs text-gray-500">height</label>
                     <input
                       type="number"
-                      value={testInputs.panel_width || 6}
-                      onChange={(e) => setTestInputs({ ...testInputs, panel_width: parseFloat(e.target.value) || 6 })}
+                      value={testInputs.height || 6}
+                      onChange={(e) => setTestInputs({ ...testInputs, height: parseFloat(e.target.value) || 6 })}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">post_spacing</label>
+                    <input
+                      type="number"
+                      value={testInputs.post_spacing || 8}
+                      onChange={(e) => setTestInputs({ ...testInputs, post_spacing: parseFloat(e.target.value) || 8 })}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">rail_count</label>
+                    <input
+                      type="number"
+                      value={testInputs.rail_count || 2}
+                      onChange={(e) => setTestInputs({ ...testInputs, rail_count: parseInt(e.target.value) || 2 })}
                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   </div>

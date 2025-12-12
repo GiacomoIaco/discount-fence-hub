@@ -201,20 +201,30 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         const postSpacing = vars.post_spacing as number || styleAdjustments.post_spacing || 8;
         const railCount = vars.rail_count as number || 2;
 
-        // Helper to evaluate conditions
+        // Helper to evaluate conditions - supports AND/OR keywords and [variable] bracket syntax
         const evaluateCondition = (formula: string | null): boolean => {
           if (!formula || formula.trim() === '') return true;
           try {
             let evalFormula = formula;
+
+            // Convert AND/OR to JavaScript operators (case insensitive)
+            evalFormula = evalFormula.replace(/\bAND\b/gi, '&&');
+            evalFormula = evalFormula.replace(/\bOR\b/gi, '||');
+
+            // Remove brackets around variable names: [height] -> height
+            evalFormula = evalFormula.replace(/\[(\w+)\]/g, '$1');
+
+            // Replace standard variables
             evalFormula = evalFormula.replace(/\bpost_spacing\b/g, String(postSpacing));
             evalFormula = evalFormula.replace(/\bheight\b/g, String(sku.height));
             evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
             evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
 
-            // Replace other variables
+            // Replace other variables with proper quoting for strings
             Object.entries(vars).forEach(([key, val]) => {
               if (val !== undefined) {
-                evalFormula = evalFormula.replace(new RegExp(`\\b${key}\\b`, 'g'), String(val));
+                const replacement = typeof val === 'string' ? `"${val}"` : String(val);
+                evalFormula = evalFormula.replace(new RegExp(`\\b${key}\\b`, 'g'), replacement);
               }
             });
 
