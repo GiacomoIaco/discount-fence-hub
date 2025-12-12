@@ -94,6 +94,20 @@ function SortableItemCard({
   isAdmin: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  const copyClaudePrompt = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const prompt = `Let's work on roadmap item ${item.code}: "${item.title}". Review the raw idea and provide analysis and implementation suggestions.`;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setPromptCopied(true);
+      toast.success('Prompt copied!');
+      setTimeout(() => setPromptCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy');
+    }
+  };
   const {
     attributes,
     listeners,
@@ -150,6 +164,15 @@ function SortableItemCard({
               <h3 className="font-medium text-gray-900 cursor-pointer hover:text-blue-600" onClick={onOpen}>
                 {item.title}
               </h3>
+              <button
+                onClick={copyClaudePrompt}
+                className={`p-1 rounded transition-colors ${
+                  promptCopied ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                }`}
+                title="Copy Claude Code prompt"
+              >
+                {promptCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
             </div>
 
             {/* Meta row */}
