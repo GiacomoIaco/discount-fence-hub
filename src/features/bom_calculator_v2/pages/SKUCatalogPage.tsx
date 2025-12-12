@@ -151,7 +151,12 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         .eq('is_active', true);
 
       // Filter visible components based on SKU variables
-      const vars = sku.variables || {};
+      // Include top-level SKU fields (post_type, height) in addition to variables JSONB
+      const vars: Record<string, string | number> = {
+        ...(sku.variables || {}),
+        post_type: sku.post_type,  // Top-level field, not in variables JSONB
+        height: sku.height,        // Top-level field, not in variables JSONB
+      };
       const visibleComponentCodes = (componentAssignments || [])
         .filter(ca => {
           if (!ca.visibility_conditions) return true;
@@ -273,6 +278,8 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
             evalFormula = evalFormula.replace(/\bheight\b/g, String(sku.height));
             evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
             evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
+            // IMPORTANT: post_type is stored at SKU top-level, not in variables
+            evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${sku.post_type}"`);
 
             // Replace other variables with proper quoting for strings
             Object.entries(vars).forEach(([key, val]) => {
