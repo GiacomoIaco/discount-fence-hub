@@ -1,0 +1,347 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../../../lib/supabase';
+import type { ServiceRequest, RequestFormData, RequestStatus } from '../types';
+import { showSuccess, showError } from '../../../lib/toast';
+
+interface RequestFilters {
+  status?: RequestStatus | RequestStatus[];
+  clientId?: string;
+  assignedRepId?: string;
+  territoryId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export function useRequests(filters?: RequestFilters) {
+  return useQuery({
+    queryKey: ['service_requests', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('service_requests')
+        .select(`
+          *,
+          client:clients(id, name),
+          community:communities(id, name),
+          property:properties(id, address_line1),
+          assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name),
+          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name)
+        `)
+        .order('created_at', { ascending: false });
+
+      // Apply filters
+      if (filters?.status) {
+        if (Array.isArray(filters.status)) {
+          query = query.in('status', filters.status);
+        } else {
+          query = query.eq('status', filters.status);
+        }
+      }
+
+      if (filters?.clientId) {
+        query = query.eq('client_id', filters.clientId);
+      }
+
+      if (filters?.assignedRepId) {
+        query = query.eq('assigned_rep_id', filters.assignedRepId);
+      }
+
+      if (filters?.territoryId) {
+        query = query.eq('territory_id', filters.territoryId);
+      }
+
+      if (filters?.dateFrom) {
+        query = query.gte('created_at', filters.dateFrom);
+      }
+
+      if (filters?.dateTo) {
+        query = query.lte('created_at', filters.dateTo);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return data as ServiceRequest[];
+    },
+  });
+}
+
+export function useRequest(id: string | undefined) {
+  return useQuery({
+    queryKey: ['service_requests', id],
+    queryFn: async () => {
+      if (!id) return null;
+
+      const { data, error } = await supabase
+        .from('service_requests')
+        .select(`
+          *,
+          client:clients(id, name, code),
+          community:communities(id, name),
+          property:properties(id, address_line1, lot_number),
+          assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name, email, phone),
+          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name, email, phone),
+          territory:territories(id, name, code)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data as ServiceRequest;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: RequestFormData) => {
+      const { data: result, error } = await supabase
+        .from('service_requests')
+        .insert({
+          // Customer
+          client_id: data.client_id || null,
+          community_id: data.community_id || null,
+          property_id: data.property_id || null,
+          // Contact
+          contact_name: data.contact_name?.trim() || null,
+          contact_email: data.contact_email?.trim() || null,
+          contact_phone: data.contact_phone?.trim() || null,
+          // Address
+          address_line1: data.address_line1?.trim() || null,
+          city: data.city?.trim() || null,
+          state: data.state || 'TX',
+          zip: data.zip?.trim() || null,
+          // Details
+          source: data.source,
+          product_type: data.product_type || null,
+          linear_feet_estimate: data.linear_feet_estimate ? parseFloat(data.linear_feet_estimate) : null,
+          description: data.description?.trim() || null,
+          notes: data.notes?.trim() || null,
+          // Assessment
+          requires_assessment: data.requires_assessment,
+          assessment_scheduled_at: data.assessment_scheduled_at || null,
+          // Assignment
+          assigned_rep_id: data.assigned_rep_id || null,
+          territory_id: data.territory_id || null,
+          priority: data.priority,
+          // Status
+          status: data.requires_assessment && data.assessment_scheduled_at
+            ? 'assessment_scheduled'
+            : 'pending',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      showSuccess(`Request ${data.request_number} created`);
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to create request');
+    },
+  });
+}
+
+export function useUpdateRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<RequestFormData> }) => {
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only include fields that are provided
+      if (data.client_id !== undefined) updates.client_id = data.client_id || null;
+      if (data.community_id !== undefined) updates.community_id = data.community_id || null;
+      if (data.property_id !== undefined) updates.property_id = data.property_id || null;
+      if (data.contact_name !== undefined) updates.contact_name = data.contact_name?.trim() || null;
+      if (data.contact_email !== undefined) updates.contact_email = data.contact_email?.trim() || null;
+      if (data.contact_phone !== undefined) updates.contact_phone = data.contact_phone?.trim() || null;
+      if (data.address_line1 !== undefined) updates.address_line1 = data.address_line1?.trim() || null;
+      if (data.city !== undefined) updates.city = data.city?.trim() || null;
+      if (data.state !== undefined) updates.state = data.state;
+      if (data.zip !== undefined) updates.zip = data.zip?.trim() || null;
+      if (data.source !== undefined) updates.source = data.source;
+      if (data.product_type !== undefined) updates.product_type = data.product_type || null;
+      if (data.linear_feet_estimate !== undefined) {
+        updates.linear_feet_estimate = data.linear_feet_estimate ? parseFloat(data.linear_feet_estimate) : null;
+      }
+      if (data.description !== undefined) updates.description = data.description?.trim() || null;
+      if (data.notes !== undefined) updates.notes = data.notes?.trim() || null;
+      if (data.requires_assessment !== undefined) updates.requires_assessment = data.requires_assessment;
+      if (data.assessment_scheduled_at !== undefined) updates.assessment_scheduled_at = data.assessment_scheduled_at || null;
+      if (data.assigned_rep_id !== undefined) updates.assigned_rep_id = data.assigned_rep_id || null;
+      if (data.territory_id !== undefined) updates.territory_id = data.territory_id || null;
+      if (data.priority !== undefined) updates.priority = data.priority;
+
+      const { error } = await supabase
+        .from('service_requests')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      showSuccess('Request updated');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to update request');
+    },
+  });
+}
+
+export function useUpdateRequestStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      notes,
+    }: {
+      id: string;
+      status: RequestStatus;
+      notes?: string;
+    }) => {
+      // Get current status for history
+      const { data: current } = await supabase
+        .from('service_requests')
+        .select('status')
+        .eq('id', id)
+        .single();
+
+      // Update status
+      const { error: updateError } = await supabase
+        .from('service_requests')
+        .update({
+          status,
+          status_changed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      // Record in history
+      const { error: historyError } = await supabase
+        .from('fsm_status_history')
+        .insert({
+          entity_type: 'request',
+          entity_id: id,
+          from_status: current?.status || null,
+          to_status: status,
+          notes: notes || null,
+        });
+
+      if (historyError) {
+        console.warn('Failed to record status history:', historyError);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      showSuccess('Status updated');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to update status');
+    },
+  });
+}
+
+export function useScheduleAssessment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      scheduledAt,
+      repId,
+    }: {
+      id: string;
+      scheduledAt: string;
+      repId?: string;
+    }) => {
+      const { error } = await supabase
+        .from('service_requests')
+        .update({
+          assessment_scheduled_at: scheduledAt,
+          assessment_rep_id: repId || null,
+          status: 'assessment_scheduled',
+          status_changed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      showSuccess('Assessment scheduled');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to schedule assessment');
+    },
+  });
+}
+
+export function useCompleteAssessment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      notes,
+    }: {
+      id: string;
+      notes?: string;
+    }) => {
+      const { error } = await supabase
+        .from('service_requests')
+        .update({
+          assessment_completed_at: new Date().toISOString(),
+          assessment_notes: notes || null,
+          status: 'assessment_completed',
+          status_changed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      showSuccess('Assessment completed');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to complete assessment');
+    },
+  });
+}
+
+export function useDeleteRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('service_requests')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      showSuccess('Request deleted');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to delete request');
+    },
+  });
+}
