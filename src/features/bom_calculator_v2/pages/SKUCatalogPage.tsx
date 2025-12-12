@@ -139,11 +139,37 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         materialAttrs
       );
 
-      // Execute all formulas
+      // Fetch component assignments with visibility conditions
+      const { data: componentAssignments } = await supabase
+        .from('product_type_components_v2')
+        .select(`
+          component_type_id,
+          visibility_conditions,
+          component_type:component_types_v2(code)
+        `)
+        .eq('product_type_id', sku.product_type_id)
+        .eq('is_active', true);
+
+      // Filter visible components based on SKU variables
+      const vars = sku.variables || {};
+      const visibleComponentCodes = (componentAssignments || [])
+        .filter(ca => {
+          if (!ca.visibility_conditions) return true;
+          // Check each visibility condition against SKU variables
+          return Object.entries(ca.visibility_conditions as Record<string, string[]>).every(([varCode, allowedValues]) => {
+            const currentValue = String(vars[varCode] || '');
+            return allowedValues.includes(currentValue);
+          });
+        })
+        .map(ca => (ca.component_type as unknown as { code: string })?.code)
+        .filter(Boolean);
+
+      // Execute formulas only for visible components (matching SKU Builder behavior)
       const results = await interpreter.executeAllFormulas(
         sku.product_type_id,
         sku.product_style_id,
-        context
+        context,
+        visibleComponentCodes.length > 0 ? visibleComponentCodes : undefined
       );
 
       // Fetch material prices for components
