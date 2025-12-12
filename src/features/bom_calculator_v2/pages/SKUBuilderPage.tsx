@@ -514,11 +514,16 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         materialAttrs
       );
 
-      // Execute formulas
+      // Only calculate formulas for visible material components
+      // This excludes components like steel_post_cap when post_type is WOOD
+      const visibleComponentCodes = visibleMaterialComponents.map(c => c.component_code);
+
+      // Execute formulas only for visible components
       const results = await interpreter.executeAllFormulas(
         selectedProductTypeV2.id,
         selectedStyleV2.id,
-        context
+        context,
+        visibleComponentCodes  // Pass filter to only calculate visible components
       );
 
       // Apply project-level rounding
@@ -529,29 +534,34 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       let labCost = 0;
 
       // Enrich material results with costs
+      // Only include components that have a material selected
       const enrichedResults = await Promise.all(roundedResults.map(async (r) => {
         const comp = assignedComponentsV2.find(c => c.component_code === r.component_code);
         const materialSku = components[r.component_code];
-
-        let unitCost = 0;
 
         // Skip labor components from old system - we calculate labor separately now
         if (comp?.is_labor) {
           return null; // Filter out old labor components
         }
 
-        // Material component - look up cost from materials
-        if (materialSku) {
-          const mat = materials.find(m => m.material_sku === materialSku);
-          if (mat) {
-            unitCost = mat.unit_cost;
-            matCost += r.rounded_value * unitCost;
-          }
+        // Skip components that have no material selected (optional items not chosen)
+        if (!materialSku) {
+          return null;
         }
+
+        // Look up the actual material to get name and cost
+        const mat = materials.find(m => m.material_sku === materialSku);
+        if (!mat) {
+          return null; // Material not found, skip
+        }
+
+        const unitCost = mat.unit_cost;
+        matCost += r.rounded_value * unitCost;
 
         return {
           ...r,
-          component_name: comp?.component_name || r.component_code,
+          // Show the actual MATERIAL name, not the component type name
+          component_name: mat.material_name || mat.material_sku,
           unit_cost: unitCost,
           total_cost: r.rounded_value * unitCost,
           is_labor: false,
@@ -559,7 +569,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         };
       }));
 
-      // Filter out nulls (old labor components)
+      // Filter out nulls (labor components, unselected optionals, missing materials)
       const materialResults = enrichedResults.filter((r): r is EnrichedFormulaResult => r !== null);
 
       // =============================================================================
@@ -705,7 +715,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   }, [
     selectedProductTypeV2, selectedStyleV2, componentSelections, variableValues,
     height, railCount, testLength, testLines, testGates, assignedComponentsV2, getMaterialSku,
-    concreteType, materials, laborGroupsV2, laborGroupEligibilityV2, laborRates, variablesV2
+    concreteType, materials, laborGroupsV2, laborGroupEligibilityV2, laborRates, variablesV2,
+    visibleMaterialComponents
   ]);
 
   // =============================================================================
