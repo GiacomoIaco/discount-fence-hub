@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -45,6 +45,7 @@ const OperationsQueue = lazy(() => import('./features/requests').then(module => 
 const RequestDetail = lazy(() => import('./features/requests').then(module => ({ default: module.RequestDetail })));
 const Login = lazy(() => import('./components/auth/Login'));
 const BOMCalculatorHub = lazy(() => import('./features/bom_calculator/BOMCalculatorHub'));
+const BOMCalculatorHub2 = lazy(() => import('./features/bom_calculator_v2/BOMCalculatorHub2'));
 const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
 const MyTodos = lazy(() => import('./features/my-todos').then(m => ({ default: m.MyTodos })));
 const RoadmapHub = lazy(() => import('./features/roadmap/RoadmapHub'));
@@ -62,7 +63,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -97,7 +98,7 @@ function App() {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -239,6 +240,7 @@ function App() {
       { id: 'stain-calculator' as Section, menuId: 'stain-calculator', name: 'Pre-Stain Calculator', icon: DollarSign },
       { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator },
+      { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
       { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
       { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, menuId: 'sales-resources', name: 'Sales Resources', icon: BookOpen },
@@ -463,6 +465,26 @@ function App() {
                 userId={user?.id}
                 userName={profile?.full_name}
                 startOnMobile={userRole === 'yard'}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        );
+      }
+      // Redirect non-authorized users
+      setActiveSection('home');
+      return null;
+    }
+    if (activeSection === 'bom-calculator-v2') {
+      // V2 Calculator - operations and admin only (desktop-only)
+      if (userRole === 'operations' || userRole === 'admin') {
+        return (
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <BOMCalculatorHub2
+                onBack={() => setActiveSection('home')}
+                userRole={userRole}
+                userId={user?.id}
+                userName={profile?.full_name}
               />
             </Suspense>
           </ErrorBoundary>
