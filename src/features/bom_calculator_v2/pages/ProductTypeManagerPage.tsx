@@ -22,6 +22,7 @@ import {
 import { supabase } from '../../../lib/supabase';
 import LaborTabV2 from '../components/LaborTabV2';
 import FormulaAIAssist from '../components/FormulaAIAssist';
+import ProductAIAssistant from '../components/ProductAIAssistant';
 import {
   useProductTypesV2,
   useProductStylesV2,
@@ -287,8 +288,172 @@ export default function ProductTypeManagerPage() {
           }}
         />
       )}
+
+      {/* AI Assistant - Floating Panel */}
+      <ProductAIAssistant
+        context={{
+          currentTab: activeTab,
+          selectedProductType: selectedType ? {
+            id: selectedType.id,
+            code: selectedType.code,
+            name: selectedType.name,
+          } : undefined,
+          existingStyles: styles.map(s => ({ code: s.code, name: s.name })),
+          existingVariables: variables.map(v => ({
+            code: v.variable_code,
+            name: v.variable_name,
+            type: v.variable_type,
+          })),
+          existingComponents: componentTypes.map(c => ({
+            code: c.code,
+            name: c.name,
+            is_assigned: false, // Will be updated when we have assignment data
+          })),
+          existingFormulas: formulas.map(f => ({
+            component_code: componentTypes.find(c => c.id === f.component_type_id)?.code || '',
+            has_formula: !!f.formula,
+          })),
+        }}
+        onExecutePlan={async (steps) => {
+          // Execute multi-step plan
+          for (const step of steps) {
+            await executeAIStep(step, selectedTypeId, queryClient, loadFormulas);
+          }
+        }}
+        onExecuteSingle={async (entity, data) => {
+          // Execute single item
+          await executeAIStep(
+            { action: 'create', entity: entity as any, data, description: '' },
+            selectedTypeId,
+            queryClient,
+            loadFormulas
+          );
+        }}
+      />
     </div>
   );
+}
+
+// Execute a single AI-generated step
+async function executeAIStep(
+  step: { action: string; entity: string; data: Record<string, any>; description: string },
+  selectedTypeId: string | null,
+  queryClient: any,
+  loadFormulas: (typeId: string) => void
+) {
+  const { entity, data } = step;
+
+  switch (entity) {
+    case 'product_type': {
+      const { error } = await supabase.from('product_types_v2').insert({
+        code: data.code,
+        name: data.name,
+        default_post_spacing: data.default_post_spacing || 8,
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['product-types-v2'] });
+      break;
+    }
+
+    case 'style': {
+      if (!selectedTypeId) throw new Error('No product type selected');
+      const { error } = await supabase.from('product_styles_v2').insert({
+        product_type_id: selectedTypeId,
+        code: data.code,
+        name: data.name,
+        formula_adjustments: data.formula_adjustments || {},
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['product-styles-v2', selectedTypeId] });
+      break;
+    }
+
+    case 'variable': {
+      if (!selectedTypeId) throw new Error('No product type selected');
+      const { error } = await supabase.from('product_variables_v2').insert({
+        product_type_id: selectedTypeId,
+        variable_code: data.variable_code,
+        variable_name: data.variable_name,
+        variable_type: data.variable_type || 'decimal',
+        default_value: data.default_value?.toString() || null,
+        allowed_values: data.allowed_values || null,
+        unit: data.unit || null,
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['product-variables-v2', selectedTypeId] });
+      break;
+    }
+
+    case 'component': {
+      if (!selectedTypeId) throw new Error('No product type selected');
+      // Find component type by code
+      const { data: compType } = await supabase
+        .from('component_types_v2')
+        .select('id')
+        .eq('code', data.component_code)
+        .single();
+
+      if (!compType) throw new Error(`Component not found: ${data.component_code}`);
+
+      // Check if already assigned
+      const { data: existing } = await supabase
+        .from('product_type_components_v2')
+        .select('id')
+        .eq('product_type_id', selectedTypeId)
+        .eq('component_type_id', compType.id)
+        .single();
+
+      if (!existing) {
+        const { error } = await supabase.from('product_type_components_v2').insert({
+          product_type_id: selectedTypeId,
+          component_type_id: compType.id,
+        });
+        if (error) throw error;
+      }
+      queryClient.invalidateQueries({ queryKey: ['product-type-components-full', selectedTypeId] });
+      break;
+    }
+
+    case 'formula': {
+      if (!selectedTypeId) throw new Error('No product type selected');
+      // Find component type by code
+      const { data: compType } = await supabase
+        .from('component_types_v2')
+        .select('id')
+        .eq('code', data.component_code)
+        .single();
+
+      if (!compType) throw new Error(`Component not found: ${data.component_code}`);
+
+      // Find style by code if specified
+      let styleId = null;
+      if (data.style_code) {
+        const { data: style } = await supabase
+          .from('product_styles_v2')
+          .select('id')
+          .eq('product_type_id', selectedTypeId)
+          .eq('code', data.style_code)
+          .single();
+        styleId = style?.id;
+      }
+
+      const { error } = await supabase.from('formula_templates_v2').insert({
+        product_type_id: selectedTypeId,
+        product_style_id: styleId,
+        component_type_id: compType.id,
+        formula: data.formula,
+        plain_english: data.plain_english || null,
+        rounding_level: data.rounding_level || 'sku',
+        priority: styleId ? 10 : 0,
+      });
+      if (error) throw error;
+      loadFormulas(selectedTypeId);
+      break;
+    }
+
+    default:
+      console.warn(`Unknown entity type: ${entity}`);
+  }
 }
 
 // =============================================================================
