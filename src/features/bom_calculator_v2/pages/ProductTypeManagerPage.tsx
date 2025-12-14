@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import LaborTabV2 from '../components/LaborTabV2';
+import FormulaAIAssist from '../components/FormulaAIAssist';
 import {
   useProductTypesV2,
   useProductStylesV2,
@@ -3344,6 +3345,24 @@ function FormulaEditorModal({
 
             {/* Right: Formula Editor */}
             <div className="col-span-2 space-y-4">
+              {/* AI Formula Assistant */}
+              <FormulaAIAssist
+                productType={productTypeId}
+                componentType={component?.code || ''}
+                availableVariables={[
+                  ...availableVariables.map(v => v.code),
+                  ...calculatedVariables.map(v => v.code),
+                ]}
+                onFormulaGenerated={(formula, plainEnglish) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    formula,
+                    plain_english: plainEnglish,
+                  }));
+                }}
+                existingFormula={formData.formula || undefined}
+              />
+
               {error && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
