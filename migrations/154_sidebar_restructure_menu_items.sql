@@ -132,8 +132,8 @@ UPDATE menu_visibility
 SET show_on_desktop = false
 WHERE menu_id IN ('presentation', 'sales-coach', 'photo-gallery', 'stain-calculator', 'sales-resources');
 
--- 6. Hide old Requests from desktop sidebar (now in Projects Hub)
--- Keep for mobile where it's still useful as standalone
+-- 6. Keep Requests visible on desktop (under Ops Hub V2)
+-- Update sort_order to place it after bom-calculator-v2
 UPDATE menu_visibility
-SET show_on_desktop = false
+SET sort_order = 16
 WHERE menu_id = 'requests';

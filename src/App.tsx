@@ -243,22 +243,22 @@ function App() {
       { id: 'projects-hub' as Section, menuId: 'projects-hub', name: 'Projects', icon: Briefcase },
       { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator },
       { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
+      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
+      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo },
 
       // Sales Section
       { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp, separator: true },
       { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
 
       // Admin/Management Section
-      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
-      { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target },
+      { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target, separator: true },
       { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
       { id: 'survey-hub' as Section, menuId: 'survey-hub', name: 'Surveys', icon: ClipboardList },
       { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
       { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
 
       // Legacy items (kept for backwards compatibility, hidden from new UI)
-      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'presentation' as Section, menuId: 'presentation', name: 'Client Presentation', icon: BookOpen },
       { id: 'sales-coach' as Section, menuId: 'sales-coach', name: 'AI Sales Coach', icon: BookOpen },
       { id: 'photo-gallery' as Section, menuId: 'photo-gallery', name: 'Photo Gallery', icon: Image },
