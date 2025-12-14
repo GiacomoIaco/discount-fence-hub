@@ -3909,56 +3909,56 @@ interface ProductKnowledge {
   last_ai_update: string | null;
 }
 
-// Render markdown-like syntax: **bold** and ==highlight==
-function renderFormattedText(text: string): React.ReactNode {
-  // Split by formatting patterns while preserving them
-  const parts: React.ReactNode[] = [];
-  let remaining = text;
-  let key = 0;
-
-  while (remaining.length > 0) {
-    // Look for **bold** or ==highlight==
-    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
-    const highlightMatch = remaining.match(/==(.+?)==/);
-
-    // Find which comes first
-    const boldIndex = boldMatch ? remaining.indexOf(boldMatch[0]) : Infinity;
-    const highlightIndex = highlightMatch ? remaining.indexOf(highlightMatch[0]) : Infinity;
-
-    if (boldIndex === Infinity && highlightIndex === Infinity) {
-      // No more formatting, add remaining text
-      parts.push(remaining);
-      break;
-    }
-
-    if (boldIndex <= highlightIndex && boldMatch) {
-      // Bold comes first
-      if (boldIndex > 0) {
-        parts.push(remaining.slice(0, boldIndex));
-      }
-      parts.push(<strong key={key++} className="font-semibold text-gray-900">{boldMatch[1]}</strong>);
-      remaining = remaining.slice(boldIndex + boldMatch[0].length);
-    } else if (highlightMatch) {
-      // Highlight comes first
-      if (highlightIndex > 0) {
-        parts.push(remaining.slice(0, highlightIndex));
-      }
-      parts.push(<mark key={key++} className="bg-yellow-200 px-0.5 rounded">{highlightMatch[1]}</mark>);
-      remaining = remaining.slice(highlightIndex + highlightMatch[0].length);
-    }
-  }
-
-  return parts;
-}
-
-// Component to render text with formatting, preserving line breaks
+// Component to render text with **bold** and ==highlight== formatting
 function FormattedText({ text }: { text: string }) {
+  // Parse and render formatted text
+  const renderLine = (line: string, lineKey: number): React.ReactNode => {
+    const parts: React.ReactNode[] = [];
+    // Combined regex to match **bold** or ==highlight==
+    const regex = /(\*\*(.+?)\*\*)|(==(.+?)==)/g;
+    let lastIndex = 0;
+    let match;
+    let partKey = 0;
+
+    while ((match = regex.exec(line)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(<span key={`${lineKey}-${partKey++}`}>{line.slice(lastIndex, match.index)}</span>);
+      }
+
+      if (match[1]) {
+        // Bold match: **text**
+        parts.push(
+          <strong key={`${lineKey}-${partKey++}`} className="font-bold text-gray-900">
+            {match[2]}
+          </strong>
+        );
+      } else if (match[3]) {
+        // Highlight match: ==text==
+        parts.push(
+          <mark key={`${lineKey}-${partKey++}`} className="bg-yellow-200 px-0.5 rounded">
+            {match[4]}
+          </mark>
+        );
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text after last match
+    if (lastIndex < line.length) {
+      parts.push(<span key={`${lineKey}-${partKey++}`}>{line.slice(lastIndex)}</span>);
+    }
+
+    return parts.length > 0 ? parts : line;
+  };
+
   const lines = text.split('\n');
   return (
     <>
       {lines.map((line, i) => (
         <span key={i}>
-          {renderFormattedText(line)}
+          {renderLine(line, i)}
           {i < lines.length - 1 && <br />}
         </span>
       ))}
@@ -3975,7 +3975,7 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Apply formatting to selected text
+  // Apply formatting to selected text (toggles on/off)
   const applyFormatting = (format: 'bold' | 'highlight') => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -3987,14 +3987,31 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
     if (selectedText.length === 0) return; // No selection
 
     const wrapper = format === 'bold' ? '**' : '==';
-    const newValue = editValue.slice(0, start) + wrapper + selectedText + wrapper + editValue.slice(end);
-    setEditValue(newValue);
+    const wrapperLen = wrapper.length;
 
-    // Restore cursor position after the formatted text
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start, end + wrapper.length * 2);
-    }, 0);
+    // Check if selection is already wrapped (toggle off)
+    const beforeStart = Math.max(0, start - wrapperLen);
+    const afterEnd = Math.min(editValue.length, end + wrapperLen);
+    const textBefore = editValue.slice(beforeStart, start);
+    const textAfter = editValue.slice(end, afterEnd);
+
+    if (textBefore === wrapper && textAfter === wrapper) {
+      // Already wrapped - remove the formatting
+      const newValue = editValue.slice(0, beforeStart) + selectedText + editValue.slice(afterEnd);
+      setEditValue(newValue);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(beforeStart, beforeStart + selectedText.length);
+      }, 0);
+    } else {
+      // Not wrapped - add formatting
+      const newValue = editValue.slice(0, start) + wrapper + selectedText + wrapper + editValue.slice(end);
+      setEditValue(newValue);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + wrapperLen, end + wrapperLen);
+      }, 0);
+    }
   };
 
   const toggleCollapse = (sectionKey: string) => {
