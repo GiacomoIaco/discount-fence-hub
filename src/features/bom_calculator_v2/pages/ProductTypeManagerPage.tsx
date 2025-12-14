@@ -11,13 +11,13 @@
  * O-026: The "game changer" - database-driven product configuration
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Save, Trash2, X, ChevronDown, ChevronRight, Edit2, Copy,
   AlertCircle, Layers, Settings, Variable,
   Box, Calculator, Search, Download, ArrowUp, ArrowDown,
-  Filter, Check, Star, Link2, BookOpen
+  Filter, Check, Star, Link2, BookOpen, Bold, Highlighter
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import LaborTabV2 from '../components/LaborTabV2';
@@ -3909,6 +3909,63 @@ interface ProductKnowledge {
   last_ai_update: string | null;
 }
 
+// Render markdown-like syntax: **bold** and ==highlight==
+function renderFormattedText(text: string): React.ReactNode {
+  // Split by formatting patterns while preserving them
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Look for **bold** or ==highlight==
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    const highlightMatch = remaining.match(/==(.+?)==/);
+
+    // Find which comes first
+    const boldIndex = boldMatch ? remaining.indexOf(boldMatch[0]) : Infinity;
+    const highlightIndex = highlightMatch ? remaining.indexOf(highlightMatch[0]) : Infinity;
+
+    if (boldIndex === Infinity && highlightIndex === Infinity) {
+      // No more formatting, add remaining text
+      parts.push(remaining);
+      break;
+    }
+
+    if (boldIndex <= highlightIndex && boldMatch) {
+      // Bold comes first
+      if (boldIndex > 0) {
+        parts.push(remaining.slice(0, boldIndex));
+      }
+      parts.push(<strong key={key++} className="font-semibold text-gray-900">{boldMatch[1]}</strong>);
+      remaining = remaining.slice(boldIndex + boldMatch[0].length);
+    } else if (highlightMatch) {
+      // Highlight comes first
+      if (highlightIndex > 0) {
+        parts.push(remaining.slice(0, highlightIndex));
+      }
+      parts.push(<mark key={key++} className="bg-yellow-200 px-0.5 rounded">{highlightMatch[1]}</mark>);
+      remaining = remaining.slice(highlightIndex + highlightMatch[0].length);
+    }
+  }
+
+  return parts;
+}
+
+// Component to render text with formatting, preserving line breaks
+function FormattedText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span key={i}>
+          {renderFormattedText(line)}
+          {i < lines.length - 1 && <br />}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
   const [knowledge, setKnowledge] = useState<ProductKnowledge | null>(null);
   const [loading, setLoading] = useState(true);
@@ -3916,6 +3973,29 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Apply formatting to selected text
+  const applyFormatting = (format: 'bold' | 'highlight') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = editValue.slice(start, end);
+
+    if (selectedText.length === 0) return; // No selection
+
+    const wrapper = format === 'bold' ? '**' : '==';
+    const newValue = editValue.slice(0, start) + wrapper + selectedText + wrapper + editValue.slice(end);
+    setEditValue(newValue);
+
+    // Restore cursor position after the formatted text
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start, end + wrapper.length * 2);
+    }, 0);
+  };
 
   const toggleCollapse = (sectionKey: string) => {
     setCollapsedSections(prev => {
@@ -4023,8 +4103,8 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
         )}
       </div>
 
-      {/* Knowledge Sections - 2 Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Knowledge Sections - 2 Column Grid with independent heights */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {sections.map((section, index) => {
           const value = knowledge?.[section.key as keyof ProductKnowledge] as string | null;
           const isEditing = editingSection === section.key;
@@ -4076,36 +4156,67 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
                 <div className="p-4">
                   {isEditing ? (
                     <div className="space-y-3">
+                      {/* Formatting Toolbar */}
+                      <div className="flex items-center gap-1 pb-2 border-b border-gray-200">
+                        <span className="text-xs text-gray-500 mr-2">Format:</span>
+                        <button
+                          type="button"
+                          onClick={() => applyFormatting('bold')}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300"
+                          title="Bold (select text first)"
+                        >
+                          <Bold className="w-3.5 h-3.5" />
+                          Bold
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyFormatting('highlight')}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-yellow-100 hover:bg-yellow-200 rounded border border-yellow-300"
+                          title="Highlight (select text first)"
+                        >
+                          <Highlighter className="w-3.5 h-3.5" />
+                          Highlight
+                        </button>
+                        <span className="text-xs text-gray-400 ml-2">Select text, then click button</span>
+                      </div>
                       <textarea
+                        ref={textareaRef}
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         rows={10}
                         placeholder={`Add ${section.label.toLowerCase()} information...`}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono"
                       />
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={handleCancel}
-                          className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => handleSave(section.key)}
-                          disabled={saving}
-                          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-                        >
-                          {saving ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Save className="w-4 h-4" />
-                          )}
-                          Save
-                        </button>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">
+                          Tip: **text** = bold, ==text== = highlight
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleCancel}
+                            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleSave(section.key)}
+                            disabled={saving}
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                          >
+                            {saving ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Save className="w-4 h-4" />
+                            )}
+                            Save
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : value ? (
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{value}</div>
+                    <div className="text-sm text-gray-700 leading-relaxed">
+                      <FormattedText text={value} />
+                    </div>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No information added yet</p>
                   )}
