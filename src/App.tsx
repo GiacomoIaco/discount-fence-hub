@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -67,7 +67,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub' | 'inventory';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -241,14 +241,17 @@ function App() {
       { id: 'schedule' as Section, menuId: 'schedule', name: 'Schedule', icon: Calendar },
       { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Clients', icon: Users },
       { id: 'projects-hub' as Section, menuId: 'projects-hub', name: 'Projects', icon: Briefcase },
-      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator },
-      { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
-      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
-      { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
-      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo },
 
-      // Sales Section
-      { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp, separator: true },
+      // Operations Section
+      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator, separator: true },
+      { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
+      { id: 'inventory' as Section, menuId: 'inventory', name: 'Inventory', icon: Package, disabled: true },
+      { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
+      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
+
+      // Personal/Sales Section
+      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
+      { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp },
       { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
 
       // Admin/Management Section

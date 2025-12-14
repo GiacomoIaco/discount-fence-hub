@@ -3,7 +3,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import CreateDropdown from '../components/CreateDropdown';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub' | 'inventory';
 
 interface NavigationItem {
   id: Section;
@@ -12,6 +12,7 @@ interface NavigationItem {
   icon: React.ComponentType<{ className?: string }>;
   badge?: number;
   separator?: boolean;
+  disabled?: boolean;
 }
 
 interface SidebarProps {
@@ -100,20 +101,29 @@ export default function Sidebar({
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
+          const isDisabled = item.disabled;
           return (
             <div key={item.id}>
               {item.separator && <div className="my-2 border-t border-gray-700"></div>}
               <button
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => !isDisabled && setActiveSection(item.id)}
+                disabled={isDisabled}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  isDisabled
+                    ? 'text-gray-600 cursor-not-allowed'
+                    : isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                 }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {sidebarOpen && (
                   <span className="font-medium text-sm flex-1 text-left">{item.name}</span>
                 )}
-                {item.badge && item.badge > 0 && (
+                {isDisabled && sidebarOpen && (
+                  <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Soon</span>
+                )}
+                {!isDisabled && item.badge && item.badge > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
