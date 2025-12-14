@@ -17,7 +17,7 @@ import {
   Plus, Save, Trash2, X, ChevronDown, ChevronRight, Edit2, Copy,
   AlertCircle, Layers, Settings, Variable,
   Box, Calculator, Search, Download, ArrowUp, ArrowDown,
-  Filter, Check, Star, Link2
+  Filter, Check, Star, Link2, BookOpen
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import LaborTabV2 from '../components/LaborTabV2';
@@ -53,7 +53,7 @@ interface FormulaTemplateV2 {
 }
 
 // Tab types - Materials merged into Components, Labor separate
-type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor';
+type ManagerTab = 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor' | 'knowledge';
 
 export default function ProductTypeManagerPage() {
   const queryClient = useQueryClient();
@@ -74,6 +74,15 @@ export default function ProductTypeManagerPage() {
   const [formulas, setFormulas] = useState<FormulaTemplateV2[]>([]);
   const [loadingFormulas, setLoadingFormulas] = useState(false);
 
+  // Knowledge for AI context
+  const [knowledge, setKnowledge] = useState<{
+    overview?: string;
+    components_guide?: string;
+    formula_logic?: string;
+    style_differences?: string;
+    installation_notes?: string;
+  } | null>(null);
+
   // Auto-select first product type on load
   useEffect(() => {
     if (productTypes.length > 0 && !selectedTypeId) {
@@ -87,8 +96,29 @@ export default function ProductTypeManagerPage() {
   useEffect(() => {
     if (selectedTypeId) {
       loadFormulas(selectedTypeId);
+      loadKnowledge(selectedTypeId);
     }
   }, [selectedTypeId]);
+
+  const loadKnowledge = async (typeId: string) => {
+    const { data } = await supabase
+      .from('product_type_knowledge')
+      .select('overview, components_guide, formula_logic, style_differences, installation_notes')
+      .eq('product_type_id', typeId)
+      .single();
+
+    if (data) {
+      setKnowledge({
+        overview: data.overview || undefined,
+        components_guide: data.components_guide || undefined,
+        formula_logic: data.formula_logic || undefined,
+        style_differences: data.style_differences || undefined,
+        installation_notes: data.installation_notes || undefined,
+      });
+    } else {
+      setKnowledge(null);
+    }
+  };
 
   const loadFormulas = async (typeId: string) => {
     setLoadingFormulas(true);
@@ -214,6 +244,12 @@ export default function ProductTypeManagerPage() {
                     isActive={activeTab === 'labor'}
                     onClick={() => setActiveTab('labor')}
                   />
+                  <TabButton
+                    label="Knowledge"
+                    icon={<BookOpen className="w-4 h-4" />}
+                    isActive={activeTab === 'knowledge'}
+                    onClick={() => setActiveTab('knowledge')}
+                  />
                 </nav>
               </div>
 
@@ -259,6 +295,11 @@ export default function ProductTypeManagerPage() {
                   <LaborTabV2
                     productType={selectedType}
                     styles={styles}
+                  />
+                )}
+                {activeTab === 'knowledge' && (
+                  <KnowledgeTab
+                    productType={selectedType}
                   />
                 )}
               </div>
@@ -313,6 +354,7 @@ export default function ProductTypeManagerPage() {
             component_code: componentTypes.find(c => c.id === f.component_type_id)?.code || '',
             has_formula: !!f.formula,
           })),
+          knowledge: knowledge || undefined,
         }}
         onExecutePlan={async (steps) => {
           // Execute multi-step plan
@@ -3846,6 +3888,214 @@ function FormulaEditorModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// KNOWLEDGE TAB
+// =============================================================================
+
+interface ProductKnowledge {
+  id: string;
+  product_type_id: string;
+  overview: string | null;
+  components_guide: string | null;
+  formula_logic: string | null;
+  style_differences: string | null;
+  installation_notes: string | null;
+  ai_history: Array<{ timestamp: string; action: string; notes: string }>;
+  updated_at: string;
+  last_ai_update: string | null;
+}
+
+function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
+  const [knowledge, setKnowledge] = useState<ProductKnowledge | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  // Fetch knowledge on mount
+  useEffect(() => {
+    async function fetchKnowledge() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('product_type_knowledge')
+        .select('*')
+        .eq('product_type_id', productType.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching knowledge:', error);
+      }
+
+      if (data) {
+        setKnowledge(data as ProductKnowledge);
+      } else {
+        // Create empty knowledge record
+        const { data: newData } = await supabase
+          .from('product_type_knowledge')
+          .insert({ product_type_id: productType.id })
+          .select()
+          .single();
+        if (newData) setKnowledge(newData as ProductKnowledge);
+      }
+      setLoading(false);
+    }
+    fetchKnowledge();
+  }, [productType.id]);
+
+  const handleEdit = (section: string, currentValue: string | null) => {
+    setEditingSection(section);
+    setEditValue(currentValue || '');
+  };
+
+  const handleSave = async (section: string) => {
+    if (!knowledge) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('product_type_knowledge')
+      .update({ [section]: editValue || null })
+      .eq('id', knowledge.id);
+
+    if (error) {
+      console.error('Error saving knowledge:', error);
+    } else {
+      setKnowledge({ ...knowledge, [section]: editValue || null });
+      setEditingSection(null);
+    }
+    setSaving(false);
+  };
+
+  const handleCancel = () => {
+    setEditingSection(null);
+    setEditValue('');
+  };
+
+  const sections = [
+    { key: 'overview', label: 'Overview', description: 'General description of what this product type is' },
+    { key: 'components_guide', label: 'Components Guide', description: 'What components are typically used and why' },
+    { key: 'formula_logic', label: 'Formula Logic', description: 'Rules and logic for calculating material quantities' },
+    { key: 'style_differences', label: 'Style Differences', description: 'How different styles affect the calculations' },
+    { key: 'installation_notes', label: 'Installation Notes', description: 'Field notes that affect material calculations' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-purple-600" />
+            Product Knowledge Base
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Document product-specific information to improve AI assistance and team reference
+          </p>
+        </div>
+        {knowledge?.updated_at && (
+          <span className="text-xs text-gray-400">
+            Last updated: {new Date(knowledge.updated_at).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+
+      {/* Knowledge Sections */}
+      <div className="grid gap-4">
+        {sections.map(section => {
+          const value = knowledge?.[section.key as keyof ProductKnowledge] as string | null;
+          const isEditing = editingSection === section.key;
+
+          return (
+            <div key={section.key} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <div>
+                  <h4 className="font-medium text-gray-900">{section.label}</h4>
+                  <p className="text-xs text-gray-500">{section.description}</p>
+                </div>
+                {!isEditing && (
+                  <button
+                    onClick={() => handleEdit(section.key, value)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              <div className="p-4">
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      rows={6}
+                      placeholder={`Add ${section.label.toLowerCase()} information...`}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={handleCancel}
+                        className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSave(section.key)}
+                        disabled={saving}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        {saving ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Save className="w-3.5 h-3.5" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : value ? (
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No information added yet</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* AI History */}
+      {knowledge?.ai_history && knowledge.ai_history.length > 0 && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <h4 className="font-medium text-purple-900 mb-3 flex items-center gap-2">
+            <Star className="w-4 h-4" />
+            AI Interaction History
+          </h4>
+          <div className="space-y-2">
+            {knowledge.ai_history.slice(-5).reverse().map((entry, i) => (
+              <div key={i} className="text-sm bg-white rounded p-2 border border-purple-100">
+                <div className="flex items-center justify-between text-xs text-purple-600 mb-1">
+                  <span className="font-medium">{entry.action}</span>
+                  <span>{new Date(entry.timestamp).toLocaleString()}</span>
+                </div>
+                <p className="text-gray-700">{entry.notes}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

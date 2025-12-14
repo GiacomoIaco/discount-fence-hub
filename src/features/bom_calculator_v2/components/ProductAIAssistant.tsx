@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 
 // Types
 export interface ProductContext {
-  currentTab: 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor';
+  currentTab: 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor' | 'knowledge';
   selectedProductType?: {
     id: string;
     code: string;
@@ -31,6 +31,14 @@ export interface ProductContext {
   existingVariables?: Array<{ code: string; name: string; type: string }>;
   existingComponents?: Array<{ code: string; name: string; is_assigned: boolean }>;
   existingFormulas?: Array<{ component_code: string; style_code?: string; has_formula: boolean }>;
+  // Product knowledge for AI context
+  knowledge?: {
+    overview?: string;
+    components_guide?: string;
+    formula_logic?: string;
+    style_differences?: string;
+    installation_notes?: string;
+  };
 }
 
 interface ActionStep {

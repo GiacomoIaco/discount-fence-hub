@@ -80,7 +80,7 @@ You are an AI assistant helping Operations Managers configure fence product type
 `;
 
 interface ProductContext {
-  currentTab: 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor';
+  currentTab: 'types' | 'styles' | 'variables' | 'components' | 'formulas' | 'labor' | 'knowledge';
   selectedProductType?: {
     id: string;
     code: string;
@@ -95,6 +95,14 @@ interface ProductContext {
   existingVariables?: Array<{ code: string; name: string; type: string }>;
   existingComponents?: Array<{ code: string; name: string; is_assigned: boolean }>;
   existingFormulas?: Array<{ component_code: string; style_code?: string; has_formula: boolean }>;
+  // Product knowledge for AI context
+  knowledge?: {
+    overview?: string;
+    components_guide?: string;
+    formula_logic?: string;
+    style_differences?: string;
+    installation_notes?: string;
+  };
 }
 
 interface ActionPlan {
@@ -280,6 +288,26 @@ function buildContextSummary(context: ProductContext): string {
     }
     if (withoutFormulas.length) {
       lines.push(`**Components Missing Formulas:** ${withoutFormulas.map(f => f.component_code).join(', ')}`);
+    }
+  }
+
+  // Add product knowledge if available
+  if (context.knowledge) {
+    lines.push('\n### Product Knowledge (use this for context)');
+    if (context.knowledge.overview) {
+      lines.push(`**Overview:** ${context.knowledge.overview}`);
+    }
+    if (context.knowledge.components_guide) {
+      lines.push(`**Components Guide:** ${context.knowledge.components_guide}`);
+    }
+    if (context.knowledge.formula_logic) {
+      lines.push(`**Formula Logic:** ${context.knowledge.formula_logic}`);
+    }
+    if (context.knowledge.style_differences) {
+      lines.push(`**Style Differences:** ${context.knowledge.style_differences}`);
+    }
+    if (context.knowledge.installation_notes) {
+      lines.push(`**Installation Notes:** ${context.knowledge.installation_notes}`);
     }
   }
 
