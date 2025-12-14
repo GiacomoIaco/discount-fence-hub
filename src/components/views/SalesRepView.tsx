@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import CustomPricingRequest from './CustomPricingRequest';
 import type { MenuCategory, MobileStyle } from '../../hooks/useMenuVisibility';
 
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub';
 
 interface NavigationItem {
   id: Section;
@@ -33,6 +33,9 @@ const BOMCalculatorHub = lazy(() => import('../../features/bom_calculator/BOMCal
 const RoadmapHub = lazy(() => import('../../features/roadmap/RoadmapHub'));
 const SurveyHub = lazy(() => import('../../features/survey_hub/SurveyHub'));
 const ClientHub = lazy(() => import('../../features/client_hub/ClientHub'));
+const ProjectsHub = lazy(() => import('../../features/projects_hub/ProjectsHub'));
+const SalesHub = lazy(() => import('../../features/sales_hub/SalesHub'));
+const SchedulePage = lazy(() => import('../../features/schedule/SchedulePage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -211,6 +214,30 @@ export default function SalesRepView({
     return (
       <Suspense fallback={<LoadingFallback />}>
         <ClientHub />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'projects-hub') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <ProjectsHub />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'sales-hub') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <SalesHub />
+      </Suspense>
+    );
+  }
+
+  if (activeSection === 'schedule') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <SchedulePage />
       </Suspense>
     );
   }

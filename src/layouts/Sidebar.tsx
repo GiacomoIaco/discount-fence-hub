@@ -1,8 +1,9 @@
 import { Menu, X, User, LogOut } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import CreateDropdown from '../components/CreateDropdown';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub';
 
 interface NavigationItem {
   id: Section;
@@ -29,6 +30,7 @@ interface SidebarProps {
   signOut: () => void;
   setViewMode: (mode: 'mobile' | 'desktop') => void;
   setShowProfileView: (show: boolean) => void;
+  onCreateRequest?: () => void;
 }
 
 export default function Sidebar({
@@ -46,7 +48,8 @@ export default function Sidebar({
   user,
   signOut,
   setViewMode,
-  setShowProfileView
+  setShowProfileView,
+  onCreateRequest
 }: SidebarProps) {
   return (
     <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
@@ -84,6 +87,16 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        {/* Create Dropdown */}
+        {onCreateRequest && (
+          <div className="mb-3">
+            <CreateDropdown
+              sidebarOpen={sidebarOpen}
+              onCreateRequest={onCreateRequest}
+            />
+          </div>
+        )}
+
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;

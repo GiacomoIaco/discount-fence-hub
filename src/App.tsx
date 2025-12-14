@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -51,6 +51,10 @@ const MyTodos = lazy(() => import('./features/my-todos').then(m => ({ default: m
 const RoadmapHub = lazy(() => import('./features/roadmap/RoadmapHub'));
 const SurveyHub = lazy(() => import('./features/survey_hub/SurveyHub'));
 const ClientHub = lazy(() => import('./features/client_hub/ClientHub'));
+const ProjectsHub = lazy(() => import('./features/projects_hub/ProjectsHub'));
+const SalesHub = lazy(() => import('./features/sales_hub/SalesHub'));
+const SchedulePage = lazy(() => import('./features/schedule/SchedulePage'));
+const RequestEditorModal = lazy(() => import('./features/fsm/components/RequestEditorModal'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -63,7 +67,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
+type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub';
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -96,9 +100,10 @@ function App() {
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+  const [showCreateRequestModal, setShowCreateRequestModal] = useState(false);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -231,24 +236,36 @@ function App() {
     menuVisibility.forEach(item => { visibilityLookup[item.menu_id] = item; });
 
     const items = [
+      // Core FSM Navigation
       { id: 'dashboard' as Section, menuId: 'dashboard', name: 'Dashboard', icon: Home },
-      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
+      { id: 'schedule' as Section, menuId: 'schedule', name: 'Schedule', icon: Calendar },
+      { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Clients', icon: Users },
+      { id: 'projects-hub' as Section, menuId: 'projects-hub', name: 'Projects', icon: Briefcase },
+      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator },
+      { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
+      { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
+
+      // Sales Section
+      { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp, separator: true },
       { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
+
+      // Admin/Management Section
+      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
+      { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target },
+      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
+      { id: 'survey-hub' as Section, menuId: 'survey-hub', name: 'Surveys', icon: ClipboardList },
+      { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
+      { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
+
+      // Legacy items (kept for backwards compatibility, hidden from new UI)
+      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
       { id: 'presentation' as Section, menuId: 'presentation', name: 'Client Presentation', icon: BookOpen },
       { id: 'sales-coach' as Section, menuId: 'sales-coach', name: 'AI Sales Coach', icon: BookOpen },
       { id: 'photo-gallery' as Section, menuId: 'photo-gallery', name: 'Photo Gallery', icon: Image },
       { id: 'stain-calculator' as Section, menuId: 'stain-calculator', name: 'Pre-Stain Calculator', icon: DollarSign },
-      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
-      { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator },
-      { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
-      { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
-      { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
       { id: 'sales-resources' as Section, menuId: 'sales-resources', name: 'Sales Resources', icon: BookOpen },
-      { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target },
-      { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo },
-      { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
-      { id: 'survey-hub' as Section, menuId: 'survey-hub', name: 'Surveys', icon: ClipboardList },
-      { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Client Hub', icon: Users },
+
+      // Settings
       { id: 'team' as Section, menuId: 'team', name: 'Settings', icon: SettingsIcon, separator: true },
     ];
 
@@ -560,6 +577,33 @@ function App() {
         </ErrorBoundary>
       );
     }
+    if (activeSection === 'projects-hub') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <ProjectsHub />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'sales-hub') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <SalesHub />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'schedule') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <SchedulePage />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
 
     // Default home view
     return (
@@ -686,6 +730,7 @@ function App() {
           signOut={signOut}
           setViewMode={setViewMode}
           setShowProfileView={setShowProfileView}
+          onCreateRequest={() => setShowCreateRequestModal(true)}
         />
 
         <div className="flex-1 overflow-auto">
@@ -756,6 +801,17 @@ function App() {
                 setShowProfileEditor(false);
                 window.location.reload(); // Reload to refresh profile data
               }}
+            />
+          </Suspense>
+        )}
+
+        {/* Create Request Modal (from Create dropdown) */}
+        {showCreateRequestModal && (
+          <Suspense fallback={<LoadingFallback />}>
+            <RequestEditorModal
+              isOpen={showCreateRequestModal}
+              onClose={() => setShowCreateRequestModal(false)}
+              request={null}
             />
           </Suspense>
         )}
