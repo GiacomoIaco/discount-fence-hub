@@ -53,7 +53,7 @@ export default function Sidebar({
   onCreateRequest
 }: SidebarProps) {
   return (
-    <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
+    <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col overflow-visible`}>
       <div className="p-3 border-b border-gray-800">
         {sidebarOpen ? (
           <div className="flex items-center justify-between">
@@ -87,17 +87,17 @@ export default function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {/* Create Dropdown */}
-        {onCreateRequest && (
-          <div className="mb-3">
-            <CreateDropdown
-              sidebarOpen={sidebarOpen}
-              onCreateRequest={onCreateRequest}
-            />
-          </div>
-        )}
+      {/* Create Dropdown - placed outside nav to avoid overflow clipping */}
+      {onCreateRequest && (
+        <div className="px-3 pt-3 pb-1">
+          <CreateDropdown
+            sidebarOpen={sidebarOpen}
+            onCreateRequest={onCreateRequest}
+          />
+        </div>
+      )}
 
+      <nav className="flex-1 overflow-y-auto p-3 pt-2 space-y-1">
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
