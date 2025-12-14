@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package, FileText, Wrench, Receipt } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -58,6 +58,9 @@ const SalesHub = lazy(() => import('./features/sales_hub/SalesHub'));
 const SchedulePage = lazy(() => import('./features/schedule/SchedulePage'));
 const RequestEditorModal = lazy(() => import('./features/fsm/components/RequestEditorModal'));
 const RequestsHub = lazy(() => import('./features/fsm/pages/RequestsHub'));
+const QuotesHub = lazy(() => import('./features/fsm/pages/QuotesHub'));
+const JobsHub = lazy(() => import('./features/fsm/pages/JobsHub'));
+const InvoicesHub = lazy(() => import('./features/fsm/pages/InvoicesHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -232,6 +235,9 @@ function App() {
       { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Clients', icon: Users },
       { id: 'projects-hub' as Section, menuId: 'projects-hub', name: 'Projects', icon: Briefcase },
       { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: ClipboardList },
+      { id: 'quotes' as Section, menuId: 'quotes', name: 'Quotes', icon: FileText },
+      { id: 'jobs' as Section, menuId: 'jobs', name: 'Jobs', icon: Wrench },
+      { id: 'invoices' as Section, menuId: 'invoices', name: 'Invoices', icon: Receipt },
 
       // Operations Section
       { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator, separator: true },
@@ -622,10 +628,50 @@ function App() {
       );
     }
 
-    // TODO: FSM Pipeline - Quotes, Jobs, Invoices
-    // if (activeSection === 'quotes') { ... }
-    // if (activeSection === 'jobs') { ... }
-    // if (activeSection === 'invoices') { ... }
+    // FSM Pipeline - Quotes
+    if (activeSection === 'quotes') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <QuotesHub
+              entityContext={entityContext}
+              onNavigateToEntity={navigateToEntity}
+              onClearEntity={clearEntity}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+
+    // FSM Pipeline - Jobs
+    if (activeSection === 'jobs') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <JobsHub
+              entityContext={entityContext}
+              onNavigateToEntity={navigateToEntity}
+              onClearEntity={clearEntity}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+
+    // FSM Pipeline - Invoices
+    if (activeSection === 'invoices') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <InvoicesHub
+              entityContext={entityContext}
+              onNavigateToEntity={navigateToEntity}
+              onClearEntity={clearEntity}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
 
     // Default home view
     return (

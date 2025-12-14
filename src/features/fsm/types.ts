@@ -222,10 +222,12 @@ export interface Quote {
   created_at: string;
   updated_at: string;
   // Joined
-  client?: { id: string; name: string };
+  client?: { id: string; name: string; code?: string; billing_address_line1?: string; billing_city?: string; billing_state?: string; billing_zip?: string };
   community?: { id: string; name: string };
+  property?: { id: string; address_line1: string; city?: string; state?: string; zip?: string };
   line_items?: QuoteLineItem[];
   sales_rep?: SalesRep;
+  request?: { id: string; request_number: string };
 }
 
 export interface QuoteLineItem {
@@ -628,6 +630,14 @@ export const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
   past_due: ['paid', 'bad_debt'],
   paid: [], // Terminal
   bad_debt: [], // Terminal
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  card: 'Credit/Debit Card',
+  check: 'Check',
+  cash: 'Cash',
+  ach: 'ACH Transfer',
+  qbo_payment: 'QBO Payment',
 };
 
 // ============================================
