@@ -4120,8 +4120,8 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
         )}
       </div>
 
-      {/* Knowledge Sections - 2 Column Grid with independent heights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      {/* Knowledge Sections - Masonry 2-Column Layout */}
+      <div className="columns-1 lg:columns-2 gap-4 space-y-4">
         {sections.map((section, index) => {
           const value = knowledge?.[section.key as keyof ProductKnowledge] as string | null;
           const isEditing = editingSection === section.key;
@@ -4131,7 +4131,7 @@ function KnowledgeTab({ productType }: { productType: ProductTypeV2 }) {
           return (
             <div
               key={section.key}
-              className="bg-white border border-gray-200 rounded-lg overflow-hidden"
+              className="bg-white border border-gray-200 rounded-lg overflow-hidden break-inside-avoid mb-4"
             >
               {/* Collapsible Header */}
               <div
