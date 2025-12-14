@@ -10,6 +10,7 @@ import ClientsList from './components/ClientsList';
 import CommunitiesList from './components/CommunitiesList';
 import GeographiesList from './components/GeographiesList';
 import RateSheetsList from './components/RateSheetsList';
+import ClientDetailPage from './pages/ClientDetailPage';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
@@ -32,21 +33,16 @@ export default function ClientHub({
   onClearEntity,
 }: ClientHubProps) {
   const [activeTab, setActiveTab] = useState<Tab>('clients');
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
-  // Handle entity context from URL
+  // Handle entity context from URL - switch to clients tab when viewing a client
   useEffect(() => {
     if (entityContext) {
       if (entityContext.type === 'client') {
         setActiveTab('clients');
-        setSelectedClientId(entityContext.id);
       } else if (entityContext.type === 'community') {
         setActiveTab('communities');
         // TODO: Add community deep link support
       }
-    } else {
-      // Clear selections when entity context is cleared
-      setSelectedClientId(null);
     }
   }, [entityContext]);
 
@@ -54,8 +50,6 @@ export default function ClientHub({
   const handleClientSelect = (clientId: string) => {
     if (onNavigateToEntity) {
       onNavigateToEntity('client', { id: clientId });
-    } else {
-      setSelectedClientId(clientId);
     }
   };
 
@@ -63,10 +57,18 @@ export default function ClientHub({
   const handleClientClose = () => {
     if (onClearEntity) {
       onClearEntity();
-    } else {
-      setSelectedClientId(null);
     }
   };
+
+  // If viewing a specific client, render the detail page
+  if (entityContext?.type === 'client') {
+    return (
+      <ClientDetailPage
+        clientId={entityContext.id}
+        onBack={handleClientClose}
+      />
+    );
+  }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'clients', label: 'Clients', icon: <Building2 className="w-4 h-4" /> },
@@ -116,9 +118,7 @@ export default function ClientHub({
       <div className="p-6">
         {activeTab === 'clients' && (
           <ClientsList
-            selectedClientId={selectedClientId}
             onSelectClient={handleClientSelect}
-            onCloseClient={handleClientClose}
           />
         )}
         {activeTab === 'communities' && <CommunitiesList />}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Plus,
   Search,
@@ -6,13 +6,12 @@ import {
   MoreVertical,
   Edit2,
   Trash2,
-  Eye,
   Home,
   Phone,
   Mail,
   Filter,
 } from 'lucide-react';
-import { useClients, useDeleteClient, useClient } from '../hooks/useClients';
+import { useClients, useDeleteClient } from '../hooks/useClients';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
@@ -22,21 +21,14 @@ import {
   type ClientStatus,
 } from '../types';
 import ClientEditorModal from './ClientEditorModal';
-import ClientDetailModal from './ClientDetailModal';
 
 interface ClientsListProps {
-  /** ID of client to open from URL deep link */
-  selectedClientId?: string | null;
-  /** Called when user clicks a client row */
+  /** Called when user clicks a client row - navigates to detail page */
   onSelectClient?: (clientId: string) => void;
-  /** Called when user closes client detail modal */
-  onCloseClient?: () => void;
 }
 
 export default function ClientsList({
-  selectedClientId,
   onSelectClient,
-  onCloseClient,
 }: ClientsListProps) {
   const [search, setSearch] = useState('');
   const [businessUnitFilter, setBusinessUnitFilter] = useState<string>('');
@@ -46,21 +38,7 @@ export default function ClientsList({
 
   const [showEditor, setShowEditor] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [viewingClient, setViewingClient] = useState<Client | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-
-  // Fetch specific client if selectedClientId is provided (from URL)
-  const { data: urlSelectedClient } = useClient(selectedClientId || '');
-
-  // Open client detail when URL changes
-  useEffect(() => {
-    if (selectedClientId && urlSelectedClient) {
-      setViewingClient(urlSelectedClient);
-    } else if (!selectedClientId) {
-      // URL cleared - close modal if it was opened via URL
-      // But don't close if user opened via click (viewingClient would be set differently)
-    }
-  }, [selectedClientId, urlSelectedClient]);
 
   const { data: clients, isLoading } = useClients({
     search,
@@ -233,11 +211,10 @@ export default function ClientsList({
                   key={client.id}
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => {
-                    // Update URL if callback provided, otherwise just set local state
+                    // Navigate to client detail page
                     if (onSelectClient) {
                       onSelectClient(client.id);
                     }
-                    setViewingClient(client);
                   }}
                 >
                   <td className="px-4 py-3">
@@ -310,16 +287,6 @@ export default function ClientsList({
                       {menuOpen === client.id && (
                         <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[140px]">
                           <button
-                            onClick={() => {
-                              setViewingClient(client);
-                              setMenuOpen(null);
-                            }}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </button>
-                          <button
                             onClick={() => handleEdit(client)}
                             className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
@@ -352,29 +319,6 @@ export default function ClientsList({
           onClose={() => {
             setShowEditor(false);
             setEditingClient(null);
-          }}
-        />
-      )}
-
-      {/* Detail Modal */}
-      {viewingClient && (
-        <ClientDetailModal
-          clientId={viewingClient.id}
-          onClose={() => {
-            setViewingClient(null);
-            // Update URL if callback provided
-            if (onCloseClient) {
-              onCloseClient();
-            }
-          }}
-          onEdit={() => {
-            setEditingClient(viewingClient);
-            setViewingClient(null);
-            setShowEditor(true);
-            // Clear URL when entering edit mode
-            if (onCloseClient) {
-              onCloseClient();
-            }
           }}
         />
       )}
