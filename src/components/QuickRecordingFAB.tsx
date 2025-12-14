@@ -4,9 +4,9 @@ import { transcribeAudio } from '../lib/openai';
 import { expandRoadmapIdea } from '../lib/claude';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import type { Section } from '../lib/routes';
 
 type VoiceIntent = 'todo' | 'roadmap' | 'request' | 'meeting' | 'unknown';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub';
 
 interface ClassificationResult {
   intent: VoiceIntent;

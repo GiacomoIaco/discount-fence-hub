@@ -157,6 +157,7 @@ export interface ServiceRequest {
   property?: { id: string; address_line1: string };
   assigned_rep?: SalesRep;
   assessment_rep?: SalesRep;
+  territory?: { id: string; name: string; code: string };
 }
 
 export interface Quote {

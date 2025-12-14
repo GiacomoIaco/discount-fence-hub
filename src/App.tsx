@@ -57,6 +57,7 @@ const ProjectsHub = lazy(() => import('./features/projects_hub/ProjectsHub'));
 const SalesHub = lazy(() => import('./features/sales_hub/SalesHub'));
 const SchedulePage = lazy(() => import('./features/schedule/SchedulePage'));
 const RequestEditorModal = lazy(() => import('./features/fsm/components/RequestEditorModal'));
+const RequestsHub = lazy(() => import('./features/fsm/pages/RequestsHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -113,7 +114,7 @@ function App() {
   const [showCreateRequestModal, setShowCreateRequestModal] = useState(false);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -230,13 +231,14 @@ function App() {
       { id: 'schedule' as Section, menuId: 'schedule', name: 'Schedule', icon: Calendar },
       { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Clients', icon: Users },
       { id: 'projects-hub' as Section, menuId: 'projects-hub', name: 'Projects', icon: Briefcase },
+      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: ClipboardList },
 
       // Operations Section
       { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator, separator: true },
       { id: 'bom-calculator-v2' as Section, menuId: 'bom-calculator-v2', name: 'Ops Hub V2', icon: FlaskConical },
       { id: 'inventory' as Section, menuId: 'inventory', name: 'Inventory', icon: Package, disabled: true },
       { id: 'yard' as Section, menuId: 'bom-yard', name: 'Yard', icon: Warehouse },
-      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: Ticket, badge: requestUnreadCount },
+      { id: 'tickets' as Section, menuId: 'tickets', name: 'Tickets', icon: Ticket, badge: requestUnreadCount },
 
       // Personal/Sales Section
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
@@ -311,9 +313,10 @@ function App() {
   const renderContent = () => {
     // Wrap all lazy-loaded components with Suspense
     // Handle common sections for all roles
-    if (activeSection === 'requests') {
-      // Desktop shows MyRequestsView (manage submitted requests)
-      // Mobile/Tablet shows RequestHub (create new requests)
+    // Internal ticketing system (formerly "requests")
+    if (activeSection === 'tickets') {
+      // Desktop shows MyRequestsView (manage submitted tickets)
+      // Mobile/Tablet shows RequestHub (create new tickets)
       if (currentPlatform === 'desktop') {
         return (
           <ErrorBoundary>
@@ -334,7 +337,7 @@ function App() {
         </ErrorBoundary>
       );
     }
-    if (activeSection === 'request-queue') {
+    if (activeSection === 'ticket-queue') {
       if (selectedRequest) {
         return (
           <ErrorBoundary>
@@ -388,7 +391,7 @@ function App() {
         </ErrorBoundary>
       );
     }
-    if (activeSection === 'my-requests') {
+    if (activeSection === 'my-tickets') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
@@ -603,6 +606,26 @@ function App() {
         </ErrorBoundary>
       );
     }
+
+    // FSM Pipeline - Requests (client service requests)
+    if (activeSection === 'requests') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <RequestsHub
+              entityContext={entityContext}
+              onNavigateToEntity={navigateToEntity}
+              onClearEntity={clearEntity}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+
+    // TODO: FSM Pipeline - Quotes, Jobs, Invoices
+    // if (activeSection === 'quotes') { ... }
+    // if (activeSection === 'jobs') { ... }
+    // if (activeSection === 'invoices') { ... }
 
     // Default home view
     return (

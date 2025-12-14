@@ -17,9 +17,16 @@ export type Section =
   | 'bom-calculator-v2'
   | 'inventory'
   | 'yard'
-  | 'requests'
-  | 'my-requests'
-  | 'request-queue'
+  // Internal ticketing (formerly "requests")
+  | 'tickets'
+  | 'my-tickets'
+  | 'ticket-queue'
+  | 'custom-pricing'
+  // FSM Pipeline
+  | 'requests'          // FSM service requests (client inquiries)
+  | 'quotes'            // FSM quotes
+  | 'jobs'              // FSM jobs
+  | 'invoices'          // FSM invoices
   | 'my-todos'
   | 'direct-messages'
   | 'team-communication'
@@ -28,7 +35,6 @@ export type Section =
   | 'analytics'
   | 'roadmap'
   | 'team'
-  | 'custom-pricing'
   | 'presentation'
   | 'stain-calculator'
   | 'sales-coach'
@@ -67,11 +73,17 @@ export const ROUTE_CONFIG: Record<Section, string> = {
   'inventory': 'ops/inventory',
   'yard': 'ops/yard',
 
-  // Requests
+  // Internal ticketing (formerly "requests")
+  'tickets': 'tickets',
+  'my-tickets': 'tickets/my',
+  'ticket-queue': 'tickets/queue',
+  'custom-pricing': 'tickets/custom-pricing',
+
+  // FSM Pipeline
   'requests': 'requests',
-  'my-requests': 'requests/my',
-  'request-queue': 'requests/queue',
-  'custom-pricing': 'requests/custom-pricing',
+  'quotes': 'quotes',
+  'jobs': 'jobs',
+  'invoices': 'invoices',
 
   // Personal
   'my-todos': 'todos',
@@ -163,7 +175,8 @@ export type EntityType =
   | 'community'
   | 'property'
   | 'project'
-  | 'request'
+  | 'ticket'      // Internal ticket (formerly request)
+  | 'request'     // FSM service request
   | 'quote'
   | 'job'
   | 'invoice';
@@ -181,13 +194,14 @@ export const ENTITY_ROUTES: Record<EntityType, { pattern: string; section: Secti
   // Projects Hub entities
   project: { pattern: '/projects/:id', section: 'projects-hub' },
 
-  // Requests
-  request: { pattern: '/requests/:id', section: 'requests' },
+  // Internal ticketing
+  ticket: { pattern: '/tickets/:id', section: 'tickets' },
 
-  // FSM entities (quotes, jobs, invoices)
-  quote: { pattern: '/quotes/:id', section: 'projects-hub' },
-  job: { pattern: '/jobs/:id', section: 'projects-hub' },
-  invoice: { pattern: '/invoices/:id', section: 'projects-hub' },
+  // FSM Pipeline entities
+  request: { pattern: '/requests/:id', section: 'requests' },
+  quote: { pattern: '/quotes/:id', section: 'quotes' },
+  job: { pattern: '/jobs/:id', section: 'jobs' },
+  invoice: { pattern: '/invoices/:id', section: 'invoices' },
 };
 
 /**

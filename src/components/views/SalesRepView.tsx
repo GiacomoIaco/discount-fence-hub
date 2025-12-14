@@ -79,7 +79,8 @@ export default function SalesRepView({
   navigationItems = [],
   userRole: _userRole
 }: SalesRepViewProps) {
-  if (activeSection === 'requests') {
+  // Internal ticketing (formerly "requests")
+  if (activeSection === 'tickets') {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <RequestHub onBack={() => onNavigate('home')} />
@@ -91,7 +92,7 @@ export default function SalesRepView({
     return <CustomPricingRequest onBack={() => onNavigate('home')} viewMode={viewMode} />;
   }
 
-  if (activeSection === 'my-requests') {
+  if (activeSection === 'my-tickets') {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <MyRequestsView onBack={() => onNavigate('home')} onMarkAsRead={onMarkAsRead} />
