@@ -37,6 +37,9 @@
 [functions."expand-roadmap-idea"]
   timeout = 26
 
+[functions."ai-product-assistant"]
+  timeout = 26
+
 # Optimization settings
 [build.processing]
   skip_processing = false

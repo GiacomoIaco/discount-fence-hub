@@ -102,18 +102,38 @@ export default function ProductAIAssistant({
     setCurrentResponse(null);
 
     try {
+      console.log('[AI Assistant] Sending request:', request.substring(0, 100) + '...');
+
       const response = await fetch('/.netlify/functions/ai-product-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ request, context }),
       });
 
+      console.log('[AI Assistant] Response status:', response.status);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'AI request failed');
+        const errorText = await response.text();
+        console.error('[AI Assistant] Error response:', errorText);
+        try {
+          const error = JSON.parse(errorText);
+          throw new Error(error.error || `Request failed with status ${response.status}`);
+        } catch {
+          throw new Error(`Request failed: ${response.status} - ${errorText.substring(0, 100)}`);
+        }
       }
 
-      const data: AIResponse = await response.json();
+      const responseText = await response.text();
+      console.log('[AI Assistant] Response text:', responseText.substring(0, 200) + '...');
+
+      let data: AIResponse;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('[AI Assistant] JSON parse error:', parseError);
+        throw new Error('Failed to parse AI response as JSON');
+      }
+
       setCurrentResponse(data);
 
       // Add to history
@@ -126,8 +146,14 @@ export default function ProductAIAssistant({
 
       setInput('');
     } catch (error: any) {
-      console.error('AI Assistant error:', error);
+      console.error('[AI Assistant] Error:', error);
       toast.error(error.message || 'AI request failed');
+      // Show error as a response so user can see what happened
+      setCurrentResponse({
+        type: 'response',
+        message: `Error: ${error.message}. Please try again or rephrase your request.`,
+        suggestions: ['Try a simpler request', 'Check browser console for details'],
+      });
     } finally {
       setIsProcessing(false);
     }
