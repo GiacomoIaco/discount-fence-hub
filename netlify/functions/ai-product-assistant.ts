@@ -192,7 +192,11 @@ style: { code, name, formula_adjustments: {} }
 variable: { variable_code, variable_name, variable_type, default_value, allowed_values?, unit? }
 component: { component_code } (for assignment)
 formula: { component_code, style_code?, formula, plain_english, rounding_level }
-labor: { component_code, labor_code }
+labor: { labor_code, labor_group, condition_formula?, action? }
+  - labor_code: The labor SKU (e.g., "W03", "M06")
+  - labor_group: Group code - "set_post", "nail_up", or "other_labor"
+  - condition_formula: Optional condition like "height <= 6" or "style == 'good_neighbor'"
+  - action: "add" (default) or "remove"
 
 Respond with valid JSON only.`;
 

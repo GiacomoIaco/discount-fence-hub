@@ -493,6 +493,59 @@ async function executeAIStep(
       break;
     }
 
+    case 'labor': {
+      if (!selectedTypeId) throw new Error('No product type selected');
+
+      // Handle labor code eligibility operations
+      // data should contain: labor_code (SKU), labor_group (code), condition_formula, action
+      const { labor_code, labor_group, condition_formula, action: laborAction } = data;
+
+      // Find labor group
+      const { data: group } = await supabase
+        .from('labor_groups_v2')
+        .select('id')
+        .eq('code', labor_group || 'other_labor')
+        .single();
+
+      if (!group) throw new Error(`Labor group not found: ${labor_group}`);
+
+      // Find labor code
+      const { data: laborCodeData } = await supabase
+        .from('labor_codes')
+        .select('id')
+        .eq('labor_sku', labor_code)
+        .single();
+
+      if (!laborCodeData) throw new Error(`Labor code not found: ${labor_code}`);
+
+      if (laborAction === 'remove' || laborAction === 'delete') {
+        // Remove eligibility
+        const { error } = await supabase
+          .from('labor_group_eligibility_v2')
+          .delete()
+          .eq('product_type_id', selectedTypeId)
+          .eq('labor_group_id', group.id)
+          .eq('labor_code_id', laborCodeData.id);
+        if (error) throw error;
+      } else {
+        // Add or update eligibility
+        const { error } = await supabase
+          .from('labor_group_eligibility_v2')
+          .upsert({
+            product_type_id: selectedTypeId,
+            labor_group_id: group.id,
+            labor_code_id: laborCodeData.id,
+            condition_formula: condition_formula || null,
+          }, {
+            onConflict: 'product_type_id,labor_group_id,labor_code_id'
+          });
+        if (error) throw error;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['labor-group-eligibility-v2', selectedTypeId] });
+      break;
+    }
+
     default:
       console.warn(`Unknown entity type: ${entity}`);
   }
