@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { X, Phone, Globe, Users, Building } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
-import { useClients } from '../../client_hub/hooks';
+import { ClientLookup, PropertyLookup } from '../../../components/common/SmartLookup';
+import type { SelectedEntity } from '../../../components/common/SmartLookup';
+import type { Property } from '../../client_hub/types';
 import type { ServiceRequest, RequestFormData, RequestSource, Priority } from '../types';
 
 interface RequestEditorModalProps {
@@ -62,9 +64,11 @@ const INITIAL_FORM_DATA: RequestFormData = {
 
 export default function RequestEditorModal({ isOpen, onClose, request }: RequestEditorModalProps) {
   const [formData, setFormData] = useState<RequestFormData>(INITIAL_FORM_DATA);
-  const [customerType, setCustomerType] = useState<'existing' | 'new'>('new');
 
-  const { data: clients } = useClients();
+  // Smart lookup state
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
   const { data: territories } = useTerritories();
   const { data: salesReps } = useSalesReps();
 
@@ -98,12 +102,55 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
         territory_id: request.territory_id || '',
         priority: request.priority,
       });
-      setCustomerType(request.client_id ? 'existing' : 'new');
+      // TODO: Load existing client/community/property for editing
+      setSelectedEntity(null);
+      setSelectedProperty(null);
     } else if (isOpen) {
       setFormData(INITIAL_FORM_DATA);
-      setCustomerType('new');
+      setSelectedEntity(null);
+      setSelectedProperty(null);
     }
   }, [isOpen, request]);
+
+  // Sync selected entity to form data
+  useEffect(() => {
+    if (selectedEntity) {
+      setFormData(prev => ({
+        ...prev,
+        client_id: selectedEntity.client.id,
+        community_id: selectedEntity.community?.id || '',
+        // Pre-fill contact info from client if no manual entry
+        contact_name: prev.contact_name || selectedEntity.client.primary_contact_name || '',
+        contact_phone: prev.contact_phone || selectedEntity.client.primary_contact_phone || '',
+        contact_email: prev.contact_email || selectedEntity.client.primary_contact_email || '',
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        client_id: '',
+        community_id: '',
+      }));
+    }
+  }, [selectedEntity]);
+
+  // Sync selected property to form data
+  useEffect(() => {
+    if (selectedProperty) {
+      setFormData(prev => ({
+        ...prev,
+        property_id: selectedProperty.id,
+        address_line1: selectedProperty.address_line1,
+        city: selectedProperty.city || prev.city,
+        state: selectedProperty.state || prev.state,
+        zip: selectedProperty.zip || prev.zip,
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        property_id: '',
+      }));
+    }
+  }, [selectedProperty]);
 
   // Auto-detect territory from zip code
   useEffect(() => {
@@ -142,7 +189,7 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
           <h2 className="text-xl font-semibold">
             {isEditing ? `Edit Request ${request.request_number}` : 'New Service Request'}
           </h2>
@@ -176,120 +223,112 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
             </div>
           </div>
 
-          {/* Customer Type Toggle */}
+          {/* Smart Client/Community Lookup */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-            <div className="flex gap-4 mb-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={customerType === 'new'}
-                  onChange={() => {
-                    setCustomerType('new');
-                    updateField('client_id', '');
-                    updateField('community_id', '');
-                    updateField('property_id', '');
-                  }}
-                  className="text-blue-600"
-                />
-                <span className="text-sm">New Customer</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={customerType === 'existing'}
-                  onChange={() => setCustomerType('existing')}
-                  className="text-blue-600"
-                />
-                <span className="text-sm">Existing Client</span>
-              </label>
-            </div>
+            <ClientLookup
+              value={selectedEntity}
+              onChange={setSelectedEntity}
+              label="Customer"
+              placeholder="Search by name, phone, email, or community..."
+              onClientCreated={(client) => {
+                console.log('New client created:', client);
+              }}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Type to search existing clients and communities, or create a new one
+            </p>
+          </div>
 
-            {customerType === 'existing' ? (
-              <select
-                value={formData.client_id}
-                onChange={(e) => {
-                  updateField('client_id', e.target.value);
-                  updateField('community_id', '');
-                  updateField('property_id', '');
+          {/* Smart Property Lookup (only shown when client is selected) */}
+          {selectedEntity && (
+            <div>
+              <PropertyLookup
+                clientId={selectedEntity.client.id}
+                client={selectedEntity.client}
+                value={selectedProperty}
+                onChange={setSelectedProperty}
+                label="Property / Job Site"
+                placeholder="Search address or lot number..."
+                onPropertyCreated={(property) => {
+                  console.log('New property created:', property);
                 }}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- Select Client --</option>
-                {clients?.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name} {client.code ? `(${client.code})` : ''}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Contact Name</label>
+              />
+            </div>
+          )}
+
+          {/* Manual Address Entry (shown when no property selected) */}
+          {!selectedProperty && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {selectedEntity ? 'Or Enter Address Manually' : 'Job Address'}
+              </label>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={formData.address_line1}
+                  onChange={(e) => updateField('address_line1', e.target.value)}
+                  placeholder="Street Address"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="grid grid-cols-6 gap-3">
                   <input
                     type="text"
-                    value={formData.contact_name}
-                    onChange={(e) => updateField('contact_name', e.target.value)}
-                    placeholder="John Smith"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    value={formData.city}
+                    onChange={(e) => updateField('city', e.target.value)}
+                    placeholder="City"
+                    className="col-span-3 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Phone</label>
                   <input
-                    type="tel"
-                    value={formData.contact_phone}
-                    onChange={(e) => updateField('contact_phone', e.target.value)}
-                    placeholder="512-555-1234"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    type="text"
+                    value={formData.state}
+                    onChange={(e) => updateField('state', e.target.value)}
+                    placeholder="State"
+                    className="col-span-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Email</label>
                   <input
-                    type="email"
-                    value={formData.contact_email}
-                    onChange={(e) => updateField('contact_email', e.target.value)}
-                    placeholder="john@example.com"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    type="text"
+                    value={formData.zip}
+                    onChange={(e) => updateField('zip', e.target.value)}
+                    placeholder="ZIP"
+                    className="col-span-2 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Address */}
+          {/* Contact Info (editable, pre-filled from client) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Job Address</label>
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={formData.address_line1}
-                onChange={(e) => updateField('address_line1', e.target.value)}
-                placeholder="Street Address"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="grid grid-cols-6 gap-3">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Contact Information</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Contact Name</label>
                 <input
                   type="text"
-                  value={formData.city}
-                  onChange={(e) => updateField('city', e.target.value)}
-                  placeholder="City"
-                  className="col-span-3 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  value={formData.contact_name}
+                  onChange={(e) => updateField('contact_name', e.target.value)}
+                  placeholder="John Smith"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Phone</label>
                 <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => updateField('state', e.target.value)}
-                  placeholder="State"
-                  className="col-span-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  type="tel"
+                  value={formData.contact_phone}
+                  onChange={(e) => updateField('contact_phone', e.target.value)}
+                  placeholder="512-555-1234"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Email</label>
                 <input
-                  type="text"
-                  value={formData.zip}
-                  onChange={(e) => updateField('zip', e.target.value)}
-                  placeholder="ZIP"
-                  className="col-span-2 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  type="email"
+                  value={formData.contact_email}
+                  onChange={(e) => updateField('contact_email', e.target.value)}
+                  placeholder="john@example.com"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
