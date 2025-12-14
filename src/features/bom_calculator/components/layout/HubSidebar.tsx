@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Calculator,
   FolderOpen,
@@ -9,6 +10,7 @@ import {
   ArrowLeft,
   ChevronRight,
   PanelLeftClose,
+  PanelLeft,
   FlaskConical,
   Upload,
   ListTodo,
@@ -21,6 +23,7 @@ import {
   Palette,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { SidebarTooltip } from '../../../../components/sidebar';
 
 export type BOMHubPage = 'calculator' | 'projects' | 'sku-builder' | 'custom-builder' | 'sku-catalog' | 'sku-import' | 'sku-queue' | 'materials' | 'labor-rates' | 'analytics' | 'component-config' | 'yard-schedule' | 'yard-spots' | 'yard-areas' | 'yard-mobile';
 
@@ -56,57 +59,85 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'analytics', label: 'Analytics', icon: BarChart3, adminOnly: true },
 ];
 
+const STORAGE_KEY = 'sidebar-collapsed-bom-hub';
+
 interface HubSidebarProps {
   activePage: BOMHubPage;
   onPageChange: (page: BOMHubPage) => void;
   onBack: () => void;
   isAdmin: boolean;
-  onCollapse?: () => void;
   onOpenV2?: () => void;
 }
 
-export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, onCollapse, onOpenV2 }: HubSidebarProps) {
+export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, onOpenV2 }: HubSidebarProps) {
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === 'true';
+  });
+
+  // Persist collapsed state
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(collapsed));
+  }, [collapsed]);
+
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
     const isActive = activePage === item.id;
 
-    return (
+    const button = (
       <button
         key={item.id}
         onClick={() => onPageChange(item.id)}
-        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left text-sm ${
+        className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg transition-colors text-left text-sm ${
           isActive
             ? 'bg-white text-blue-900 shadow-sm'
             : 'text-blue-100 hover:bg-blue-800/50'
         }`}
       >
-        <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : ''}`} />
-        <span className="flex-1 font-medium truncate">{item.label}</span>
-        {isActive && <ChevronRight className="w-3 h-3 text-blue-600 flex-shrink-0" />}
+        <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-blue-600' : ''}`} />
+        {!collapsed && (
+          <>
+            <span className="flex-1 font-medium truncate">{item.label}</span>
+            {isActive && <ChevronRight className="w-3 h-3 text-blue-600 flex-shrink-0" />}
+          </>
+        )}
       </button>
+    );
+
+    return (
+      <SidebarTooltip key={item.id} label={item.label} showTooltip={collapsed}>
+        {button}
+      </SidebarTooltip>
     );
   };
 
   return (
-    <div className="w-48 bg-[#1E3A8A] flex flex-col h-full">
+    <div className={`${collapsed ? 'w-14' : 'w-48'} bg-[#1E3A8A] flex flex-col h-full transition-all duration-300`}>
       {/* Header */}
       <div className="px-3 py-3 border-b border-blue-800">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
-            <Calculator className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1">
-            <h2 className="text-sm font-bold text-white">BOM Hub</h2>
-          </div>
-          {onCollapse && (
-            <button
-              onClick={onCollapse}
-              className="p-1 text-blue-200 hover:text-white hover:bg-blue-800/50 rounded transition-colors"
-              title="Collapse sidebar"
-            >
-              <PanelLeftClose className="w-4 h-4" />
-            </button>
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
+          {!collapsed && (
+            <>
+              <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
+                <Calculator className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-bold text-white">BOM Hub</h2>
+              </div>
+            </>
           )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 text-blue-200 hover:text-white hover:bg-blue-800/50 rounded transition-colors"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? (
+              <PanelLeft className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -116,37 +147,61 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
 
         {/* Yard Section */}
         <div className="my-2 border-t border-blue-700" />
-        <div className="px-3 pb-1 flex items-center gap-1.5">
-          <Warehouse className="w-3 h-3 text-amber-400" />
-          <span className="text-[10px] font-semibold text-blue-300 uppercase tracking-wider">
-            Yard
-          </span>
-        </div>
+        {!collapsed && (
+          <div className="px-3 pb-1 flex items-center gap-1.5">
+            <Warehouse className="w-3 h-3 text-amber-400" />
+            <span className="text-[10px] font-semibold text-blue-300 uppercase tracking-wider">
+              Yard
+            </span>
+          </div>
+        )}
+        {collapsed && (
+          <SidebarTooltip label="Yard" showTooltip={true}>
+            <div className="flex justify-center py-1">
+              <Warehouse className="w-3 h-3 text-amber-400" />
+            </div>
+          </SidebarTooltip>
+        )}
         {YARD_NAV_ITEMS.map(renderNavItem)}
 
         {/* Admin Section Divider */}
         {isAdmin && (
           <>
             <div className="my-2 border-t border-blue-700" />
-            <div className="px-3 pb-1">
-              <span className="text-[10px] font-semibold text-blue-300 uppercase tracking-wider">
-                Admin
-              </span>
-            </div>
+            {!collapsed && (
+              <div className="px-3 pb-1">
+                <span className="text-[10px] font-semibold text-blue-300 uppercase tracking-wider">
+                  Admin
+                </span>
+              </div>
+            )}
+            {collapsed && (
+              <SidebarTooltip label="Admin" showTooltip={true}>
+                <div className="flex justify-center py-1">
+                  <Settings2 className="w-3 h-3 text-blue-300" />
+                </div>
+              </SidebarTooltip>
+            )}
             {ADMIN_NAV_ITEMS.map(renderNavItem)}
 
             {/* v2 Beta Button */}
             {onOpenV2 && (
-              <button
-                onClick={onOpenV2}
-                className="w-full flex items-center gap-2 px-3 py-2 mt-2 rounded-lg bg-purple-600/20 text-purple-200 hover:bg-purple-600/30 transition-colors text-left text-sm border border-purple-500/30"
-              >
-                <FlaskConical className="w-4 h-4" />
-                <span className="flex-1 font-medium truncate">Try v2 Beta</span>
-                <span className="px-1.5 py-0.5 text-[10px] bg-purple-500/40 text-purple-100 rounded">
-                  NEW
-                </span>
-              </button>
+              <SidebarTooltip label="Try v2 Beta" showTooltip={collapsed}>
+                <button
+                  onClick={onOpenV2}
+                  className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2'} px-3 py-2 mt-2 rounded-lg bg-purple-600/20 text-purple-200 hover:bg-purple-600/30 transition-colors text-left text-sm border border-purple-500/30`}
+                >
+                  <FlaskConical className="w-4 h-4 flex-shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 font-medium truncate">Try v2 Beta</span>
+                      <span className="px-1.5 py-0.5 text-[10px] bg-purple-500/40 text-purple-100 rounded">
+                        NEW
+                      </span>
+                    </>
+                  )}
+                </button>
+              </SidebarTooltip>
             )}
           </>
         )}
@@ -154,13 +209,15 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
 
       {/* Back to Main App */}
       <div className="p-2 border-t border-blue-800">
-        <button
-          onClick={onBack}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-blue-200 hover:bg-blue-800/50 transition-colors text-sm"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span className="font-medium">Back</span>
-        </button>
+        <SidebarTooltip label="Back to Main App" showTooltip={collapsed}>
+          <button
+            onClick={onBack}
+            className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-blue-200 hover:bg-blue-800/50 transition-colors text-sm`}
+          >
+            <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span className="font-medium">Back</span>}
+          </button>
+        </SidebarTooltip>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { Menu, X, User, LogOut } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import CreateDropdown from '../components/CreateDropdown';
 import type { Section } from '../lib/routes';
+import { SidebarTooltip } from '../components/sidebar';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 
@@ -105,30 +106,36 @@ export default function Sidebar({
           return (
             <div key={item.id}>
               {item.separator && <div className="my-2 border-t border-gray-700"></div>}
-              <button
-                onClick={() => !isDisabled && onNavigate(item.id)}
-                disabled={isDisabled}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                  isDisabled
-                    ? 'text-gray-600 cursor-not-allowed'
-                    : isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                }`}
+              <SidebarTooltip
+                label={item.name}
+                showTooltip={!sidebarOpen}
+                badge={item.badge}
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {sidebarOpen && (
-                  <span className="font-medium text-sm flex-1 text-left">{item.name}</span>
-                )}
-                {isDisabled && sidebarOpen && (
-                  <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Soon</span>
-                )}
-                {!isDisabled && item.badge && item.badge > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {item.badge > 99 ? '99+' : item.badge}
-                  </span>
-                )}
-              </button>
+                <button
+                  onClick={() => !isDisabled && onNavigate(item.id)}
+                  disabled={isDisabled}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                    isDisabled
+                      ? 'text-gray-600 cursor-not-allowed'
+                      : isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && (
+                    <span className="font-medium text-sm flex-1 text-left">{item.name}</span>
+                  )}
+                  {isDisabled && sidebarOpen && (
+                    <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Soon</span>
+                  )}
+                  {!isDisabled && item.badge && item.badge > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                </button>
+              </SidebarTooltip>
             </div>
           );
         })}
@@ -170,30 +177,35 @@ export default function Sidebar({
 
         {/* User Profile and Sign Out */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowProfileView(true)}
-            className="flex items-center space-x-2 flex-1 hover:bg-gray-800 rounded-lg p-2 transition-colors"
+          <SidebarTooltip
+            label={profileFullName || userName}
+            showTooltip={!sidebarOpen}
           >
-            {profileAvatarUrl ? (
-              <img
-                src={profileAvatarUrl}
-                alt={userName}
-                className="w-8 h-8 rounded-full object-cover border-2 border-blue-600 flex-shrink-0"
-              />
-            ) : (
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-5 h-5 text-white" />
-              </div>
-            )}
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0 text-left">
-                <p className="font-medium text-xs text-white truncate">
-                  {profileFullName || userName}
-                </p>
-                <p className="text-xs text-gray-400 capitalize">{profileRole || userRole}</p>
-              </div>
-            )}
-          </button>
+            <button
+              onClick={() => setShowProfileView(true)}
+              className="flex items-center space-x-2 flex-1 hover:bg-gray-800 rounded-lg p-2 transition-colors"
+            >
+              {profileAvatarUrl ? (
+                <img
+                  src={profileAvatarUrl}
+                  alt={userName}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-blue-600 flex-shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-white" />
+                </div>
+              )}
+              {sidebarOpen && (
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="font-medium text-xs text-white truncate">
+                    {profileFullName || userName}
+                  </p>
+                  <p className="text-xs text-gray-400 capitalize">{profileRole || userRole}</p>
+                </div>
+              )}
+            </button>
+          </SidebarTooltip>
 
           {/* Logout Button */}
           {user && sidebarOpen && (
