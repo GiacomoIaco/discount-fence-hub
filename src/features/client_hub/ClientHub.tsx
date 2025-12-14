@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Building2,
   MapPin,
@@ -10,15 +10,63 @@ import ClientsList from './components/ClientsList';
 import CommunitiesList from './components/CommunitiesList';
 import GeographiesList from './components/GeographiesList';
 import RateSheetsList from './components/RateSheetsList';
+import type { EntityContext } from '../../hooks/useRouteSync';
+import type { EntityType } from '../../lib/routes';
 
 type Tab = 'clients' | 'communities' | 'geographies' | 'rate-sheets';
 
 interface ClientHubProps {
   onBack?: () => void;
+  /** Entity context from URL for deep linking (e.g., /clients/abc123) */
+  entityContext?: EntityContext | null;
+  /** Navigate to a specific entity */
+  onNavigateToEntity?: (entityType: EntityType, params: Record<string, string>) => void;
+  /** Clear entity selection (go back to list) */
+  onClearEntity?: () => void;
 }
 
-export default function ClientHub({ onBack: _onBack }: ClientHubProps) {
+export default function ClientHub({
+  onBack: _onBack,
+  entityContext,
+  onNavigateToEntity,
+  onClearEntity,
+}: ClientHubProps) {
   const [activeTab, setActiveTab] = useState<Tab>('clients');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+
+  // Handle entity context from URL
+  useEffect(() => {
+    if (entityContext) {
+      if (entityContext.type === 'client') {
+        setActiveTab('clients');
+        setSelectedClientId(entityContext.id);
+      } else if (entityContext.type === 'community') {
+        setActiveTab('communities');
+        // TODO: Add community deep link support
+      }
+    } else {
+      // Clear selections when entity context is cleared
+      setSelectedClientId(null);
+    }
+  }, [entityContext]);
+
+  // Handle client selection - update URL
+  const handleClientSelect = (clientId: string) => {
+    if (onNavigateToEntity) {
+      onNavigateToEntity('client', { id: clientId });
+    } else {
+      setSelectedClientId(clientId);
+    }
+  };
+
+  // Handle closing client detail - clear URL
+  const handleClientClose = () => {
+    if (onClearEntity) {
+      onClearEntity();
+    } else {
+      setSelectedClientId(null);
+    }
+  };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'clients', label: 'Clients', icon: <Building2 className="w-4 h-4" /> },
@@ -66,7 +114,13 @@ export default function ClientHub({ onBack: _onBack }: ClientHubProps) {
 
       {/* Content */}
       <div className="p-6">
-        {activeTab === 'clients' && <ClientsList />}
+        {activeTab === 'clients' && (
+          <ClientsList
+            selectedClientId={selectedClientId}
+            onSelectClient={handleClientSelect}
+            onCloseClient={handleClientClose}
+          />
+        )}
         {activeTab === 'communities' && <CommunitiesList />}
         {activeTab === 'rate-sheets' && <RateSheetsList />}
         {activeTab === 'geographies' && <GeographiesList />}

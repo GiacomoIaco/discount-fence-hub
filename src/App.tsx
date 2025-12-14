@@ -90,7 +90,8 @@ function App() {
   const [activeSection, setActiveSection] = useState<Section>('home');
 
   // Sync activeSection with URL - enables bookmarks, back/forward, and shareable links
-  const { navigateTo } = useRouteSync({
+  // Also handles entity routes like /clients/abc123, /requests/req-456
+  const { navigateTo, navigateToEntity, entityContext, clearEntity } = useRouteSync({
     activeSection,
     setActiveSection,
   });
@@ -317,7 +318,10 @@ function App() {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
-              <MyRequestsView onBack={() => setActiveSection('home')} onMarkAsRead={markRequestAsRead} />
+              <MyRequestsView
+                onBack={() => navigateTo('home')}
+                onMarkAsRead={markRequestAsRead}
+              />
             </Suspense>
           </ErrorBoundary>
         );
@@ -325,7 +329,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <RequestHub onBack={() => setActiveSection('home')} />
+            <RequestHub onBack={() => navigateTo('home')} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -563,7 +567,11 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <ClientHub />
+            <ClientHub
+              entityContext={entityContext}
+              onNavigateToEntity={navigateToEntity}
+              onClearEntity={clearEntity}
+            />
           </Suspense>
         </ErrorBoundary>
       );

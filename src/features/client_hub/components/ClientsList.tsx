@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -12,7 +12,7 @@ import {
   Mail,
   Filter,
 } from 'lucide-react';
-import { useClients, useDeleteClient } from '../hooks/useClients';
+import { useClients, useDeleteClient, useClient } from '../hooks/useClients';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
@@ -24,7 +24,20 @@ import {
 import ClientEditorModal from './ClientEditorModal';
 import ClientDetailModal from './ClientDetailModal';
 
-export default function ClientsList() {
+interface ClientsListProps {
+  /** ID of client to open from URL deep link */
+  selectedClientId?: string | null;
+  /** Called when user clicks a client row */
+  onSelectClient?: (clientId: string) => void;
+  /** Called when user closes client detail modal */
+  onCloseClient?: () => void;
+}
+
+export default function ClientsList({
+  selectedClientId,
+  onSelectClient,
+  onCloseClient,
+}: ClientsListProps) {
   const [search, setSearch] = useState('');
   const [businessUnitFilter, setBusinessUnitFilter] = useState<string>('');
   const [clientTypeFilter, setClientTypeFilter] = useState<string>('');
@@ -35,6 +48,19 @@ export default function ClientsList() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [viewingClient, setViewingClient] = useState<Client | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+
+  // Fetch specific client if selectedClientId is provided (from URL)
+  const { data: urlSelectedClient } = useClient(selectedClientId || '');
+
+  // Open client detail when URL changes
+  useEffect(() => {
+    if (selectedClientId && urlSelectedClient) {
+      setViewingClient(urlSelectedClient);
+    } else if (!selectedClientId) {
+      // URL cleared - close modal if it was opened via URL
+      // But don't close if user opened via click (viewingClient would be set differently)
+    }
+  }, [selectedClientId, urlSelectedClient]);
 
   const { data: clients, isLoading } = useClients({
     search,
@@ -206,7 +232,13 @@ export default function ClientsList() {
                 <tr
                   key={client.id}
                   className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => setViewingClient(client)}
+                  onClick={() => {
+                    // Update URL if callback provided, otherwise just set local state
+                    if (onSelectClient) {
+                      onSelectClient(client.id);
+                    }
+                    setViewingClient(client);
+                  }}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -328,11 +360,21 @@ export default function ClientsList() {
       {viewingClient && (
         <ClientDetailModal
           clientId={viewingClient.id}
-          onClose={() => setViewingClient(null)}
+          onClose={() => {
+            setViewingClient(null);
+            // Update URL if callback provided
+            if (onCloseClient) {
+              onCloseClient();
+            }
+          }}
           onEdit={() => {
             setEditingClient(viewingClient);
             setViewingClient(null);
             setShowEditor(true);
+            // Clear URL when entering edit mode
+            if (onCloseClient) {
+              onCloseClient();
+            }
           }}
         />
       )}

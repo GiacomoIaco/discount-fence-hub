@@ -156,29 +156,123 @@ export function getBestMatchingSection(path: string): Section {
 }
 
 /**
- * FSM Entity Routes (for deep linking to specific entities)
- * These are handled separately from Section navigation
+ * Entity types that support deep linking
  */
-export const FSM_ENTITY_ROUTES = {
-  request: '/fsm/requests/:id',
-  quote: '/fsm/quotes/:id',
-  job: '/fsm/jobs/:id',
-  invoice: '/fsm/invoices/:id',
-  client: '/clients/:id',
-  community: '/clients/:clientId/communities/:id',
-  property: '/clients/:clientId/properties/:id',
-} as const;
+export type EntityType =
+  | 'client'
+  | 'community'
+  | 'property'
+  | 'project'
+  | 'request'
+  | 'quote'
+  | 'job'
+  | 'invoice';
 
 /**
- * Build an entity URL
+ * Entity route patterns - maps entity types to their URL patterns
+ * These routes support deep linking to specific records
+ */
+export const ENTITY_ROUTES: Record<EntityType, { pattern: string; section: Section }> = {
+  // Client Hub entities
+  client: { pattern: '/clients/:id', section: 'client-hub' },
+  community: { pattern: '/clients/:clientId/communities/:id', section: 'client-hub' },
+  property: { pattern: '/clients/:clientId/properties/:id', section: 'client-hub' },
+
+  // Projects Hub entities
+  project: { pattern: '/projects/:id', section: 'projects-hub' },
+
+  // Requests
+  request: { pattern: '/requests/:id', section: 'requests' },
+
+  // FSM entities (quotes, jobs, invoices)
+  quote: { pattern: '/quotes/:id', section: 'projects-hub' },
+  job: { pattern: '/jobs/:id', section: 'projects-hub' },
+  invoice: { pattern: '/invoices/:id', section: 'projects-hub' },
+};
+
+/**
+ * Build an entity URL for deep linking
+ *
+ * @example
+ * buildEntityUrl('client', { id: 'abc123' }) // '/clients/abc123'
+ * buildEntityUrl('community', { clientId: 'abc', id: '123' }) // '/clients/abc/communities/123'
+ * buildEntityUrl('request', { id: 'req-456' }) // '/requests/req-456'
  */
 export function buildEntityUrl(
-  entityType: keyof typeof FSM_ENTITY_ROUTES,
+  entityType: EntityType,
   params: Record<string, string>
 ): string {
-  let url: string = FSM_ENTITY_ROUTES[entityType];
+  let url: string = ENTITY_ROUTES[entityType].pattern;
   Object.entries(params).forEach(([key, value]) => {
     url = url.replace(`:${key}`, value);
   });
   return url;
+}
+
+/**
+ * Parse an entity URL to extract type and params
+ * Returns null if URL doesn't match any entity pattern
+ *
+ * @example
+ * parseEntityUrl('/clients/abc123') // { type: 'client', params: { id: 'abc123' }, section: 'client-hub' }
+ * parseEntityUrl('/requests/req-456') // { type: 'request', params: { id: 'req-456' }, section: 'requests' }
+ */
+export function parseEntityUrl(path: string): {
+  type: EntityType;
+  params: Record<string, string>;
+  section: Section;
+} | null {
+  const cleanPath = path.replace(/^\/+|\/+$/g, '');
+
+  for (const [entityType, config] of Object.entries(ENTITY_ROUTES)) {
+    const pattern = config.pattern.replace(/^\/+/, '');
+    const params = matchPattern(cleanPath, pattern);
+    if (params) {
+      return {
+        type: entityType as EntityType,
+        params,
+        section: config.section
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Match a path against a pattern with :param placeholders
+ * Returns extracted params or null if no match
+ */
+function matchPattern(path: string, pattern: string): Record<string, string> | null {
+  const pathParts = path.split('/');
+  const patternParts = pattern.split('/');
+
+  if (pathParts.length !== patternParts.length) {
+    return null;
+  }
+
+  const params: Record<string, string> = {};
+
+  for (let i = 0; i < patternParts.length; i++) {
+    const patternPart = patternParts[i];
+    const pathPart = pathParts[i];
+
+    if (patternPart.startsWith(':')) {
+      // This is a parameter - extract it
+      const paramName = patternPart.slice(1);
+      params[paramName] = pathPart;
+    } else if (patternPart !== pathPart) {
+      // Static part doesn't match
+      return null;
+    }
+  }
+
+  return params;
+}
+
+/**
+ * Check if a path is an entity route (has an ID parameter)
+ */
+export function isEntityRoute(path: string): boolean {
+  return parseEntityUrl(path) !== null;
 }
