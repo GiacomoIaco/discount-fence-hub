@@ -17,7 +17,8 @@ import {
   User,
 } from 'lucide-react';
 import { useQuotes } from '../hooks/useQuotes';
-import { QuoteDetailPage } from '../pages';
+import QuoteDetailPage from './QuoteDetailPage';
+import QuoteBuilderPage from './QuoteBuilderPage';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
@@ -43,6 +44,7 @@ export default function QuotesHub({
 }: QuotesHubProps) {
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showBuilder, setShowBuilder] = useState(false);
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: quotes, isLoading, error } = useQuotes(filters);
@@ -102,6 +104,15 @@ export default function QuotesHub({
     });
   };
 
+  // If creating a new quote, render the builder page
+  if (showBuilder) {
+    return (
+      <QuoteBuilderPage
+        onBack={() => setShowBuilder(false)}
+      />
+    );
+  }
+
   // If viewing a specific quote, render the detail page
   if (entityContext?.type === 'quote') {
     return (
@@ -131,10 +142,7 @@ export default function QuotesHub({
               </div>
             </div>
             <button
-              onClick={() => {
-                // TODO: Open quote builder or create from request
-                console.log('Create new quote');
-              }}
+              onClick={() => setShowBuilder(true)}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
             >
               <Plus className="w-4 h-4" />
@@ -189,7 +197,7 @@ export default function QuotesHub({
             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No quotes found</p>
             <button
-              onClick={() => console.log('Create quote')}
+              onClick={() => setShowBuilder(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
             >
               <Plus className="w-4 h-4" />

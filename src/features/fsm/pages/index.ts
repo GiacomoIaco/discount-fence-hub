@@ -4,6 +4,7 @@ export { default as FSMSettingsPage } from './FSMSettingsPage';
 export { default as RequestDetailPage } from './RequestDetailPage';
 export { default as RequestsHub } from './RequestsHub';
 export { default as QuoteDetailPage } from './QuoteDetailPage';
+export { default as QuoteBuilderPage } from './QuoteBuilderPage';
 export { default as QuotesHub } from './QuotesHub';
 export { default as JobDetailPage } from './JobDetailPage';
 export { default as JobsHub } from './JobsHub';
