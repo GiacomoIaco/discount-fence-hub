@@ -8,6 +8,8 @@ import {
   Phone,
   Key,
   User,
+  Edit2,
+  ExternalLink,
 } from 'lucide-react';
 import { useProperties } from '../hooks/useProperties';
 import { PROPERTY_STATUS_LABELS, type PropertyStatus, type Property } from '../types';
@@ -16,9 +18,11 @@ interface Props {
   communityId: string;
   onAddProperty: () => void;
   onSelectProperty: (property: Property) => void;
+  /** Navigate to property detail page to see all jobs/quotes/requests */
+  onViewProperty?: (property: Property) => void;
 }
 
-export default function PropertiesList({ communityId, onAddProperty, onSelectProperty }: Props) {
+export default function PropertiesList({ communityId, onAddProperty, onSelectProperty, onViewProperty }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<PropertyStatus | ''>('');
 
@@ -109,7 +113,8 @@ export default function PropertiesList({ communityId, onAddProperty, onSelectPro
             <PropertyCard
               key={property.id}
               property={property}
-              onClick={() => onSelectProperty(property)}
+              onEdit={() => onSelectProperty(property)}
+              onView={onViewProperty ? () => onViewProperty(property) : undefined}
             />
           ))}
         </div>
@@ -118,7 +123,15 @@ export default function PropertiesList({ communityId, onAddProperty, onSelectPro
   );
 }
 
-function PropertyCard({ property, onClick }: { property: Property; onClick: () => void }) {
+function PropertyCard({
+  property,
+  onEdit,
+  onView
+}: {
+  property: Property;
+  onEdit: () => void;
+  onView?: () => void;
+}) {
   const statusColors: Record<PropertyStatus, string> = {
     available: 'bg-green-100 text-green-700',
     sold: 'bg-blue-100 text-blue-700',
@@ -128,10 +141,7 @@ function PropertyCard({ property, onClick }: { property: Property; onClick: () =
   };
 
   return (
-    <div
-      onClick={onClick}
-      className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
-    >
+    <div className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-white rounded-lg">
@@ -177,9 +187,35 @@ function PropertyCard({ property, onClick }: { property: Property; onClick: () =
           </div>
         </div>
 
-        <span className={`px-2 py-0.5 text-xs rounded-full ${statusColors[property.status]}`}>
-          {PROPERTY_STATUS_LABELS[property.status]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 text-xs rounded-full ${statusColors[property.status]}`}>
+            {PROPERTY_STATUS_LABELS[property.status]}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+              title="Edit property"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            {onView && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onView();
+                }}
+                className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded transition-colors"
+                title="View all jobs & quotes"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import CommunitiesList from './components/CommunitiesList';
 import GeographiesList from './components/GeographiesList';
 import RateSheetsList from './components/RateSheetsList';
 import ClientDetailPage from './pages/ClientDetailPage';
+import PropertyDetailPage from './pages/PropertyDetailPage';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
@@ -34,7 +35,7 @@ export default function ClientHub({
 }: ClientHubProps) {
   const [activeTab, setActiveTab] = useState<Tab>('clients');
 
-  // Handle entity context from URL - switch to clients tab when viewing a client
+  // Handle entity context from URL - switch to appropriate tab when viewing an entity
   useEffect(() => {
     if (entityContext) {
       if (entityContext.type === 'client') {
@@ -42,6 +43,9 @@ export default function ClientHub({
       } else if (entityContext.type === 'community') {
         setActiveTab('communities');
         // TODO: Add community deep link support
+      } else if (entityContext.type === 'property') {
+        // Properties are accessed via clients tab (Client → Community → Property)
+        setActiveTab('clients');
       }
     }
   }, [entityContext]);
@@ -59,6 +63,17 @@ export default function ClientHub({
       onClearEntity();
     }
   };
+
+  // If viewing a specific property, render the property detail page
+  if (entityContext?.type === 'property') {
+    return (
+      <PropertyDetailPage
+        propertyId={entityContext.id}
+        onBack={handleClientClose}
+        onNavigateToEntity={onNavigateToEntity}
+      />
+    );
+  }
 
   // If viewing a specific client, render the detail page
   if (entityContext?.type === 'client') {
@@ -121,7 +136,9 @@ export default function ClientHub({
             onSelectClient={handleClientSelect}
           />
         )}
-        {activeTab === 'communities' && <CommunitiesList />}
+        {activeTab === 'communities' && (
+          <CommunitiesList onNavigateToEntity={onNavigateToEntity} />
+        )}
         {activeTab === 'rate-sheets' && <RateSheetsList />}
         {activeTab === 'geographies' && <GeographiesList />}
       </div>

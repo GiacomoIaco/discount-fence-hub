@@ -23,9 +23,11 @@ interface Props {
   communityId: string;
   onClose: () => void;
   onEdit: () => void;
+  /** Navigate to property detail page to see all jobs/quotes */
+  onNavigateToProperty?: (propertyId: string) => void;
 }
 
-export default function CommunityDetailModal({ communityId, onClose, onEdit }: Props) {
+export default function CommunityDetailModal({ communityId, onClose, onEdit, onNavigateToProperty }: Props) {
   const { data: community, isLoading } = useCommunity(communityId);
   const { data: contactRoles } = useContactRoles('community');
   const [showAddContact, setShowAddContact] = useState(false);
@@ -179,6 +181,9 @@ export default function CommunityDetailModal({ communityId, onClose, onEdit }: P
                 setSelectedProperty(property);
                 setShowPropertyEditor(true);
               }}
+              onViewProperty={onNavigateToProperty ? (property) => {
+                onNavigateToProperty(property.id);
+              } : undefined}
             />
           </div>
 

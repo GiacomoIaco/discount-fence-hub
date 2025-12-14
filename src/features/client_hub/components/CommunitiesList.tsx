@@ -17,8 +17,13 @@ import { useClients, useGeographies } from '../hooks/useClients';
 import { COMMUNITY_STATUS_LABELS, type Community, type CommunityStatus } from '../types';
 import CommunityEditorModal from './CommunityEditorModal';
 import CommunityDetailModal from './CommunityDetailModal';
+import type { EntityType } from '../../../lib/routes';
 
-export default function CommunitiesList() {
+interface Props {
+  onNavigateToEntity?: (entityType: EntityType, params: Record<string, string>) => void;
+}
+
+export default function CommunitiesList({ onNavigateToEntity }: Props) {
   const [search, setSearch] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('');
   const [geographyFilter, setGeographyFilter] = useState<string>('');
@@ -313,6 +318,10 @@ export default function CommunitiesList() {
             setViewingCommunity(null);
             setShowEditor(true);
           }}
+          onNavigateToProperty={onNavigateToEntity ? (propertyId) => {
+            setViewingCommunity(null); // Close modal first
+            onNavigateToEntity('property', { id: propertyId });
+          } : undefined}
         />
       )}
     </div>
