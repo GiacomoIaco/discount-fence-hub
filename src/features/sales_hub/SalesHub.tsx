@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   LayoutDashboard,
   Bot,
@@ -8,10 +8,15 @@ import {
   FileText,
   ChevronRight,
   TrendingUp,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import type { SalesHubView } from './types';
 import { SalesDashboard } from './components';
+import { SidebarTooltip } from '../../components/sidebar';
+
+const STORAGE_KEY = 'sidebar-collapsed-sales-hub';
 
 // Lazy load the actual sales tools to avoid circular dependencies
 const SalesCoach = lazy(() => import('../ai-coach').then(m => ({ default: m.SalesCoach })));
@@ -47,8 +52,18 @@ interface SalesHubProps {
 
 export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }: SalesHubProps) {
   const [activeView, setActiveView] = useState<SalesHubView>(initialView);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === 'true';
+  });
   const { user, profile } = useAuth();
   const userRole = (profile?.role || 'sales') as UserRole;
+
+  // Persist collapsed state
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(collapsed));
+  }, [collapsed]);
 
   const renderContent = () => {
     switch (activeView) {
@@ -92,14 +107,25 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className="w-56 bg-gradient-to-b from-amber-700 to-orange-800 text-white flex flex-col">
+      <div className={`${collapsed ? 'w-14' : 'w-56'} bg-gradient-to-b from-amber-700 to-orange-800 text-white flex flex-col transition-all duration-300`}>
         {/* Header */}
-        <div className="p-4 border-b border-amber-600">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Sales Hub
-          </h1>
-          <p className="text-xs text-amber-200 mt-1">Tools to close more deals</p>
+        <div className="p-3 border-b border-amber-600">
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+            {!collapsed && (
+              <h1 className="text-lg font-bold flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Sales Hub
+              </h1>
+            )}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 text-amber-200 hover:text-white hover:bg-white/10 rounded transition-colors"
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </button>
+          </div>
+          {!collapsed && <p className="text-xs text-amber-200 mt-1">Tools to close more deals</p>}
         </div>
 
         {/* Navigation */}
@@ -108,32 +134,39 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
             const Icon = item.icon;
             const isActive = activeView === item.key;
             return (
-              <button
-                key={item.key}
-                onClick={() => setActiveView(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-white/20 text-white shadow-lg'
-                    : 'text-amber-100 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {item.label}
-                {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-              </button>
+              <SidebarTooltip key={item.key} label={item.label} showTooltip={collapsed}>
+                <button
+                  onClick={() => setActiveView(item.key)}
+                  className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-white/20 text-white shadow-lg'
+                      : 'text-amber-100 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {!collapsed && (
+                    <>
+                      {item.label}
+                      {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                    </>
+                  )}
+                </button>
+              </SidebarTooltip>
             );
           })}
         </nav>
 
-        {/* Tips Section */}
-        <div className="p-3 border-t border-amber-600">
-          <div className="bg-amber-600/50 rounded-lg p-3">
-            <p className="text-xs text-amber-100 font-medium mb-1">Pro Tip</p>
-            <p className="text-xs text-amber-200">
-              Use the AI Sales Coach before customer meetings to prepare objection responses.
-            </p>
+        {/* Tips Section - hidden when collapsed */}
+        {!collapsed && (
+          <div className="p-3 border-t border-amber-600">
+            <div className="bg-amber-600/50 rounded-lg p-3">
+              <p className="text-xs text-amber-100 font-medium mb-1">Pro Tip</p>
+              <p className="text-xs text-amber-200">
+                Use the AI Sales Coach before customer meetings to prepare objection responses.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main Content */}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   FileText,
@@ -7,6 +7,8 @@ import {
   BarChart3,
   Plus,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import type { SurveyHubView } from './types';
 import SurveysDashboard from './components/SurveysDashboard';
@@ -14,6 +16,9 @@ import SurveysList from './components/SurveysList';
 import PopulationsList from './components/PopulationsList';
 import CampaignsList from './components/CampaignsList';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import { SidebarTooltip } from '../../components/sidebar';
+
+const STORAGE_KEY = 'sidebar-collapsed-survey-hub';
 
 const NAV_ITEMS: { key: SurveyHubView; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -29,6 +34,16 @@ interface SurveyHubProps {
 
 export default function SurveyHub({ onBack: _onBack }: SurveyHubProps) {
   const [activeView, setActiveView] = useState<SurveyHubView>('dashboard');
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === 'true';
+  });
+
+  // Persist collapsed state
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(collapsed));
+  }, [collapsed]);
 
   const renderContent = () => {
     switch (activeView) {
@@ -50,14 +65,25 @@ export default function SurveyHub({ onBack: _onBack }: SurveyHubProps) {
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className="w-56 bg-gradient-to-b from-emerald-800 to-teal-900 text-white flex flex-col">
+      <div className={`${collapsed ? 'w-14' : 'w-56'} bg-gradient-to-b from-emerald-800 to-teal-900 text-white flex flex-col transition-all duration-300`}>
         {/* Header */}
-        <div className="p-4 border-b border-emerald-700">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Survey Hub
-          </h1>
-          <p className="text-xs text-emerald-200 mt-1">Customer Feedback System</p>
+        <div className="p-3 border-b border-emerald-700">
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+            {!collapsed && (
+              <h1 className="text-lg font-bold flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Survey Hub
+              </h1>
+            )}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded transition-colors"
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </button>
+          </div>
+          {!collapsed && <p className="text-xs text-emerald-200 mt-1">Customer Feedback System</p>}
         </div>
 
         {/* Navigation */}
@@ -66,39 +92,48 @@ export default function SurveyHub({ onBack: _onBack }: SurveyHubProps) {
             const Icon = item.icon;
             const isActive = activeView === item.key;
             return (
-              <button
-                key={item.key}
-                onClick={() => setActiveView(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-white/20 text-white shadow-lg'
-                    : 'text-emerald-100 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {item.label}
-                {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-              </button>
+              <SidebarTooltip key={item.key} label={item.label} showTooltip={collapsed}>
+                <button
+                  onClick={() => setActiveView(item.key)}
+                  className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-white/20 text-white shadow-lg'
+                      : 'text-emerald-100 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {!collapsed && (
+                    <>
+                      {item.label}
+                      {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                    </>
+                  )}
+                </button>
+              </SidebarTooltip>
             );
           })}
         </nav>
 
         {/* Quick Actions */}
-        <div className="p-3 border-t border-emerald-700 space-y-2">
-          <button
-            onClick={() => setActiveView('surveys')}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Survey
-          </button>
-          <button
-            onClick={() => setActiveView('campaigns')}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-500 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Calendar className="w-4 h-4" />
-            New Campaign
-          </button>
+        <div className="p-2 border-t border-emerald-700 space-y-2">
+          <SidebarTooltip label="New Survey" showTooltip={collapsed}>
+            <button
+              onClick={() => setActiveView('surveys')}
+              className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-center gap-2'} px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium transition-colors`}
+            >
+              <Plus className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && 'New Survey'}
+            </button>
+          </SidebarTooltip>
+          <SidebarTooltip label="New Campaign" showTooltip={collapsed}>
+            <button
+              onClick={() => setActiveView('campaigns')}
+              className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-center gap-2'} px-3 py-2 bg-teal-600 hover:bg-teal-500 rounded-lg text-sm font-medium transition-colors`}
+            >
+              <Calendar className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && 'New Campaign'}
+            </button>
+          </SidebarTooltip>
         </div>
       </div>
 
