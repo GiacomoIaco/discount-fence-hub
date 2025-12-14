@@ -1,8 +1,7 @@
 import { lazy, Suspense, useMemo } from 'react';
 import CustomPricingRequest from './CustomPricingRequest';
 import type { MenuCategory, MobileStyle } from '../../hooks/useMenuVisibility';
-
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub' | 'inventory';
+import type { Section } from '../../lib/routes';
 
 interface NavigationItem {
   id: Section;
@@ -49,7 +48,7 @@ const LoadingFallback = () => (
 
 interface SalesRepViewProps {
   activeSection: Section;
-  setActiveSection: (section: Section) => void;
+  onNavigate: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
   mobileLayout?: 'expanded' | 'compact';
   unreadAnnouncementsCount: number;
@@ -66,7 +65,7 @@ interface SalesRepViewProps {
 
 export default function SalesRepView({
   activeSection,
-  setActiveSection,
+  onNavigate,
   viewMode,
   mobileLayout = 'expanded',
   unreadAnnouncementsCount,
@@ -83,19 +82,19 @@ export default function SalesRepView({
   if (activeSection === 'requests') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <RequestHub onBack={() => setActiveSection('home')} />
+        <RequestHub onBack={() => onNavigate('home')} />
       </Suspense>
     );
   }
 
   if (activeSection === 'custom-pricing') {
-    return <CustomPricingRequest onBack={() => setActiveSection('home')} viewMode={viewMode} />;
+    return <CustomPricingRequest onBack={() => onNavigate('home')} viewMode={viewMode} />;
   }
 
   if (activeSection === 'my-requests') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <MyRequestsView onBack={() => setActiveSection('home')} onMarkAsRead={onMarkAsRead} />
+        <MyRequestsView onBack={() => onNavigate('home')} onMarkAsRead={onMarkAsRead} />
       </Suspense>
     );
   }
@@ -103,7 +102,7 @@ export default function SalesRepView({
   if (activeSection === 'stain-calculator') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <StainCalculator onBack={() => setActiveSection('home')} />
+        <StainCalculator onBack={() => onNavigate('home')} />
       </Suspense>
     );
   }
@@ -111,7 +110,7 @@ export default function SalesRepView({
   if (activeSection === 'presentation') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <ClientPresentation onBack={() => setActiveSection('home')} isMobile={true} />
+        <ClientPresentation onBack={() => onNavigate('home')} isMobile={true} />
       </Suspense>
     );
   }
@@ -119,7 +118,7 @@ export default function SalesRepView({
   if (activeSection === 'sales-coach') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <SalesCoach userId={userId || 'unknown'} onOpenAdmin={() => setActiveSection('sales-coach-admin')} />
+        <SalesCoach userId={userId || 'unknown'} onOpenAdmin={() => onNavigate('sales-coach-admin')} />
       </Suspense>
     );
   }
@@ -127,7 +126,7 @@ export default function SalesRepView({
   if (activeSection === 'sales-coach-admin') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <SalesCoachAdmin onBack={() => setActiveSection('sales-coach')} />
+        <SalesCoachAdmin onBack={() => onNavigate('sales-coach')} />
       </Suspense>
     );
   }
@@ -135,7 +134,7 @@ export default function SalesRepView({
   if (activeSection === 'photo-gallery') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <PhotoGalleryRefactored onBack={() => setActiveSection('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />
+        <PhotoGalleryRefactored onBack={() => onNavigate('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />
       </Suspense>
     );
   }
@@ -143,7 +142,7 @@ export default function SalesRepView({
   if (activeSection === 'sales-resources') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <SalesResources onBack={() => setActiveSection('home')} userRole="sales" viewMode={viewMode} />
+        <SalesResources onBack={() => onNavigate('home')} userRole="sales" viewMode={viewMode} />
       </Suspense>
     );
   }
@@ -151,7 +150,7 @@ export default function SalesRepView({
   if (activeSection === 'team-communication') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <TeamCommunication onBack={() => setActiveSection('home')} onUnreadCountChange={onTeamCommunicationUnreadCountChange} refreshTrigger={teamCommunicationRefresh} />
+        <TeamCommunication onBack={() => onNavigate('home')} onUnreadCountChange={onTeamCommunicationUnreadCountChange} refreshTrigger={teamCommunicationRefresh} />
       </Suspense>
     );
   }
@@ -167,7 +166,7 @@ export default function SalesRepView({
   if (activeSection === 'team') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <Settings onBack={() => setActiveSection('home')} userRole="sales" />
+        <Settings onBack={() => onNavigate('home')} userRole="sales" />
       </Suspense>
     );
   }
@@ -175,7 +174,7 @@ export default function SalesRepView({
   if (activeSection === 'my-todos') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <MyTodos onBack={() => setActiveSection('home')} />
+        <MyTodos onBack={() => onNavigate('home')} />
       </Suspense>
     );
   }
@@ -184,7 +183,7 @@ export default function SalesRepView({
     return (
       <Suspense fallback={<LoadingFallback />}>
         <BOMCalculatorHub
-          onBack={() => setActiveSection('home')}
+          onBack={() => onNavigate('home')}
           userRole="operations"
           userId={userId}
           userName={userName}
@@ -197,7 +196,7 @@ export default function SalesRepView({
   if (activeSection === 'roadmap') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <RoadmapHub onBack={() => setActiveSection('home')} />
+        <RoadmapHub onBack={() => onNavigate('home')} />
       </Suspense>
     );
   }
@@ -281,7 +280,7 @@ export default function SalesRepView({
     return (
       <button
         key={item.id}
-        onClick={() => setActiveSection(item.id)}
+        onClick={() => onNavigate(item.id)}
         className={`w-full ${isGradient ? `bg-gradient-to-r ${style.gradient} text-white` : style.bgColor} p-5 rounded-xl shadow-sm active:scale-98 transition-transform relative`}
       >
         <div className="flex items-center space-x-4">
@@ -317,7 +316,7 @@ export default function SalesRepView({
     return (
       <button
         key={item.id}
-        onClick={() => setActiveSection(item.id)}
+        onClick={() => onNavigate(item.id)}
         className={`flex flex-col items-center justify-center p-3 rounded-xl shadow-sm active:scale-95 transition-transform relative ${
           isGradient ? `bg-gradient-to-br ${style.gradient} text-white` : style.bgColor
         }`}

@@ -10,6 +10,8 @@ import { useEscalationEngine } from './hooks/useEscalationEngine';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { useRequestNotifications } from './hooks/useRequestNotifications';
 import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
+import { useRouteSync } from './hooks/useRouteSync';
+import type { Section } from './lib/routes';
 import type { Request } from './features/requests/lib/requests';
 
 // Layout components
@@ -67,7 +69,7 @@ const LoadingFallback = () => (
 );
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub' | 'inventory';
+// Section type is now imported from './lib/routes'
 
 function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -86,6 +88,13 @@ function App() {
 
   const userName = profile?.full_name || 'User';
   const [activeSection, setActiveSection] = useState<Section>('home');
+
+  // Sync activeSection with URL - enables bookmarks, back/forward, and shareable links
+  const { navigateTo } = useRouteSync({
+    activeSection,
+    setActiveSection,
+  });
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>(() => {
     const saved = localStorage.getItem('viewMode');
@@ -204,28 +213,7 @@ function App() {
     }
   }, [activeSection]);
 
-  // Handle browser back button to prevent app close
-  useEffect(() => {
-    // Push initial state
-    window.history.pushState(null, '', window.location.href);
-
-    const handlePopState = (e: PopStateEvent) => {
-      e.preventDefault();
-      // Push state again to keep user in app
-      window.history.pushState(null, '', window.location.href);
-
-      // Navigate back within app if not on home
-      if (activeSection !== 'home') {
-        setActiveSection('home');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [activeSection]);
+  // Browser back/forward is now handled by useRouteSync via React Router
 
   // Universal navigation items - same for all roles (permissions controlled inside each component)
   // menuId allows mapping navigation section to different menu_visibility entries
@@ -654,7 +642,7 @@ function App() {
             <ErrorBoundary>
               <SalesRepView
                 activeSection={activeSection}
-                setActiveSection={setActiveSection}
+                onNavigate={navigateTo}
                 viewMode={viewMode}
                 mobileLayout={mobileLayout}
                 unreadAnnouncementsCount={unreadAnnouncementsCount}
@@ -722,7 +710,7 @@ function App() {
           setSidebarOpen={setSidebarOpen}
           navigationItems={visibleNavigationItems}
           activeSection={activeSection}
-          setActiveSection={setActiveSection}
+          onNavigate={navigateTo}
           userRole={userRole}
           setUserRole={setUserRole}
           profileRole={profile?.role}

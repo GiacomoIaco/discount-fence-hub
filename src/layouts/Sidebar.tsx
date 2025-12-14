@@ -1,9 +1,9 @@
 import { Menu, X, User, LogOut } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import CreateDropdown from '../components/CreateDropdown';
+import type { Section } from '../lib/routes';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-type Section = 'home' | 'custom-pricing' | 'requests' | 'my-requests' | 'presentation' | 'stain-calculator' | 'sales-coach' | 'sales-coach-admin' | 'photo-gallery' | 'sales-resources' | 'dashboard' | 'request-queue' | 'analytics' | 'team' | 'manager-dashboard' | 'team-communication' | 'direct-messages' | 'assignment-rules' | 'bom-calculator' | 'bom-calculator-v2' | 'leadership' | 'my-todos' | 'yard' | 'roadmap' | 'survey-hub' | 'client-hub' | 'schedule' | 'projects-hub' | 'sales-hub' | 'inventory';
 
 interface NavigationItem {
   id: Section;
@@ -20,7 +20,7 @@ interface SidebarProps {
   setSidebarOpen: (open: boolean) => void;
   navigationItems: NavigationItem[];
   activeSection: Section;
-  setActiveSection: (section: Section) => void;
+  onNavigate: (section: Section) => void;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
   profileRole: UserRole | undefined;
@@ -39,7 +39,7 @@ export default function Sidebar({
   setSidebarOpen,
   navigationItems,
   activeSection,
-  setActiveSection,
+  onNavigate,
   userRole,
   setUserRole,
   profileRole,
@@ -106,7 +106,7 @@ export default function Sidebar({
             <div key={item.id}>
               {item.separator && <div className="my-2 border-t border-gray-700"></div>}
               <button
-                onClick={() => !isDisabled && setActiveSection(item.id)}
+                onClick={() => !isDisabled && onNavigate(item.id)}
                 disabled={isDisabled}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
                   isDisabled
@@ -155,7 +155,7 @@ export default function Sidebar({
               value={userRole}
               onChange={(e) => {
                 setUserRole(e.target.value as UserRole);
-                setActiveSection('home');
+                onNavigate('home');
               }}
               className="w-full px-2 py-1 text-sm bg-gray-800 border border-gray-700 rounded text-white"
             >
