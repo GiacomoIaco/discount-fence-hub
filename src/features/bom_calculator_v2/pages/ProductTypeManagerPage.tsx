@@ -3197,6 +3197,36 @@ function FormulaCell({
 // FORMULA EDITOR MODAL
 // =============================================================================
 
+// Common material attribute defaults for testing
+const MATERIAL_ATTRIBUTE_DEFAULTS: Record<string, number> = {
+  // Pickets
+  'picket.width_inches': 5.5,
+  'picket.length_feet': 6,
+  // Boards (horizontal)
+  'board.width_inches': 6,
+  'board.length_feet': 8,
+  // Rails
+  'rail.length_feet': 8,
+  // Caps
+  'cap.length_feet': 8,
+  // Posts
+  'post.length_feet': 8,
+  // Nails
+  'nails_picket.qty_per_unit': 300,
+  'nails_framing.qty_per_unit': 50,
+  // Panels
+  'panel.width_feet': 6,
+  'panel.height_feet': 6,
+  // Concrete
+  'concrete.bags_per_post': 1.5,
+};
+
+// Extract all variables from a formula string
+function extractFormulaVariables(formula: string): string[] {
+  const matches = formula.match(/\[([^\]]+)\]/g) || [];
+  return [...new Set(matches.map(m => m.slice(1, -1)))]; // Remove brackets and dedupe
+}
+
 function FormulaEditorModal({
   productTypeId,
   componentId,
@@ -3280,6 +3310,11 @@ function FormulaEditorModal({
     inputs.board_qty = 120; // Horizontal boards estimate
     inputs.nailer_qty = 78; // Nailers estimate
 
+    // Add all known material attribute defaults
+    Object.entries(MATERIAL_ATTRIBUTE_DEFAULTS).forEach(([key, value]) => {
+      inputs[key] = value;
+    });
+
     return inputs;
   }, [variables, assignedComponents, formulas]);
 
@@ -3287,6 +3322,72 @@ function FormulaEditorModal({
   const [testResult, setTestResult] = useState<number | null>(null);
 
   const isEditing = !!existingFormula;
+
+  // Extract variables used in the current formula
+  const formulaVariables = useMemo(() => {
+    return extractFormulaVariables(formData.formula);
+  }, [formData.formula]);
+
+  // Categorize formula variables and detect missing ones
+  const categorizedFormulaVars = useMemo(() => {
+    const projectInputs = ['Quantity', 'Lines', 'Gates', 'height'];
+    const skuVarCodes = variables.map(v => v.variable_code);
+    const calcVarCodes = assignedComponents.map(c => `${c.component_code}_qty`);
+
+    const categorized = {
+      project: [] as string[],
+      sku: [] as string[],
+      calculated: [] as string[],
+      material: [] as string[], // component.attribute format
+      unknown: [] as string[], // Variables we don't recognize
+    };
+
+    formulaVariables.forEach(v => {
+      if (projectInputs.includes(v)) {
+        categorized.project.push(v);
+      } else if (skuVarCodes.includes(v)) {
+        categorized.sku.push(v);
+      } else if (calcVarCodes.includes(v) || v.endsWith('_qty')) {
+        categorized.calculated.push(v);
+      } else if (v.includes('.')) {
+        // Material attribute (component.attribute)
+        categorized.material.push(v);
+      } else {
+        // Check if it's a known SKU variable name even if not defined
+        if (['post_spacing', 'rail_count', 'board_count', 'panel_width'].includes(v)) {
+          categorized.sku.push(v);
+        } else {
+          categorized.unknown.push(v);
+        }
+      }
+    });
+
+    return categorized;
+  }, [formulaVariables, variables, assignedComponents]);
+
+  // Auto-add missing material attributes with defaults when formula changes
+  useEffect(() => {
+    const newInputs = { ...testInputs };
+    let changed = false;
+
+    formulaVariables.forEach(v => {
+      if (newInputs[v] === undefined) {
+        // Try to get from material defaults
+        if (MATERIAL_ATTRIBUTE_DEFAULTS[v] !== undefined) {
+          newInputs[v] = MATERIAL_ATTRIBUTE_DEFAULTS[v];
+          changed = true;
+        } else if (v.includes('.')) {
+          // Unknown material attribute - give a default
+          newInputs[v] = 1;
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      setTestInputs(newInputs);
+    }
+  }, [formulaVariables]);
 
   // Available variables for the formula - built from actual product type variables
   const availableVariables = useMemo(() => {
@@ -3424,7 +3525,7 @@ function FormulaEditorModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>
@@ -3441,7 +3542,7 @@ function FormulaEditorModal({
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-4 gap-6">
             {/* Left: Variable Picker */}
             <div className="space-y-4">
               <div>
@@ -3582,69 +3683,127 @@ function FormulaEditorModal({
                 </div>
               </div>
 
-              {/* Test Section */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Test Formula</h4>
+            </div>
 
-                {/* Dynamic test inputs based on availableVariables */}
-                <div className="grid grid-cols-4 gap-2 mb-3">
-                  {availableVariables.map(v => (
-                    <div key={v.code}>
-                      <label className="text-xs text-gray-500 truncate block" title={v.name}>
-                        {v.code}
-                      </label>
-                      <input
-                        type="number"
-                        value={testInputs[v.code] ?? 0}
-                        onChange={(e) => setTestInputs({ ...testInputs, [v.code]: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                  ))}
+            {/* Right: Test Panel */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700">Test Formula</h4>
+
+              {/* Show warnings for unknown variables */}
+              {categorizedFormulaVars.unknown.length > 0 && (
+                <div className="flex items-start gap-2 p-2 bg-amber-50 text-amber-700 rounded text-xs">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium">Unknown variables:</span>{' '}
+                    {categorizedFormulaVars.unknown.map(v => `[${v}]`).join(', ')}
+                  </div>
                 </div>
+              )}
 
-                {/* Calculated values (from other formulas) - collapsible */}
-                {calculatedVariables.length > 0 && (
-                  <div className="mb-3">
-                    <details className="group">
-                      <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 mb-2">
-                        Calculated values ({calculatedVariables.length}) - click to edit test values
-                      </summary>
-                      <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-200">
-                        {calculatedVariables.map(v => (
-                          <div key={v.code}>
-                            <label className="text-xs text-purple-600 truncate block" title={v.name}>
-                              {v.code}
-                            </label>
+              {formulaVariables.length === 0 ? (
+                <p className="text-xs text-gray-500">Add variables to your formula to test it</p>
+              ) : (
+                <div className="space-y-3">
+                  {/* Project inputs used in formula */}
+                  {categorizedFormulaVars.project.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-medium text-gray-500 mb-1">Project</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        {categorizedFormulaVars.project.map(v => (
+                          <div key={v}>
+                            <label className="text-xs text-purple-600 truncate block">{v}</label>
                             <input
                               type="number"
-                              value={testInputs[v.code] ?? 10}
-                              onChange={(e) => setTestInputs({ ...testInputs, [v.code]: parseFloat(e.target.value) || 0 })}
-                              className="w-full px-2 py-1 border border-purple-200 bg-purple-50 rounded text-sm"
+                              value={testInputs[v] ?? 0}
+                              onChange={(e) => setTestInputs({ ...testInputs, [v]: parseFloat(e.target.value) || 0 })}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             />
                           </div>
                         ))}
                       </div>
-                    </details>
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={testFormula}
-                    className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
-                  >
-                    Test Formula
-                  </button>
-                  {testResult !== null && (
-                    <div className="text-sm">
-                      Result: <span className="font-mono font-bold text-green-600">{testResult.toFixed(2)}</span>
-                      {formData.rounding_level === 'sku' && (
-                        <span className="text-gray-500"> → Rounded: <span className="font-bold">{Math.ceil(testResult)}</span></span>
-                      )}
+                  {/* SKU variables used in formula */}
+                  {categorizedFormulaVars.sku.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-medium text-gray-500 mb-1">SKU Variables</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        {categorizedFormulaVars.sku.map(v => (
+                          <div key={v}>
+                            <label className="text-xs text-blue-600 truncate block">{v}</label>
+                            <input
+                              type="number"
+                              value={testInputs[v] ?? 0}
+                              onChange={(e) => setTestInputs({ ...testInputs, [v]: parseFloat(e.target.value) || 0 })}
+                              className="w-full px-2 py-1 border border-blue-200 rounded text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Material attributes used in formula */}
+                  {categorizedFormulaVars.material.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-medium text-gray-500 mb-1">Material Attributes</h5>
+                      <div className="space-y-2">
+                        {categorizedFormulaVars.material.map(v => (
+                          <div key={v}>
+                            <label className="text-xs text-orange-600 truncate block" title={v}>{v}</label>
+                            <input
+                              type="number"
+                              value={testInputs[v] ?? 1}
+                              onChange={(e) => setTestInputs({ ...testInputs, [v]: parseFloat(e.target.value) || 0 })}
+                              className="w-full px-2 py-1 border border-orange-200 bg-orange-50 rounded text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">Actual values come from selected materials</p>
+                    </div>
+                  )}
+
+                  {/* Calculated values used in formula */}
+                  {categorizedFormulaVars.calculated.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-medium text-gray-500 mb-1">Calculated Values</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        {categorizedFormulaVars.calculated.map(v => (
+                          <div key={v}>
+                            <label className="text-xs text-green-600 truncate block">{v}</label>
+                            <input
+                              type="number"
+                              value={testInputs[v] ?? 10}
+                              onChange={(e) => setTestInputs({ ...testInputs, [v]: parseFloat(e.target.value) || 0 })}
+                              className="w-full px-2 py-1 border border-green-200 bg-green-50 rounded text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Test button and result */}
+              <div className="pt-2 border-t border-gray-200">
+                <button
+                  onClick={testFormula}
+                  disabled={formulaVariables.length === 0 || !formData.formula.trim()}
+                  className="w-full px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Test Formula
+                </button>
+                {testResult !== null && (
+                  <div className="mt-2 text-center">
+                    <div className="text-lg font-mono font-bold text-green-600">{testResult.toFixed(2)}</div>
+                    {formData.rounding_level === 'sku' && (
+                      <div className="text-xs text-gray-500">Rounded: <span className="font-bold">{Math.ceil(testResult)}</span></div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
