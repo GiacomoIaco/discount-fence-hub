@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Trash2, Save, User, Lock, MessageSquarePlus, Sparkles } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
-import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType } from '../types';
+import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType, type RoadmapAttachment } from '../types';
 import { useAuth } from '../../../contexts/AuthContext';
+import RoadmapAttachments from './RoadmapAttachments';
+import RelatedItems from './RelatedItems';
 import toast from 'react-hot-toast';
 
 // Fire-and-forget notification when idea is marked as done
@@ -52,6 +54,8 @@ export default function RoadmapItemModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [attachments, setAttachments] = useState<RoadmapAttachment[]>([]);
+  const [relatedItemIds, setRelatedItemIds] = useState<string[]>(item.related_items || []);
   const [formData, setFormData] = useState({
     title: item.title,
     raw_idea: item.raw_idea || '',
@@ -64,13 +68,32 @@ export default function RoadmapItemModal({
 
   const hubConfig = HUB_CONFIG[item.hub as HubKey];
 
+  // Fetch attachments when modal opens
+  const fetchAttachments = async () => {
+    const { data, error } = await supabase
+      .from('roadmap_attachments')
+      .select('*')
+      .eq('roadmap_item_id', item.id)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching attachments:', error);
+    } else {
+      setAttachments(data || []);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttachments();
+  }, [item.id]);
+
   const handleSave = async () => {
     if (!formData.title.trim()) {
       toast.error('Title is required');
       return;
     }
 
-    // Non-admins can only update title, descriptions, and user_notes, not status
+    // Non-admins can only update title, descriptions, user_notes, and related_items
     const updateData = isAdmin
       ? {
           title: formData.title.trim(),
@@ -80,11 +103,13 @@ export default function RoadmapItemModal({
           status: formData.status,
           importance: formData.importance,
           complexity: formData.complexity,
+          related_items: relatedItemIds.length > 0 ? relatedItemIds : null,
         }
       : {
           title: formData.title.trim(),
           raw_idea: formData.raw_idea.trim() || null,
           user_notes: formData.user_notes.trim() || null,
+          related_items: relatedItemIds.length > 0 ? relatedItemIds : null,
         };
 
     setSaving(true);
@@ -344,6 +369,24 @@ export default function RoadmapItemModal({
                 className={`flex-1 min-h-[280px] border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
               />
             </div>
+          </div>
+
+          {/* Attachments section */}
+          <div className="border-t border-gray-200 pt-4">
+            <RoadmapAttachments
+              roadmapItemId={item.id}
+              attachments={attachments}
+              onAttachmentsChange={fetchAttachments}
+            />
+          </div>
+
+          {/* Related Items section */}
+          <div className="border-t border-gray-200 pt-4">
+            <RelatedItems
+              currentItemId={item.id}
+              relatedItemIds={relatedItemIds}
+              onRelatedItemsChange={setRelatedItemIds}
+            />
           </div>
 
           {/* User Notes section - for additional thoughts */}

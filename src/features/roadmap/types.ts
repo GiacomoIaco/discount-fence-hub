@@ -18,6 +18,25 @@ export interface RoadmapItem {
   related_items: string[] | null;
   // Joined from user_profiles
   creator_name?: string;
+  // Joined attachments
+  attachments?: RoadmapAttachment[];
+}
+
+export type FileCategory = 'image' | 'video' | 'document' | 'audio' | 'other';
+
+export interface RoadmapAttachment {
+  id: string;
+  roadmap_item_id: string;
+  uploaded_by: string;
+  file_name: string;
+  file_url: string;
+  file_type: FileCategory;
+  file_size: number | null;
+  mime_type: string | null;
+  description: string | null;
+  uploaded_at: string;
+  // Joined from user_profiles
+  uploader_name?: string;
 }
 
 export type StatusType = RoadmapItem['status'];
@@ -40,3 +59,26 @@ export const COMPLEXITY_CONFIG: Record<ComplexityType, { label: string; color: s
   L: { label: 'Large (days)', color: 'text-orange-600' },
   XL: { label: 'Extra Large (week+)', color: 'text-red-600' },
 };
+
+// Helper to determine file category from mime type
+export function getFileCategory(mimeType: string): FileCategory {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (
+    mimeType === 'application/pdf' ||
+    mimeType.includes('document') ||
+    mimeType.includes('sheet') ||
+    mimeType.includes('text/')
+  ) return 'document';
+  return 'other';
+}
+
+// Format file size for display
+export function formatFileSize(bytes: number | null): string {
+  if (!bytes) return 'Unknown size';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}

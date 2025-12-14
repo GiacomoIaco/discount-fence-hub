@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Mic, StopCircle, Play, Pause, Loader2, Sparkles, Save, Check } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
-import { COMPLEXITY_CONFIG, type ComplexityType } from '../types';
+import { COMPLEXITY_CONFIG, type ComplexityType, getFileCategory } from '../types';
 import { transcribeAudio } from '../../../lib/openai';
 import { expandRoadmapIdea } from '../../../lib/claude';
+import PendingAttachments, { type PendingFile } from './PendingAttachments';
 import toast from 'react-hot-toast';
 
 interface AddRoadmapItemModalProps {
@@ -22,6 +23,7 @@ export default function AddRoadmapItemModal({
 }: AddRoadmapItemModalProps) {
   const [saving, setSaving] = useState(false);
   const [expanding, setExpanding] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [formData, setFormData] = useState({
     hub: selectedHubs.size === 1 ? Array.from(selectedHubs)[0] : 'general' as HubKey,
     title: '',
@@ -324,8 +326,9 @@ export default function AddRoadmapItemModal({
     try {
       // Get current user to save as creator
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Must be logged in');
 
-      const { error } = await supabase.from('roadmap_items').insert({
+      const { data: insertedItem, error } = await supabase.from('roadmap_items').insert({
         hub: formData.hub,
         title: formData.title.trim(),
         raw_idea: formData.raw_idea.trim() || null,
@@ -335,9 +338,65 @@ export default function AddRoadmapItemModal({
         status: 'idea',
         audio_url: savedAudioUrl || null,
         created_by: user?.id || null,
-      });
+      }).select('id').single();
 
       if (error) throw error;
+
+      // Upload pending files if any
+      if (pendingFiles.length > 0 && insertedItem) {
+        const roadmapItemId = insertedItem.id;
+        let uploadedCount = 0;
+
+        for (const pf of pendingFiles) {
+          try {
+            const timestamp = Date.now();
+            const sanitizedName = pf.file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const filePath = `${user.id}/${roadmapItemId}/${timestamp}_${sanitizedName}`;
+
+            // Upload to storage
+            const { error: uploadError } = await supabase.storage
+              .from('roadmap-attachments')
+              .upload(filePath, pf.file, {
+                cacheControl: '3600',
+                upsert: false,
+              });
+
+            if (uploadError) {
+              console.error('File upload error:', uploadError);
+              continue;
+            }
+
+            // Get public URL
+            const { data: urlData } = supabase.storage
+              .from('roadmap-attachments')
+              .getPublicUrl(filePath);
+
+            // Insert attachment record
+            await supabase.from('roadmap_attachments').insert({
+              roadmap_item_id: roadmapItemId,
+              uploaded_by: user.id,
+              file_name: pf.file.name,
+              file_url: urlData.publicUrl,
+              file_type: getFileCategory(pf.file.type),
+              file_size: pf.file.size,
+              mime_type: pf.file.type,
+            });
+
+            uploadedCount++;
+          } catch (fileError) {
+            console.error('Error uploading file:', fileError);
+          }
+        }
+
+        if (uploadedCount > 0) {
+          toast.success(`Uploaded ${uploadedCount} attachment${uploadedCount > 1 ? 's' : ''}`);
+        }
+
+        // Cleanup preview URLs
+        pendingFiles.forEach(pf => {
+          if (pf.preview) URL.revokeObjectURL(pf.preview);
+        });
+      }
 
       toast.success('Idea added to roadmap!');
       onSuccess();
@@ -624,6 +683,14 @@ export default function AddRoadmapItemModal({
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Attachments */}
+          <div className="pt-2 border-t border-gray-100">
+            <PendingAttachments
+              files={pendingFiles}
+              onFilesChange={setPendingFiles}
+            />
           </div>
         </form>
 
