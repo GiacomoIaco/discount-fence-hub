@@ -191,6 +191,7 @@ export default function QuoteBuilderPage({
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>('');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
+  const [jobTitle, setJobTitle] = useState('');
   const [productType, setProductType] = useState('');
   const [linearFeet, setLinearFeet] = useState('');
   const [scopeSummary, setScopeSummary] = useState('');
@@ -211,6 +212,8 @@ export default function QuoteBuilderPage({
   const { data: salesReps } = useSalesReps();
 
   // Derived data
+  const selectedClient = clients?.find(c => c.id === selectedClientId);
+  const selectedCommunity = communities?.find(c => c.id === selectedCommunityId);
   const selectedProperty = properties?.find(p => p.id === selectedPropertyId);
 
   const createMutation = useCreateQuote();
@@ -527,6 +530,95 @@ export default function QuoteBuilderPage({
       <div className="flex">
         {/* Main Content - Left Side */}
         <main className="flex-1 p-6 overflow-auto">
+          {/* Jobber-style Header */}
+          <div className="bg-white rounded-xl border p-6 mb-6">
+            {/* Quote for CLIENT-NAME */}
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              Quote for{' '}
+              <span className="text-blue-600">
+                {selectedClient?.name || 'Select Client'}
+              </span>
+            </h1>
+
+            {/* Job Title */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 mb-1">Job title</label>
+              <input
+                type="text"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="Title"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              />
+            </div>
+
+            {/* Property & Contact Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Property Address */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1">Property address</label>
+                {selectedProperty ? (
+                  <div className="text-gray-700">
+                    <div>{selectedProperty.address_line1}</div>
+                    <div>{selectedProperty.city}, {selectedProperty.state} {selectedProperty.zip}</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Scroll to client selection in sidebar or open modal
+                        // For now, just a visual indicator
+                      }}
+                      className="text-blue-600 text-sm hover:underline mt-1"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : selectedCommunity ? (
+                  <div className="text-gray-500 italic">
+                    <div>{selectedCommunity.name}</div>
+                    <div className="text-sm">Select a property in the sidebar</div>
+                  </div>
+                ) : (
+                  <div className="text-gray-400 italic">Select client and property in sidebar</div>
+                )}
+              </div>
+
+              {/* Contact Details */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1">Contact details</label>
+                {selectedClient ? (
+                  <div className="space-y-1">
+                    {selectedClient.primary_contact_name && (
+                      <div className="text-gray-700 font-medium">
+                        {selectedClient.primary_contact_name}
+                      </div>
+                    )}
+                    {selectedClient.primary_contact_email && (
+                      <a
+                        href={`mailto:${selectedClient.primary_contact_email}`}
+                        className="text-blue-600 hover:underline block"
+                      >
+                        {selectedClient.primary_contact_email}
+                      </a>
+                    )}
+                    {selectedClient.primary_contact_phone && (
+                      <a
+                        href={`tel:${selectedClient.primary_contact_phone}`}
+                        className="text-blue-600 hover:underline block"
+                      >
+                        {selectedClient.primary_contact_phone}
+                      </a>
+                    )}
+                    {!selectedClient.primary_contact_email && !selectedClient.primary_contact_phone && (
+                      <span className="text-gray-400 italic">No contact info on file</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-gray-400 italic">Select a client</div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Line Items */}
           <div className="bg-white rounded-xl border overflow-hidden mb-6">
             <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
