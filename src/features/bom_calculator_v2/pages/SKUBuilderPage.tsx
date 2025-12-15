@@ -501,6 +501,7 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         post_spacing: selectedStyleV2.formula_adjustments?.post_spacing ||
                      selectedProductTypeV2.default_post_spacing || 8,
         concrete_type: concreteType,
+        style: styleCode, // Add style for formula conditions
       };
 
       // Create context
@@ -706,6 +707,16 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
           evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
           evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${postType}"`);
+
+          // Replace style variable with current style code
+          evalFormula = evalFormula.replace(/\bstyle\b/gi, `"${styleCode}"`);
+
+          // Replace cap_qty and trim_qty with actual values
+          // These check if the component is included (has a selected material)
+          const capQty = componentSelections['cap'] ? 1 : 0;
+          const trimQty = componentSelections['trim'] ? 1 : 0;
+          evalFormula = evalFormula.replace(/\bcap_qty\b/gi, String(capQty));
+          evalFormula = evalFormula.replace(/\btrim_qty\b/gi, String(trimQty));
 
           // Replace product variables
           variablesV2.forEach(v => {

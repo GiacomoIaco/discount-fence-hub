@@ -157,10 +157,19 @@ export class FormulaInterpreter {
       let expr = formula;
 
       // Replace [VarName] patterns with actual values
+      // Handle both numeric and string comparisons
       expr = expr.replace(/\[([^\]]+)\]/g, (_match, varName) => {
         const value = this.resolveVariable(varName, context);
+        // For string values, wrap in quotes for proper comparison
+        if (typeof value === 'string') {
+          return `"${value}"`;
+        }
         return String(value);
       });
+
+      // Handle IF(condition, trueVal, falseVal) - must be done BEFORE other function replacements
+      // Convert Excel-style IF to JavaScript ternary operator
+      expr = this.convertIfStatements(expr);
 
       // Replace function names with JavaScript equivalents
       expr = expr.replace(/ROUNDUP/gi, 'Math.ceil');
@@ -168,10 +177,6 @@ export class FormulaInterpreter {
       expr = expr.replace(/ROUND(?!UP|DOWN)/gi, 'Math.round');
       expr = expr.replace(/MAX/gi, 'Math.max');
       expr = expr.replace(/MIN/gi, 'Math.min');
-
-      // Handle IF(condition, trueVal, falseVal)
-      expr = expr.replace(/IF\s*\(/gi, '((');
-      // This is a simplified IF - for complex conditions, would need proper parsing
 
       // Evaluate the expression
       // Using Function constructor for safe(r) eval
@@ -186,33 +191,132 @@ export class FormulaInterpreter {
   }
 
   /**
-   * Resolve a variable name to its value
+   * Convert Excel-style IF(condition, trueVal, falseVal) to JavaScript ternary
+   * Handles nested IF statements
    */
-  private resolveVariable(varName: string, context: FormulaContext): number {
-    // Project inputs
+  private convertIfStatements(expr: string): string {
+    // Pattern to match IF( with balanced parentheses
+    const ifPattern = /IF\s*\(/gi;
+    let result = expr;
+    let match;
+    let iterations = 0;
+    const maxIterations = 20; // Prevent infinite loops
+
+    while ((match = ifPattern.exec(result)) !== null && iterations < maxIterations) {
+      iterations++;
+      const startIdx = match.index;
+      const argsStart = startIdx + match[0].length;
+
+      // Find the matching closing parenthesis
+      let depth = 1;
+      let pos = argsStart;
+      while (pos < result.length && depth > 0) {
+        if (result[pos] === '(') depth++;
+        else if (result[pos] === ')') depth--;
+        pos++;
+      }
+
+      if (depth !== 0) {
+        console.warn('[FormulaInterpreter] Unbalanced parentheses in IF statement');
+        break;
+      }
+
+      const argsEnd = pos - 1;
+      const argsStr = result.substring(argsStart, argsEnd);
+
+      // Split by comma, respecting nested parentheses
+      const args = this.splitIfArgs(argsStr);
+
+      if (args.length >= 3) {
+        const condition = args[0].trim();
+        const trueVal = args[1].trim();
+        const falseVal = args[2].trim();
+
+        // Convert to ternary: (condition ? trueVal : falseVal)
+        const ternary = `(${condition} ? ${trueVal} : ${falseVal})`;
+
+        // Replace the IF(...) with the ternary
+        result = result.substring(0, startIdx) + ternary + result.substring(pos);
+
+        // Reset pattern to find nested IFs
+        ifPattern.lastIndex = 0;
+      } else {
+        console.warn('[FormulaInterpreter] IF statement with < 3 args:', argsStr);
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Split IF arguments by comma, respecting nested parentheses
+   */
+  private splitIfArgs(argsStr: string): string[] {
+    const args: string[] = [];
+    let current = '';
+    let depth = 0;
+
+    for (let i = 0; i < argsStr.length; i++) {
+      const char = argsStr[i];
+      if (char === '(') {
+        depth++;
+        current += char;
+      } else if (char === ')') {
+        depth--;
+        current += char;
+      } else if (char === ',' && depth === 0) {
+        args.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    if (current) {
+      args.push(current);
+    }
+
+    return args;
+  }
+
+  /**
+   * Resolve a variable name to its value
+   * Returns string for string variables (like post_type), number otherwise
+   */
+  private resolveVariable(varName: string, context: FormulaContext): number | string {
+    // Project inputs (always numeric)
     if (varName === 'Quantity') return context.Quantity;
     if (varName === 'Lines') return context.Lines;
     if (varName === 'Gates') return context.Gates;
     if (varName === 'height') return context.height;
 
-    // Calculated values (from previous formulas)
+    // Calculated values (from previous formulas - always numeric)
     if (varName in context.calculatedValues) {
       return context.calculatedValues[varName];
     }
 
-    // Style adjustments
+    // Style adjustments - can be string or number
     if (varName in context.styleAdjustments) {
       const val = context.styleAdjustments[varName];
+      // Keep strings as strings for comparisons
+      if (typeof val === 'string' && isNaN(Number(val))) {
+        return val;
+      }
       return typeof val === 'number' ? val : parseFloat(String(val)) || 0;
     }
 
-    // SKU variables
+    // SKU variables - can be string or number
     if (varName in context.variables) {
       const val = context.variables[varName];
+      // Keep strings as strings for comparisons (like post_type, style)
+      if (typeof val === 'string' && isNaN(Number(val))) {
+        return val;
+      }
       return typeof val === 'number' ? val : parseFloat(String(val)) || 0;
     }
 
-    // Material attributes (component.attribute format)
+    // Material attributes (component.attribute format - always numeric)
     if (varName.includes('.')) {
       if (varName in context.materialAttributes) {
         return context.materialAttributes[varName];
