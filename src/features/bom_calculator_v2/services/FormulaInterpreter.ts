@@ -160,12 +160,16 @@ export class FormulaInterpreter {
       // Handle both numeric and string comparisons
       expr = expr.replace(/\[([^\]]+)\]/g, (_match, varName) => {
         const value = this.resolveVariable(varName, context);
-        // For string values, wrap in quotes for proper comparison
+        // For string values, wrap in quotes and lowercase for case-insensitive comparison
         if (typeof value === 'string') {
-          return `"${value}"`;
+          return `"${value.toLowerCase()}"`;
         }
         return String(value);
       });
+
+      // Also convert any string literals in the formula to lowercase for comparison
+      expr = expr.replace(/"([^"]*)"/g, (_, str) => `"${str.toLowerCase()}"`);
+      expr = expr.replace(/'([^']*)'/g, (_, str) => `'${str.toLowerCase()}'`);
 
       // Handle IF(condition, trueVal, falseVal) - must be done BEFORE other function replacements
       // Convert Excel-style IF to JavaScript ternary operator

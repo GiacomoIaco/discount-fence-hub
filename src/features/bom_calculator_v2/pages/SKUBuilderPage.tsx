@@ -360,10 +360,12 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   const isComponentVisible = useCallback((component: ProductTypeComponentFull): boolean => {
     if (!component.visibility_conditions) return true;
 
-    // Check each condition
+    // Check each condition (case-insensitive comparison)
     return Object.entries(component.visibility_conditions).every(([varCode, allowedValues]) => {
-      const currentValue = String(variableValues[varCode] || '');
-      return (allowedValues as string[]).includes(currentValue);
+      const currentValue = String(variableValues[varCode] || '').toUpperCase();
+      // Convert allowed values to uppercase for comparison
+      const uppercaseAllowed = (allowedValues as string[]).map(v => v.toUpperCase());
+      return uppercaseAllowed.includes(currentValue);
     });
   }, [variableValues]);
 
@@ -701,15 +703,15 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           // Remove brackets around variable names: [height] -> height
           evalFormula = evalFormula.replace(/\[(\w+)\]/g, '$1');
 
-          // Replace standard variables
+          // Replace standard variables (use lowercase for case-insensitive comparison)
           evalFormula = evalFormula.replace(/\bpost_spacing\b/g, String(vars.post_spacing || 8));
           evalFormula = evalFormula.replace(/\bheight\b/g, String(height));
           evalFormula = evalFormula.replace(/\brails?\b/g, String(railCount));
           evalFormula = evalFormula.replace(/\brail_count\b/g, String(railCount));
-          evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${postType}"`);
+          evalFormula = evalFormula.replace(/\bpost_type\b/gi, `"${postType.toLowerCase()}"`);
 
-          // Replace style variable with current style code
-          evalFormula = evalFormula.replace(/\bstyle\b/gi, `"${styleCode}"`);
+          // Replace style variable with current style code (lowercase for comparison)
+          evalFormula = evalFormula.replace(/\bstyle\b/gi, `"${styleCode.toLowerCase()}"`);
 
           // Replace cap_qty and trim_qty with actual values
           // These check if the component is included (has a selected material)
@@ -722,8 +724,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
           variablesV2.forEach(v => {
             const val = variableValues[v.variable_code];
             if (val !== undefined) {
-              // For string values, wrap in quotes
-              const replacement = typeof val === 'string' ? `"${val}"` : String(val);
+              // For string values, wrap in quotes (lowercase for comparison)
+              const replacement = typeof val === 'string' ? `"${val.toLowerCase()}"` : String(val);
               evalFormula = evalFormula.replace(
                 new RegExp(`\\b${v.variable_code}\\b`, 'g'),
                 replacement
@@ -731,11 +733,14 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
             }
           });
 
+          // Also convert any remaining string literals in the formula to lowercase for comparison
+          evalFormula = evalFormula.replace(/"([^"]*)"/g, (_, str) => `"${str.toLowerCase()}"`);
+
           // Evaluate the condition
           // eslint-disable-next-line no-eval
           return Boolean(eval(evalFormula));
-        } catch {
-          console.warn('Failed to evaluate condition:', formula);
+        } catch (err) {
+          console.warn('Failed to evaluate condition:', formula, err);
           return false;
         }
       };
