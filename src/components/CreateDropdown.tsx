@@ -16,7 +16,7 @@ interface CreateOption {
   enabled: boolean;
 }
 
-const CREATE_OPTIONS: CreateOption[] = [
+const getCreateOptions = (hasQuoteHandler: boolean): CreateOption[] => [
   {
     id: 'request',
     label: 'New Request',
@@ -29,7 +29,7 @@ const CREATE_OPTIONS: CreateOption[] = [
     label: 'New Quote',
     description: 'Create a quote for a customer',
     icon: FileText,
-    enabled: false, // Coming soon
+    enabled: hasQuoteHandler,
   },
   {
     id: 'job',
@@ -50,11 +50,14 @@ const CREATE_OPTIONS: CreateOption[] = [
 interface CreateDropdownProps {
   sidebarOpen: boolean;
   onCreateRequest: () => void;
+  onCreateQuote?: () => void;
 }
 
-export default function CreateDropdown({ sidebarOpen, onCreateRequest }: CreateDropdownProps) {
+export default function CreateDropdown({ sidebarOpen, onCreateRequest, onCreateQuote }: CreateDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const createOptions = getCreateOptions(!!onCreateQuote);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -71,6 +74,8 @@ export default function CreateDropdown({ sidebarOpen, onCreateRequest }: CreateD
     setIsOpen(false);
     if (optionId === 'request') {
       onCreateRequest();
+    } else if (optionId === 'quote' && onCreateQuote) {
+      onCreateQuote();
     }
     // Other options coming soon
   };
@@ -98,7 +103,7 @@ export default function CreateDropdown({ sidebarOpen, onCreateRequest }: CreateD
           sidebarOpen ? 'left-0 right-0' : 'left-0 w-64'
         }`}>
           <div className="p-2">
-            {CREATE_OPTIONS.map((option) => {
+            {createOptions.map((option) => {
               const Icon = option.icon;
               return (
                 <button

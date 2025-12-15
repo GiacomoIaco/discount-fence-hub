@@ -794,6 +794,7 @@ function App() {
           setViewMode={setViewMode}
           setShowProfileView={setShowProfileView}
           onCreateRequest={() => navigateToEntity('request', { id: 'new' })}
+          onCreateQuote={() => navigateToEntity('quote', { id: 'new' })}
         />
 
         <div className="flex-1 overflow-auto">

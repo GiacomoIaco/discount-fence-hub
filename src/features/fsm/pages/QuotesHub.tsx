@@ -104,17 +104,22 @@ export default function QuotesHub({
     });
   };
 
-  // If creating a new quote, render the builder page
-  if (showBuilder) {
+  // If creating a new quote (via URL or local state), render the builder page
+  if (showBuilder || (entityContext?.type === 'quote' && entityContext.id === 'new')) {
     return (
       <QuoteBuilderPage
-        onBack={() => setShowBuilder(false)}
+        onBack={() => {
+          setShowBuilder(false);
+          if (entityContext?.id === 'new' && onClearEntity) {
+            onClearEntity();
+          }
+        }}
       />
     );
   }
 
   // If viewing a specific quote, render the detail page
-  if (entityContext?.type === 'quote') {
+  if (entityContext?.type === 'quote' && entityContext.id !== 'new') {
     return (
       <QuoteDetailPage
         quoteId={entityContext.id}

@@ -6,8 +6,8 @@
  * - /requests/:id/edit → Edit existing request
  */
 
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Phone, Globe, Users, Building, Save } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Phone, Globe, Users, Building, Save, AlertCircle } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest, useRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { ClientLookup, PropertyLookup } from '../../../components/common/SmartLookup';
@@ -89,6 +89,38 @@ export default function RequestEditorPage({
   const updateMutation = useUpdateRequest();
 
   const isEditing = !!requestId;
+
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
+
+  // Validate required fields
+  const validateForm = useMemo(() => {
+    const errors: string[] = [];
+
+    // Must have either a client or contact info
+    const hasClient = !!formData.client_id;
+    const hasContactName = !!formData.contact_name.trim();
+    const hasContactMethod = !!formData.contact_phone.trim() || !!formData.contact_email.trim();
+
+    if (!hasClient && !hasContactName) {
+      errors.push('Customer name is required (select a client or enter contact name)');
+    }
+
+    if (!hasClient && hasContactName && !hasContactMethod) {
+      errors.push('Phone or email is required for new contacts');
+    }
+
+    // Must have an address
+    const hasAddress = !!formData.address_line1.trim();
+    if (!hasAddress) {
+      errors.push('Job site address is required');
+    }
+
+    return errors;
+  }, [formData.client_id, formData.contact_name, formData.contact_phone, formData.contact_email, formData.address_line1]);
+
+  const isFormValid = validateForm.length === 0;
 
   // Load existing request data when editing
   useEffect(() => {
@@ -189,15 +221,28 @@ export default function RequestEditorPage({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Show validation errors if form is invalid
+    if (!isFormValid) {
+      setValidationErrors(validateForm);
+      setShowValidationErrors(true);
+      // Scroll to top to show errors
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setShowValidationErrors(false);
+
     try {
       if (isEditing && requestId) {
         await updateMutation.mutateAsync({ id: requestId, data: formData });
         onSaved?.(requestId);
+        onBack();
       } else {
         const result = await createMutation.mutateAsync(formData);
+        // Navigate back first, then call onSaved which may trigger additional navigation
+        onBack();
         onSaved?.(result.id);
       }
-      onBack();
     } catch (error) {
       // Error handled by mutation
     }
@@ -205,6 +250,10 @@ export default function RequestEditorPage({
 
   const updateField = <K extends keyof RequestFormData>(field: K, value: RequestFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear validation errors when user starts fixing the form
+    if (showValidationErrors) {
+      setShowValidationErrors(false);
+    }
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -252,6 +301,25 @@ export default function RequestEditorPage({
           </div>
         </div>
       </div>
+
+      {/* Validation Errors */}
+      {showValidationErrors && validationErrors.length > 0 && (
+        <div className="max-w-4xl mx-auto px-6 pt-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-red-800">Please fix the following errors:</h3>
+                <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+                  {validationErrors.map((error, idx) => (
+                    <li key={idx}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Form Content */}
       <div className="max-w-4xl mx-auto p-6">
@@ -319,7 +387,7 @@ export default function RequestEditorPage({
               {!selectedProperty && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {selectedEntity ? 'Or Enter Address Manually' : 'Job Address'}
+                    {selectedEntity ? 'Or Enter Address Manually' : 'Job Address'} <span className="text-red-500">*</span>
                   </label>
                   <div className="space-y-3">
                     <input
@@ -363,7 +431,9 @@ export default function RequestEditorPage({
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contact Name {!formData.client_id && <span className="text-red-500">*</span>}
+                </label>
                 <input
                   type="text"
                   value={formData.contact_name}
@@ -373,7 +443,9 @@ export default function RequestEditorPage({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone {!formData.client_id && !formData.contact_email.trim() && <span className="text-red-500">*</span>}
+                </label>
                 <input
                   type="tel"
                   value={formData.contact_phone}
@@ -383,7 +455,9 @@ export default function RequestEditorPage({
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email {!formData.client_id && !formData.contact_phone.trim() && <span className="text-red-500">*</span>}
+                </label>
                 <input
                   type="email"
                   value={formData.contact_email}

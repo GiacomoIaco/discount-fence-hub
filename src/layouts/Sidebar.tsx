@@ -33,6 +33,7 @@ interface SidebarProps {
   setViewMode: (mode: 'mobile' | 'desktop') => void;
   setShowProfileView: (show: boolean) => void;
   onCreateRequest?: () => void;
+  onCreateQuote?: () => void;
 }
 
 export default function Sidebar({
@@ -51,7 +52,8 @@ export default function Sidebar({
   signOut,
   setViewMode,
   setShowProfileView,
-  onCreateRequest
+  onCreateRequest,
+  onCreateQuote
 }: SidebarProps) {
   return (
     <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col overflow-visible`}>
@@ -94,6 +96,7 @@ export default function Sidebar({
           <CreateDropdown
             sidebarOpen={sidebarOpen}
             onCreateRequest={onCreateRequest}
+            onCreateQuote={onCreateQuote}
           />
         </div>
       )}
