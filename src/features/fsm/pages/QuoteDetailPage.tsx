@@ -25,13 +25,25 @@ import {
   Package,
   Clock,
 } from 'lucide-react';
-import { useQuote, useUpdateQuoteStatus, useSendQuote, useConvertQuoteToJob } from '../hooks/useQuotes';
+import { useQuote, useUpdateQuoteStatus, useSendQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
   QUOTE_TRANSITIONS,
   type QuoteStatus,
 } from '../types';
+
+// Lost reason options
+const LOST_REASONS = [
+  'Price too high',
+  'Went with competitor',
+  'Project cancelled',
+  'Budget constraints',
+  'Timeline issues',
+  'Changed requirements',
+  'No response',
+  'Other',
+] as const;
 
 type Tab = 'overview' | 'line-items' | 'activity';
 
@@ -57,9 +69,19 @@ export default function QuoteDetailPage({
   const [sendPhone, setSendPhone] = useState('');
   const [sendMessage, setSendMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  // Approve quote modal state
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveNotes, setApproveNotes] = useState('');
+  const [approvePo, setApprovePo] = useState('');
+  // Lost quote modal state
+  const [showLostModal, setShowLostModal] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [lostCompetitor, setLostCompetitor] = useState('');
+  const [lostNotes, setLostNotes] = useState('');
 
   const { data: quote, isLoading, error } = useQuote(quoteId);
   const updateStatusMutation = useUpdateQuoteStatus();
+  const updateQuoteMutation = useUpdateQuote();
   const sendQuoteMutation = useSendQuote();
   const convertToJobMutation = useConvertQuoteToJob();
 
@@ -162,6 +184,56 @@ export default function QuoteDetailPage({
     }
   };
 
+  const handleApproveQuote = async () => {
+    if (!quote) return;
+    try {
+      // Update status to approved and store PO number/notes
+      await updateStatusMutation.mutateAsync({
+        id: quote.id,
+        status: 'approved',
+        notes: approvePo ? `PO: ${approvePo}. ${approveNotes}` : approveNotes || undefined,
+      });
+      // Also store the PO number separately
+      if (approvePo) {
+        await updateQuoteMutation.mutateAsync({
+          id: quote.id,
+          data: { client_po_number: approvePo },
+        });
+      }
+      setShowApproveModal(false);
+      setApproveNotes('');
+      setApprovePo('');
+    } catch (err) {
+      console.error('Approve quote error:', err);
+    }
+  };
+
+  const handleMarkLost = async () => {
+    if (!quote || !lostReason) return;
+    try {
+      // Update status to lost and store reason
+      await updateStatusMutation.mutateAsync({
+        id: quote.id,
+        status: 'lost',
+        notes: `Reason: ${lostReason}${lostCompetitor ? `. Lost to: ${lostCompetitor}` : ''}${lostNotes ? `. ${lostNotes}` : ''}`,
+      });
+      // Also store the lost reason details separately
+      await updateQuoteMutation.mutateAsync({
+        id: quote.id,
+        data: {
+          lost_reason: lostReason,
+          lost_to_competitor: lostCompetitor || null,
+        },
+      });
+      setShowLostModal(false);
+      setLostReason('');
+      setLostCompetitor('');
+      setLostNotes('');
+    } catch (err) {
+      console.error('Mark lost error:', err);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -189,6 +261,8 @@ export default function QuoteDetailPage({
 
   const allowedTransitions = QUOTE_TRANSITIONS[quote.status] || [];
   const canSend = quote.status === 'draft' || quote.status === 'changes_requested';
+  const canApprove = quote.status === 'sent' || quote.status === 'follow_up';
+  const canMarkLost = ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval'].includes(quote.status);
   const canConvertToJob = quote.status === 'approved';
   const lineItems = quote.line_items || [];
 
@@ -253,6 +327,24 @@ export default function QuoteDetailPage({
                 >
                   <Send className="w-4 h-4" />
                   Send Quote
+                </button>
+              )}
+              {canApprove && (
+                <button
+                  onClick={() => setShowApproveModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Mark Approved
+                </button>
+              )}
+              {canMarkLost && (
+                <button
+                  onClick={() => setShowLostModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Mark Lost
                 </button>
               )}
               {canConvertToJob && (
@@ -771,6 +863,162 @@ export default function QuoteDetailPage({
                   <>
                     <Send className="w-4 h-4" />
                     Send Quote
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Quote Modal */}
+      {showApproveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Mark Quote Approved</h3>
+            <p className="text-gray-600 mb-4">
+              Record client approval for Quote #{quote?.quote_number}. This is typically done after receiving verbal or written confirmation.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  PO Number <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={approvePo}
+                  onChange={(e) => setApprovePo(e.target.value)}
+                  placeholder="Client's PO number"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes <span className="text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={approveNotes}
+                  onChange={(e) => setApproveNotes(e.target.value)}
+                  placeholder="How was approval received? Any special conditions?"
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setApproveNotes('');
+                  setApprovePo('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={updateStatusMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApproveQuote}
+                disabled={updateStatusMutation.isPending}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {updateStatusMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Mark Approved
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark Lost Modal */}
+      {showLostModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Mark Quote Lost</h3>
+            <p className="text-gray-600 mb-4">
+              Record why this quote was lost. This helps us improve future quotes.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lost Reason <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={lostReason}
+                  onChange={(e) => setLostReason(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Select a reason...</option>
+                  {LOST_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {lostReason === 'Went with competitor' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Which Competitor? <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lostCompetitor}
+                    onChange={(e) => setLostCompetitor(e.target.value)}
+                    placeholder="Competitor name"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Additional Notes <span className="text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={lostNotes}
+                  onChange={(e) => setLostNotes(e.target.value)}
+                  placeholder="Any additional context..."
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowLostModal(false);
+                  setLostReason('');
+                  setLostCompetitor('');
+                  setLostNotes('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={updateStatusMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkLost}
+                disabled={updateStatusMutation.isPending || !lostReason}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {updateStatusMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4" />
+                    Mark Lost
                   </>
                 )}
               </button>

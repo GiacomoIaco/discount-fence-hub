@@ -345,3 +345,92 @@ export function useDeleteRequest() {
     },
   });
 }
+
+export function useConvertRequestToQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      // Get request data
+      const { data: request, error: requestError } = await supabase
+        .from('service_requests')
+        .select(`
+          *,
+          client:clients(id, name, billing_address_line1, billing_city, billing_state, billing_zip)
+        `)
+        .eq('id', requestId)
+        .single();
+
+      if (requestError) throw requestError;
+
+      // Build job address from request
+      const jobAddress = request.address_line1 ? {
+        line1: request.address_line1,
+        city: request.city || '',
+        state: request.state || 'TX',
+        zip: request.zip || '',
+      } : null;
+
+      // Build billing address from client
+      const billingAddress = request.client?.billing_address_line1 ? {
+        line1: request.client.billing_address_line1,
+        city: request.client.billing_city || '',
+        state: request.client.billing_state || 'TX',
+        zip: request.client.billing_zip || '',
+      } : null;
+
+      // Create quote from request
+      const { data: quote, error: quoteError } = await supabase
+        .from('quotes')
+        .insert({
+          request_id: requestId,
+          client_id: request.client_id,
+          community_id: request.community_id,
+          property_id: request.property_id,
+          job_address: jobAddress,
+          billing_address: billingAddress,
+          product_type: request.product_type,
+          linear_feet: request.linear_feet_estimate,
+          scope_summary: request.description,
+          sales_rep_id: request.assigned_rep_id,
+          status: 'draft',
+        })
+        .select()
+        .single();
+
+      if (quoteError) throw quoteError;
+
+      // Update request status to converted
+      const { error: updateError } = await supabase
+        .from('service_requests')
+        .update({
+          status: 'converted',
+          status_changed_at: new Date().toISOString(),
+          converted_to_quote_id: quote.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      // Record in status history
+      await supabase.from('fsm_status_history').insert({
+        entity_type: 'request',
+        entity_id: requestId,
+        from_status: request.status,
+        to_status: 'converted',
+        notes: `Converted to Quote #${quote.quote_number}`,
+      });
+
+      return quote;
+    },
+    onSuccess: (quote) => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      showSuccess(`Quote ${quote.quote_number} created from request`);
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to convert request to quote');
+    },
+  });
+}

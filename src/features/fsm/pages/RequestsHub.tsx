@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { RequestsList, RequestEditorModal } from '../components';
 import { RequestDetailPage } from '../pages';
+import { useConvertRequestToQuote } from '../hooks/useRequests';
 import type { EntityContext } from '../../../hooks/useRouteSync';
 import type { EntityType } from '../../../lib/routes';
 
@@ -35,6 +36,7 @@ export default function RequestsHub({
   onClearEntity,
 }: RequestsHubProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const convertToQuoteMutation = useConvertRequestToQuote();
 
   // Handle request selection - update URL
   const handleRequestSelect = (requestId: string) => {
@@ -57,10 +59,17 @@ export default function RequestsHub({
     }
   };
 
-  // Handle create quote from request
-  const handleCreateQuote = (requestId: string) => {
-    // TODO: Navigate to quote builder with request pre-populated
-    console.log('Create quote from request:', requestId);
+  // Handle create quote from request - converts and navigates to the new quote
+  const handleCreateQuote = async (requestId: string) => {
+    try {
+      const quote = await convertToQuoteMutation.mutateAsync(requestId);
+      // Navigate to the newly created quote
+      if (onNavigateToEntity) {
+        onNavigateToEntity('quote', { id: quote.id });
+      }
+    } catch (error) {
+      console.error('Failed to convert request to quote:', error);
+    }
   };
 
   // If viewing a specific request, render the detail page
