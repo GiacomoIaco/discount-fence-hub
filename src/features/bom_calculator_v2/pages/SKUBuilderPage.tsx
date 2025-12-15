@@ -1385,7 +1385,8 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
             <div className="space-y-4">
               {/* Materials Panel (BOM) */}
               {(() => {
-                const materialItems = testResults.filter(r => !r.is_labor);
+                // Filter out items with 0 quantity
+                const materialItems = testResults.filter(r => !r.is_labor && r.rounded_value > 0);
                 if (materialItems.length === 0) return null;
                 return (
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -1397,55 +1398,45 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                         ${totalMaterialCost.toFixed(2)}
                       </span>
                     </div>
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
-                          <th className="px-3 py-2 text-left font-medium">Material</th>
-                          <th className="px-3 py-2 text-right font-medium">Raw</th>
-                          <th className="px-3 py-2 text-right font-medium">Qty</th>
-                          <th className="px-3 py-2 text-right font-medium">Unit $</th>
-                          <th className="px-3 py-2 text-right font-medium">Total $</th>
-                          <th className="px-3 py-2 text-center font-medium">Round</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {materialItems.map((result, idx) => (
-                          <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                            <td className="px-3 py-2 text-gray-900">{result.component_name}</td>
-                            <td className="px-3 py-2 text-right text-gray-500 font-mono">
-                              {isFinite(result.raw_value) ? result.raw_value.toFixed(2) : '0.00'}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                    <div className="divide-y divide-gray-100">
+                      {/* Header */}
+                      <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-gray-50 text-[10px] font-semibold text-gray-500 uppercase">
+                        <div className="col-span-5">Material</div>
+                        <div className="col-span-2 text-right">Qty</div>
+                        <div className="col-span-2 text-right">Cost</div>
+                        <div className="col-span-3 text-right">Total</div>
+                      </div>
+                      {/* Items */}
+                      {materialItems.map((result) => {
+                        const material = getMaterial(componentSelections[result.component_code]);
+                        return (
+                          <div key={result.component_code} className="grid grid-cols-12 gap-2 px-3 py-2 hover:bg-gray-50">
+                            <div className="col-span-5">
+                              <div className="font-semibold text-sm text-gray-900">{result.component_name}</div>
+                              <div className="text-[10px] text-gray-500">
+                                {material?.material_sku || result.component_code} • {material?.category || 'Material'}
+                              </div>
+                            </div>
+                            <div className="col-span-2 text-right font-mono text-sm font-medium text-gray-900">
                               {isFinite(result.rounded_value) ? result.rounded_value : 0}
-                            </td>
-                            <td className="px-3 py-2 text-right text-gray-500 font-mono">
+                            </div>
+                            <div className="col-span-2 text-right font-mono text-xs text-gray-500">
                               {result.unit_cost && isFinite(result.unit_cost) ? `$${result.unit_cost.toFixed(2)}` : '-'}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
+                            </div>
+                            <div className="col-span-3 text-right font-mono text-sm font-semibold text-gray-900">
                               {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] ${
-                                result.rounding_level === 'sku' ? 'bg-blue-100 text-blue-700' :
-                                result.rounding_level === 'project' ? 'bg-amber-100 text-amber-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {result.rounding_level}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-blue-50 font-medium">
-                          <td className="px-3 py-2 text-blue-800" colSpan={4}>Materials Subtotal</td>
-                          <td className="px-3 py-2 text-right font-mono text-blue-900">
-                            ${totalMaterialCost.toFixed(2)}
-                          </td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Subtotal */}
+                    <div className="px-3 py-2 bg-blue-50 border-t border-blue-200 flex justify-between items-center">
+                      <span className="font-semibold text-sm text-blue-800">Materials Subtotal</span>
+                      <span className="font-mono font-bold text-sm text-blue-900">
+                        ${totalMaterialCost.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 );
               })()}
@@ -1464,46 +1455,42 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
                         ${totalLaborCost.toFixed(2)}
                       </span>
                     </div>
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
-                          <th className="px-3 py-2 text-left font-medium">Labor</th>
-                          <th className="px-3 py-2 text-center font-medium">Code</th>
-                          <th className="px-3 py-2 text-right font-medium">Rate/ft</th>
-                          <th className="px-3 py-2 text-right font-medium">Linear Ft</th>
-                          <th className="px-3 py-2 text-right font-medium">Total $</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {laborItems.map((result, idx) => (
-                          <tr key={result.component_code} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-orange-50/30'}`}>
-                            <td className="px-3 py-2 text-gray-900">{result.component_name}</td>
-                            <td className="px-3 py-2 text-center">
-                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-medium">
-                                {result.labor_sku || '-'}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-right text-gray-600 font-mono">
-                              ${(result.unit_cost || 0).toFixed(2)}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono text-gray-900">
-                              {isFinite(result.rounded_value) ? result.rounded_value : 0}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono font-medium text-gray-900">
-                              {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-orange-50 font-medium">
-                          <td className="px-3 py-2 text-orange-800" colSpan={4}>Labor Subtotal</td>
-                          <td className="px-3 py-2 text-right font-mono text-orange-900">
-                            ${totalLaborCost.toFixed(2)}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                    <div className="divide-y divide-gray-100">
+                      {/* Header */}
+                      <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-gray-50 text-[10px] font-semibold text-gray-500 uppercase">
+                        <div className="col-span-6">Labor</div>
+                        <div className="col-span-2 text-right">Rate/ft</div>
+                        <div className="col-span-2 text-right">Qty</div>
+                        <div className="col-span-2 text-right">Total</div>
+                      </div>
+                      {/* Items */}
+                      {laborItems.map((result) => (
+                        <div key={result.component_code} className="grid grid-cols-12 gap-2 px-3 py-2 hover:bg-orange-50/30">
+                          <div className="col-span-6">
+                            <div className="font-semibold text-sm text-gray-900">{result.component_name}</div>
+                            <div className="text-[10px] text-gray-500">
+                              {result.labor_sku || '-'}
+                            </div>
+                          </div>
+                          <div className="col-span-2 text-right font-mono text-xs text-gray-500">
+                            ${(result.unit_cost || 0).toFixed(2)}
+                          </div>
+                          <div className="col-span-2 text-right font-mono text-sm font-medium text-gray-900">
+                            {isFinite(result.rounded_value) ? result.rounded_value : 0}
+                          </div>
+                          <div className="col-span-2 text-right font-mono text-sm font-semibold text-gray-900">
+                            {result.total_cost && isFinite(result.total_cost) ? `$${result.total_cost.toFixed(2)}` : '-'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Subtotal */}
+                    <div className="px-3 py-2 bg-orange-50 border-t border-orange-200 flex justify-between items-center">
+                      <span className="font-semibold text-sm text-orange-800">Labor Subtotal</span>
+                      <span className="font-mono font-bold text-sm text-orange-900">
+                        ${totalLaborCost.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 );
               })()}
