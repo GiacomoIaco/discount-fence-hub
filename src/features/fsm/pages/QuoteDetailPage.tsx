@@ -52,7 +52,11 @@ export default function QuoteDetailPage({
 }: QuoteDetailPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [showSendModal, setShowSendModal] = useState(false);
+  const [sendMethod, setSendMethod] = useState<'email' | 'sms' | 'both'>('email');
   const [sendEmail, setSendEmail] = useState('');
+  const [sendPhone, setSendPhone] = useState('');
+  const [sendMessage, setSendMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   const { data: quote, isLoading, error } = useQuote(quoteId);
   const updateStatusMutation = useUpdateQuoteStatus();
@@ -94,13 +98,57 @@ export default function QuoteDetailPage({
 
   const handleSendQuote = async () => {
     if (!quote) return;
-    await sendQuoteMutation.mutateAsync({
-      id: quote.id,
-      method: 'email',
-      email: sendEmail || undefined,
-    });
-    setShowSendModal(false);
-    setSendEmail('');
+
+    setIsSending(true);
+    try {
+      // Call the Netlify function to actually send the quote
+      const response = await fetch('/.netlify/functions/send-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId: quote.id,
+          method: sendMethod,
+          email: sendEmail || undefined,
+          phone: sendPhone || undefined,
+          message: sendMessage || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send quote');
+      }
+
+      // Show success message
+      if (result.emailSent && result.smsSent) {
+        alert('Quote sent via email and SMS!');
+      } else if (result.emailSent) {
+        alert('Quote sent via email!');
+      } else if (result.smsSent) {
+        alert('Quote sent via SMS!');
+      }
+
+      setShowSendModal(false);
+      setSendEmail('');
+      setSendPhone('');
+      setSendMessage('');
+      setSendMethod('email');
+
+      // Refresh the quote data - map send method to DB method type
+      const dbMethod: 'email' | 'client_hub' | 'print' =
+        sendMethod === 'sms' ? 'email' : 'email'; // All methods map to 'email' for DB tracking
+      sendQuoteMutation.mutate({
+        id: quote.id,
+        method: dbMethod,
+        email: sendEmail || undefined,
+      });
+    } catch (err) {
+      console.error('Send quote error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to send quote');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleConvertToJob = async () => {
@@ -589,37 +637,142 @@ export default function QuoteDetailPage({
       {showSendModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Send Quote</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Send Quote to Client</h3>
             <div className="space-y-4">
+              {/* Method Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Send via
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSendMethod('email')}
+                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      sendMethod === 'email'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSendMethod('sms')}
+                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      sendMethod === 'sms'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    SMS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSendMethod('both')}
+                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      sendMethod === 'both'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Both
+                  </button>
+                </div>
+              </div>
+
+              {/* Email Input - shown for email or both */}
+              {(sendMethod === 'email' || sendMethod === 'both') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.value)}
+                    placeholder={quote?.client?.primary_contact_email || 'client@example.com'}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {quote?.client?.primary_contact_email && !sendEmail && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Will send to: {quote.client.primary_contact_email}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Phone Input - shown for sms or both */}
+              {(sendMethod === 'sms' || sendMethod === 'both') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={sendPhone}
+                    onChange={(e) => setSendPhone(e.target.value)}
+                    placeholder={quote?.client?.primary_contact_phone || '(512) 555-1234'}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {quote?.client?.primary_contact_phone && !sendPhone && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Will send to: {quote.client.primary_contact_phone}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Custom Message */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
+                  Custom Message <span className="text-gray-400">(optional)</span>
                 </label>
-                <input
-                  type="email"
-                  value={sendEmail}
-                  onChange={(e) => setSendEmail(e.target.value)}
-                  placeholder="client@example.com"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                <textarea
+                  value={sendMessage}
+                  onChange={(e) => setSendMessage(e.target.value)}
+                  placeholder="Add a personal note to the client..."
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
+
               <p className="text-sm text-gray-500">
-                The quote will be sent as a PDF attachment.
+                {sendMethod === 'email' && 'Client will receive an email with a link to view and approve the quote.'}
+                {sendMethod === 'sms' && 'Client will receive a text message with a link to view and approve the quote.'}
+                {sendMethod === 'both' && 'Client will receive both an email and text message with a link to view and approve the quote.'}
               </p>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setShowSendModal(false)}
+                onClick={() => {
+                  setShowSendModal(false);
+                  setSendEmail('');
+                  setSendPhone('');
+                  setSendMessage('');
+                  setSendMethod('email');
+                }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={isSending}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSendQuote}
-                disabled={sendQuoteMutation.isPending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                disabled={isSending}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {sendQuoteMutation.isPending ? 'Sending...' : 'Send Quote'}
+                {isSending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Send Quote
+                  </>
+                )}
               </button>
             </div>
           </div>

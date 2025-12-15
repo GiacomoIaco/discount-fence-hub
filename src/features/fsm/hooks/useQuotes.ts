@@ -68,7 +68,7 @@ export function useQuote(id: string | undefined) {
         .from('quotes')
         .select(`
           *,
-          client:clients(id, name, code, billing_address_line1, billing_city, billing_state, billing_zip),
+          client:clients(id, name, code, billing_address_line1, billing_city, billing_state, billing_zip, primary_contact_email, primary_contact_phone, primary_contact_name),
           community:communities(id, name),
           property:properties(id, address_line1, city, state, zip),
           sales_rep:sales_reps(id, name, email, phone),

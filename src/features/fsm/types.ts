@@ -222,7 +222,18 @@ export interface Quote {
   created_at: string;
   updated_at: string;
   // Joined
-  client?: { id: string; name: string; code?: string; billing_address_line1?: string; billing_city?: string; billing_state?: string; billing_zip?: string };
+  client?: {
+    id: string;
+    name: string;
+    code?: string;
+    billing_address_line1?: string;
+    billing_city?: string;
+    billing_state?: string;
+    billing_zip?: string;
+    primary_contact_email?: string;
+    primary_contact_phone?: string;
+    primary_contact_name?: string;
+  };
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string; city?: string; state?: string; zip?: string };
   line_items?: QuoteLineItem[];

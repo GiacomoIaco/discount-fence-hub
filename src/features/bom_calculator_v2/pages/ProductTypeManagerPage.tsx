@@ -3244,6 +3244,132 @@ function FormulasTab({
 }
 
 // Formula Cell Component
+/**
+ * Validate a formula by attempting to parse and evaluate it with test values
+ * Returns { valid: true } or { valid: false, error: string }
+ */
+function validateFormula(formula: string): { valid: boolean; error?: string } {
+  if (!formula || !formula.trim()) {
+    return { valid: false, error: 'Empty formula' };
+  }
+
+  try {
+    let expr = formula;
+
+    // Replace [VarName] patterns with test values
+    expr = expr.replace(/\[([^\]]+)\]/g, (_match, varName) => {
+      // Use reasonable test values for common variables
+      const testValues: Record<string, number | string> = {
+        'Quantity': 100,
+        'Lines': 4,
+        'Gates': 0,
+        'height': 6,
+        'post_spacing': 8,
+        'rail_count': 2,
+        'post_type': '"WOOD"',
+        'style': '"standard"',
+        'cap_qty': 13,
+        'trim_qty': 13,
+        'post_qty': 13,
+        'picket_qty': 200,
+        'rail_qty': 26,
+        'bracket_qty': 26,
+        'nailer_qty': 13,
+        'board_qty': 100,
+      };
+
+      // Handle material attributes (component.attribute)
+      if (varName.includes('.')) {
+        return '6'; // Default numeric value for material attributes
+      }
+
+      const val = testValues[varName];
+      if (val !== undefined) {
+        return String(val);
+      }
+
+      // Unknown variable - use a default numeric value
+      return '1';
+    });
+
+    // Convert IF statements to ternary (same logic as FormulaInterpreter)
+    const convertIfStatements = (input: string): string => {
+      const ifPattern = /IF\s*\(/gi;
+      let result = input;
+      let match;
+      let iterations = 0;
+      const maxIterations = 20;
+
+      while ((match = ifPattern.exec(result)) !== null && iterations < maxIterations) {
+        iterations++;
+        const startIdx = match.index;
+        const argsStart = startIdx + match[0].length;
+
+        let depth = 1;
+        let pos = argsStart;
+        while (pos < result.length && depth > 0) {
+          if (result[pos] === '(') depth++;
+          else if (result[pos] === ')') depth--;
+          pos++;
+        }
+
+        if (depth !== 0) {
+          return result; // Unbalanced - will fail validation
+        }
+
+        const argsEnd = pos - 1;
+        const argsStr = result.substring(argsStart, argsEnd);
+
+        // Split by comma, respecting nested parentheses
+        const args: string[] = [];
+        let current = '';
+        let argDepth = 0;
+        for (let i = 0; i < argsStr.length; i++) {
+          const char = argsStr[i];
+          if (char === '(') { argDepth++; current += char; }
+          else if (char === ')') { argDepth--; current += char; }
+          else if (char === ',' && argDepth === 0) { args.push(current); current = ''; }
+          else { current += char; }
+        }
+        if (current) args.push(current);
+
+        if (args.length >= 3) {
+          const condition = args[0].trim();
+          const trueVal = args[1].trim();
+          const falseVal = args[2].trim();
+          const ternary = `(${condition} ? ${trueVal} : ${falseVal})`;
+          result = result.substring(0, startIdx) + ternary + result.substring(pos);
+          ifPattern.lastIndex = 0;
+        } else {
+          break;
+        }
+      }
+      return result;
+    };
+
+    expr = convertIfStatements(expr);
+
+    // Replace function names
+    expr = expr.replace(/ROUNDUP/gi, 'Math.ceil');
+    expr = expr.replace(/ROUNDDOWN/gi, 'Math.floor');
+    expr = expr.replace(/ROUND(?!UP|DOWN)/gi, 'Math.round');
+    expr = expr.replace(/MAX/gi, 'Math.max');
+    expr = expr.replace(/MIN/gi, 'Math.min');
+
+    // Try to evaluate
+    const fn = new Function(`return ${expr}`);
+    const result = fn();
+
+    if (typeof result !== 'number' || !isFinite(result)) {
+      return { valid: false, error: 'Formula does not return a valid number' };
+    }
+
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : 'Invalid formula syntax' };
+  }
+}
+
 function FormulaCell({
   formula,
   isInherited,
@@ -3264,24 +3390,35 @@ function FormulaCell({
     );
   }
 
+  // Validate the formula
+  const validation = validateFormula(formula.formula);
+
   return (
     <button
       onClick={onClick}
+      title={!validation.valid ? `Error: ${validation.error}` : formula.formula}
       className={`w-full py-2 px-3 text-left rounded border text-sm transition-colors ${
-        isInherited
-          ? 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-          : 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100'
+        !validation.valid
+          ? 'bg-red-50 border-red-300 text-red-800 hover:bg-red-100'
+          : isInherited
+            ? 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            : 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100'
       }`}
     >
       <div className="font-mono text-xs truncate">
         {formula.formula.length > 30 ? formula.formula.substring(0, 30) + '...' : formula.formula}
       </div>
-      {isInherited && (
+      {!validation.valid && (
+        <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+          <span>⚠</span> {validation.error}
+        </div>
+      )}
+      {validation.valid && isInherited && (
         <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
           <span>↑</span> inherited
         </div>
       )}
-      {formula.plain_english && !isInherited && (
+      {validation.valid && formula.plain_english && !isInherited && (
         <div className="text-xs text-green-600 mt-1 truncate">{formula.plain_english}</div>
       )}
     </button>
