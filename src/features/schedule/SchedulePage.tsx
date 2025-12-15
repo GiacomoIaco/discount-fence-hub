@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Calendar,
   ChevronLeft,
   ChevronRight,
   Clock,
   MapPin,
-  Plus,
+  User,
+  ClipboardList,
+  Briefcase,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 // Generate calendar days for a month
 function generateCalendarDays(year: number, month: number) {
@@ -30,15 +34,16 @@ function generateCalendarDays(year: number, month: number) {
   return days;
 }
 
-// Mock scheduled events
-const mockEvents = [
-  { id: 1, day: 15, time: '9:00 AM', title: 'Assessment - Johnson', type: 'assessment', address: '123 Oak St' },
-  { id: 2, day: 15, time: '2:00 PM', title: 'Install - Smith', type: 'job', address: '456 Pine Ave' },
-  { id: 3, day: 18, time: '10:00 AM', title: 'Assessment - Williams', type: 'assessment', address: '789 Elm Dr' },
-  { id: 4, day: 20, time: '8:00 AM', title: 'Install - Garcia', type: 'job', address: '321 Maple Ln' },
-  { id: 5, day: 20, time: '1:00 PM', title: 'Assessment - Brown', type: 'assessment', address: '654 Cedar Ct' },
-  { id: 6, day: 22, time: '9:00 AM', title: 'Install - Davis', type: 'job', address: '987 Birch Way' },
-];
+interface ScheduleEvent {
+  id: string;
+  date: Date;
+  time: string;
+  title: string;
+  type: 'assessment' | 'job';
+  address: string;
+  assignee?: string;
+  entityId: string;
+}
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -49,13 +54,131 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface SchedulePageProps {
   onBack?: () => void;
+  onNavigateToRequest?: (requestId: string) => void;
+  onNavigateToJob?: (jobId: string) => void;
 }
 
-export default function SchedulePage({ onBack: _onBack }: SchedulePageProps) {
+export default function SchedulePage({
+  onNavigateToRequest,
+  onNavigateToJob,
+}: SchedulePageProps) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
+
+  // Calculate date range for the current month view
+  const monthStart = new Date(currentYear, currentMonth, 1);
+  const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+  // Fetch scheduled assessments
+  const { data: assessments = [] } = useQuery({
+    queryKey: ['schedule', 'assessments', currentYear, currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_requests')
+        .select(`
+          id,
+          request_number,
+          contact_name,
+          address_line1,
+          city,
+          assessment_scheduled_at,
+          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(name),
+          assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(name)
+        `)
+        .not('assessment_scheduled_at', 'is', null)
+        .gte('assessment_scheduled_at', monthStart.toISOString())
+        .lte('assessment_scheduled_at', monthEnd.toISOString())
+        .order('assessment_scheduled_at');
+
+      if (error) {
+        console.error('Error fetching assessments:', error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  // Fetch scheduled jobs
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['schedule', 'jobs', currentYear, currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(`
+          id,
+          job_number,
+          job_address,
+          scheduled_date,
+          scheduled_time_start,
+          assigned_crew:crews(name),
+          client:clients(name)
+        `)
+        .not('scheduled_date', 'is', null)
+        .gte('scheduled_date', monthStart.toISOString().split('T')[0])
+        .lte('scheduled_date', monthEnd.toISOString().split('T')[0])
+        .order('scheduled_date');
+
+      if (error) {
+        console.error('Error fetching jobs:', error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  // Transform data into calendar events
+  const events: ScheduleEvent[] = useMemo(() => {
+    const result: ScheduleEvent[] = [];
+
+    // Add assessments
+    assessments.forEach((assessment: any) => {
+      if (assessment.assessment_scheduled_at) {
+        const date = new Date(assessment.assessment_scheduled_at);
+        result.push({
+          id: `assessment-${assessment.id}`,
+          date,
+          time: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          title: `Assessment - ${assessment.contact_name || assessment.request_number}`,
+          type: 'assessment',
+          address: assessment.address_line1
+            ? `${assessment.address_line1}${assessment.city ? `, ${assessment.city}` : ''}`
+            : 'No address',
+          assignee: assessment.assessment_rep?.name || assessment.assigned_rep?.name,
+          entityId: assessment.id,
+        });
+      }
+    });
+
+    // Add jobs
+    jobs.forEach((job: any) => {
+      if (job.scheduled_date) {
+        const date = new Date(job.scheduled_date);
+        // Add time if available
+        if (job.scheduled_time_start) {
+          const [hours, minutes] = job.scheduled_time_start.split(':');
+          date.setHours(parseInt(hours), parseInt(minutes));
+        }
+        result.push({
+          id: `job-${job.id}`,
+          date,
+          time: job.scheduled_time_start
+            ? new Date(`2000-01-01T${job.scheduled_time_start}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            : 'TBD',
+          title: `Install - ${job.client?.name || job.job_number}`,
+          type: 'job',
+          address: job.job_address?.line1
+            ? `${job.job_address.line1}${job.job_address.city ? `, ${job.job_address.city}` : ''}`
+            : 'No address',
+          assignee: job.assigned_crew?.name,
+          entityId: job.id,
+        });
+      }
+    });
+
+    return result.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [assessments, jobs]);
 
   const calendarDays = generateCalendarDays(currentYear, currentMonth);
 
@@ -86,10 +209,22 @@ export default function SchedulePage({ onBack: _onBack }: SchedulePageProps) {
   };
 
   const getEventsForDay = (day: number) => {
-    return mockEvents.filter(e => e.day === day);
+    return events.filter(e => {
+      return e.date.getDate() === day &&
+        e.date.getMonth() === currentMonth &&
+        e.date.getFullYear() === currentYear;
+    });
   };
 
   const selectedDayEvents = selectedDay ? getEventsForDay(selectedDay) : [];
+
+  const handleEventClick = (event: ScheduleEvent) => {
+    if (event.type === 'assessment' && onNavigateToRequest) {
+      onNavigateToRequest(event.entityId);
+    } else if (event.type === 'job' && onNavigateToJob) {
+      onNavigateToJob(event.entityId);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -102,13 +237,21 @@ export default function SchedulePage({ onBack: _onBack }: SchedulePageProps) {
               Schedule
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Manage assessments and job schedules
+              Assessments and job schedules
             </p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <Plus className="w-4 h-4" />
-            Schedule Event
-          </button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span className="text-gray-600">Assessment</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-gray-600">Job</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -157,7 +300,7 @@ export default function SchedulePage({ onBack: _onBack }: SchedulePageProps) {
               {/* Day Cells */}
               <div className="grid grid-cols-7 gap-1">
                 {calendarDays.map((day, idx) => {
-                  const events = day ? getEventsForDay(day) : [];
+                  const dayEvents = day ? getEventsForDay(day) : [];
                   const isToday = day === today.getDate() &&
                     currentMonth === today.getMonth() &&
                     currentYear === today.getFullYear();
@@ -168,40 +311,39 @@ export default function SchedulePage({ onBack: _onBack }: SchedulePageProps) {
                       key={idx}
                       onClick={() => day && setSelectedDay(day)}
                       disabled={!day}
-                      className={`min-h-[80px] p-2 rounded-lg text-left transition-all ${
-                        !day
-                          ? 'bg-gray-50'
-                          : isSelected
-                          ? 'bg-blue-100 border-2 border-blue-500'
-                          : 'bg-white hover:bg-gray-50 border border-gray-100'
-                      }`}
+                      className={`
+                        min-h-[80px] p-2 rounded-lg text-left transition-colors
+                        ${!day ? 'bg-gray-50' : 'hover:bg-gray-50'}
+                        ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
+                        ${isToday && !isSelected ? 'bg-amber-50' : ''}
+                      `}
                     >
                       {day && (
                         <>
-                          <div className={`text-sm font-medium mb-1 ${
-                            isToday
-                              ? 'w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center'
-                              : 'text-gray-700'
-                          }`}>
+                          <span className={`
+                            text-sm font-medium
+                            ${isToday ? 'text-blue-600' : 'text-gray-900'}
+                          `}>
                             {day}
-                          </div>
-                          {events.length > 0 && (
-                            <div className="space-y-1">
-                              {events.slice(0, 2).map(event => (
+                          </span>
+                          {dayEvents.length > 0 && (
+                            <div className="mt-1 space-y-1">
+                              {dayEvents.slice(0, 2).map(event => (
                                 <div
                                   key={event.id}
-                                  className={`text-xs px-1.5 py-0.5 rounded truncate ${
-                                    event.type === 'assessment'
-                                      ? 'bg-purple-100 text-purple-700'
-                                      : 'bg-green-100 text-green-700'
-                                  }`}
+                                  className={`
+                                    text-xs px-1.5 py-0.5 rounded truncate
+                                    ${event.type === 'assessment'
+                                      ? 'bg-blue-100 text-blue-700'
+                                      : 'bg-green-100 text-green-700'}
+                                  `}
                                 >
                                   {event.time}
                                 </div>
                               ))}
-                              {events.length > 2 && (
-                                <div className="text-xs text-gray-500">
-                                  +{events.length - 2} more
+                              {dayEvents.length > 2 && (
+                                <div className="text-xs text-gray-500 px-1">
+                                  +{dayEvents.length - 2} more
                                 </div>
                               )}
                             </div>
@@ -215,80 +357,68 @@ export default function SchedulePage({ onBack: _onBack }: SchedulePageProps) {
             </div>
           </div>
 
-          {/* Day Detail Panel */}
-          <div className="w-80 bg-white rounded-xl shadow-sm border">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold text-gray-900">
-                {selectedDay
-                  ? `${MONTHS[currentMonth]} ${selectedDay}, ${currentYear}`
-                  : 'Select a day'}
-              </h3>
-              <p className="text-sm text-gray-500">
-                {selectedDayEvents.length} event{selectedDayEvents.length !== 1 ? 's' : ''} scheduled
-              </p>
-            </div>
-
-            <div className="p-4 space-y-3 max-h-[500px] overflow-auto">
-              {selectedDayEvents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Clock className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>No events scheduled</p>
-                </div>
+          {/* Day Details Sidebar */}
+          <div className="w-80 bg-white rounded-xl shadow-sm border p-4">
+            <h3 className="font-semibold text-gray-900 mb-4">
+              {selectedDay ? (
+                <>
+                  {MONTHS[currentMonth]} {selectedDay}, {currentYear}
+                </>
               ) : (
-                selectedDayEvents.map(event => (
-                  <div
+                'Select a day'
+              )}
+            </h3>
+
+            {selectedDayEvents.length === 0 ? (
+              <p className="text-gray-500 text-sm">No events scheduled</p>
+            ) : (
+              <div className="space-y-3">
+                {selectedDayEvents.map(event => (
+                  <button
                     key={event.id}
-                    className={`p-3 rounded-lg border-l-4 ${
-                      event.type === 'assessment'
-                        ? 'bg-purple-50 border-purple-500'
-                        : 'bg-green-50 border-green-500'
-                    }`}
+                    onClick={() => handleEventClick(event)}
+                    className={`
+                      w-full p-3 rounded-lg border text-left transition-colors hover:shadow-sm
+                      ${event.type === 'assessment'
+                        ? 'border-blue-200 hover:border-blue-300 bg-blue-50/50'
+                        : 'border-green-200 hover:border-green-300 bg-green-50/50'}
+                    `}
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-medium text-gray-900">{event.title}</p>
-                        <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                    <div className="flex items-start gap-3">
+                      <div className={`
+                        p-2 rounded-lg
+                        ${event.type === 'assessment' ? 'bg-blue-100' : 'bg-green-100'}
+                      `}>
+                        {event.type === 'assessment' ? (
+                          <ClipboardList className={`w-4 h-4 text-blue-600`} />
+                        ) : (
+                          <Briefcase className={`w-4 h-4 text-green-600`} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">
+                          {event.title}
+                        </p>
+                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                           <Clock className="w-3 h-3" />
                           {event.time}
                         </div>
-                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                          <MapPin className="w-3 h-3" />
+                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate">
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
                           {event.address}
                         </div>
+                        {event.assignee && (
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                            <User className="w-3 h-3" />
+                            {event.assignee}
+                          </div>
+                        )}
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        event.type === 'assessment'
-                          ? 'bg-purple-200 text-purple-800'
-                          : 'bg-green-200 text-green-800'
-                      }`}>
-                        {event.type === 'assessment' ? 'Assessment' : 'Install'}
-                      </span>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {selectedDay && (
-              <div className="p-4 border-t">
-                <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <Plus className="w-4 h-4" />
-                  Add Event
-                </button>
+                  </button>
+                ))}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="mt-4 flex items-center gap-6 text-sm text-gray-600">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-purple-500 rounded"></div>
-            <span>Assessment</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded"></div>
-            <span>Installation</span>
           </div>
         </div>
       </div>
