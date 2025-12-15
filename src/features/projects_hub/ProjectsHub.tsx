@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -15,6 +15,8 @@ import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder } from './components';
 import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
 import { SidebarTooltip } from '../../components/sidebar';
+import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
+import type { EntityType } from '../../lib/routes';
 
 const STORAGE_KEY = 'sidebar-collapsed-projects-hub';
 
@@ -27,36 +29,129 @@ const NAV_ITEMS: { key: ProjectsHubView; label: string; icon: typeof LayoutDashb
   { key: 'payments', label: 'Payments', icon: CreditCard, comingSoon: true },
 ];
 
+// Map entity types to views
+const ENTITY_TO_VIEW: Record<string, ProjectsHubView> = {
+  request: 'requests',
+  quote: 'quotes',
+  job: 'jobs',
+  invoice: 'invoices',
+};
+
 interface ProjectsHubProps {
   onBack?: () => void;
   initialView?: ProjectsHubView;
+  /** Entity context from URL (passed from App.tsx) */
+  entityContext?: EntityContext | null;
+  /** Navigate to entity URL */
+  onNavigateToEntity?: (entityType: EntityType, params: Record<string, string>) => void;
+  /** Clear entity from URL */
+  onClearEntity?: () => void;
 }
 
-export default function ProjectsHub({ onBack: _onBack, initialView = 'dashboard' }: ProjectsHubProps) {
-  const [activeView, setActiveView] = useState<ProjectsHubView>(initialView);
+export default function ProjectsHub({
+  onBack: _onBack,
+  initialView = 'dashboard',
+  entityContext: externalEntityContext,
+  onNavigateToEntity: externalNavigateToEntity,
+  onClearEntity: externalClearEntity,
+}: ProjectsHubProps) {
+  const { navigateToEntity: localNavigateToEntity, getEntityContext, navigateTo } = useAppNavigation();
+
+  // Use external context if provided, otherwise get from URL
+  const entityContext = externalEntityContext ?? getEntityContext();
+
+  // Determine initial view from entity context or prop
+  const getInitialView = (): ProjectsHubView => {
+    if (entityContext && ENTITY_TO_VIEW[entityContext.type]) {
+      return ENTITY_TO_VIEW[entityContext.type];
+    }
+    return initialView;
+  };
+
+  const [activeView, setActiveView] = useState<ProjectsHubView>(getInitialView);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored === 'true';
   });
 
+  // Update view when entity context changes
+  useEffect(() => {
+    if (entityContext && ENTITY_TO_VIEW[entityContext.type]) {
+      setActiveView(ENTITY_TO_VIEW[entityContext.type]);
+    }
+  }, [entityContext]);
+
+  // Navigation helpers that use URL routing
+  const handleNavigateToEntity = useCallback((entityType: EntityType, params: Record<string, string>) => {
+    if (externalNavigateToEntity) {
+      externalNavigateToEntity(entityType, params);
+    } else {
+      localNavigateToEntity(entityType, params);
+    }
+  }, [externalNavigateToEntity, localNavigateToEntity]);
+
+  const handleClearEntity = useCallback(() => {
+    if (externalClearEntity) {
+      externalClearEntity();
+    } else {
+      // Navigate back to the section list
+      navigateTo(activeView === 'requests' ? 'requests' :
+                 activeView === 'quotes' ? 'quotes' :
+                 activeView === 'jobs' ? 'jobs' :
+                 activeView === 'invoices' ? 'invoices' : 'projects-hub');
+    }
+  }, [externalClearEntity, navigateTo, activeView]);
+
   // Persist collapsed state
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(collapsed));
   }, [collapsed]);
+
+  // Get entity context for the current view's entity type
+  const getViewEntityContext = (viewType: 'request' | 'quote' | 'job' | 'invoice'): EntityContext | null => {
+    if (entityContext && entityContext.type === viewType) {
+      return entityContext;
+    }
+    return null;
+  };
 
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
         return <ProjectsDashboard onNavigate={setActiveView} />;
       case 'requests':
-        return <RequestsHub />;
+        return (
+          <RequestsHub
+            entityContext={getViewEntityContext('request')}
+            onNavigateToEntity={handleNavigateToEntity}
+            onClearEntity={handleClearEntity}
+          />
+        );
       case 'quotes':
-        return <QuotesHub />;
+        return (
+          <QuotesHub
+            entityContext={getViewEntityContext('quote')}
+            onNavigateToEntity={handleNavigateToEntity}
+            onClearEntity={handleClearEntity}
+          />
+        );
       case 'jobs':
-        return <JobsHub />;
+        return (
+          <JobsHub
+            entityContext={getViewEntityContext('job')}
+            onNavigateToEntity={handleNavigateToEntity}
+            onClearEntity={handleClearEntity}
+          />
+        );
       case 'invoices':
-        return <InvoicesHub />;
+        return (
+          <InvoicesHub
+            entityContext={getViewEntityContext('invoice')}
+            onNavigateToEntity={handleNavigateToEntity}
+            onClearEntity={handleClearEntity}
+          />
+        );
       case 'payments':
         return (
           <ComingSoonPlaceholder
