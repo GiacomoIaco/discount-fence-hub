@@ -6,7 +6,6 @@ import {
   Hammer,
   Receipt,
   CreditCard,
-  Plus,
   ChevronRight,
   Briefcase,
   PanelLeftClose,
@@ -14,8 +13,7 @@ import {
 } from 'lucide-react';
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder } from './components';
-import { RequestsList } from '../fsm/components';
-import { QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
+import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
 import { SidebarTooltip } from '../../components/sidebar';
 
 const STORAGE_KEY = 'sidebar-collapsed-projects-hub';
@@ -52,11 +50,7 @@ export default function ProjectsHub({ onBack: _onBack, initialView = 'dashboard'
       case 'dashboard':
         return <ProjectsDashboard onNavigate={setActiveView} />;
       case 'requests':
-        return (
-          <div className="p-6">
-            <RequestsList />
-          </div>
-        );
+        return <RequestsHub />;
       case 'quotes':
         return <QuotesHub />;
       case 'jobs':
@@ -133,18 +127,6 @@ export default function ProjectsHub({ onBack: _onBack, initialView = 'dashboard'
           })}
         </nav>
 
-        {/* Quick Actions */}
-        <div className="p-2 border-t border-blue-700">
-          <SidebarTooltip label="New Request" showTooltip={collapsed}>
-            <button
-              onClick={() => setActiveView('requests')}
-              className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-center gap-2'} px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors`}
-            >
-              <Plus className="w-4 h-4 flex-shrink-0" />
-              {!collapsed && 'New Request'}
-            </button>
-          </SidebarTooltip>
-        </div>
       </div>
 
       {/* Main Content */}
