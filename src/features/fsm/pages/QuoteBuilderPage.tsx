@@ -523,10 +523,239 @@ export default function QuoteBuilderPage({
         </div>
       </div>
 
-      {/* Main Layout: Sidebar Left + Content Right */}
+      {/* Main Layout: Content Left + Sidebar Right */}
       <div className="flex">
-        {/* Context Sidebar - Left Side */}
-        <aside className="w-80 min-w-[280px] max-w-[400px] h-[calc(100vh-57px)] sticky top-[57px] overflow-y-auto bg-gray-50 border-r border-gray-200 p-4">
+        {/* Main Content - Left Side */}
+        <main className="flex-1 p-6 overflow-auto">
+          {/* Line Items */}
+          <div className="bg-white rounded-xl border overflow-hidden mb-6">
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <h2 className="text-lg font-semibold">Line Items</h2>
+              <button
+                onClick={handleAddLineItem}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              >
+                <Plus className="w-4 h-4" />
+                Add Item
+              </button>
+            </div>
+
+            {lineItems.length === 0 ? (
+              <div className="p-12 text-center">
+                <DollarSign className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500 mb-4">No items added yet</p>
+                <button
+                  onClick={handleAddLineItem}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add First Item
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {/* Header */}
+                <div className="grid grid-cols-12 gap-2 px-6 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
+                  <div className="col-span-1">Type</div>
+                  <div className="col-span-3">Description</div>
+                  <div className="col-span-1 text-right">Qty</div>
+                  <div className="col-span-1">Unit</div>
+                  <div className="col-span-2 text-right">Price</div>
+                  <div className="col-span-2 text-right">Cost</div>
+                  <div className="col-span-1 text-right">Total</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {/* Items */}
+                {lineItems.map((item, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 px-6 py-3 items-center hover:bg-gray-50">
+                    <div className="col-span-1">
+                      <select
+                        value={item.line_type}
+                        onChange={(e) => handleUpdateLineItem(index, { line_type: e.target.value as LineItemForm['line_type'] })}
+                        className="w-full px-1.5 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
+                      >
+                        {LINE_TYPE_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-3">
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(e) => handleUpdateLineItem(index, { description: e.target.value })}
+                        placeholder="Description"
+                        className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => handleUpdateLineItem(index, { quantity: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <select
+                        value={item.unit_type}
+                        onChange={(e) => handleUpdateLineItem(index, { unit_type: e.target.value })}
+                        className="w-full px-1 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="EA">EA</option>
+                        <option value="LF">LF</option>
+                        <option value="SF">SF</option>
+                        <option value="HR">HR</option>
+                        <option value="DAY">DAY</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="number"
+                        value={item.unit_price}
+                        onChange={(e) => handleUpdateLineItem(index, { unit_price: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                        step="0.01"
+                        placeholder="Price"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="number"
+                        value={item.unit_cost}
+                        onChange={(e) => handleUpdateLineItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                        step="0.01"
+                        placeholder="Cost"
+                      />
+                    </div>
+                    <div className="col-span-1 text-right font-medium text-sm">
+                      ${(item.quantity * item.unit_price).toFixed(2)}
+                    </div>
+                    <div className="col-span-1 text-right">
+                      <button
+                        onClick={() => handleRemoveLineItem(index)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Totals Row */}
+                <div className="px-6 py-4 bg-gray-50">
+                  <div className="flex justify-end gap-8 text-sm">
+                    <div className="text-right">
+                      <div className="text-gray-500">Subtotal</div>
+                      <div className="font-medium">${subtotal.toFixed(2)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-gray-500">Discount ({discountPercent}%)</div>
+                      <div className="font-medium text-green-600">-${discountAmount.toFixed(2)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-gray-500">Tax ({taxRate}%)</div>
+                      <div className="font-medium">${taxAmount.toFixed(2)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-gray-500">Total</div>
+                      <div className="text-xl font-bold">${total.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Scope Summary */}
+          <div className="bg-white rounded-xl border p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-4">Scope Summary</h2>
+            <textarea
+              value={scopeSummary}
+              onChange={(e) => setScopeSummary(e.target.value)}
+              rows={3}
+              placeholder="Describe the work to be done..."
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Terms */}
+          <div className="bg-white rounded-xl border p-6">
+            <h2 className="text-lg font-semibold mb-4">Terms</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Valid Until
+                </label>
+                <input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Payment Terms
+                </label>
+                <select
+                  value={paymentTerms}
+                  onChange={(e) => setPaymentTerms(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                >
+                  {PAYMENT_TERMS_OPTIONS.map((term) => (
+                    <option key={term} value={term}>{term}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Percent className="w-4 h-4 inline mr-1" />
+                  Deposit %
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={depositPercent}
+                    onChange={(e) => setDepositPercent(e.target.value)}
+                    min="0"
+                    max="100"
+                    className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                  <span className="text-gray-500">%</span>
+                  {depositAmount > 0 && (
+                    <span className="text-sm text-purple-600 font-medium">
+                      ${depositAmount.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Percent className="w-4 h-4 inline mr-1" />
+                  Discount %
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(e.target.value)}
+                    min="0"
+                    max="100"
+                    className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                  <span className="text-gray-500">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Context Sidebar - Right Side */}
+        <aside className="w-80 min-w-[280px] max-w-[400px] h-[calc(100vh-57px)] sticky top-[57px] overflow-y-auto bg-gray-50 border-l border-gray-200 p-4">
           {/* Entity Header */}
           <div className="bg-white rounded-lg p-4 mb-4 border">
             <div className="flex items-center gap-2 mb-2">
@@ -753,235 +982,6 @@ export default function QuoteBuilderPage({
             </CollapsibleSection>
           </div>
         </aside>
-
-        {/* Main Content - Right Side */}
-        <main className="flex-1 p-6">
-          {/* Scope Summary */}
-          <div className="bg-white rounded-xl border p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Scope Summary</h2>
-            <textarea
-              value={scopeSummary}
-              onChange={(e) => setScopeSummary(e.target.value)}
-              rows={3}
-              placeholder="Describe the work to be done..."
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-
-          {/* Line Items */}
-          <div className="bg-white rounded-xl border overflow-hidden mb-6">
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
-              <h2 className="text-lg font-semibold">Line Items</h2>
-              <button
-                onClick={handleAddLineItem}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-              >
-                <Plus className="w-4 h-4" />
-                Add Item
-              </button>
-            </div>
-
-            {lineItems.length === 0 ? (
-              <div className="p-12 text-center">
-                <DollarSign className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500 mb-4">No items added yet</p>
-                <button
-                  onClick={handleAddLineItem}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add First Item
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {/* Header */}
-                <div className="grid grid-cols-12 gap-2 px-6 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
-                  <div className="col-span-1">Type</div>
-                  <div className="col-span-3">Description</div>
-                  <div className="col-span-1 text-right">Qty</div>
-                  <div className="col-span-1">Unit</div>
-                  <div className="col-span-2 text-right">Price</div>
-                  <div className="col-span-2 text-right">Cost</div>
-                  <div className="col-span-1 text-right">Total</div>
-                  <div className="col-span-1"></div>
-                </div>
-
-                {/* Items */}
-                {lineItems.map((item, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 px-6 py-3 items-center hover:bg-gray-50">
-                    <div className="col-span-1">
-                      <select
-                        value={item.line_type}
-                        onChange={(e) => handleUpdateLineItem(index, { line_type: e.target.value as LineItemForm['line_type'] })}
-                        className="w-full px-1.5 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
-                      >
-                        {LINE_TYPE_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => handleUpdateLineItem(index, { description: e.target.value })}
-                        placeholder="Description"
-                        className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => handleUpdateLineItem(index, { quantity: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <select
-                        value={item.unit_type}
-                        onChange={(e) => handleUpdateLineItem(index, { unit_type: e.target.value })}
-                        className="w-full px-1 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
-                      >
-                        <option value="EA">EA</option>
-                        <option value="LF">LF</option>
-                        <option value="SF">SF</option>
-                        <option value="HR">HR</option>
-                        <option value="DAY">DAY</option>
-                      </select>
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={item.unit_price}
-                        onChange={(e) => handleUpdateLineItem(index, { unit_price: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
-                        step="0.01"
-                        placeholder="Price"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={item.unit_cost}
-                        onChange={(e) => handleUpdateLineItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
-                        step="0.01"
-                        placeholder="Cost"
-                      />
-                    </div>
-                    <div className="col-span-1 text-right font-medium text-sm">
-                      ${(item.quantity * item.unit_price).toFixed(2)}
-                    </div>
-                    <div className="col-span-1 text-right">
-                      <button
-                        onClick={() => handleRemoveLineItem(index)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Totals Row */}
-                <div className="px-6 py-4 bg-gray-50">
-                  <div className="flex justify-end gap-8 text-sm">
-                    <div className="text-right">
-                      <div className="text-gray-500">Subtotal</div>
-                      <div className="font-medium">${subtotal.toFixed(2)}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-gray-500">Discount ({discountPercent}%)</div>
-                      <div className="font-medium text-green-600">-${discountAmount.toFixed(2)}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-gray-500">Tax ({taxRate}%)</div>
-                      <div className="font-medium">${taxAmount.toFixed(2)}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-gray-500">Total</div>
-                      <div className="text-xl font-bold">${total.toFixed(2)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Terms */}
-          <div className="bg-white rounded-xl border p-6">
-            <h2 className="text-lg font-semibold mb-4">Terms</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Valid Until
-                </label>
-                <input
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Terms
-                </label>
-                <select
-                  value={paymentTerms}
-                  onChange={(e) => setPaymentTerms(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                >
-                  {PAYMENT_TERMS_OPTIONS.map((term) => (
-                    <option key={term} value={term}>{term}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Percent className="w-4 h-4 inline mr-1" />
-                  Deposit %
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={depositPercent}
-                    onChange={(e) => setDepositPercent(e.target.value)}
-                    min="0"
-                    max="100"
-                    className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                  <span className="text-gray-500">%</span>
-                  {depositAmount > 0 && (
-                    <span className="text-sm text-purple-600 font-medium">
-                      ${depositAmount.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Percent className="w-4 h-4 inline mr-1" />
-                  Discount %
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={discountPercent}
-                    onChange={(e) => setDiscountPercent(e.target.value)}
-                    min="0"
-                    max="100"
-                    className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                  <span className="text-gray-500">%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
       </div>
     </div>
   );

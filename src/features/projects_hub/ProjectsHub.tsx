@@ -15,6 +15,7 @@ import {
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder } from './components';
 import { RequestsList } from '../fsm/components';
+import { QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
 import { SidebarTooltip } from '../../components/sidebar';
 
 const STORAGE_KEY = 'sidebar-collapsed-projects-hub';
@@ -22,9 +23,9 @@ const STORAGE_KEY = 'sidebar-collapsed-projects-hub';
 const NAV_ITEMS: { key: ProjectsHubView; label: string; icon: typeof LayoutDashboard; comingSoon?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'requests', label: 'Requests', icon: ClipboardList },
-  { key: 'quotes', label: 'Quotes', icon: FileText, comingSoon: true },
-  { key: 'jobs', label: 'Jobs', icon: Hammer, comingSoon: true },
-  { key: 'invoices', label: 'Invoices', icon: Receipt, comingSoon: true },
+  { key: 'quotes', label: 'Quotes', icon: FileText },
+  { key: 'jobs', label: 'Jobs', icon: Hammer },
+  { key: 'invoices', label: 'Invoices', icon: Receipt },
   { key: 'payments', label: 'Payments', icon: CreditCard, comingSoon: true },
 ];
 
@@ -57,29 +58,11 @@ export default function ProjectsHub({ onBack: _onBack, initialView = 'dashboard'
           </div>
         );
       case 'quotes':
-        return (
-          <ComingSoonPlaceholder
-            title="Quotes"
-            description="Create and manage quotes for your customers. Convert approved quotes to jobs with one click."
-            icon={FileText}
-          />
-        );
+        return <QuotesHub />;
       case 'jobs':
-        return (
-          <ComingSoonPlaceholder
-            title="Jobs"
-            description="Schedule and track work orders. Assign crews, manage materials, and monitor job progress."
-            icon={Hammer}
-          />
-        );
+        return <JobsHub />;
       case 'invoices':
-        return (
-          <ComingSoonPlaceholder
-            title="Invoices"
-            description="Generate invoices from completed jobs. Sync with QuickBooks and track payment status."
-            icon={Receipt}
-          />
-        );
+        return <InvoicesHub />;
       case 'payments':
         return (
           <ComingSoonPlaceholder
