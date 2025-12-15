@@ -14,8 +14,8 @@ import {
   ClipboardList,
   Plus,
 } from 'lucide-react';
-import { RequestsList, RequestEditorModal } from '../components';
-import { RequestDetailPage } from '../pages';
+import { RequestsList } from '../components';
+import { RequestDetailPage, RequestEditorPage } from '../pages';
 import { useConvertRequestToQuote } from '../hooks/useRequests';
 import type { EntityContext } from '../../../hooks/useRouteSync';
 import type { EntityType } from '../../../lib/routes';
@@ -35,7 +35,8 @@ export default function RequestsHub({
   onNavigateToEntity,
   onClearEntity,
 }: RequestsHubProps) {
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditor, setShowEditor] = useState<'create' | 'edit' | null>(null);
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const convertToQuoteMutation = useConvertRequestToQuote();
 
   // Handle request selection - update URL
@@ -72,6 +73,33 @@ export default function RequestsHub({
     }
   };
 
+  // Handle edit request
+  const handleEditRequest = (requestId: string) => {
+    setEditingRequestId(requestId);
+    setShowEditor('edit');
+  };
+
+  // Handle editor close
+  const handleEditorClose = () => {
+    setShowEditor(null);
+    setEditingRequestId(null);
+  };
+
+  // If showing the editor (create or edit), render the editor page
+  if (showEditor) {
+    return (
+      <RequestEditorPage
+        requestId={showEditor === 'edit' ? editingRequestId || undefined : undefined}
+        onBack={handleEditorClose}
+        onSaved={(requestId) => {
+          handleEditorClose();
+          // Navigate to the created/edited request
+          handleRequestSelect(requestId);
+        }}
+      />
+    );
+  }
+
   // If viewing a specific request, render the detail page
   if (entityContext?.type === 'request') {
     return (
@@ -80,6 +108,7 @@ export default function RequestsHub({
         onBack={handleRequestClose}
         onNavigateToQuote={handleNavigateToQuote}
         onCreateQuote={handleCreateQuote}
+        onEdit={handleEditRequest}
       />
     );
   }
@@ -101,7 +130,7 @@ export default function RequestsHub({
               </div>
             </div>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => setShowEditor('create')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Plus className="w-4 h-4" />
@@ -115,12 +144,6 @@ export default function RequestsHub({
       <div className="p-6">
         <RequestsList onSelectRequest={(request) => handleRequestSelect(request.id)} />
       </div>
-
-      {/* Create Modal */}
-      <RequestEditorModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-      />
     </div>
   );
 }

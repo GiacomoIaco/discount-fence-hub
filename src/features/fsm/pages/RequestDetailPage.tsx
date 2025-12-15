@@ -35,7 +35,6 @@ import {
   REQUEST_TRANSITIONS,
   type RequestStatus,
 } from '../types';
-import RequestEditorModal from '../components/RequestEditorModal';
 
 type Tab = 'overview' | 'assessment' | 'activity';
 
@@ -44,6 +43,7 @@ interface RequestDetailPageProps {
   onBack: () => void;
   onNavigateToQuote?: (quoteId: string) => void;
   onCreateQuote?: (requestId: string) => void;
+  onEdit?: (requestId: string) => void;
 }
 
 export default function RequestDetailPage({
@@ -51,9 +51,9 @@ export default function RequestDetailPage({
   onBack,
   onNavigateToQuote,
   onCreateQuote,
+  onEdit,
 }: RequestDetailPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [showEditor, setShowEditor] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
@@ -186,7 +186,7 @@ export default function RequestDetailPage({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowEditor(true)}
+                onClick={() => onEdit?.(request.id)}
                 className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 <Edit2 className="w-4 h-4" />
@@ -502,13 +502,6 @@ export default function RequestDetailPage({
           </div>
         )}
       </div>
-
-      {/* Edit Modal */}
-      <RequestEditorModal
-        isOpen={showEditor}
-        request={request}
-        onClose={() => setShowEditor(false)}
-      />
 
       {/* Schedule Assessment Modal */}
       {showScheduleModal && (
