@@ -470,6 +470,39 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     }));
   };
 
+  // Auto-select steel_post_cap based on post_type and cap selection
+  // PC01 = no cap, PC02 = with cap
+  const capSelection = componentSelections['cap'];
+  const steelPostCapSelection = componentSelections['steel_post_cap'];
+  useEffect(() => {
+    if (postType === 'STEEL') {
+      const hasCapSelected = !!capSelection;
+      const targetSku = hasCapSelected ? 'PC02' : 'PC01';
+      const targetMaterial = materials.find(m => m.material_sku === targetSku);
+
+      if (targetMaterial) {
+        const currentMaterial = steelPostCapSelection ? materials.find(m => m.id === steelPostCapSelection) : null;
+
+        // Only update if selection is different
+        if (!currentMaterial || currentMaterial.material_sku !== targetSku) {
+          setComponentSelections(prev => ({
+            ...prev,
+            steel_post_cap: targetMaterial.id
+          }));
+        }
+      }
+    } else {
+      // Clear steel_post_cap when not using steel posts
+      if (steelPostCapSelection) {
+        setComponentSelections(prev => {
+          const next = { ...prev };
+          delete next.steel_post_cap;
+          return next;
+        });
+      }
+    }
+  }, [postType, capSelection, steelPostCapSelection, materials]);
+
   // =============================================================================
   // BOM TEST CALCULATION
   // =============================================================================
