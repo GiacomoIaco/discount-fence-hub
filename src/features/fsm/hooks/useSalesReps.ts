@@ -9,14 +9,11 @@ export function useSalesReps() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales_reps')
-        .select(`
-          *,
-          user:user_id(id, email)
-        `)
+        .select('*')
         .order('name');
 
       if (error) throw error;
-      return data as (SalesRep & { user: { id: string; email: string } | null })[];
+      return data as SalesRep[];
     },
   });
 }
@@ -29,15 +26,12 @@ export function useSalesRep(id: string | undefined) {
 
       const { data, error } = await supabase
         .from('sales_reps')
-        .select(`
-          *,
-          user:user_id(id, email)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as SalesRep & { user: { id: string; email: string } | null };
+      return data as SalesRep;
     },
     enabled: !!id,
   });
