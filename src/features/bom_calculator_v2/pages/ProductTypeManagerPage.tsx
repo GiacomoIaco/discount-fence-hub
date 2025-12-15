@@ -3137,19 +3137,19 @@ function FormulasTab({
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase sticky left-0 bg-gray-50 z-10">
+                <th className="w-[180px] px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase sticky left-0 bg-gray-50 z-10">
                   Component
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase min-w-[150px]">
+                <th className="w-[220px] px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
                   Base Formula
                 </th>
                 {styles.map((style) => (
                   <th
                     key={style.id}
-                    className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase min-w-[150px]"
+                    className="w-[220px] px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase"
                   >
                     {style.name}
                   </th>
@@ -3163,13 +3163,13 @@ function FormulasTab({
 
                 return (
                   <tr key={component.component_type_id} className={hasAnyFormula ? 'bg-white' : 'bg-gray-50/50'}>
-                    <td className="px-4 py-3 sticky left-0 bg-inherit z-10">
+                    <td className="w-[180px] px-4 py-3 sticky left-0 bg-inherit z-10">
                       <div className="flex items-center gap-2">
                         <span className="w-5 text-center text-xs text-gray-400 font-mono">
                           {component.display_order}
                         </span>
-                        <div>
-                          <div className="font-medium text-gray-900">{component.component_name}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{component.component_name}</div>
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-gray-500 font-mono">{component.component_code}</span>
                             {component.is_labor && (
@@ -3181,7 +3181,7 @@ function FormulasTab({
                     </td>
 
                     {/* Base Formula Cell */}
-                    <td className="px-4 py-3">
+                    <td className="w-[220px] px-4 py-3">
                       <FormulaCell
                         formula={baseFormula}
                         isInherited={false}
@@ -3199,7 +3199,7 @@ function FormulasTab({
                       const isInherited = !styleFormula && !!baseFormula;
 
                       return (
-                        <td key={style.id} className="px-4 py-3">
+                        <td key={style.id} className="w-[220px] px-4 py-3">
                           <FormulaCell
                             formula={styleFormula || baseFormula}
                             isInherited={isInherited}
@@ -3397,7 +3397,7 @@ function FormulaCell({
     <button
       onClick={onClick}
       title={!validation.valid ? `Error: ${validation.error}` : formula.formula}
-      className={`w-full py-2 px-3 text-left rounded border text-sm transition-colors ${
+      className={`w-full py-2 px-3 text-left rounded border text-sm transition-colors overflow-hidden ${
         !validation.valid
           ? 'bg-red-50 border-red-300 text-red-800 hover:bg-red-100'
           : isInherited
@@ -3405,12 +3405,12 @@ function FormulaCell({
             : 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100'
       }`}
     >
-      <div className="font-mono text-xs truncate">
-        {formula.formula.length > 30 ? formula.formula.substring(0, 30) + '...' : formula.formula}
+      <div className="font-mono text-xs truncate" title={formula.formula}>
+        {formula.formula}
       </div>
       {!validation.valid && (
-        <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
-          <span>⚠</span> {validation.error}
+        <div className="text-xs text-red-600 mt-1 flex items-center gap-1 truncate">
+          <span className="flex-shrink-0">⚠</span> <span className="truncate">{validation.error}</span>
         </div>
       )}
       {validation.valid && isInherited && (
@@ -3419,7 +3419,9 @@ function FormulaCell({
         </div>
       )}
       {validation.valid && formula.plain_english && !isInherited && (
-        <div className="text-xs text-green-600 mt-1 truncate">{formula.plain_english}</div>
+        <div className="text-xs text-green-600 mt-1 truncate" title={formula.plain_english}>
+          {formula.plain_english}
+        </div>
       )}
     </button>
   );
