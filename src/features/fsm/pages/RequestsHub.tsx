@@ -155,7 +155,12 @@ export default function RequestsHub({
 
       {/* Content */}
       <div className="p-6">
-        <RequestsList onSelectRequest={(request) => handleRequestSelect(request.id)} />
+        <RequestsList
+          onSelectRequest={(request) => handleRequestSelect(request.id)}
+          onCreate={() => setShowEditor('create')}
+          onEdit={(request) => handleEditRequest(request.id)}
+          hideHeader
+        />
       </div>
     </div>
   );

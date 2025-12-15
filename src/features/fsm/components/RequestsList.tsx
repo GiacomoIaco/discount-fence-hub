@@ -3,7 +3,6 @@ import { Plus, Phone, Globe, Users, Building, Calendar, MapPin, User, Search } f
 import { useRequests, useDeleteRequest } from '../hooks';
 import type { ServiceRequest, RequestStatus, RequestSource } from '../types';
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS } from '../types';
-import RequestEditorModal from './RequestEditorModal';
 
 const SOURCE_ICONS: Record<RequestSource, React.ComponentType<{ className?: string }>> = {
   phone: Phone,
@@ -15,27 +14,21 @@ const SOURCE_ICONS: Record<RequestSource, React.ComponentType<{ className?: stri
 
 interface RequestsListProps {
   onSelectRequest?: (request: ServiceRequest) => void;
+  /** Called when user wants to create a new request - parent handles the UI */
+  onCreate?: () => void;
+  /** Called when user wants to edit a request - parent handles the UI */
+  onEdit?: (request: ServiceRequest) => void;
+  /** Hide the header (title + new button) when embedded in a Hub */
+  hideHeader?: boolean;
 }
 
-export default function RequestsList({ onSelectRequest }: RequestsListProps) {
-  const [showEditor, setShowEditor] = useState(false);
-  const [editingRequest, setEditingRequest] = useState<ServiceRequest | null>(null);
+export default function RequestsList({ onSelectRequest, onCreate, onEdit, hideHeader }: RequestsListProps) {
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: requests, isLoading, error } = useRequests(filters);
   const deleteMutation = useDeleteRequest();
-
-  const handleEdit = (request: ServiceRequest) => {
-    setEditingRequest(request);
-    setShowEditor(true);
-  };
-
-  const handleCreate = () => {
-    setEditingRequest(null);
-    setShowEditor(true);
-  };
 
   const handleDelete = async (request: ServiceRequest) => {
     if (confirm(`Delete request ${request.request_number}?`)) {
@@ -75,22 +68,26 @@ export default function RequestsList({ onSelectRequest }: RequestsListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Service Requests</h3>
-          <p className="text-sm text-gray-500">
-            Incoming work requests and assessments
-          </p>
+      {/* Header - hidden when embedded in a Hub */}
+      {!hideHeader && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Service Requests</h3>
+            <p className="text-sm text-gray-500">
+              Incoming work requests and assessments
+            </p>
+          </div>
+          {onCreate && (
+            <button
+              onClick={onCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              New Request
+            </button>
+          )}
         </div>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4" />
-          New Request
-        </button>
-      </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
@@ -125,13 +122,15 @@ export default function RequestsList({ onSelectRequest }: RequestsListProps) {
       ) : !filteredRequests?.length ? (
         <div className="p-8 text-center border-2 border-dashed rounded-lg">
           <p className="text-gray-500 mb-4">No requests found</p>
-          <button
-            onClick={handleCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4" />
-            Create First Request
-          </button>
+          {onCreate && (
+            <button
+              onClick={onCreate}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Create First Request
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -215,12 +214,14 @@ export default function RequestsList({ onSelectRequest }: RequestsListProps) {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() => handleEdit(request)}
-                        className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
-                      >
-                        Edit
-                      </button>
+                      {onEdit && (
+                        <button
+                          onClick={() => onEdit(request)}
+                          className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          Edit
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDelete(request)}
                         className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
@@ -250,16 +251,6 @@ export default function RequestsList({ onSelectRequest }: RequestsListProps) {
           })}
         </div>
       )}
-
-      {/* Editor Modal */}
-      <RequestEditorModal
-        isOpen={showEditor}
-        onClose={() => {
-          setShowEditor(false);
-          setEditingRequest(null);
-        }}
-        request={editingRequest}
-      />
     </div>
   );
 }
