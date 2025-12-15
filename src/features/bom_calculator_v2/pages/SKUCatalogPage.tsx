@@ -67,17 +67,18 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
   // Fetch all SKUs from sku_catalog_v2
   const { data: skus = [], isLoading: loadingSKUs } = useSKUCatalogV2();
 
-  // Fetch labor rates for default business unit (ATX-HB typically)
-  const [defaultBusinessUnitId, setDefaultBusinessUnitId] = useState<string | null>(null);
+  // Business unit selection for labor rates
+  const [selectedBusinessUnitId, setSelectedBusinessUnitId] = useState<string | null>(null);
 
-  // Get default business unit
+  // Get all business units
   const { data: businessUnits = [] } = useQuery({
     queryKey: ['business-units-catalog'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('business_units')
-        .select('id, code')
-        .eq('is_active', true);
+        .select('id, code, name')
+        .eq('is_active', true)
+        .order('code');
       if (error) throw error;
       return data;
     },
@@ -85,26 +86,55 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
 
   // Set default business unit (prefer ATX-HB)
   useEffect(() => {
-    if (businessUnits.length > 0 && !defaultBusinessUnitId) {
+    if (businessUnits.length > 0 && !selectedBusinessUnitId) {
       const atxHb = businessUnits.find(bu => bu.code === 'ATX-HB');
-      setDefaultBusinessUnitId(atxHb?.id || businessUnits[0]?.id || null);
+      setSelectedBusinessUnitId(atxHb?.id || businessUnits[0]?.id || null);
     }
-  }, [businessUnits, defaultBusinessUnitId]);
+  }, [businessUnits, selectedBusinessUnitId]);
 
-  // Fetch labor rates
+  // Get selected BU code for display
+  const selectedBUCode = useMemo(() => {
+    return businessUnits.find(bu => bu.id === selectedBusinessUnitId)?.code || '';
+  }, [businessUnits, selectedBusinessUnitId]);
+
+  // Fetch labor rates for selected business unit
   const { data: laborRates = [] } = useQuery({
-    queryKey: ['labor-rates-catalog', defaultBusinessUnitId],
+    queryKey: ['labor-rates-catalog', selectedBusinessUnitId],
     queryFn: async () => {
-      if (!defaultBusinessUnitId) return [];
+      if (!selectedBusinessUnitId) return [];
       const { data, error } = await supabase
         .from('labor_rates')
         .select('labor_code_id, rate')
-        .eq('business_unit_id', defaultBusinessUnitId);
+        .eq('business_unit_id', selectedBusinessUnitId);
       if (error) throw error;
       return data as LaborRate[];
     },
-    enabled: !!defaultBusinessUnitId,
+    enabled: !!selectedBusinessUnitId,
   });
+
+  // Fetch labor codes mapping (labor_sku -> labor_code_id)
+  const { data: laborCodes = [] } = useQuery({
+    queryKey: ['labor-codes-mapping'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('labor_codes')
+        .select('id, labor_sku');
+      if (error) throw error;
+      return data as { id: string; labor_sku: string }[];
+    },
+  });
+
+  // Build labor SKU to rate lookup based on selected BU
+  const laborSkuToRate = useMemo(() => {
+    const lookup: Record<string, number> = {};
+    for (const lc of laborCodes) {
+      const rateEntry = laborRates.find(lr => lr.labor_code_id === lc.id);
+      if (rateEntry) {
+        lookup[lc.labor_sku] = rateEntry.rate;
+      }
+    }
+    return lookup;
+  }, [laborCodes, laborRates]);
 
   // Recalculation state
   const [recalculating, setRecalculating] = useState(false);
@@ -434,11 +464,30 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
     }
   }, [skus, recalculateSKU, queryClient]);
 
-  // Transform SKUs into table rows
+  // Transform SKUs into table rows (labor cost calculated dynamically based on selected BU)
   const allRows: SKURow[] = useMemo(() => {
     return skus.map((sku: SKUCatalogV2WithRelations) => {
       const materialCostPerFoot = sku.standard_cost_per_foot || 0;
-      const laborCostPerFoot = sku.standard_labor_cost ? sku.standard_labor_cost / 100 : 0; // Assume per 100ft
+
+      // Calculate labor cost dynamically from SKU's labor_codes and selected BU's rates
+      let laborCostTotal = 0;
+      const skuLaborCodes = sku.labor_codes as Record<string, string | string[]> | null;
+      if (skuLaborCodes) {
+        for (const value of Object.values(skuLaborCodes)) {
+          if (Array.isArray(value)) {
+            // Multiple labor codes (e.g., other_labor group)
+            for (const laborSku of value) {
+              const rate = laborSkuToRate[laborSku] || 0;
+              laborCostTotal += STANDARD_LENGTH * rate;
+            }
+          } else if (value) {
+            // Single labor code
+            const rate = laborSkuToRate[value] || 0;
+            laborCostTotal += STANDARD_LENGTH * rate;
+          }
+        }
+      }
+      const laborCostPerFoot = laborCostTotal / STANDARD_LENGTH;
 
       // Get variables from JSONB
       const variables = sku.variables || {};
@@ -462,7 +511,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         calculated_at: sku.standard_cost_calculated_at,
       };
     });
-  }, [skus]);
+  }, [skus, laborSkuToRate]);
 
   // Delete handler (soft delete via is_active)
   const handleDelete = async (skuId: string, skuCode: string) => {
@@ -680,6 +729,20 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
             </select>
           </div>
 
+          {/* Business Unit Selector */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Labor Rates (BU)</label>
+            <select
+              value={selectedBusinessUnitId || ''}
+              onChange={(e) => setSelectedBusinessUnitId(e.target.value)}
+              className="px-3 py-2 text-sm border border-purple-300 bg-purple-50 rounded-lg focus:ring-2 focus:ring-purple-500 w-32 font-medium text-purple-700"
+            >
+              {businessUnits.map((bu) => (
+                <option key={bu.id} value={bu.id}>{bu.code}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Clear Filters */}
           {hasFilters && (
             <div className="ml-auto">
@@ -733,7 +796,7 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
               <th className="text-center py-3 px-4 font-medium">Height</th>
               <th className="text-center py-3 px-4 font-medium">Post</th>
               <th className="text-right py-3 px-4 font-medium">Material/FT</th>
-              <th className="text-right py-3 px-4 font-medium">Labor/FT</th>
+              <th className="text-right py-3 px-4 font-medium">Labor/FT <span className="text-purple-600">({selectedBUCode})</span></th>
               <th className="text-right py-3 px-4 font-medium bg-yellow-50">$/FT</th>
               {isAdmin && <th className="text-center py-3 px-2 font-medium w-32">Actions</th>}
             </tr>
