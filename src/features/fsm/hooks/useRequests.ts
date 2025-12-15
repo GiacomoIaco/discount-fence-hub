@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { ServiceRequest, RequestFormData, RequestStatus } from '../types';
+import type { ServiceRequest, RequestFormData, RequestStatus, Job } from '../types';
 import { showSuccess, showError } from '../../../lib/toast';
 
 interface RequestFilters {
@@ -431,6 +431,130 @@ export function useConvertRequestToQuote() {
     },
     onError: (error: Error) => {
       showError(error.message || 'Failed to convert request to quote');
+    },
+  });
+}
+
+/**
+ * Convert a Request directly to a Job (skipping Quote)
+ * Used for builders without PO process or simple repeat work
+ * Creates a Project to group the Request and Job
+ */
+export function useConvertRequestToJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string): Promise<Job> => {
+      // Get request data
+      const { data: request, error: requestError } = await supabase
+        .from('service_requests')
+        .select(`
+          *,
+          client:clients(id, name, billing_address_line1, billing_city, billing_state, billing_zip)
+        `)
+        .eq('id', requestId)
+        .single();
+
+      if (requestError) throw requestError;
+      if (!request) throw new Error('Request not found');
+
+      // Require a client for direct job conversion
+      if (!request.client_id) {
+        throw new Error('Request must have a client assigned to convert directly to a job');
+      }
+
+      // Build job address from request
+      const jobAddress = {
+        line1: request.address_line1 || '',
+        city: request.city || '',
+        state: request.state || 'TX',
+        zip: request.zip || '',
+      };
+
+      // Create project first (if not already linked to one)
+      let projectId = request.project_id;
+
+      if (!projectId) {
+        const { data: project, error: projectError } = await supabase
+          .from('projects')
+          .insert({
+            client_id: request.client_id,
+            community_id: request.community_id,
+            property_id: request.property_id,
+            product_type: request.product_type,
+            address_line1: request.address_line1,
+            city: request.city,
+            state: request.state,
+            zip: request.zip,
+            territory_id: request.territory_id,
+            assigned_rep_id: request.assigned_rep_id,
+          })
+          .select('id')
+          .single();
+
+        if (projectError) throw projectError;
+        projectId = project.id;
+
+        // Link request to project
+        await supabase
+          .from('service_requests')
+          .update({ project_id: projectId })
+          .eq('id', requestId);
+      }
+
+      // Create job directly from request
+      const { data: job, error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          project_id: projectId,
+          request_id: requestId,  // Direct link, no quote
+          client_id: request.client_id,
+          community_id: request.community_id,
+          property_id: request.property_id,
+          job_address: jobAddress,
+          product_type: request.product_type,
+          linear_feet: request.linear_feet_estimate,
+          description: request.description,
+          territory_id: request.territory_id,
+          status: 'won',
+        })
+        .select()
+        .single();
+
+      if (jobError) throw jobError;
+
+      // Update request status to converted
+      const { error: updateError } = await supabase
+        .from('service_requests')
+        .update({
+          status: 'converted',
+          status_changed_at: new Date().toISOString(),
+          converted_to_job_id: job.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      // Record in status history
+      await supabase.from('fsm_status_history').insert({
+        entity_type: 'request',
+        entity_id: requestId,
+        from_status: request.status,
+        to_status: 'converted',
+        notes: `Converted directly to Job #${job.job_number}`,
+      });
+
+      return job as Job;
+    },
+    onSuccess: (job) => {
+      queryClient.invalidateQueries({ queryKey: ['service_requests'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      showSuccess(`Job ${job.job_number} created from request`);
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to convert request to job');
     },
   });
 }

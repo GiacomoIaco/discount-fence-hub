@@ -25,7 +25,7 @@ import {
   History,
   Clipboard,
 } from 'lucide-react';
-import { useRequest, useUpdateRequestStatus, useScheduleAssessment, useCompleteAssessment } from '../hooks/useRequests';
+import { useRequest, useUpdateRequestStatus, useScheduleAssessment, useCompleteAssessment, useConvertRequestToJob } from '../hooks/useRequests';
 import {
   REQUEST_STATUS_LABELS,
   REQUEST_STATUS_COLORS,
@@ -42,6 +42,7 @@ interface RequestDetailPageProps {
   requestId: string;
   onBack: () => void;
   onNavigateToQuote?: (quoteId: string) => void;
+  onNavigateToJob?: (jobId: string) => void;
   onCreateQuote?: (requestId: string) => void;
   onEdit?: (requestId: string) => void;
 }
@@ -50,6 +51,7 @@ export default function RequestDetailPage({
   requestId,
   onBack,
   onNavigateToQuote,
+  onNavigateToJob,
   onCreateQuote,
   onEdit,
 }: RequestDetailPageProps) {
@@ -61,6 +63,7 @@ export default function RequestDetailPage({
   const updateStatusMutation = useUpdateRequestStatus();
   const scheduleAssessmentMutation = useScheduleAssessment();
   const completeAssessmentMutation = useCompleteAssessment();
+  const convertToJobMutation = useConvertRequestToJob();
 
   // Schedule assessment form state
   const [scheduleDate, setScheduleDate] = useState('');
@@ -144,7 +147,9 @@ export default function RequestDetailPage({
   const allowedTransitions = REQUEST_TRANSITIONS[request.status] || [];
   const canScheduleAssessment = request.requires_assessment && !request.assessment_scheduled_at;
   const canCompleteAssessment = request.assessment_scheduled_at && !request.assessment_completed_at;
-  const canConvertToQuote = request.status === 'assessment_completed' || !request.requires_assessment;
+  const isReadyForConversion = request.status === 'assessment_completed' || !request.requires_assessment;
+  const isNotConverted = !request.converted_to_quote_id && !request.converted_to_job_id;
+  const canConvert = isReadyForConversion && isNotConverted;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <FileText className="w-4 h-4" /> },
@@ -192,21 +197,50 @@ export default function RequestDetailPage({
                 <Edit2 className="w-4 h-4" />
                 Edit
               </button>
-              {canConvertToQuote && !request.converted_to_quote_id && (
-                <button
-                  onClick={() => onCreateQuote?.(request.id)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Create Quote
-                </button>
+
+              {/* Convert options - only show when ready and not yet converted */}
+              {canConvert && (
+                <>
+                  <button
+                    onClick={() => onCreateQuote?.(request.id)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Create Quote
+                  </button>
+                  {/* Direct to Job - only if client is assigned */}
+                  {request.client_id && (
+                    <button
+                      onClick={async () => {
+                        const job = await convertToJobMutation.mutateAsync(request.id);
+                        onNavigateToJob?.(job.id);
+                      }}
+                      disabled={convertToJobMutation.isPending}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                      title="Skip quote and create job directly (for builders without PO process)"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
+                    </button>
+                  )}
+                </>
               )}
+
+              {/* Already converted - show navigation buttons */}
               {request.converted_to_quote_id && (
                 <button
                   onClick={() => onNavigateToQuote?.(request.converted_to_quote_id!)}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                 >
                   View Quote
+                </button>
+              )}
+              {request.converted_to_job_id && (
+                <button
+                  onClick={() => onNavigateToJob?.(request.converted_to_job_id!)}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  View Job
                 </button>
               )}
             </div>

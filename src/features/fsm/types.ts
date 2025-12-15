@@ -49,8 +49,10 @@ export type VisitStatus =
 
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
 export type RequestSource = 'phone' | 'web' | 'referral' | 'walk_in' | 'builder_portal';
+export type RequestType = 'new_business' | 'change_order' | 'warranty';
 export type PaymentMethod = 'card' | 'check' | 'cash' | 'ach' | 'qbo_payment';
 export type VisitType = 'installation' | 'followup' | 'warranty' | 'inspection';
+export type ProjectStatus = 'active' | 'complete' | 'on_hold' | 'cancelled' | 'warranty';
 
 // ============================================
 // ENTITIES
@@ -109,9 +111,53 @@ export interface CrewMember {
   joined_at: string;
 }
 
+export interface Project {
+  id: string;
+  project_number: string;
+  // Customer
+  client_id: string | null;
+  community_id: string | null;
+  property_id: string | null;
+  // Info
+  name: string | null;
+  description: string | null;
+  product_type: string | null;
+  // Address
+  address_line1: string | null;
+  city: string | null;
+  state: string;
+  zip: string | null;
+  // Assignment
+  territory_id: string | null;
+  assigned_rep_id: string | null;
+  // Status
+  status: ProjectStatus;
+  // Financials
+  total_quoted: number;
+  total_invoiced: number;
+  total_paid: number;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  // Joined
+  client?: { id: string; name: string };
+  community?: { id: string; name: string };
+  property?: { id: string; address_line1: string };
+  territory?: { id: string; name: string; code: string };
+  assigned_rep?: SalesRep;
+  // Related entities
+  requests?: ServiceRequest[];
+  quotes?: Quote[];
+  jobs?: Job[];
+  invoices?: Invoice[];
+}
+
 export interface ServiceRequest {
   id: string;
   request_number: string;
+  // Project
+  project_id: string | null;
   // Customer
   client_id: string | null;
   community_id: string | null;
@@ -127,6 +173,7 @@ export interface ServiceRequest {
   zip: string | null;
   // Details
   source: RequestSource;
+  request_type: RequestType;
   product_type: string | null;
   linear_feet_estimate: number | null;
   description: string | null;
@@ -147,6 +194,7 @@ export interface ServiceRequest {
   priority: Priority;
   // Conversion
   converted_to_quote_id: string | null;
+  converted_to_job_id: string | null;
   // Timestamps
   created_at: string;
   updated_at: string;
@@ -158,11 +206,14 @@ export interface ServiceRequest {
   assigned_rep?: SalesRep;
   assessment_rep?: SalesRep;
   territory?: { id: string; name: string; code: string };
+  project?: { id: string; project_number: string };
 }
 
 export interface Quote {
   id: string;
   quote_number: string;
+  // Project
+  project_id: string | null;
   // Source
   request_id: string | null;
   bom_project_id: string | null;
@@ -264,8 +315,13 @@ export interface QuoteLineItem {
 export interface Job {
   id: string;
   job_number: string;
+  // Project
+  project_id: string | null;
   // Source
   quote_id: string | null;
+  request_id: string | null;  // Direct from request (no quote)
+  // Warranty
+  is_warranty: boolean;
   // Customer
   client_id: string;
   community_id: string | null;
@@ -340,6 +396,8 @@ export interface JobVisit {
 export interface Invoice {
   id: string;
   invoice_number: string;
+  // Project
+  project_id: string | null;
   // Source
   job_id: string | null;
   quote_id: string | null;

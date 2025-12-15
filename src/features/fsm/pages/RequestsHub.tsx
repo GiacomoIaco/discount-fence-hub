@@ -113,6 +113,13 @@ export default function RequestsHub({
     );
   }
 
+  // Handle job navigation
+  const handleNavigateToJob = (jobId: string) => {
+    if (onNavigateToEntity) {
+      onNavigateToEntity('job', { id: jobId });
+    }
+  };
+
   // If viewing a specific request, render the detail page
   if (entityContext?.type === 'request' && entityContext.id !== 'new') {
     return (
@@ -120,6 +127,7 @@ export default function RequestsHub({
         requestId={entityContext.id}
         onBack={handleRequestClose}
         onNavigateToQuote={handleNavigateToQuote}
+        onNavigateToJob={handleNavigateToJob}
         onCreateQuote={handleCreateQuote}
         onEdit={handleEditRequest}
       />
