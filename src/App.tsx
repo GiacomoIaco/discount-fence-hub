@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package, FileText, Wrench, Receipt } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -234,10 +234,7 @@ function App() {
       { id: 'schedule' as Section, menuId: 'schedule', name: 'Schedule', icon: Calendar },
       { id: 'client-hub' as Section, menuId: 'client-hub', name: 'Clients', icon: Users },
       { id: 'projects-hub' as Section, menuId: 'projects-hub', name: 'Projects', icon: Briefcase },
-      { id: 'requests' as Section, menuId: 'requests', name: 'Requests', icon: ClipboardList },
-      { id: 'quotes' as Section, menuId: 'quotes', name: 'Quotes', icon: FileText },
-      { id: 'jobs' as Section, menuId: 'jobs', name: 'Jobs', icon: Wrench },
-      { id: 'invoices' as Section, menuId: 'invoices', name: 'Invoices', icon: Receipt },
+      // Requests, Quotes, Jobs, Invoices moved to Projects Hub secondary sidebar
 
       // Operations Section
       { id: 'bom-calculator' as Section, menuId: 'bom-calculator', name: 'Ops Hub', icon: Calculator, separator: true },

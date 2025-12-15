@@ -51,6 +51,8 @@ import { useSalesReps } from '../hooks/useSalesReps';
 import { useClients } from '../../client_hub/hooks/useClients';
 import { useCommunities } from '../../client_hub/hooks/useCommunities';
 import { useProperties } from '../../client_hub/hooks/useProperties';
+import { ClientLookup } from '../../../components/common/SmartLookup';
+import type { SelectedEntity } from '../../../components/common/SmartLookup';
 
 interface QuoteBuilderPageProps {
   /** Quote ID for editing, undefined for new quote */
@@ -191,6 +193,7 @@ export default function QuoteBuilderPage({
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>('');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
   const [jobTitle, setJobTitle] = useState('');
   const [clientFacingNotes, setClientFacingNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
@@ -277,6 +280,20 @@ export default function QuoteBuilderPage({
       setValidUntil(validDate.toISOString().split('T')[0]);
     }
   }, [existingQuote, requestData, quoteId]);
+
+  // Sync selectedEntity when client data loads (for editing or request-based creation)
+  useEffect(() => {
+    if (selectedClientId && selectedClient && !selectedEntity) {
+      const entity: SelectedEntity = {
+        client: selectedClient,
+        community: selectedCommunity || null,
+        display_name: selectedCommunity
+          ? `${selectedCommunity.name} (${selectedClient.name})`
+          : selectedClient.name,
+      };
+      setSelectedEntity(entity);
+    }
+  }, [selectedClientId, selectedClient, selectedCommunity, selectedEntity]);
 
   // Calculate totals
   const subtotal = lineItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
@@ -945,21 +962,28 @@ export default function QuoteBuilderPage({
             <CollapsibleSection title="CLIENT & PROPERTY" icon={User}>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Client *</label>
-                  <select
-                    value={selectedClientId}
-                    onChange={(e) => {
-                      setSelectedClientId(e.target.value);
-                      setSelectedCommunityId('');
-                      setSelectedPropertyId('');
+                  <ClientLookup
+                    value={selectedEntity}
+                    onChange={(entity) => {
+                      setSelectedEntity(entity);
+                      if (entity) {
+                        setSelectedClientId(entity.client.id);
+                        if (entity.community) {
+                          setSelectedCommunityId(entity.community.id);
+                        } else {
+                          setSelectedCommunityId('');
+                        }
+                        setSelectedPropertyId('');
+                      } else {
+                        setSelectedClientId('');
+                        setSelectedCommunityId('');
+                        setSelectedPropertyId('');
+                      }
                     }}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Select client...</option>
-                    {clients?.map((client) => (
-                      <option key={client.id} value={client.id}>{client.name}</option>
-                    ))}
-                  </select>
+                    label="Client *"
+                    placeholder="Search clients by name, phone, email..."
+                    required
+                  />
                 </div>
 
                 {selectedClientId && communities && communities.length > 0 && (
