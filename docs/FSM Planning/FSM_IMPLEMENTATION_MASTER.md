@@ -2204,76 +2204,87 @@ src/features/fsm/
 
 ## Part 17: Implementation Roadmap
 
-### Phase 1: Request Module (Weeks 1-4)
+> **Last Updated:** December 15, 2024
+> **Overall Progress:** ~40% Complete (Phase 1-2 largely done, Phase 3 partially done)
 
-**Week 1: Database & Types**
-- [ ] Create service_requests table
-- [ ] Create request_quotes junction table
-- [ ] Add FSM types to types.ts
-- [ ] Create status transition map
-- [ ] Create auto-number sequence
+### Phase 1: Request Module ✅ COMPLETE
 
-**Week 2: Request Creation UI**
-- [ ] Build NewRequestPage with Workiz-style layout
-- [ ] Build ClientLookup component (smart search)
-- [ ] Build PropertyLookup component
-- [ ] Build AssessmentScheduler toggle
+**Week 1: Database & Types** ✅
+- [x] Create service_requests table (migration 144)
+- [x] Create request_quotes junction table (migration 144)
+- [x] Add FSM types to types.ts
+- [x] Create status transition map
+- [x] Create auto-number sequence (REQ-YYYY-NNNN)
 
-**Week 3: Request Queue & Detail**
-- [ ] Build RequestsPage with filters
-- [ ] Build RequestCard component
-- [ ] Build RequestDetailPage
-- [ ] Build StatusTransitionButton
+**Week 2: Request Creation UI** ✅
+- [x] Build RequestEditorPage with Workiz-style layout
+- [x] Build ClientLookup component (smart search with create inline)
+- [x] Build PropertyLookup component
+- [x] Build AssessmentScheduler toggle
+- [x] Add form validation (required fields)
 
-**Week 4: Assessment Flow**
-- [ ] Build AI scheduling suggestion
-- [ ] Build territory lookup
-- [ ] Build Convert to Quote action
-- [ ] Set up daily status update job
+**Week 3: Request Queue & Detail** ✅
+- [x] Build RequestsHub with filters (status, search)
+- [x] Build RequestCard component (list view)
+- [x] Build RequestDetailPage with sidebar
+- [x] Build StatusTransitionButton (status dropdown)
 
-### Phase 2: Quote Enhancement (Weeks 5-7)
+**Week 4: Assessment Flow** ✅
+- [x] Build territory auto-lookup from ZIP code
+- [x] Build Convert to Quote action
+- [x] Build Convert to Job action (direct, for builders)
+- [ ] Build AI scheduling suggestion (future enhancement)
+- [ ] Set up daily status update job (future enhancement)
 
-**Week 5: Quote Options**
-- [ ] Add quote_options table
-- [ ] Build QuoteOptionEditor (Good/Better/Best)
+### Phase 2: Quote Enhancement ✅ LARGELY COMPLETE
+
+**Week 5: Quote Options** ⚠️ PARTIAL
+- [x] Quotes table with basic structure (migration 144)
+- [x] Quote → Request linking
+- [ ] Add quote_options table (Good/Better/Best)
+- [ ] Build QuoteOptionEditor
 - [ ] Integrate BOM Calculator for each option
 
-**Week 6: Approval Workflow**
+**Week 6: Approval Workflow** ❌ NOT STARTED
 - [ ] Add approval_settings table
 - [ ] Build ApprovalBanner component
 - [ ] Build approval check logic
 - [ ] Manager approval flow
 
-**Week 7: Quote Sending**
+**Week 7: Quote Sending** ⚠️ PARTIAL
+- [x] QuoteBuilderPage (basic)
+- [x] QuoteDetailPage with status management
+- [x] QuotesHub with list/filter
 - [ ] Build QuotePDF generator
-- [ ] Client approval flow
-- [ ] Convert to Job action
+- [ ] Client approval flow (portal)
+- [x] Convert to Job action
 
-### Phase 3: Job & Material Prep (Weeks 8-11)
+### Phase 3: Job & Material Prep ⚠️ IN PROGRESS
 
-**Week 8: Job Creation**
-- [ ] Create jobs table (aligned with existing statuses!)
-- [ ] Create job_visits table
-- [ ] Quote → Job conversion service
-- [ ] JobDetailPage
+**Week 8: Job Creation** ✅
+- [x] Create jobs table (migration 144)
+- [x] Create job_visits table (migration 144)
+- [x] Quote → Job conversion service
+- [x] Request → Job direct conversion (for builders)
+- [x] JobDetailPage with status management
 
-**Week 9: Material Prep Pipeline**
+**Week 9: Material Prep Pipeline** ❌ NOT STARTED
 - [ ] MaterialPrepStatus component
 - [ ] Integration with existing yard workflow
 - [ ] Send to Yard action
 - [ ] Yard mobile app updates
 
-**Week 10: Crew Assignment**
+**Week 10: Crew Assignment** ❌ NOT STARTED
 - [ ] Build CrewAssignment component
 - [ ] Build CapacityBoard
 - [ ] AI crew suggestion
 
-**Week 11: Job Visits**
+**Week 11: Job Visits** ❌ NOT STARTED
 - [ ] Build VisitScheduler
 - [ ] Build CalendarView with FullCalendar
 - [ ] Job completion flow
 
-### Phase 4: Inventory (Weeks 12-14)
+### Phase 4: Inventory (Weeks 12-14) ❌ NOT STARTED
 
 **Week 12: Inventory Schema**
 - [ ] Create inventory_locations table
@@ -2290,20 +2301,22 @@ src/features/fsm/
 - [ ] Replenishment alerts
 - [ ] Inventory reports
 
-### Phase 5: Invoicing & Payment (Weeks 15-16)
+### Phase 5: Invoicing & Payment ⚠️ PARTIAL
 
-**Week 15: Invoices**
-- [ ] Create invoices table with QBO fields
-- [ ] Job → Invoice creation
+**Week 15: Invoices** ⚠️ PARTIAL
+- [x] Create invoices table (migration 144)
+- [x] InvoicesHub with list/filter
+- [x] InvoiceDetailPage
+- [ ] Job → Invoice creation automation
 - [ ] InvoicePDF generator
-- [ ] Invoice sending
+- [ ] Invoice sending (email)
 
-**Week 16: Payments**
+**Week 16: Payments** ❌ NOT STARTED
 - [ ] Create payments table
 - [ ] Payment recording
 - [ ] QBO sync implementation
 
-### Phase 6: Reporting (Weeks 17-18)
+### Phase 6: Reporting (Weeks 17-18) ❌ NOT STARTED
 
 **Week 17: Dashboard**
 - [ ] Opportunity funnel view
@@ -2314,6 +2327,33 @@ src/features/fsm/
 - [ ] Sales scorecards
 - [ ] Crew scorecards
 - [ ] Operational metrics
+
+---
+
+### Additional Completed Items (Beyond Original Plan)
+
+**Project Entity** ✅
+- [x] Projects table (migration 164) - grouping container for Request→Quote→Job→Invoice
+- [x] Auto-generated project numbers (P-NNNNN)
+- [x] ProjectDetailPage showing all linked entities
+- [x] Project status management
+- [x] Support for change orders (multiple quotes per project)
+- [x] Support for warranty work (is_warranty flag)
+
+**URL-Based Navigation** ✅
+- [x] Deep linking to all entities (/requests/:id, /quotes/:id, etc.)
+- [x] Entity context passed through hub components
+- [x] Back navigation preserves list state
+
+**Sidebar Integration** ✅
+- [x] Create dropdown menu (New Request, New Quote)
+- [x] Navigation to entity creation flows
+
+**Settings** ✅
+- [x] Territories management
+- [x] Sales Reps management
+- [x] Crews management
+- [x] FSM Settings page
 
 ---
 
