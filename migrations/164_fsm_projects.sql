@@ -47,13 +47,13 @@ CREATE TABLE IF NOT EXISTS projects (
   created_by UUID REFERENCES auth.users(id)
 );
 
-CREATE INDEX idx_projects_client ON projects(client_id);
-CREATE INDEX idx_projects_community ON projects(community_id);
-CREATE INDEX idx_projects_property ON projects(property_id);
-CREATE INDEX idx_projects_status ON projects(status);
-CREATE INDEX idx_projects_territory ON projects(territory_id);
-CREATE INDEX idx_projects_rep ON projects(assigned_rep_id);
-CREATE INDEX idx_projects_created ON projects(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
+CREATE INDEX IF NOT EXISTS idx_projects_community ON projects(community_id);
+CREATE INDEX IF NOT EXISTS idx_projects_property ON projects(property_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_projects_territory ON projects(territory_id);
+CREATE INDEX IF NOT EXISTS idx_projects_rep ON projects(assigned_rep_id);
+CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at DESC);
 
 -- Generate project number on insert
 CREATE OR REPLACE FUNCTION generate_project_number()
@@ -66,6 +66,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_project_number ON projects;
 CREATE TRIGGER trg_project_number
   BEFORE INSERT ON projects
   FOR EACH ROW
@@ -178,16 +179,19 @@ $$ LANGUAGE plpgsql;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated users to read projects
+DROP POLICY IF EXISTS "projects_select" ON projects;
 CREATE POLICY "projects_select" ON projects
   FOR SELECT TO authenticated
   USING (true);
 
 -- Allow authenticated users to insert projects
+DROP POLICY IF EXISTS "projects_insert" ON projects;
 CREATE POLICY "projects_insert" ON projects
   FOR INSERT TO authenticated
   WITH CHECK (true);
 
 -- Allow authenticated users to update projects
+DROP POLICY IF EXISTS "projects_update" ON projects;
 CREATE POLICY "projects_update" ON projects
   FOR UPDATE TO authenticated
   USING (true);
@@ -196,6 +200,7 @@ CREATE POLICY "projects_update" ON projects
 -- 6. UPDATE TIMESTAMP TRIGGER
 -- ============================================
 
+DROP TRIGGER IF EXISTS update_projects_updated_at ON projects;
 CREATE TRIGGER update_projects_updated_at
   BEFORE UPDATE ON projects
   FOR EACH ROW

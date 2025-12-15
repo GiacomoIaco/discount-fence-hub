@@ -11,3 +11,4 @@ export { default as JobDetailPage } from './JobDetailPage';
 export { default as JobsHub } from './JobsHub';
 export { default as InvoiceDetailPage } from './InvoiceDetailPage';
 export { default as InvoicesHub } from './InvoicesHub';
+export { default as ProjectDetailPage } from './ProjectDetailPage';

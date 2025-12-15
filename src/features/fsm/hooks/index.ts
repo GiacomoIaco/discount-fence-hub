@@ -7,3 +7,4 @@ export * from './useRequests';
 export * from './useQuotes';
 export * from './useJobs';
 export * from './useInvoices';
+export * from './useProjects';
