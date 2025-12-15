@@ -56,7 +56,6 @@ const ClientHub = lazy(() => import('./features/client_hub/ClientHub'));
 const ProjectsHub = lazy(() => import('./features/projects_hub/ProjectsHub'));
 const SalesHub = lazy(() => import('./features/sales_hub/SalesHub'));
 const SchedulePage = lazy(() => import('./features/schedule/SchedulePage'));
-const RequestEditorModal = lazy(() => import('./features/fsm/components/RequestEditorModal'));
 const RequestsHub = lazy(() => import('./features/fsm/pages/RequestsHub'));
 const QuotesHub = lazy(() => import('./features/fsm/pages/QuotesHub'));
 const JobsHub = lazy(() => import('./features/fsm/pages/JobsHub'));
@@ -114,7 +113,6 @@ function App() {
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
-  const [showCreateRequestModal, setShowCreateRequestModal] = useState(false);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, etc.)
   const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices';
@@ -795,7 +793,7 @@ function App() {
           signOut={signOut}
           setViewMode={setViewMode}
           setShowProfileView={setShowProfileView}
-          onCreateRequest={() => setShowCreateRequestModal(true)}
+          onCreateRequest={() => navigateToEntity('request', { id: 'new' })}
         />
 
         <div className="flex-1 overflow-auto">
@@ -870,16 +868,6 @@ function App() {
           </Suspense>
         )}
 
-        {/* Create Request Modal (from Create dropdown) */}
-        {showCreateRequestModal && (
-          <Suspense fallback={<LoadingFallback />}>
-            <RequestEditorModal
-              isOpen={showCreateRequestModal}
-              onClose={() => setShowCreateRequestModal(false)}
-              request={null}
-            />
-          </Suspense>
-        )}
       </div>
     </ToastProvider>
   );

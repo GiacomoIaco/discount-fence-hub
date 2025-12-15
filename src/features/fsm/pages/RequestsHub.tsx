@@ -100,8 +100,21 @@ export default function RequestsHub({
     );
   }
 
+  // If entity context is 'new', show editor for creating new request
+  if (entityContext?.type === 'request' && entityContext.id === 'new') {
+    return (
+      <RequestEditorPage
+        onBack={() => onClearEntity?.()}
+        onSaved={(requestId) => {
+          // Navigate to the created request
+          handleRequestSelect(requestId);
+        }}
+      />
+    );
+  }
+
   // If viewing a specific request, render the detail page
-  if (entityContext?.type === 'request') {
+  if (entityContext?.type === 'request' && entityContext.id !== 'new') {
     return (
       <RequestDetailPage
         requestId={entityContext.id}
