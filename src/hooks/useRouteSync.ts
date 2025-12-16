@@ -71,6 +71,9 @@ export function useRouteSync({
   const lastChangeSource = useRef<'url' | 'state' | null>(null);
   const isInitialized = useRef(false);
 
+  // Track current entity to avoid unnecessary re-renders
+  const currentEntityRef = useRef<string | null>(null);
+
   // Handle URL changes (browser back/forward, direct URL entry)
   useEffect(() => {
     // Skip if we just changed the URL from state
@@ -84,11 +87,7 @@ export function useRouteSync({
 
     if (entityInfo) {
       // Entity route - set section and entity context
-      const newEntity: EntityContext = {
-        type: entityInfo.type,
-        id: entityInfo.params.id,
-        params: entityInfo.params,
-      };
+      const newEntityKey = `${entityInfo.type}:${entityInfo.params.id}`;
 
       if (entityInfo.section !== activeSection) {
         lastChangeSource.current = 'url';
@@ -96,8 +95,17 @@ export function useRouteSync({
         onSectionChange?.(entityInfo.section, 'url');
       }
 
-      setEntityContext(newEntity);
-      onEntityChange?.(newEntity);
+      // Only update entity if it actually changed (avoids re-render loops)
+      if (currentEntityRef.current !== newEntityKey) {
+        currentEntityRef.current = newEntityKey;
+        const newEntity: EntityContext = {
+          type: entityInfo.type,
+          id: entityInfo.params.id,
+          params: entityInfo.params,
+        };
+        setEntityContext(newEntity);
+        onEntityChange?.(newEntity);
+      }
     } else {
       // Regular section route
       const sectionFromUrl = getBestMatchingSection(location.pathname);
@@ -109,14 +117,15 @@ export function useRouteSync({
       }
 
       // Clear entity context when navigating to a list view
-      if (entityContext !== null) {
+      if (currentEntityRef.current !== null) {
+        currentEntityRef.current = null;
         setEntityContext(null);
         onEntityChange?.(null);
       }
     }
 
     isInitialized.current = true;
-  }, [location.pathname, activeSection, setActiveSection, onSectionChange, onEntityChange, entityContext]);
+  }, [location.pathname, activeSection, setActiveSection, onSectionChange, onEntityChange]);
 
   // Handle state changes (navigation clicks) - only for section changes without entity
   useEffect(() => {
@@ -149,6 +158,7 @@ export function useRouteSync({
 
       if (entityInfo) {
         setActiveSection(entityInfo.section);
+        currentEntityRef.current = `${entityInfo.type}:${entityInfo.params.id}`;
         setEntityContext({
           type: entityInfo.type,
           id: entityInfo.params.id,
@@ -170,6 +180,7 @@ export function useRouteSync({
     (section: Section) => {
       lastChangeSource.current = 'state';
       setActiveSection(section);
+      currentEntityRef.current = null;
       setEntityContext(null);
       onEntityChange?.(null);
       navigate(sectionToPath(section), { replace: false });
@@ -187,6 +198,9 @@ export function useRouteSync({
         lastChangeSource.current = 'state';
         setActiveSection(entityInfo.section);
 
+        // Update ref to track current entity
+        currentEntityRef.current = `${entityType}:${params.id}`;
+
         const newEntity: EntityContext = {
           type: entityType,
           id: params.id,
@@ -203,13 +217,14 @@ export function useRouteSync({
 
   // Clear entity selection (go back to list view)
   const clearEntity = useCallback(() => {
-    if (entityContext) {
+    if (currentEntityRef.current !== null) {
       lastChangeSource.current = 'state';
+      currentEntityRef.current = null;
       setEntityContext(null);
       onEntityChange?.(null);
       navigate(sectionToPath(activeSection), { replace: false });
     }
-  }, [entityContext, activeSection, navigate, onEntityChange]);
+  }, [activeSection, navigate, onEntityChange]);
 
   return {
     navigateTo,
