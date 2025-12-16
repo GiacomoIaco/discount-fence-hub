@@ -57,6 +57,9 @@
 [functions."qbo-import-builders"]
   timeout = 60
 
+[functions."qbo-search-customer"]
+  timeout = 60
+
 # Optimization settings
 [build.processing]
   skip_processing = false

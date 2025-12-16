@@ -77,19 +77,42 @@ export const handler: Handler = async (event) => {
       : 'https://sandbox-quickbooks.api.intuit.com';
     const realmId = tokenData.realm_id;
 
-    // Search for customers with LIKE query
-    const query = encodeURIComponent(`SELECT Id, DisplayName, CompanyName, PrimaryEmailAddr, PrimaryPhone, BillAddr, ParentRef FROM Customer WHERE DisplayName LIKE '%${searchTerm}%' MAXRESULTS 20`);
+    // Search using paginated queries to scan all customers
+    const searchLower = searchTerm.toLowerCase();
+    const allMatches: any[] = [];
+    let startPosition = 1;
+    const batchSize = 1000;
+    const maxBatches = 35; // Up to 35k customers
 
-    const response = await oauthClient.makeApiCall({
-      url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
-      method: 'GET',
-    });
+    for (let batch = 0; batch < maxBatches; batch++) {
+      const query = encodeURIComponent(
+        `SELECT Id, DisplayName, PrimaryEmailAddr, PrimaryPhone, ParentRef FROM Customer STARTPOSITION ${startPosition} MAXRESULTS ${batchSize}`
+      );
 
-    const result = response.json;
-    const customers = result.QueryResponse?.Customer || [];
+      const response = await oauthClient.makeApiCall({
+        url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
+        method: 'GET',
+      });
+
+      const result = response.json;
+      const customers = result.QueryResponse?.Customer || [];
+
+      if (customers.length === 0) break; // No more results
+
+      // Filter matches
+      const matches = customers.filter((c: any) =>
+        c.DisplayName?.toLowerCase().includes(searchLower)
+      );
+      allMatches.push(...matches);
+
+      // Stop early if we found enough matches
+      if (allMatches.length >= 20) break;
+
+      startPosition += batchSize;
+    }
 
     // Format results
-    const formatted = customers.map((c: any) => ({
+    const formatted = allMatches.slice(0, 20).map((c: any) => ({
       id: c.Id,
       displayName: c.DisplayName,
       isSubCustomer: !!c.ParentRef,
