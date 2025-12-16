@@ -145,22 +145,24 @@ async function queryCustomerByName(
 }
 
 /**
- * Get all sub-customers for a parent using FullyQualifiedName LIKE query
- * (ParentRef query doesn't work reliably in QBO API)
+ * Get COMMUNITY-level sub-customers for a parent.
+ * Communities are direct children that have their own sub-customers (3-level hierarchy).
+ * This filters out old-style jobs that are directly under the parent.
  */
-async function getSubCustomers(
+async function getCommunitySubCustomers(
   oauthClient: OAuthClient,
   baseUrl: string,
   realmId: string,
   parentName: string
 ): Promise<QboCustomer[]> {
   const escapedName = parentName.replace(/'/g, "\\'");
-  const allSubCustomers: QboCustomer[] = [];
+
+  // Get ALL descendants
+  const allDescendants: QboCustomer[] = [];
   let startPosition = 1;
   const batchSize = 500;
 
-  // Paginate through all sub-customers
-  for (let batch = 0; batch < 10; batch++) {
+  for (let batch = 0; batch < 20; batch++) {
     const query = encodeURIComponent(
       `SELECT * FROM Customer WHERE FullyQualifiedName LIKE '${escapedName}:%' STARTPOSITION ${startPosition} MAXRESULTS ${batchSize}`
     );
@@ -172,17 +174,43 @@ async function getSubCustomers(
       });
       const result = response.json;
       const customers = result.QueryResponse?.Customer || [];
-      allSubCustomers.push(...customers);
+      allDescendants.push(...customers);
 
       if (customers.length < batchSize) break;
       startPosition += batchSize;
     } catch (error) {
-      console.error(`Error getting sub-customers for ${parentName}:`, error);
+      console.error(`Error getting descendants for ${parentName}:`, error);
       break;
     }
   }
 
-  return allSubCustomers;
+  // Separate into direct children (2 parts) and grandchildren (3+ parts)
+  const directChildren: QboCustomer[] = [];
+  const grandchildPrefixes = new Set<string>();
+
+  for (const customer of allDescendants) {
+    const fqn = (customer as any).FullyQualifiedName || '';
+    const parts = fqn.split(':');
+
+    if (parts.length === 2) {
+      // Direct child (e.g., "Perry Homes:Wolf Ranch" or "Perry Homes:100 Bole Cove")
+      directChildren.push(customer);
+    } else if (parts.length >= 3) {
+      // Grandchild - record the parent (community) prefix
+      // e.g., "Perry Homes:Wolf Ranch:J12345" -> "Perry Homes:Wolf Ranch"
+      grandchildPrefixes.add(parts.slice(0, 2).join(':'));
+    }
+  }
+
+  // Filter direct children to only those that have grandchildren (real communities)
+  const communities = directChildren.filter(child => {
+    const fqn = (child as any).FullyQualifiedName || '';
+    return grandchildPrefixes.has(fqn);
+  });
+
+  console.log(`${parentName}: ${allDescendants.length} total descendants, ${directChildren.length} direct children, ${communities.length} communities (with sub-customers)`);
+
+  return communities;
 }
 
 /**
@@ -325,9 +353,9 @@ export const handler: Handler = async (event) => {
               totalClientsCreated++;
             }
 
-            // If QBO linked, get and create communities (sub-customers)
+            // If QBO linked, get and create communities (sub-customers that have their own sub-customers)
             if (qboCustomer) {
-              const subCustomers = await getSubCustomers(oauthClient, baseUrl, realmId, builder.name);
+              const subCustomers = await getCommunitySubCustomers(oauthClient, baseUrl, realmId, builder.name);
 
               for (const sub of subCustomers) {
                 // Extract community name (remove "Parent:" prefix)
@@ -385,7 +413,7 @@ export const handler: Handler = async (event) => {
             // Dry run - just count what would be created
             result.clientId = 'dry-run';
             if (qboCustomer) {
-              const subCustomers = await getSubCustomers(oauthClient, baseUrl, realmId, builder.name);
+              const subCustomers = await getCommunitySubCustomers(oauthClient, baseUrl, realmId, builder.name);
               result.communitiesCreated = subCustomers.length;
             }
           }
