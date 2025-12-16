@@ -321,12 +321,29 @@ export const handler: Handler = async (event) => {
                 // Check if community already exists
                 const { data: existingCommunity } = await supabase
                   .from('communities')
-                  .select('id')
+                  .select('id, quickbooks_id')
                   .eq('client_id', result.clientId)
                   .eq('name', communityName)
                   .single();
 
-                if (!existingCommunity) {
+                if (existingCommunity) {
+                  // Update existing community with QBO data if not already linked
+                  if (!existingCommunity.quickbooks_id) {
+                    await supabase
+                      .from('communities')
+                      .update({
+                        quickbooks_id: sub.Id,
+                        address_line1: sub.BillAddr?.Line1 || null,
+                        city: sub.BillAddr?.City || null,
+                        state: normalizeState(sub.BillAddr?.CountrySubDivisionCode),
+                        zip: sub.BillAddr?.PostalCode || null,
+                      })
+                      .eq('id', existingCommunity.id);
+                    result.communitiesCreated++; // Repurpose as "communities synced"
+                    totalCommunitiesCreated++;
+                  }
+                } else {
+                  // Create new community
                   const { error: communityError } = await supabase
                     .from('communities')
                     .insert({
