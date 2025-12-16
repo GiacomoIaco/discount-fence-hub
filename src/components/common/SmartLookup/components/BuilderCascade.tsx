@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Building2, Home, Plus, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, Building2, Home, Plus, X, ChevronRight } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
 import { useCommunities } from '../../../../features/client_hub/hooks/useCommunities';
 import { usePropertySearch } from '../hooks/usePropertySearch';
 import { SlideOutPanel } from './SlideOutPanel';
 import { NewPropertyForm } from './NewPropertyForm';
-import type { Community, Property, Client } from '../../../../features/client_hub/types';
+import type { Community, Property } from '../../../../features/client_hub/types';
 import type { BuilderCascadeProps } from '../types';
 
 /**
