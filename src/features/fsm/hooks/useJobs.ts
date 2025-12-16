@@ -438,6 +438,19 @@ export function useCreateInvoiceFromJob() {
 
       if (invoiceError) throw invoiceError;
 
+      // Transfer custom fields from job to invoice (Jobber-style)
+      try {
+        await supabase.rpc('transfer_custom_fields', {
+          p_source_entity_type: 'job',
+          p_source_entity_id: jobId,
+          p_target_entity_type: 'invoice',
+          p_target_entity_id: invoice.id,
+        });
+      } catch (transferError) {
+        // Log but don't fail the conversion if transfer fails
+        console.warn('Failed to transfer custom fields:', transferError);
+      }
+
       // Update job status and link invoice
       const { error: updateError } = await supabase
         .from('jobs')

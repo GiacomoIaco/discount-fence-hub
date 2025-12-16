@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen, Calendar, User } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
-import { useClients, useGeographies } from '../hooks/useClients';
+import { useClients, useGeographies, useUserProfiles } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
-import type { Community, CommunityFormData } from '../types';
+import type { Community, CommunityFormData, CommunityStatus } from '../types';
+import { COMMUNITY_STATUS_LABELS } from '../types';
 
 interface Props {
   community: Community | null;
@@ -21,6 +22,8 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
   const { data: rateSheets } = useRateSheets({ is_active: true });
   const { data: qboClasses } = useQboClasses(true); // Only selectable classes
 
+  const { data: userProfiles } = useUserProfiles();
+
   const [formData, setFormData] = useState<CommunityFormData>({
     client_id: community?.client_id || defaultClientId || '',
     geography_id: community?.geography_id || '',
@@ -34,6 +37,13 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
     override_qbo_class_id: community?.override_qbo_class_id || null,
     restrict_skus: community?.restrict_skus || false,
     approved_sku_ids: community?.approved_sku_ids || [],
+    // Extended fields
+    start_date: community?.start_date || null,
+    end_date: community?.end_date || null,
+    default_rep_id: community?.default_rep_id || null,
+    priority_crew_ids: community?.priority_crew_ids || [],
+    priority_pm_ids: community?.priority_pm_ids || [],
+    status: community?.status || 'new',
     notes: community?.notes || '',
   });
 
@@ -163,6 +173,82 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
             <p className="text-xs text-gray-500 mt-1">
               Geography determines labor rates for this community
             </p>
+          </div>
+
+          {/* Status & Lifecycle */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Status & Lifecycle</h3>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as CommunityStatus })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {Object.entries(COMMUNITY_STATUS_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    Start Date
+                  </div>
+                </label>
+                <input
+                  type="date"
+                  value={formData.start_date || ''}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    End Date
+                  </div>
+                </label>
+                <input
+                  type="date"
+                  value={formData.end_date || ''}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  Default Sales Rep
+                </div>
+              </label>
+              <select
+                value={formData.default_rep_id || ''}
+                onChange={(e) => setFormData({ ...formData, default_rep_id: e.target.value || null })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Not assigned</option>
+                {userProfiles?.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.display_name || user.email}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                The default sales rep assigned to quotes and jobs in this community
+              </p>
+            </div>
           </div>
 
           {/* Rate Sheet & QBO Class Override */}

@@ -12,6 +12,7 @@ import GeographiesList from './components/GeographiesList';
 import RateSheetsList from './components/RateSheetsList';
 import ClientDetailPage from './pages/ClientDetailPage';
 import PropertyDetailPage from './pages/PropertyDetailPage';
+import CommunityDetailPage from './pages/CommunityDetailPage';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
@@ -42,7 +43,6 @@ export default function ClientHub({
         setActiveTab('clients');
       } else if (entityContext.type === 'community') {
         setActiveTab('communities');
-        // TODO: Add community deep link support
       } else if (entityContext.type === 'property') {
         // Properties are accessed via clients tab (Client → Community → Property)
         setActiveTab('clients');
@@ -69,6 +69,18 @@ export default function ClientHub({
     return (
       <PropertyDetailPage
         propertyId={entityContext.id}
+        onBack={handleClientClose}
+        onNavigateToEntity={onNavigateToEntity}
+      />
+    );
+  }
+
+  // If viewing a specific community, render the community detail page
+  if (entityContext?.type === 'community') {
+    return (
+      <CommunityDetailPage
+        communityId={entityContext.id}
+        clientId={entityContext.params?.clientId || ''}
         onBack={handleClientClose}
         onNavigateToEntity={onNavigateToEntity}
       />

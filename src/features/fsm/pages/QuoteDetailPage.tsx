@@ -32,6 +32,7 @@ import {
   QUOTE_TRANSITIONS,
   type QuoteStatus,
 } from '../types';
+import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -571,6 +572,14 @@ export default function QuoteDetailPage({
                   </div>
                 </div>
               )}
+
+              {/* Custom Fields */}
+              <CustomFieldsSection
+                entityType="quote"
+                entityId={quoteId}
+                collapsible={true}
+                defaultCollapsed={true}
+              />
             </div>
           </div>
         )}

@@ -354,6 +354,19 @@ export function useConvertQuoteToJob() {
 
       if (jobError) throw jobError;
 
+      // Transfer custom fields from quote to job (Jobber-style)
+      try {
+        await supabase.rpc('transfer_custom_fields', {
+          p_source_entity_type: 'quote',
+          p_source_entity_id: quoteId,
+          p_target_entity_type: 'job',
+          p_target_entity_id: job.id,
+        });
+      } catch (transferError) {
+        // Log but don't fail the conversion if transfer fails
+        console.warn('Failed to transfer custom fields:', transferError);
+      }
+
       // Update quote status
       const { error: updateError } = await supabase
         .from('quotes')

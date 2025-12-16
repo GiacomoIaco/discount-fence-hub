@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { Client, ClientFormData, Geography, ClientContact } from '../types';
+import type { Client, ClientFormData, Geography, ClientContact, UserProfile } from '../types';
 import toast from 'react-hot-toast';
 
 // ============================================
@@ -271,6 +271,30 @@ export function useUpdateGeography() {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to update geography');
+    },
+  });
+}
+
+// ============================================
+// USER PROFILES (for rep assignments)
+// ============================================
+
+export function useUserProfiles(filters?: { role?: string }) {
+  return useQuery({
+    queryKey: ['user_profiles', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('user_profiles')
+        .select('*')
+        .order('display_name');
+
+      if (filters?.role) {
+        query = query.eq('role', filters.role);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as UserProfile[];
     },
   });
 }

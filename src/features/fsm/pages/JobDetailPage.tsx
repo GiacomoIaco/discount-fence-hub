@@ -34,6 +34,7 @@ import {
   JOB_TRANSITIONS,
   type JobStatus,
 } from '../types';
+import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 
 type Tab = 'overview' | 'visits' | 'activity';
 
@@ -497,6 +498,14 @@ export default function JobDetailPage({
                   </div>
                 </div>
               </div>
+
+              {/* Custom Fields */}
+              <CustomFieldsSection
+                entityType="job"
+                entityId={jobId}
+                collapsible={true}
+                defaultCollapsed={true}
+              />
             </div>
           </div>
         )}

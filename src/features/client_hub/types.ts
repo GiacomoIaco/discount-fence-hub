@@ -49,7 +49,7 @@ export interface Geography {
 export type BusinessUnit = 'residential' | 'commercial' | 'builders';
 export type ClientType = 'large_builder' | 'custom_builder' | 'landscaper' | 'pool_company' | 'homeowner' | 'other';
 export type ClientStatus = 'prospect' | 'onboarding' | 'active' | 'inactive';
-export type CommunityStatus = 'onboarding' | 'active' | 'inactive' | 'completed';
+export type CommunityStatus = 'new' | 'onboarding' | 'active' | 'inactive' | 'completed';
 
 export interface Client {
   id: string;
@@ -117,6 +117,14 @@ export interface ClientContact {
   contact_role?: ContactRole;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  display_name: string | null;
+  role: string;
+  avatar_url: string | null;
+}
+
 export interface Community {
   id: string;
   client_id: string;
@@ -141,6 +149,15 @@ export interface Community {
   approved_sku_ids: string[];
   restrict_skus: boolean;
 
+  // Lifecycle dates
+  start_date: string | null;
+  end_date: string | null;
+
+  // Assignments
+  default_rep_id: string | null;
+  priority_crew_ids: string[];
+  priority_pm_ids: string[];
+
   // Status
   status: CommunityStatus;
   onboarding_started_at: string | null;
@@ -155,6 +172,7 @@ export interface Community {
   client?: Client;
   geography?: Geography;
   contacts?: CommunityContact[];
+  default_rep?: UserProfile;
 }
 
 export interface CommunityContact {
@@ -333,6 +351,15 @@ export interface CommunityFormData {
   override_qbo_class_id: string | null;
   restrict_skus: boolean;
   approved_sku_ids: string[];
+  // Lifecycle dates
+  start_date: string | null;
+  end_date: string | null;
+  // Assignments
+  default_rep_id: string | null;
+  priority_crew_ids: string[];
+  priority_pm_ids: string[];
+  // Status
+  status: CommunityStatus;
   notes: string;
 }
 
@@ -360,6 +387,7 @@ export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
 };
 
 export const COMMUNITY_STATUS_LABELS: Record<CommunityStatus, string> = {
+  new: 'New',
   onboarding: 'Onboarding',
   active: 'Active',
   inactive: 'Inactive',

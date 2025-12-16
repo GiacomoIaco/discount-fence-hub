@@ -14,15 +14,18 @@ import {
   FileText,
   DollarSign,
   ExternalLink,
+  ChevronRight,
 } from 'lucide-react';
 import { useClient, useCreateClientContact, useDeleteClientContact } from '../hooks/useClients';
 import { useContactRoles } from '../hooks/useContacts';
+import { useRateSheet } from '../hooks/useRateSheets';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
   CLIENT_STATUS_LABELS,
 } from '../types';
 import ClientEditorModal from '../components/ClientEditorModal';
+import CustomFieldsSection from '../components/CustomFieldsSection';
 
 type Tab = 'overview' | 'communities' | 'projects' | 'invoices';
 
@@ -43,6 +46,7 @@ export default function ClientDetailPage({
 }: ClientDetailPageProps) {
   const { data: client, isLoading } = useClient(clientId);
   const { data: contactRoles } = useContactRoles('client');
+  const { data: rateSheet } = useRateSheet(client?.default_rate_sheet_id || null);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [showAddContact, setShowAddContact] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
@@ -109,14 +113,32 @@ export default function ClientDetailPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Breadcrumb Navigation Bar */}
+      <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 sticky top-0 z-20">
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline font-medium"
+          >
+            <Building2 className="w-4 h-4" />
+            Client Hub
+          </button>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+          <span className="text-gray-700 font-medium truncate max-w-xs">
+            {client?.name || 'Loading...'}
+          </span>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-200 sticky top-10 z-10">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                title="Back to Client Hub"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -291,6 +313,69 @@ export default function ClientDetailPage({
                   )}
                 </div>
 
+                {/* Rate Sheet / Pricing */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Pricing</h3>
+                  </div>
+                  {rateSheet ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <DollarSign className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{rateSheet.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {rateSheet.code && <span className="mr-2">{rateSheet.code}</span>}
+                            {rateSheet.pricing_type === 'custom' && 'Custom Prices'}
+                            {rateSheet.pricing_type === 'formula' && 'Formula-Based'}
+                            {rateSheet.pricing_type === 'hybrid' && 'Hybrid'}
+                          </div>
+                        </div>
+                      </div>
+                      {rateSheet.description && (
+                        <p className="text-sm text-gray-600">{rateSheet.description}</p>
+                      )}
+                      <div className="text-xs text-gray-400">
+                        Effective: {new Date(rateSheet.effective_date).toLocaleDateString()}
+                        {rateSheet.expires_at && (
+                          <span> • Expires: {new Date(rateSheet.expires_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-sm">
+                      <p>No rate sheet assigned</p>
+                      <p className="text-xs text-gray-400 mt-1">Default pricing will be used</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Invoice Summary - Placeholder until we have invoice data */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Invoice Summary</h3>
+                    <button
+                      onClick={() => handleTabChange('invoices')}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      View All
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm text-gray-500">Total Invoiced</div>
+                      <div className="text-lg font-semibold text-gray-900">$0.00</div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm text-gray-500">Balance Due</div>
+                      <div className="text-lg font-semibold text-gray-900">$0.00</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">Invoice tracking coming soon</p>
+                </div>
+
                 {/* Notes */}
                 {client.notes && (
                   <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -424,6 +509,14 @@ export default function ClientDetailPage({
                     </button>
                   </div>
                 </div>
+
+                {/* Custom Fields */}
+                <CustomFieldsSection
+                  entityType="client"
+                  entityId={clientId}
+                  collapsible={true}
+                  defaultCollapsed={false}
+                />
               </div>
             </div>
           </div>

@@ -57,7 +57,11 @@ export function useCommunity(id: string | null) {
           *,
           client:clients(*),
           geography:geographies(*),
-          contacts:community_contacts(*)
+          contacts:community_contacts(
+            *,
+            contact_role:contact_roles(*)
+          ),
+          default_rep:user_profiles!communities_default_rep_id_fkey(*)
         `)
         .eq('id', id)
         .single();

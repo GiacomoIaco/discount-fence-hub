@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Menu, RefreshCw, Smartphone, Bell, FileText, BookOpen, Truck } from 'lucide-react';
+import { ArrowLeft, Users, Menu, RefreshCw, Smartphone, Bell, FileText, BookOpen, Truck, SlidersHorizontal } from 'lucide-react';
 import TeamManagement from './components/TeamManagement';
 import RequestSettings from './components/RequestSettings';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
 import NotificationSettings from './components/NotificationSettings';
 import QboClassesSettings from './components/QboClassesSettings';
 import FSMSettings from './components/FSMSettings';
+import CustomFieldsSettings from './components/CustomFieldsSettings';
 import type { UserRole } from '../../types';
 
 // Declare build time from vite config
@@ -17,7 +18,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'request-settings' | 'menu-visibility' | 'notifications' | 'app' | 'qbo-classes' | 'fsm'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'request-settings' | 'menu-visibility' | 'notifications' | 'app' | 'qbo-classes' | 'fsm' | 'custom-fields'>('team');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   return (
@@ -120,6 +121,18 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
                 <Truck className="w-5 h-5" />
                 <span className="font-medium">FSM</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('custom-fields')}
+                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
+                  activeTab === 'custom-fields'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <SlidersHorizontal className="w-5 h-5" />
+                <span className="font-medium">Custom Fields</span>
+              </button>
             </>
           )}
         </div>
@@ -189,6 +202,9 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
         )}
         {activeTab === 'fsm' && userRole === 'admin' && (
           <FSMSettings />
+        )}
+        {activeTab === 'custom-fields' && userRole === 'admin' && (
+          <CustomFieldsSettings />
         )}
       </div>
     </div>
