@@ -292,7 +292,7 @@ export function useUserProfiles(filters?: { role?: string }) {
       let query = supabase
         .from('user_profiles')
         .select('*')
-        .order('display_name');
+        .order('full_name');
 
       if (filters?.role) {
         query = query.eq('role', filters.role);
