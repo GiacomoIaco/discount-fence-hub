@@ -83,6 +83,32 @@ interface QboCustomer {
   ParentRef?: { value: string };
 }
 
+// Normalize state to 2-letter code
+function normalizeState(state: string | undefined): string {
+  if (!state) return 'TX';
+  const s = state.trim();
+  if (s.length <= 2) return s.toUpperCase();
+  // Map common full state names
+  const stateMap: Record<string, string> = {
+    'texas': 'TX',
+    'california': 'CA',
+    'florida': 'FL',
+    'new york': 'NY',
+    'arizona': 'AZ',
+    'colorado': 'CO',
+    'georgia': 'GA',
+    'illinois': 'IL',
+    'michigan': 'MI',
+    'north carolina': 'NC',
+    'ohio': 'OH',
+    'pennsylvania': 'PA',
+    'tennessee': 'TN',
+    'virginia': 'VA',
+    'washington': 'WA',
+  };
+  return stateMap[s.toLowerCase()] || s.substring(0, 2).toUpperCase();
+}
+
 interface ImportResult {
   builderName: string;
   clientId: string | null;
@@ -245,7 +271,7 @@ export const handler: Handler = async (event) => {
             primary_contact_phone: qboCustomer?.PrimaryPhone?.FreeFormNumber || null,
             address_line1: qboCustomer?.BillAddr?.Line1 || null,
             city: qboCustomer?.BillAddr?.City || null,
-            state: qboCustomer?.BillAddr?.CountrySubDivisionCode || 'TX',
+            state: normalizeState(qboCustomer?.BillAddr?.CountrySubDivisionCode),
             zip: qboCustomer?.BillAddr?.PostalCode || null,
             status: 'active',
             notes: `Imported from QBO. Type: ${builder.type}. Allow Proj to Parent: ${builder.allowProjToParent}`,
@@ -309,7 +335,7 @@ export const handler: Handler = async (event) => {
                       quickbooks_id: sub.Id,
                       address_line1: sub.BillAddr?.Line1 || null,
                       city: sub.BillAddr?.City || null,
-                      state: sub.BillAddr?.CountrySubDivisionCode || 'TX',
+                      state: normalizeState(sub.BillAddr?.CountrySubDivisionCode),
                       zip: sub.BillAddr?.PostalCode || null,
                       status: 'active',
                     });
