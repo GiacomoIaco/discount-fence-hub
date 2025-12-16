@@ -93,15 +93,58 @@ export interface Attachment {
 
 export interface QuickReply {
   id: string;
-  title: string;
+  name: string;
+  shortcut: string | null;
   body: string;
-  category?: string;
-  shortcut?: string;
+  category: string;
   is_global: boolean;
-  created_by?: string;
+  created_by: string | null;
+  use_count: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
+
+export interface ShortcodeContext {
+  // Contact info
+  client_name?: string;
+  client_first_name?: string;
+  client_phone?: string;
+  client_email?: string;
+  company_name?: string;
+
+  // Property/Project info
+  property_address?: string;
+  community_name?: string;
+
+  // User info
+  user_name?: string;
+  user_phone?: string;
+
+  // Quote/Invoice
+  quote_amount?: string;
+  quote_link?: string;
+  invoice_link?: string;
+
+  // Scheduling
+  scheduled_date?: string;
+  scheduled_time?: string;
+  eta_minutes?: string;
+  delay_minutes?: string;
+
+  // Company
+  company_phone?: string;
+  booking_link?: string;
+}
+
+export type QuickReplyCategory =
+  | 'greeting'
+  | 'field'
+  | 'sales'
+  | 'scheduling'
+  | 'completion'
+  | 'payment'
+  | 'general';
 
 export interface AIAnalysis {
   isProjectSignal: boolean;

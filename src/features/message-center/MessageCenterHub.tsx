@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus } from 'lucide-react';
 import { MessageCenterSidebar } from './components/MessageCenterSidebar';
 import { ConversationList } from './components/ConversationList';
@@ -6,6 +6,7 @@ import { MessageThread } from './components/MessageThread';
 import { MessageComposer } from './components/MessageComposer';
 import { useConversations, useConversationCounts, useMarkConversationRead } from './hooks/useConversations';
 import { useMessages, useSendMessage } from './hooks/useMessages';
+import { buildShortcodeContext } from './services/quickReplyService';
 import type { ConversationWithContact, ConversationFilter } from './types';
 
 export function MessageCenterHub() {
@@ -25,6 +26,22 @@ export function MessageCenterHub() {
       markRead.mutate(selectedConversation.id);
     }
   }, [selectedConversation?.id]);
+
+  // Build shortcode context for quick replies
+  const shortcodeContext = useMemo(() => {
+    if (!selectedConversation?.contact) return {};
+
+    return buildShortcodeContext(
+      selectedConversation.contact,
+      selectedConversation,
+      undefined, // TODO: Get current user
+      {
+        // Defaults for field workers
+        eta_minutes: '15',
+        delay_minutes: '10',
+      }
+    );
+  }, [selectedConversation]);
 
   const handleSelectConversation = (conv: ConversationWithContact) => {
     setSelectedConversation(conv);
@@ -182,6 +199,7 @@ export function MessageCenterHub() {
                 disabled={sendMessage.isPending}
                 placeholder={`Message ${selectedConversation.contact?.display_name || 'contact'}...`}
                 isOptedOut={selectedConversation.contact?.sms_opted_out || false}
+                shortcodeContext={shortcodeContext}
               />
             </>
           ) : (
