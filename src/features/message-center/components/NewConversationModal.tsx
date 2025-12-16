@@ -9,7 +9,7 @@ type ContactSource = 'team' | 'clients';
 interface TeamMember {
   id: string;
   email: string;
-  display_name: string | null;
+  full_name: string | null;
   role: string;
   avatar_url: string | null;
 }
@@ -50,8 +50,8 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       // Load team members
       const { data: teamData, error: teamError } = await supabase
         .from('user_profiles')
-        .select('id, email, display_name, role, avatar_url')
-        .order('display_name');
+        .select('id, email, full_name, role, avatar_url')
+        .order('full_name');
 
       if (teamError) {
         console.error('Error loading team members:', teamError);
@@ -129,7 +129,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
-      member.display_name?.toLowerCase().includes(searchLower) ||
+      member.full_name?.toLowerCase().includes(searchLower) ||
       member.email?.toLowerCase().includes(searchLower) ||
       member.role?.toLowerCase().includes(searchLower)
     );
@@ -151,7 +151,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
     // Create or get mc_contact for this team member
     const contact = await getOrCreateMcContact({
       contact_type: 'employee',
-      display_name: member.display_name || member.email,
+      display_name: member.full_name || member.email,
       email_primary: member.email,
       employee_id: member.id,
       avatar_url: member.avatar_url || undefined,
@@ -311,13 +311,13 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
                         <span className="text-green-600 font-medium">
-                          {(member.display_name || member.email)?.charAt(0).toUpperCase()}
+                          {(member.full_name || member.email)?.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">
-                        {member.display_name || member.email}
+                        {member.full_name || member.email}
                       </p>
                       <p className="text-sm text-gray-500 truncate">
                         {member.role}
