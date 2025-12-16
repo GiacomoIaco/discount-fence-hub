@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
-import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { MessageCenterSidebar } from './components/MessageCenterSidebar';
 import { ConversationList } from './components/ConversationList';
 import { MessageThread } from './components/MessageThread';
 import { MessageComposer } from './components/MessageComposer';
 import { NewConversationModal } from './components/NewConversationModal';
-import { useConversations, useConversationCounts, useMarkConversationRead } from './hooks/useConversations';
+import { useConversations, useConversationCounts, useMarkConversationRead, useArchiveConversation } from './hooks/useConversations';
 import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
 import * as messageService from './services/messageService';
@@ -16,12 +16,26 @@ export function MessageCenterHub() {
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithContact | null>(null);
   const [isMobileThreadView, setIsMobileThreadView] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter);
   const { data: counts = { all: 0, team: 0, clients: 0, requests: 0, archived: 0 } } = useConversationCounts();
   const { data: messages = [], isLoading: messagesLoading } = useMessages(selectedConversation?.id || null);
   const markRead = useMarkConversationRead();
   const sendMessage = useSendMessage();
+  const archiveConversation = useArchiveConversation();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Mark conversation as read when selected
   useEffect(() => {
@@ -85,8 +99,12 @@ export function MessageCenterHub() {
         return;
       }
 
-      // Create new conversation
-      const newConvo = await messageService.createConversation(contact.id);
+      // Determine conversation type based on contact type
+      // Team members (employees) get 'team_direct', clients get 'client'
+      const conversationType = contact.contact_type === 'employee' ? 'team_direct' : 'client';
+
+      // Create new conversation with correct type
+      const newConvo = await messageService.createConversation(contact.id, conversationType);
 
       // Set as selected (with contact info)
       setSelectedConversation({
@@ -97,6 +115,15 @@ export function MessageCenterHub() {
     } catch (error) {
       console.error('Error creating conversation:', error);
     }
+  };
+
+  const handleArchiveConversation = async () => {
+    if (!selectedConversation) return;
+
+    await archiveConversation.mutateAsync(selectedConversation.id);
+    setShowMoreMenu(false);
+    setSelectedConversation(null);
+    setIsMobileThreadView(false);
   };
 
   return (
@@ -212,12 +239,41 @@ export function MessageCenterHub() {
                       <Mail className="w-5 h-5" />
                     </a>
                   )}
-                  <button
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700"
-                    title="More options"
-                  >
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
+                  <div className="relative" ref={moreMenuRef}>
+                    <button
+                      onClick={() => setShowMoreMenu(!showMoreMenu)}
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700"
+                      title="More options"
+                    >
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showMoreMenu && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
+                        {selectedConversation?.status === 'archived' ? (
+                          <button
+                            onClick={async () => {
+                              await messageService.unarchiveConversation(selectedConversation.id);
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <ArchiveRestore className="w-4 h-4" />
+                            Unarchive
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleArchiveConversation}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Archive className="w-4 h-4" />
+                            Archive Conversation
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

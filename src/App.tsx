@@ -11,6 +11,8 @@ import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { useRequestNotifications } from './hooks/useRequestNotifications';
 import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
 import { useRouteSync } from './hooks/useRouteSync';
+import { RightPaneProvider } from './features/message-center/context/RightPaneContext';
+import { RightPaneMessaging, FloatingMessageButton } from './features/message-center/components';
 import type { Section } from './lib/routes';
 import type { Request } from './features/requests/lib/requests';
 
@@ -712,6 +714,7 @@ function App() {
   if (viewMode === 'mobile') {
     return (
       <ToastProvider>
+        <RightPaneProvider>
         <div className="min-h-screen bg-gray-50">
           <MobileHeader
             profileAvatarUrl={profile?.avatar_url}
@@ -780,13 +783,19 @@ function App() {
               />
             </Suspense>
           )}
+
+          {/* Right-Pane Messaging - accessible from anywhere in the app */}
+          {activeSection !== 'message-center' && <FloatingMessageButton />}
+          <RightPaneMessaging />
         </div>
+        </RightPaneProvider>
       </ToastProvider>
     );
   }
 
   return (
     <ToastProvider>
+      <RightPaneProvider>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
         <Sidebar
           sidebarOpen={sidebarOpen}
@@ -880,7 +889,11 @@ function App() {
           </Suspense>
         )}
 
+        {/* Right-Pane Messaging - accessible from anywhere in the app */}
+        {activeSection !== 'message-center' && <FloatingMessageButton />}
+        <RightPaneMessaging />
       </div>
+      </RightPaneProvider>
     </ToastProvider>
   );
 }
