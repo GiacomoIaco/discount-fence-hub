@@ -51,6 +51,12 @@
 [functions."ai-product-assistant"]
   timeout = 26
 
+[functions."qbo-validate-builders"]
+  timeout = 60
+
+[functions."qbo-import-builders"]
+  timeout = 60
+
 # Optimization settings
 [build.processing]
   skip_processing = false

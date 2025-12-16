@@ -167,8 +167,65 @@ interface ValidationResult {
 }
 
 /**
+ * Query QBO for a specific customer by name
+ */
+async function queryCustomerByName(
+  oauthClient: OAuthClient,
+  baseUrl: string,
+  realmId: string,
+  customerName: string
+): Promise<QboCustomer | null> {
+  // Escape single quotes in name for LIKE query
+  const escapedName = customerName.replace(/'/g, "\\'");
+  const query = encodeURIComponent(`SELECT * FROM Customer WHERE DisplayName = '${escapedName}'`);
+
+  try {
+    const response = await oauthClient.makeApiCall({
+      url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
+      method: 'GET',
+    });
+
+    const result = response.json;
+    const customers: QboCustomer[] = result.QueryResponse?.Customer || [];
+
+    // Return first match that is a parent customer (no ParentRef)
+    return customers.find(c => !c.ParentRef) || null;
+  } catch (error) {
+    console.error(`Error querying customer "${customerName}":`, error);
+    return null;
+  }
+}
+
+/**
+ * Count sub-customers for a parent customer
+ */
+async function countSubCustomers(
+  oauthClient: OAuthClient,
+  baseUrl: string,
+  realmId: string,
+  parentId: string
+): Promise<number> {
+  const query = encodeURIComponent(`SELECT COUNT(*) FROM Customer WHERE ParentRef = '${parentId}'`);
+
+  try {
+    const response = await oauthClient.makeApiCall({
+      url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
+      method: 'GET',
+    });
+
+    const result = response.json;
+    return result.QueryResponse?.totalCount || 0;
+  } catch (error) {
+    console.error(`Error counting sub-customers for ${parentId}:`, error);
+    return 0;
+  }
+}
+
+/**
  * Validate Builder names against QBO
  * GET /.netlify/functions/qbo-validate-builders
+ *
+ * Queries each builder name individually to handle large customer bases
  */
 export const handler: Handler = async () => {
   try {
@@ -228,84 +285,58 @@ export const handler: Handler = async () => {
       : 'https://sandbox-quickbooks.api.intuit.com';
     const realmId = tokenData.realm_id;
 
-    // Query ALL customers from QBO (to find matches and count sub-customers)
-    // We'll fetch all and filter locally for better matching
-    const query = encodeURIComponent("SELECT * FROM Customer WHERE Active = true MAXRESULTS 1000");
+    console.log(`Validating ${BUILDER_NAMES.length} builders against QBO...`);
 
-    const response = await oauthClient.makeApiCall({
-      url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
-      method: 'GET',
-    });
-
-    const result = response.json;
-    const allCustomers: QboCustomer[] = result.QueryResponse?.Customer || [];
-
-    console.log(`Fetched ${allCustomers.length} customers from QBO`);
-
-    // Build a map of customer names (lowercased) to customer data
-    const customerMap = new Map<string, QboCustomer>();
-    const parentCustomers: QboCustomer[] = [];
-
-    for (const customer of allCustomers) {
-      customerMap.set(customer.DisplayName.toLowerCase(), customer);
-      // Parent customers have no ParentRef
-      if (!customer.ParentRef) {
-        parentCustomers.push(customer);
-      }
-    }
-
-    // Count sub-customers for each parent
-    const subCustomerCounts = new Map<string, number>();
-    for (const customer of allCustomers) {
-      if (customer.ParentRef) {
-        const parentId = customer.ParentRef.value;
-        subCustomerCounts.set(parentId, (subCustomerCounts.get(parentId) || 0) + 1);
-      }
-    }
-
-    // Validate each builder name
+    // Query each builder name individually
     const results: ValidationResult[] = [];
 
     for (const builderName of BUILDER_NAMES) {
-      const lowerName = builderName.toLowerCase();
       const metadata = BUILDER_METADATA[builderName] || { type: 'custom_builder', allowProjToParent: true };
 
-      // Try exact match first
-      const exactMatch = customerMap.get(lowerName);
+      // Query QBO for this specific customer
+      const customer = await queryCustomerByName(oauthClient, baseUrl, realmId, builderName);
 
-      if (exactMatch && !exactMatch.ParentRef) {
-        // Found exact match (and it's a parent customer, not sub-customer)
+      if (customer) {
+        // Found exact match - get sub-customer count
+        const subCustomerCount = await countSubCustomers(oauthClient, baseUrl, realmId, customer.Id);
+
         results.push({
           spreadsheetName: builderName,
           qboMatch: {
-            id: exactMatch.Id,
-            displayName: exactMatch.DisplayName,
-            email: exactMatch.PrimaryEmailAddr?.Address,
-            phone: exactMatch.PrimaryPhone?.FreeFormNumber,
-            address: exactMatch.BillAddr ? {
-              line1: exactMatch.BillAddr.Line1,
-              city: exactMatch.BillAddr.City,
-              state: exactMatch.BillAddr.CountrySubDivisionCode,
-              zip: exactMatch.BillAddr.PostalCode,
+            id: customer.Id,
+            displayName: customer.DisplayName,
+            email: customer.PrimaryEmailAddr?.Address,
+            phone: customer.PrimaryPhone?.FreeFormNumber,
+            address: customer.BillAddr ? {
+              line1: customer.BillAddr.Line1,
+              city: customer.BillAddr.City,
+              state: customer.BillAddr.CountrySubDivisionCode,
+              zip: customer.BillAddr.PostalCode,
             } : undefined,
-            subCustomerCount: subCustomerCounts.get(exactMatch.Id) || 0,
+            subCustomerCount,
           },
           metadata,
           matchType: 'exact',
         });
+        console.log(`✓ Found: ${builderName} (ID: ${customer.Id}, ${subCustomerCount} sub-customers)`);
       } else {
-        // Try to find close matches
-        const possibleMatches: string[] = [];
-        for (const customer of parentCustomers) {
-          const customerLower = customer.DisplayName.toLowerCase();
-          // Check if names contain each other or start with same prefix
-          if (
-            customerLower.includes(lowerName.split(' ')[0]) ||
-            lowerName.includes(customerLower.split(' ')[0]) ||
-            customerLower.replace(/[^a-z]/g, '').includes(lowerName.replace(/[^a-z]/g, '').substring(0, 6))
-          ) {
-            possibleMatches.push(customer.DisplayName);
-          }
+        // Not found - try a LIKE search for close matches
+        const likeQuery = encodeURIComponent(`SELECT DisplayName FROM Customer WHERE DisplayName LIKE '%${builderName.split(' ')[0]}%' MAXRESULTS 5`);
+        let possibleMatches: string[] = [];
+
+        try {
+          const likeResponse = await oauthClient.makeApiCall({
+            url: `${baseUrl}/v3/company/${realmId}/query?query=${likeQuery}`,
+            method: 'GET',
+          });
+          const likeResult = likeResponse.json;
+          const likeCustomers: QboCustomer[] = likeResult.QueryResponse?.Customer || [];
+          possibleMatches = likeCustomers
+            .filter(c => !c.ParentRef)
+            .map(c => c.DisplayName)
+            .slice(0, 5);
+        } catch {
+          // Ignore LIKE query errors
         }
 
         results.push({
@@ -313,8 +344,9 @@ export const handler: Handler = async () => {
           qboMatch: null,
           metadata,
           matchType: possibleMatches.length > 0 ? 'close' : 'not_found',
-          possibleMatches: possibleMatches.slice(0, 5), // Limit to 5 suggestions
+          possibleMatches,
         });
+        console.log(`✗ Not found: ${builderName}${possibleMatches.length > 0 ? ` (suggestions: ${possibleMatches.join(', ')})` : ''}`);
       }
     }
 
@@ -332,8 +364,6 @@ export const handler: Handler = async () => {
           exactMatches,
           closeMatches,
           notFound,
-          totalQboCustomers: allCustomers.length,
-          totalParentCustomers: parentCustomers.length,
         },
         results,
       }, null, 2),
