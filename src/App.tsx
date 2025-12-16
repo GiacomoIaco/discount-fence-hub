@@ -114,8 +114,8 @@ function App() {
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
-  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices';
+  // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, etc.)
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
