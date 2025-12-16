@@ -3,6 +3,7 @@
 
 export { ClientLookup } from './components/ClientLookup';
 export { PropertyLookup } from './components/PropertyLookup';
+export { BuilderCascade } from './components/BuilderCascade';
 export { SlideOutPanel } from './components/SlideOutPanel';
 export { NewClientForm } from './components/NewClientForm';
 export { NewPropertyForm } from './components/NewPropertyForm';
