@@ -162,23 +162,26 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
 
   if (error) throw error;
 
-  // 2. Call Edge Function to send via Twilio (for SMS)
+  // 2. Call Netlify function to send via Twilio (for SMS)
   if (message.channel === 'sms' && message.to_phone) {
     try {
-      const response = await supabase.functions.invoke('send-sms', {
-        body: {
+      const response = await fetch('/.netlify/functions/send-mc-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           message_id: data.id,
           to: message.to_phone,
           body: message.body,
-        }
+        }),
       });
 
-      if (response.error) {
-        console.error('Failed to send SMS:', response.error);
-        // Message status will be updated by the edge function
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to send SMS:', errorData);
+        // Message status will be updated by the function
       }
     } catch (err) {
-      console.error('Error invoking send-sms:', err);
+      console.error('Error calling send-mc-sms:', err);
       // Don't throw - the message was created, status will show as 'sending'
     }
   }
