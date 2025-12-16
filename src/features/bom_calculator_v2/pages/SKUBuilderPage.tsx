@@ -381,6 +381,20 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
   }, [assignedComponentsV2, isComponentVisible]);
 
+  // Check if all REQUIRED (non-optional) components have materials selected
+  // This prevents partial/incorrect calculations until the SKU is fully configured
+  const allRequiredComponentsSelected = useMemo(() => {
+    if (!selectedStyleV2) return false;
+
+    // Get required components (non-optional, visible)
+    const requiredComponents = visibleMaterialComponents.filter(c => !c.is_optional);
+
+    // All required components must have a material selected
+    return requiredComponents.length > 0 && requiredComponents.every(c => {
+      const selectedId = componentSelections[c.component_code];
+      return selectedId && selectedId !== '';
+    });
+  }, [selectedStyleV2, visibleMaterialComponents, componentSelections]);
 
   // =============================================================================
   // HELPERS
@@ -961,21 +975,15 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   const [lastCalcKey, setLastCalcKey] = useState<string>('');
 
   // Auto-calculate whenever the configuration changes
-  // This matches V1 behavior - always recalculate when ANY input changes
+  // Only calculates when ALL required components have materials selected (like V1)
   useEffect(() => {
-    // Skip if:
-    // 1. Currently calculating
-    // 2. No style selected yet
-    // 3. Config hasn't changed
-    if (isCalculating || !selectedStyleV2 || configKey === lastCalcKey) {
+    // Skip if currently calculating or config hasn't changed
+    if (isCalculating || configKey === lastCalcKey) {
       return;
     }
 
-    // Check if at least one material is selected (otherwise nothing to calculate)
-    const hasAnyMaterialSelected = Object.values(componentSelections).some(v => v);
-
-    if (!hasAnyMaterialSelected) {
-      // Clear results if no materials selected
+    // If not all required components are selected, clear results and wait
+    if (!allRequiredComponentsSelected) {
       if (testResults.length > 0) {
         setTestResults([]);
         setTotalMaterialCost(0);
@@ -984,14 +992,14 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       return;
     }
 
-    // Debounce the calculation to avoid rapid recalculations
+    // All required components are selected - calculate with debounce
     const timer = setTimeout(() => {
       runBOMTest();
       setLastCalcKey(configKey);
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [configKey, lastCalcKey, isCalculating, selectedStyleV2, componentSelections, runBOMTest, testResults.length]);
+  }, [configKey, lastCalcKey, isCalculating, allRequiredComponentsSelected, runBOMTest, testResults.length]);
 
   // =============================================================================
   // RENDER HELPERS
