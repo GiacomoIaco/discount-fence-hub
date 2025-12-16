@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image } from 'lucide-react';
+import { Send, Paperclip, Image, AlertTriangle } from 'lucide-react';
 
 interface MessageComposerProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  isOptedOut?: boolean;
 }
 
 export function MessageComposer({
   onSend,
   disabled = false,
-  placeholder = 'Type a message...'
+  placeholder = 'Type a message...',
+  isOptedOut = false
 }: MessageComposerProps) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -26,11 +28,26 @@ export function MessageComposer({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || disabled) return;
+    if (!message.trim() || disabled || isOptedOut) return;
 
     onSend(message.trim());
     setMessage('');
   };
+
+  // Show opt-out warning
+  if (isOptedOut) {
+    return (
+      <div className="border-t bg-yellow-50 p-4">
+        <div className="flex items-center gap-3 text-yellow-800">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <div>
+            <p className="font-medium text-sm">This contact has opted out of SMS</p>
+            <p className="text-xs text-yellow-700">They texted STOP and cannot receive messages until they reply START.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

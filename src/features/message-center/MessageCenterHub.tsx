@@ -181,6 +181,7 @@ export function MessageCenterHub() {
                 onSend={handleSendMessage}
                 disabled={sendMessage.isPending}
                 placeholder={`Message ${selectedConversation.contact?.display_name || 'contact'}...`}
+                isOptedOut={selectedConversation.contact?.sms_opted_out || false}
               />
             </>
           ) : (

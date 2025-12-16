@@ -144,7 +144,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 }
 
 export async function sendMessage(message: NewMessage): Promise<Message> {
-  // Insert message with 'sending' status
+  // 1. Insert message with 'sending' status
   const { data, error } = await supabase
     .from('mc_messages')
     .insert({
@@ -162,17 +162,29 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
 
   if (error) throw error;
 
-  // TODO: In Phase 2, call QUO API to actually send SMS
-  // For now, immediately mark as 'sent'
-  const { data: updatedMessage, error: updateError } = await supabase
-    .from('mc_messages')
-    .update({ status: 'sent' })
-    .eq('id', data.id)
-    .select()
-    .single();
+  // 2. Call Edge Function to send via Twilio (for SMS)
+  if (message.channel === 'sms' && message.to_phone) {
+    try {
+      const response = await supabase.functions.invoke('send-sms', {
+        body: {
+          message_id: data.id,
+          to: message.to_phone,
+          body: message.body,
+        }
+      });
 
-  if (updateError) throw updateError;
-  return updatedMessage;
+      if (response.error) {
+        console.error('Failed to send SMS:', response.error);
+        // Message status will be updated by the edge function
+      }
+    } catch (err) {
+      console.error('Error invoking send-sms:', err);
+      // Don't throw - the message was created, status will show as 'sending'
+    }
+  }
+
+  // 3. Return the message (status will update via realtime subscription)
+  return data;
 }
 
 // ============================================================================
