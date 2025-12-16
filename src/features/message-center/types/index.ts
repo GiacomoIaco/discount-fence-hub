@@ -192,3 +192,98 @@ export interface ConversationCounts {
   requests: number;
   archived: number;
 }
+
+// ============================================================================
+// SYSTEM NOTIFICATIONS
+// ============================================================================
+
+export type NotificationType =
+  | 'quote_viewed'
+  | 'quote_signed'
+  | 'quote_expired'
+  | 'invoice_paid'
+  | 'invoice_overdue'
+  | 'invoice_partial'
+  | 'job_status_change'
+  | 'job_scheduled'
+  | 'job_completed'
+  | 'booking_request'
+  | 'client_created'
+  | 'message_received'
+  | 'mention'
+  | 'assignment'
+  | 'reminder'
+  | 'system';
+
+export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export interface SystemNotification {
+  id: string;
+  notification_type: NotificationType;
+  title: string;
+  body: string;
+  priority: NotificationPriority;
+
+  // Linked entities
+  contact_id?: string;
+  conversation_id?: string;
+  client_id?: string;
+  project_id?: string;
+  quote_id?: string;
+  invoice_id?: string;
+  job_id?: string;
+
+  // Targeting
+  target_user_id?: string;
+  target_role?: string;
+
+  // Status
+  is_read: boolean;
+  read_at?: string;
+  read_by?: string;
+  is_actioned: boolean;
+  actioned_at?: string;
+
+  // Action
+  action_url?: string;
+  action_label?: string;
+
+  // Metadata
+  metadata: Record<string, unknown>;
+  created_at: string;
+  expires_at?: string;
+
+  // Joined data
+  contact?: Contact;
+}
+
+export interface NotificationPreferences {
+  id: string;
+  user_id: string;
+
+  // Per-type settings
+  quote_viewed: boolean;
+  quote_signed: boolean;
+  quote_expired: boolean;
+  invoice_paid: boolean;
+  invoice_overdue: boolean;
+  job_status_change: boolean;
+  booking_request: boolean;
+  client_created: boolean;
+  mention: boolean;
+
+  // Delivery channels
+  show_in_app: boolean;
+  send_email: boolean;
+  send_sms: boolean;
+
+  // Quiet hours
+  quiet_hours_enabled: boolean;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+}
+
+export interface NotificationGroup {
+  date: string;
+  notifications: SystemNotification[];
+}
