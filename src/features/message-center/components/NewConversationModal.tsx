@@ -20,9 +20,10 @@ interface ClientContactItem {
   email: string | null;
   phone: string | null;
   role: string | null;
-  client_name?: string;
-  community_name?: string;
-  source: 'client' | 'community' | 'property';
+  company_name?: string;  // For company contacts - the company they work for
+  context_name?: string;  // Community name, property address, etc.
+  source: 'client_contact' | 'individual_client' | 'community' | 'property';
+  client_id?: string;     // Link to clients table if applicable
 }
 
 interface NewConversationModalProps {
@@ -60,28 +61,45 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       }
       setTeamMembers(teamData || []);
 
-      // Load client contacts from multiple tables
-      const [clientContactsRes, communityContactsRes, propertyContactsRes] = await Promise.all([
+      // Load contacts from multiple sources:
+      // 1. client_contacts - People working at company clients
+      // 2. Individual clients - Homeowners who ARE the contact
+      // 3. community_contacts - Superintendents, etc.
+      // 4. property_contacts - Homeowners at specific properties
+      const [clientContactsRes, individualClientsRes, communityContactsRes, propertyContactsRes] = await Promise.all([
+        // Company contacts (with company name)
         supabase
           .from('client_contacts')
-          .select('id, name, email, phone, role, client:clients(name)')
+          .select('id, name, email, phone, role, client_id, clients(id, name)')
+          .order('name'),
+        // Individual clients (homeowners, etc.) - people who ARE the client
+        supabase
+          .from('clients')
+          .select('id, name, primary_contact_name, primary_contact_email, primary_contact_phone, client_type')
+          .in('client_type', ['homeowner', 'other'])
+          .not('primary_contact_phone', 'is', null)
           .order('name'),
         supabase
           .from('community_contacts')
-          .select('id, name, email, phone, role, community:communities(name)')
+          .select('id, name, email, phone, role, community_id, communities(id, name, client_id, clients(name))')
           .order('name'),
         supabase
           .from('property_contacts')
-          .select('id, name, email, phone, role, property:properties(address_line1)')
+          .select('id, name, email, phone, role, property_id, properties(id, address_line1, community_id)')
           .order('name'),
       ]);
 
       // Log results and any errors for debugging
       console.log('=== NewConversationModal Contact Load ===');
-      console.log('client_contacts:', {
+      console.log('client_contacts (company people):', {
         error: clientContactsRes.error,
         count: clientContactsRes.data?.length || 0,
         data: clientContactsRes.data,
+      });
+      console.log('individual_clients (homeowners):', {
+        error: individualClientsRes.error,
+        count: individualClientsRes.data?.length || 0,
+        data: individualClientsRes.data,
       });
       console.log('community_contacts:', {
         error: communityContactsRes.error,
@@ -95,31 +113,46 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       });
 
       const allClientContacts: ClientContactItem[] = [
+        // Company contacts - show person name with company context
         ...(clientContactsRes.data || []).map((c: any) => ({
           id: c.id,
           name: c.name,
           email: c.email,
           phone: c.phone,
           role: c.role,
-          client_name: c.client?.name,
-          source: 'client' as const,
+          company_name: c.clients?.name,
+          client_id: c.client_id,
+          source: 'client_contact' as const,
         })),
+        // Individual clients (homeowners) - the client IS the person
+        ...(individualClientsRes.data || []).map((c: any) => ({
+          id: `client-${c.id}`,  // Prefix to avoid ID collision
+          name: c.primary_contact_name || c.name,
+          email: c.primary_contact_email,
+          phone: c.primary_contact_phone,
+          role: c.client_type === 'homeowner' ? 'Homeowner' : null,
+          client_id: c.id,
+          source: 'individual_client' as const,
+        })),
+        // Community contacts - show person with community context
         ...(communityContactsRes.data || []).map((c: any) => ({
           id: c.id,
           name: c.name,
           email: c.email,
           phone: c.phone,
           role: c.role,
-          community_name: c.community?.name,
+          company_name: c.communities?.clients?.name,  // Parent company
+          context_name: c.communities?.name,  // Community name
           source: 'community' as const,
         })),
+        // Property contacts
         ...(propertyContactsRes.data || []).map((c: any) => ({
           id: c.id,
           name: c.name,
           email: c.email,
           phone: c.phone,
           role: c.role,
-          client_name: c.property?.address_line1,
+          context_name: c.properties?.address_line1,
           source: 'property' as const,
         })),
       ];
@@ -149,8 +182,8 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       contact.name?.toLowerCase().includes(searchLower) ||
       contact.phone?.includes(search) ||
       contact.email?.toLowerCase().includes(searchLower) ||
-      contact.client_name?.toLowerCase().includes(searchLower) ||
-      contact.community_name?.toLowerCase().includes(searchLower)
+      contact.company_name?.toLowerCase().includes(searchLower) ||
+      contact.context_name?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -174,8 +207,10 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
     const contact = await getOrCreateMcContact({
       contact_type: 'client',
       display_name: clientContact.name,
+      company_name: clientContact.company_name || undefined,
       email_primary: clientContact.email || undefined,
       phone_primary: clientContact.phone || undefined,
+      client_id: clientContact.client_id || undefined,
     });
     if (contact) {
       onSelectContact(contact);
@@ -208,9 +243,11 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
         .insert({
           contact_type: data.contact_type || 'client',
           display_name: data.display_name || 'Unknown',
+          company_name: data.company_name,
           email_primary: data.email_primary,
           phone_primary: data.phone_primary,
           employee_id: data.employee_id,
+          client_id: data.client_id,
           avatar_url: data.avatar_url,
           sms_opted_out: false,
         })
@@ -355,8 +392,14 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
                     onClick={() => handleSelectClientContact(contact)}
                     className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-blue-600 font-medium">
+                    <div className={cn(
+                      'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                      contact.source === 'individual_client' ? 'bg-green-100' : 'bg-blue-100'
+                    )}>
+                      <span className={cn(
+                        'font-medium',
+                        contact.source === 'individual_client' ? 'text-green-600' : 'text-blue-600'
+                      )}>
                         {contact.name?.charAt(0).toUpperCase() || '?'}
                       </span>
                     </div>
@@ -367,19 +410,26 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
                       <p className="text-sm text-gray-500 truncate">
                         {contact.phone || contact.email || 'No contact info'}
                       </p>
-                      {(contact.client_name || contact.community_name) && (
+                      {/* Show company name and/or context */}
+                      {(contact.company_name || contact.context_name) && (
                         <p className="text-xs text-gray-400 truncate">
-                          {contact.client_name || contact.community_name}
+                          {contact.company_name}
+                          {contact.company_name && contact.context_name && ' · '}
+                          {contact.context_name}
                         </p>
                       )}
                     </div>
                     <span className={cn(
-                      'text-xs px-2 py-0.5 rounded-full',
-                      contact.source === 'client' && 'bg-blue-100 text-blue-700',
+                      'text-xs px-2 py-0.5 rounded-full whitespace-nowrap',
+                      contact.source === 'client_contact' && 'bg-blue-100 text-blue-700',
+                      contact.source === 'individual_client' && 'bg-green-100 text-green-700',
                       contact.source === 'community' && 'bg-purple-100 text-purple-700',
                       contact.source === 'property' && 'bg-orange-100 text-orange-700'
                     )}>
-                      {contact.source === 'property' ? 'Homeowner' : contact.source}
+                      {contact.source === 'client_contact' && 'Company'}
+                      {contact.source === 'individual_client' && 'Client'}
+                      {contact.source === 'community' && 'Community'}
+                      {contact.source === 'property' && 'Property'}
                     </span>
                   </button>
                 ))}
