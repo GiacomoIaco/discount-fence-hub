@@ -182,9 +182,11 @@ export function MessageCenterHub() {
                     <h2 className="font-semibold text-gray-900">
                       {selectedConversation.contact?.display_name || 'Unknown'}
                     </h2>
-                    {selectedConversation.contact?.company_name && (
+                    {(selectedConversation.contact?.company_name || selectedConversation.contact?.context_label) && (
                       <p className="text-sm text-gray-500">
                         {selectedConversation.contact.company_name}
+                        {selectedConversation.contact.company_name && selectedConversation.contact.context_label && ' · '}
+                        {selectedConversation.contact.context_label}
                       </p>
                     )}
                   </div>

@@ -14,6 +14,7 @@ export interface Contact {
   first_name?: string;
   last_name?: string;
   company_name?: string;
+  context_label?: string;  // Additional context (community name, property address, etc.)
   phone_primary?: string;
   phone_secondary?: string;
   email_primary?: string;

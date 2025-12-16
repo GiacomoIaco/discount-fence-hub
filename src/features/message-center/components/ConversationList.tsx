@@ -24,8 +24,9 @@ export function ConversationList({
     const query = searchQuery.toLowerCase();
     const contactName = conv.contact?.display_name?.toLowerCase() || '';
     const companyName = conv.contact?.company_name?.toLowerCase() || '';
+    const contextLabel = conv.contact?.context_label?.toLowerCase() || '';
     const preview = conv.last_message_preview?.toLowerCase() || '';
-    return contactName.includes(query) || companyName.includes(query) || preview.includes(query);
+    return contactName.includes(query) || companyName.includes(query) || contextLabel.includes(query) || preview.includes(query);
   });
 
   if (isLoading) {
@@ -158,10 +159,14 @@ function ConversationCard({ conversation, isSelected, onClick }: ConversationCar
               <p className="font-medium text-gray-900 truncate">
                 {contact?.display_name || 'Unknown'}
               </p>
-              {contact?.company_name && (
-                <p className="text-xs text-gray-500 flex items-center gap-1">
-                  <Building2 className="w-3 h-3" />
-                  {contact.company_name}
+              {(contact?.company_name || contact?.context_label) && (
+                <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
+                  <Building2 className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">
+                    {contact.company_name}
+                    {contact.company_name && contact.context_label && ' · '}
+                    {contact.context_label}
+                  </span>
                 </p>
               )}
             </div>

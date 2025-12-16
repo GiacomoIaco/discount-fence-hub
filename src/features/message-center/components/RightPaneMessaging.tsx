@@ -141,9 +141,15 @@ export function RightPaneMessaging() {
             <h3 className="font-semibold text-gray-900 truncate">
               {selectedContact?.display_name || 'New Message'}
             </h3>
-            {selectedContact?.phone_primary && (
+            {(selectedContact?.company_name || selectedContact?.context_label) ? (
+              <p className="text-xs text-gray-500 truncate">
+                {selectedContact.company_name}
+                {selectedContact.company_name && selectedContact.context_label && ' · '}
+                {selectedContact.context_label}
+              </p>
+            ) : selectedContact?.phone_primary ? (
               <p className="text-xs text-gray-500">{selectedContact.phone_primary}</p>
-            )}
+            ) : null}
           </div>
         </div>
 
