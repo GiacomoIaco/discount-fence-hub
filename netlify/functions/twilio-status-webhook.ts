@@ -1,36 +1,35 @@
-// supabase/functions/twilio-status/index.ts
-// Handles delivery status updates from Twilio
+import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+export const handler: Handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      body: 'Method not allowed',
+    };
   }
 
   try {
-    const formData = await req.formData();
-    const data = Object.fromEntries(formData.entries());
+    // Parse Twilio webhook payload (form-urlencoded)
+    const params = new URLSearchParams(event.body || '');
+    const data: Record<string, string> = {};
+    params.forEach((value, key) => {
+      data[key] = value;
+    });
 
     const {
       MessageSid: messageSid,
       MessageStatus: messageStatus,
       ErrorCode: errorCode,
       ErrorMessage: errorMessage,
-    } = data as Record<string, string>;
+    } = data;
 
     console.log(`Status update for ${messageSid}: ${messageStatus}`);
-
-    // Initialize Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Map Twilio status to our status
     const statusMap: Record<string, string> = {
@@ -45,7 +44,8 @@ serve(async (req: Request) => {
 
     const ourStatus = statusMap[messageStatus] || 'sent';
 
-    // First, find the message by twilio_sid in metadata
+    // Find the message by twilio_sid in metadata
+    // Using a raw query to search JSON field
     const { data: messages } = await supabase
       .from('mc_messages')
       .select('id, metadata')
@@ -58,7 +58,7 @@ serve(async (req: Request) => {
 
     if (matchingMessage) {
       // Update the message
-      const updateData: any = {
+      const updateData: Record<string, any> = {
         status: ourStatus,
         status_updated_at: new Date().toISOString(),
         metadata: {
@@ -90,10 +90,17 @@ serve(async (req: Request) => {
       console.log(`No message found with twilio_sid: ${messageSid}`);
     }
 
-    return new Response('OK', { headers: corsHeaders });
+    return {
+      statusCode: 200,
+      body: 'OK',
+    };
 
   } catch (error) {
     console.error('Status webhook error:', error);
-    return new Response('OK', { headers: corsHeaders });
+    // Return 200 to prevent Twilio retries
+    return {
+      statusCode: 200,
+      body: 'OK',
+    };
   }
-});
+};

@@ -1,26 +1,29 @@
-// supabase/functions/twilio-webhook/index.ts
-// Handles incoming SMS from Twilio
+import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+export const handler: Handler = async (event) => {
+  // Twilio sends POST requests
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      body: 'Method not allowed',
+    };
   }
 
   try {
     // Parse Twilio webhook payload (form-urlencoded)
-    const formData = await req.formData();
-    const twilioData = Object.fromEntries(formData.entries());
+    const params = new URLSearchParams(event.body || '');
+    const twilioData: Record<string, string> = {};
+    params.forEach((value, key) => {
+      twilioData[key] = value;
+    });
 
-    console.log('Received Twilio webhook:', JSON.stringify(twilioData));
+    console.log('Received Twilio inbound webhook:', JSON.stringify(twilioData));
 
     // Extract message details
     const {
@@ -31,12 +34,7 @@ serve(async (req: Request) => {
       NumMedia: numMedia,
       MediaUrl0: mediaUrl0,
       MediaContentType0: mediaType0,
-    } = twilioData as Record<string, string>;
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    } = twilioData;
 
     // Check for opt-out keywords
     const optOutKeywords = ['stop', 'unsubscribe', 'cancel', 'quit'];
@@ -44,24 +42,28 @@ serve(async (req: Request) => {
     const bodyLower = body?.toLowerCase().trim();
 
     if (optOutKeywords.includes(bodyLower)) {
-      await handleOptOut(supabase, fromPhone);
-      return new Response(generateTwiML('You have been unsubscribed. Reply START to re-subscribe.'), {
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
-      });
+      await handleOptOut(fromPhone);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'text/xml' },
+        body: generateTwiML('You have been unsubscribed. Reply START to re-subscribe.'),
+      };
     }
 
     if (optInKeywords.includes(bodyLower)) {
-      await handleOptIn(supabase, fromPhone);
-      return new Response(generateTwiML('Welcome back! You are now subscribed.'), {
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
-      });
+      await handleOptIn(fromPhone);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'text/xml' },
+        body: generateTwiML('Welcome back! You are now subscribed.'),
+      };
     }
 
     // Find or create contact
-    const contact = await findOrCreateContact(supabase, fromPhone);
+    const contact = await findOrCreateContact(fromPhone);
 
     // Find or create conversation
-    const conversation = await findOrCreateConversation(supabase, contact.id, fromPhone, toPhone);
+    const conversation = await findOrCreateConversation(contact.id);
 
     // Insert message
     const { data: message, error: messageError } = await supabase
@@ -95,26 +97,40 @@ serve(async (req: Request) => {
         message_id: message.id,
         file_name: `attachment_${messageSid}`,
         file_type: mediaType0 || 'application/octet-stream',
-        file_size: 0, // Twilio doesn't provide size
+        file_size: 0,
         file_url: mediaUrl0,
       });
     }
 
+    // Update conversation with last message info
+    await supabase
+      .from('mc_conversations')
+      .update({
+        last_message_at: new Date().toISOString(),
+        last_message_preview: (body || '').substring(0, 100),
+        unread_count: conversation.unread_count + 1,
+      })
+      .eq('id', conversation.id);
+
     console.log(`Processed inbound SMS from ${fromPhone}: ${messageSid}`);
 
     // Return empty TwiML (no auto-reply)
-    return new Response(generateTwiML(), {
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
-    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'text/xml' },
+      body: generateTwiML(),
+    };
 
   } catch (error) {
     console.error('Webhook error:', error);
     // Return 200 to prevent Twilio retries
-    return new Response(generateTwiML(), {
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
-    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'text/xml' },
+      body: generateTwiML(),
+    };
   }
-});
+};
 
 // Generate TwiML response
 function generateTwiML(message?: string): string {
@@ -125,7 +141,7 @@ function generateTwiML(message?: string): string {
 }
 
 // Find or create contact by phone
-async function findOrCreateContact(supabase: any, phone: string) {
+async function findOrCreateContact(phone: string) {
   // Normalize phone
   const normalized = phone.replace(/\D/g, '');
   const last10 = normalized.slice(-10);
@@ -170,12 +186,7 @@ async function findOrCreateContact(supabase: any, phone: string) {
 }
 
 // Find or create conversation
-async function findOrCreateConversation(
-  supabase: any,
-  contactId: string,
-  fromPhone: string,
-  toPhone: string
-) {
+async function findOrCreateConversation(contactId: string) {
   // Look for existing conversation with this contact
   const { data: existing } = await supabase
     .from('mc_conversations')
@@ -195,6 +206,7 @@ async function findOrCreateConversation(
       conversation_type: 'client',
       contact_id: contactId,
       status: 'active',
+      unread_count: 0,
     })
     .select()
     .single();
@@ -204,7 +216,7 @@ async function findOrCreateConversation(
 }
 
 // Handle opt-out
-async function handleOptOut(supabase: any, phone: string) {
+async function handleOptOut(phone: string) {
   const normalized = phone.replace(/\D/g, '');
   const last10 = normalized.slice(-10);
 
@@ -220,7 +232,7 @@ async function handleOptOut(supabase: any, phone: string) {
 }
 
 // Handle opt-in
-async function handleOptIn(supabase: any, phone: string) {
+async function handleOptIn(phone: string) {
   const normalized = phone.replace(/\D/g, '');
   const last10 = normalized.slice(-10);
 
