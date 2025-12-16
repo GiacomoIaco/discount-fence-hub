@@ -287,67 +287,53 @@ export const handler: Handler = async () => {
 
     console.log(`Validating ${BUILDER_NAMES.length} builders against QBO...`);
 
-    // Query each builder name individually
+    // Query each builder name individually - run in batches to avoid timeout
     const results: ValidationResult[] = [];
+    const batchSize = 10;
 
-    for (const builderName of BUILDER_NAMES) {
-      const metadata = BUILDER_METADATA[builderName] || { type: 'custom_builder', allowProjToParent: true };
+    for (let i = 0; i < BUILDER_NAMES.length; i += batchSize) {
+      const batch = BUILDER_NAMES.slice(i, i + batchSize);
+      console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(BUILDER_NAMES.length / batchSize)}`);
 
-      // Query QBO for this specific customer
-      const customer = await queryCustomerByName(oauthClient, baseUrl, realmId, builderName);
+      // Process batch in parallel
+      const batchPromises = batch.map(async (builderName) => {
+        const metadata = BUILDER_METADATA[builderName] || { type: 'custom_builder', allowProjToParent: true };
 
-      if (customer) {
-        // Found exact match - get sub-customer count
-        const subCustomerCount = await countSubCustomers(oauthClient, baseUrl, realmId, customer.Id);
+        // Query QBO for this specific customer
+        const customer = await queryCustomerByName(oauthClient, baseUrl, realmId, builderName);
 
-        results.push({
-          spreadsheetName: builderName,
-          qboMatch: {
-            id: customer.Id,
-            displayName: customer.DisplayName,
-            email: customer.PrimaryEmailAddr?.Address,
-            phone: customer.PrimaryPhone?.FreeFormNumber,
-            address: customer.BillAddr ? {
-              line1: customer.BillAddr.Line1,
-              city: customer.BillAddr.City,
-              state: customer.BillAddr.CountrySubDivisionCode,
-              zip: customer.BillAddr.PostalCode,
-            } : undefined,
-            subCustomerCount,
-          },
-          metadata,
-          matchType: 'exact',
-        });
-        console.log(`✓ Found: ${builderName} (ID: ${customer.Id}, ${subCustomerCount} sub-customers)`);
-      } else {
-        // Not found - try a LIKE search for close matches
-        const likeQuery = encodeURIComponent(`SELECT DisplayName FROM Customer WHERE DisplayName LIKE '%${builderName.split(' ')[0]}%' MAXRESULTS 5`);
-        let possibleMatches: string[] = [];
-
-        try {
-          const likeResponse = await oauthClient.makeApiCall({
-            url: `${baseUrl}/v3/company/${realmId}/query?query=${likeQuery}`,
-            method: 'GET',
-          });
-          const likeResult = likeResponse.json;
-          const likeCustomers: QboCustomer[] = likeResult.QueryResponse?.Customer || [];
-          possibleMatches = likeCustomers
-            .filter(c => !c.ParentRef)
-            .map(c => c.DisplayName)
-            .slice(0, 5);
-        } catch {
-          // Ignore LIKE query errors
+        if (customer) {
+          return {
+            spreadsheetName: builderName,
+            qboMatch: {
+              id: customer.Id,
+              displayName: customer.DisplayName,
+              email: customer.PrimaryEmailAddr?.Address,
+              phone: customer.PrimaryPhone?.FreeFormNumber,
+              address: customer.BillAddr ? {
+                line1: customer.BillAddr.Line1,
+                city: customer.BillAddr.City,
+                state: customer.BillAddr.CountrySubDivisionCode,
+                zip: customer.BillAddr.PostalCode,
+              } : undefined,
+              subCustomerCount: 0, // Skip count for speed
+            },
+            metadata,
+            matchType: 'exact' as const,
+          };
+        } else {
+          return {
+            spreadsheetName: builderName,
+            qboMatch: null,
+            metadata,
+            matchType: 'not_found' as const,
+            possibleMatches: [] as string[],
+          };
         }
+      });
 
-        results.push({
-          spreadsheetName: builderName,
-          qboMatch: null,
-          metadata,
-          matchType: possibleMatches.length > 0 ? 'close' : 'not_found',
-          possibleMatches,
-        });
-        console.log(`✗ Not found: ${builderName}${possibleMatches.length > 0 ? ` (suggestions: ${possibleMatches.join(', ')})` : ''}`);
-      }
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
     }
 
     // Summary stats
