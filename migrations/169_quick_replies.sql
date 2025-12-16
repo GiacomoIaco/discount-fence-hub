@@ -1,51 +1,33 @@
 -- ============================================================================
--- MESSAGE CENTER PHASE 3 - QUICK REPLIES
+-- MESSAGE CENTER PHASE 3 - QUICK REPLIES (Schema update + Default data)
 -- ============================================================================
 
--- Quick Replies Table (if not exists from earlier migration)
-CREATE TABLE IF NOT EXISTS mc_quick_replies (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- Add missing columns to existing table
+ALTER TABLE mc_quick_replies ADD COLUMN IF NOT EXISTS use_count INTEGER DEFAULT 0;
+ALTER TABLE mc_quick_replies ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
-  -- Content
-  name TEXT NOT NULL,
-  shortcut TEXT UNIQUE,  -- e.g., "/omw", "/quote", "/late"
-  body TEXT NOT NULL,
-  category TEXT DEFAULT 'general',
+-- Make shortcut unique if not already
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'mc_quick_replies_shortcut_key'
+  ) THEN
+    ALTER TABLE mc_quick_replies ADD CONSTRAINT mc_quick_replies_shortcut_key UNIQUE (shortcut);
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  -- Ignore if constraint already exists or can't be added
+  NULL;
+END $$;
 
-  -- Ownership
-  is_global BOOLEAN DEFAULT TRUE,  -- Available to all users
-  created_by UUID REFERENCES auth.users(id),
-
-  -- Metadata
-  use_count INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
+-- Create indexes if not exist
 CREATE INDEX IF NOT EXISTS idx_mc_quick_replies_shortcut ON mc_quick_replies(shortcut);
 CREATE INDEX IF NOT EXISTS idx_mc_quick_replies_category ON mc_quick_replies(category);
 
--- RLS
-ALTER TABLE mc_quick_replies ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view all quick replies" ON mc_quick_replies;
-CREATE POLICY "Users can view all quick replies" ON mc_quick_replies FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Users can insert quick replies" ON mc_quick_replies;
-CREATE POLICY "Users can insert quick replies" ON mc_quick_replies FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Users can update quick replies" ON mc_quick_replies;
-CREATE POLICY "Users can update quick replies" ON mc_quick_replies FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Users can delete quick replies" ON mc_quick_replies;
-CREATE POLICY "Users can delete quick replies" ON mc_quick_replies FOR DELETE USING (true);
-
 -- ============================================================================
--- DEFAULT TEMPLATES
+-- DEFAULT TEMPLATES (using 'title' column as per existing schema)
 -- ============================================================================
 
-INSERT INTO mc_quick_replies (name, shortcut, body, category, is_global) VALUES
+INSERT INTO mc_quick_replies (title, shortcut, body, category, is_global) VALUES
 
 -- Greetings
 ('Greeting', '/hi',

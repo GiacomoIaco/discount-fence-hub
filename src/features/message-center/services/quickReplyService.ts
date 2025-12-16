@@ -32,7 +32,7 @@ export async function createQuickReply(reply: Partial<QuickReply>): Promise<Quic
   const { data, error } = await supabase
     .from('mc_quick_replies')
     .insert({
-      name: reply.name,
+      title: reply.title,
       shortcut: reply.shortcut?.toLowerCase(),
       body: reply.body,
       category: reply.category || 'general',

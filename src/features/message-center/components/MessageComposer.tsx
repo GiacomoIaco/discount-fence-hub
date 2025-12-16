@@ -127,7 +127,7 @@ export function MessageComposer({
                 <code className="text-xs bg-blue-100 px-1.5 py-0.5 rounded text-blue-700">
                   {shortcutMatch.shortcut}
                 </code>
-                <span className="font-medium text-blue-900 text-sm">{shortcutMatch.name}</span>
+                <span className="font-medium text-blue-900 text-sm">{shortcutMatch.title}</span>
               </div>
               <p className="text-xs text-blue-700 mt-1 line-clamp-2">
                 {quickReplyService.replaceShortcodes(shortcutMatch.body, shortcodeContext)}

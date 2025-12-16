@@ -27,7 +27,7 @@ export function QuickReplyPicker({ replies, onSelect, onClose }: QuickReplyPicke
   const filteredReplies = useMemo(() => {
     return replies.filter(reply => {
       const matchesSearch = !search ||
-        reply.name.toLowerCase().includes(search.toLowerCase()) ||
+        reply.title.toLowerCase().includes(search.toLowerCase()) ||
         reply.shortcut?.toLowerCase().includes(search.toLowerCase()) ||
         reply.body.toLowerCase().includes(search.toLowerCase());
 
@@ -120,7 +120,7 @@ export function QuickReplyPicker({ replies, onSelect, onClose }: QuickReplyPicke
                   className="w-full text-left p-2 rounded-lg hover:bg-gray-50 transition-colors group"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900 text-sm">{reply.name}</span>
+                    <span className="font-medium text-gray-900 text-sm">{reply.title}</span>
                     {reply.shortcut && (
                       <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
                         {reply.shortcut}

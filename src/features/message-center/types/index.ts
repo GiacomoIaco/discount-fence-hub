@@ -93,7 +93,7 @@ export interface Attachment {
 
 export interface QuickReply {
   id: string;
-  name: string;
+  title: string;
   shortcut: string | null;
   body: string;
   category: string;
