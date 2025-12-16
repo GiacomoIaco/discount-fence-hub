@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Users, Menu, RefreshCw, Smartphone, Bell, FileText, BookOpen, Truck, SlidersHorizontal } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import SettingsSidebar from './components/SettingsSidebar';
+import type { SettingsPage } from './components/SettingsSidebar';
 import TeamManagement from './components/TeamManagement';
 import RequestSettings from './components/RequestSettings';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
@@ -18,130 +20,15 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack, userRole }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'team' | 'request-settings' | 'menu-visibility' | 'notifications' | 'app' | 'qbo-classes' | 'fsm' | 'custom-fields'>('team');
+  const [activePage, setActivePage] = useState<SettingsPage>('app');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-8">
-          <button
-            onClick={() => setActiveTab('app')}
-            className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-              activeTab === 'app'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Smartphone className="w-5 h-5" />
-            <span className="font-medium">App</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('notifications')}
-            className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-              activeTab === 'notifications'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Bell className="w-5 h-5" />
-            <span className="font-medium">Notifications</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-              activeTab === 'team'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Team Management</span>
-          </button>
-
-          {userRole === 'admin' && (
-            <>
-              <button
-                onClick={() => setActiveTab('request-settings')}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'request-settings'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <FileText className="w-5 h-5" />
-                <span className="font-medium">Request Settings</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('menu-visibility')}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'menu-visibility'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Menu className="w-5 h-5" />
-                <span className="font-medium">Menu Visibility</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('qbo-classes')}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'qbo-classes'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <BookOpen className="w-5 h-5" />
-                <span className="font-medium">QBO Classes</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('fsm')}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'fsm'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Truck className="w-5 h-5" />
-                <span className="font-medium">FSM</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('custom-fields')}
-                className={`flex items-center gap-2 pb-4 px-1 border-b-2 transition-colors ${
-                  activeTab === 'custom-fields'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <SlidersHorizontal className="w-5 h-5" />
-                <span className="font-medium">Custom Fields</span>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div>
-        {activeTab === 'app' && (
-          <div className="space-y-6">
+  const renderContent = () => {
+    switch (activePage) {
+      case 'app':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">App Settings</h1>
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">App Version</h2>
               <div className="space-y-4">
@@ -179,7 +66,7 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
                       window.location.reload();
                     }}
                     disabled={isRefreshing}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                     {isRefreshing ? 'Refreshing...' : 'Refresh App & Clear Cache'}
@@ -188,24 +75,81 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
               </div>
             </div>
           </div>
-        )}
-        {activeTab === 'notifications' && <NotificationSettings />}
-        {activeTab === 'team' && <TeamManagement userRole={userRole} />}
-        {activeTab === 'request-settings' && userRole === 'admin' && (
-          <RequestSettings />
-        )}
-        {activeTab === 'menu-visibility' && userRole === 'admin' && (
-          <MenuVisibilitySettings />
-        )}
-        {activeTab === 'qbo-classes' && userRole === 'admin' && (
-          <QboClassesSettings />
-        )}
-        {activeTab === 'fsm' && userRole === 'admin' && (
-          <FSMSettings />
-        )}
-        {activeTab === 'custom-fields' && userRole === 'admin' && (
-          <CustomFieldsSettings />
-        )}
+        );
+
+      case 'notifications':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Notification Settings</h1>
+            <NotificationSettings />
+          </div>
+        );
+
+      case 'team':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Team Management</h1>
+            <TeamManagement userRole={userRole} />
+          </div>
+        );
+
+      case 'request-settings':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Request Settings</h1>
+            <RequestSettings />
+          </div>
+        );
+
+      case 'menu-visibility':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Menu Visibility</h1>
+            <MenuVisibilitySettings />
+          </div>
+        );
+
+      case 'qbo-classes':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">QBO Classes</h1>
+            <QboClassesSettings />
+          </div>
+        );
+
+      case 'fsm':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">FSM Settings</h1>
+            <FSMSettings />
+          </div>
+        );
+
+      case 'custom-fields':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Custom Fields</h1>
+            <CustomFieldsSettings />
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar */}
+      <SettingsSidebar
+        activePage={activePage}
+        onPageChange={setActivePage}
+        onBack={onBack}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        {renderContent()}
       </div>
     </div>
   );
