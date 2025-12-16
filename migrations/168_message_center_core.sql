@@ -260,17 +260,25 @@ ALTER PUBLICATION supabase_realtime ADD TABLE mc_messages;
 -- ============================================================================
 -- Add Message Center to menu_visibility
 -- ============================================================================
-INSERT INTO menu_visibility (menu_id, label, visible_to_roles, category, sort_order, mobile_style)
+INSERT INTO menu_visibility (
+  menu_id,
+  menu_name,
+  visible_for_roles,
+  show_on_desktop,
+  show_on_tablet,
+  show_on_mobile
+)
 VALUES (
   'message-center',
   'Messages',
   ARRAY['admin', 'operations', 'sales-manager', 'sales'],
-  'communication',
-  35,
-  'icon'
+  true,
+  true,
+  true
 )
 ON CONFLICT (menu_id) DO UPDATE
-SET label = EXCLUDED.label,
-    visible_to_roles = EXCLUDED.visible_to_roles,
-    category = EXCLUDED.category,
-    sort_order = EXCLUDED.sort_order;
+SET menu_name = EXCLUDED.menu_name,
+    visible_for_roles = EXCLUDED.visible_for_roles,
+    show_on_desktop = EXCLUDED.show_on_desktop,
+    show_on_tablet = EXCLUDED.show_on_tablet,
+    show_on_mobile = EXCLUDED.show_on_mobile;
