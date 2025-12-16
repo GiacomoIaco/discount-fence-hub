@@ -4,15 +4,18 @@ import { MessageCenterSidebar } from './components/MessageCenterSidebar';
 import { ConversationList } from './components/ConversationList';
 import { MessageThread } from './components/MessageThread';
 import { MessageComposer } from './components/MessageComposer';
+import { NewConversationModal } from './components/NewConversationModal';
 import { useConversations, useConversationCounts, useMarkConversationRead } from './hooks/useConversations';
 import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
-import type { ConversationWithContact, ConversationFilter } from './types';
+import * as messageService from './services/messageService';
+import type { ConversationWithContact, ConversationFilter, Contact } from './types';
 
 export function MessageCenterHub() {
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>('all');
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithContact | null>(null);
   const [isMobileThreadView, setIsMobileThreadView] = useState(false);
+  const [showNewConversation, setShowNewConversation] = useState(false);
 
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter);
   const { data: counts = { all: 0, team: 0, clients: 0, requests: 0, archived: 0 } } = useConversationCounts();
@@ -71,6 +74,31 @@ export function MessageCenterHub() {
     setIsMobileThreadView(false);
   };
 
+  const handleNewConversation = async (contact: Contact) => {
+    try {
+      // Check if conversation already exists with this contact
+      const existingConv = conversations.find(c => c.contact_id === contact.id);
+
+      if (existingConv) {
+        setSelectedConversation(existingConv);
+        setIsMobileThreadView(true);
+        return;
+      }
+
+      // Create new conversation
+      const newConvo = await messageService.createConversation(contact.id);
+
+      // Set as selected (with contact info)
+      setSelectedConversation({
+        ...newConvo,
+        contact
+      });
+      setIsMobileThreadView(true);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+    }
+  };
+
   return (
     <div className="h-screen flex bg-gray-50">
       {/* Filter Sidebar */}
@@ -98,6 +126,7 @@ export function MessageCenterHub() {
               {activeFilter === 'archived' && 'Archived'}
             </h2>
             <button
+              onClick={() => setShowNewConversation(true)}
               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="New Conversation"
             >
@@ -213,6 +242,13 @@ export function MessageCenterHub() {
           )}
         </div>
       </div>
+
+      {/* New Conversation Modal */}
+      <NewConversationModal
+        isOpen={showNewConversation}
+        onClose={() => setShowNewConversation(false)}
+        onSelectContact={handleNewConversation}
+      />
     </div>
   );
 }

@@ -8,3 +8,4 @@ export { NotificationList } from './NotificationList';
 export { RightPaneMessaging } from './RightPaneMessaging';
 export { FloatingMessageButton } from './FloatingMessageButton';
 export { MessageButton } from './MessageButton';
+export { NewConversationModal } from './NewConversationModal';
