@@ -48,11 +48,16 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
     setIsLoading(true);
     try {
       // Load team members
-      const { data: teamData } = await supabase
+      const { data: teamData, error: teamError } = await supabase
         .from('user_profiles')
         .select('id, email, display_name, role, avatar_url')
         .order('display_name');
 
+      if (teamError) {
+        console.error('Error loading team members:', teamError);
+      } else {
+        console.log('Loaded team members:', teamData?.length || 0);
+      }
       setTeamMembers(teamData || []);
 
       // Load client contacts from multiple tables
@@ -70,6 +75,17 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
           .select('id, name, email, phone, role, property:properties(address_line1)')
           .order('name'),
       ]);
+
+      // Log any errors
+      if (clientContactsRes.error) console.error('client_contacts error:', clientContactsRes.error);
+      if (communityContactsRes.error) console.error('community_contacts error:', communityContactsRes.error);
+      if (propertyContactsRes.error) console.error('property_contacts error:', propertyContactsRes.error);
+
+      console.log('Loaded contacts:', {
+        client_contacts: clientContactsRes.data?.length || 0,
+        community_contacts: communityContactsRes.data?.length || 0,
+        property_contacts: propertyContactsRes.data?.length || 0,
+      });
 
       const allClientContacts: ClientContactItem[] = [
         ...(clientContactsRes.data || []).map((c: any) => ({
