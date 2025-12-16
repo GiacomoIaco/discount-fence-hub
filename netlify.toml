@@ -10,6 +10,17 @@
   to = "/qr.html"
   status = 200
 
+# Legal pages for QBO/Intuit compliance - static HTML
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/terms.html"
+  status = 200
+
 # Note: Netlify functions at /.netlify/functions/* are handled automatically
 # No redirect rule needed - they work out of the box
 
