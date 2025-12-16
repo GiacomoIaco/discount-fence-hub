@@ -76,15 +76,22 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
           .order('name'),
       ]);
 
-      // Log any errors
-      if (clientContactsRes.error) console.error('client_contacts error:', clientContactsRes.error);
-      if (communityContactsRes.error) console.error('community_contacts error:', communityContactsRes.error);
-      if (propertyContactsRes.error) console.error('property_contacts error:', propertyContactsRes.error);
-
-      console.log('Loaded contacts:', {
-        client_contacts: clientContactsRes.data?.length || 0,
-        community_contacts: communityContactsRes.data?.length || 0,
-        property_contacts: propertyContactsRes.data?.length || 0,
+      // Log results and any errors for debugging
+      console.log('=== NewConversationModal Contact Load ===');
+      console.log('client_contacts:', {
+        error: clientContactsRes.error,
+        count: clientContactsRes.data?.length || 0,
+        data: clientContactsRes.data,
+      });
+      console.log('community_contacts:', {
+        error: communityContactsRes.error,
+        count: communityContactsRes.data?.length || 0,
+        data: communityContactsRes.data,
+      });
+      console.log('property_contacts:', {
+        error: propertyContactsRes.error,
+        count: propertyContactsRes.data?.length || 0,
+        data: propertyContactsRes.data,
       });
 
       const allClientContacts: ClientContactItem[] = [
