@@ -93,6 +93,7 @@ export default function ClientHub({
       <ClientDetailPage
         clientId={entityContext.id}
         onBack={handleClientClose}
+        onNavigateToEntity={onNavigateToEntity}
       />
     );
   }

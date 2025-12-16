@@ -26,6 +26,7 @@ import {
 } from '../types';
 import ClientEditorModal from '../components/ClientEditorModal';
 import CustomFieldsSection from '../components/CustomFieldsSection';
+import type { EntityType } from '../../../lib/routes';
 
 type Tab = 'overview' | 'communities' | 'projects' | 'invoices';
 
@@ -36,6 +37,8 @@ interface ClientDetailPageProps {
   initialTab?: Tab;
   /** Called when tab changes - for URL updates */
   onTabChange?: (tab: Tab) => void;
+  /** Navigate to a specific entity */
+  onNavigateToEntity?: (entityType: EntityType, params: Record<string, string>) => void;
 }
 
 export default function ClientDetailPage({
@@ -43,6 +46,7 @@ export default function ClientDetailPage({
   onBack,
   initialTab = 'overview',
   onTabChange,
+  onNavigateToEntity,
 }: ClientDetailPageProps) {
   const { data: client, isLoading } = useClient(clientId);
   const { data: contactRoles } = useContactRoles('client');
@@ -58,6 +62,12 @@ export default function ClientDetailPage({
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
     onTabChange?.(tab);
+  };
+
+  const handleCommunityClick = (communityId: string) => {
+    if (onNavigateToEntity) {
+      onNavigateToEntity('community', { id: communityId, clientId });
+    }
   };
 
   const handleAddContact = async () => {
@@ -536,6 +546,7 @@ export default function ClientDetailPage({
                 {client.communities.map((community: any) => (
                   <div
                     key={community.id}
+                    onClick={() => handleCommunityClick(community.id)}
                     className="p-4 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
                   >
                     <div className="flex items-center gap-4">
@@ -554,13 +565,17 @@ export default function ClientDetailPage({
                         </div>
                       </div>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${
-                      community.status === 'active' ? 'bg-green-100 text-green-700' :
-                      community.status === 'onboarding' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {community.status}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${
+                        community.status === 'active' ? 'bg-green-100 text-green-700' :
+                        community.status === 'onboarding' ? 'bg-blue-100 text-blue-700' :
+                        community.status === 'new' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {community.status}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </div>
                   </div>
                 ))}
               </div>
