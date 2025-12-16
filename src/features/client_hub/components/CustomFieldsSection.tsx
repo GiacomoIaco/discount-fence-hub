@@ -201,7 +201,7 @@ export default function CustomFieldsSection({
         );
       case 'select':
         const option = field.options?.find((o) => o.value === value);
-        return <span>{option?.label || value}</span>;
+        return <span>{option?.label || String(value)}</span>;
       default:
         return <span>{String(value)}</span>;
     }

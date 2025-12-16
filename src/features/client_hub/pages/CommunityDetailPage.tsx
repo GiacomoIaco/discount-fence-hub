@@ -19,8 +19,6 @@ import {
   Calendar,
   User,
   Users,
-  Phone,
-  Mail,
   Edit2,
   Plus,
   Trash2,
@@ -48,7 +46,7 @@ interface CommunityDetailPageProps {
 
 export default function CommunityDetailPage({
   communityId,
-  clientId,
+  clientId: _clientId,
   onBack,
   onNavigateToEntity,
 }: CommunityDetailPageProps) {

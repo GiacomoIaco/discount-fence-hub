@@ -19,7 +19,6 @@ import {
   Settings,
   ArrowRight,
   Eye,
-  EyeOff,
   GripVertical,
   Check,
   X,
