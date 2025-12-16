@@ -217,9 +217,13 @@ async function getCommunitySubCustomers(
  * Import builders from QBO into clients/communities tables
  * GET /.netlify/functions/qbo-import-builders?dryRun=true  (preview)
  * GET /.netlify/functions/qbo-import-builders              (execute)
+ * GET /.netlify/functions/qbo-import-builders?builder=Perry%20Homes  (single builder)
+ * GET /.netlify/functions/qbo-import-builders?batch=0      (batch 0 = first 10 builders)
  */
 export const handler: Handler = async (event) => {
   const dryRun = event.queryStringParameters?.dryRun === 'true';
+  const singleBuilder = event.queryStringParameters?.builder;
+  const batchIndex = event.queryStringParameters?.batch ? parseInt(event.queryStringParameters.batch) : null;
 
   try {
     // Get stored tokens
@@ -276,7 +280,34 @@ export const handler: Handler = async (event) => {
       : 'https://sandbox-quickbooks.api.intuit.com';
     const realmId = tokenData.realm_id;
 
-    console.log(`${dryRun ? '[DRY RUN] ' : ''}Importing ${BUILDERS.length} builders...`);
+    // Filter builders based on parameters
+    let buildersToProcess = BUILDERS;
+
+    if (singleBuilder) {
+      // Process only a specific builder
+      buildersToProcess = BUILDERS.filter(b => b.name === singleBuilder);
+      if (buildersToProcess.length === 0) {
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: `Builder "${singleBuilder}" not found in list` }),
+        };
+      }
+    } else if (batchIndex !== null) {
+      // Process builders in batches of 10
+      const batchSizeForParam = 10;
+      const start = batchIndex * batchSizeForParam;
+      buildersToProcess = BUILDERS.slice(start, start + batchSizeForParam);
+      if (buildersToProcess.length === 0) {
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: `Batch ${batchIndex} is empty (only ${Math.ceil(BUILDERS.length / batchSizeForParam)} batches available)` }),
+        };
+      }
+    }
+
+    console.log(`${dryRun ? '[DRY RUN] ' : ''}Importing ${buildersToProcess.length} builders...`);
 
     const results: ImportResult[] = [];
     let totalClientsCreated = 0;
@@ -285,8 +316,8 @@ export const handler: Handler = async (event) => {
 
     // Process builders in batches of 5 for parallel processing
     const batchSize = 5;
-    for (let i = 0; i < BUILDERS.length; i += batchSize) {
-      const batch = BUILDERS.slice(i, i + batchSize);
+    for (let i = 0; i < buildersToProcess.length; i += batchSize) {
+      const batch = buildersToProcess.slice(i, i + batchSize);
 
       const batchResults = await Promise.all(batch.map(async (builder) => {
         const result: ImportResult = {
