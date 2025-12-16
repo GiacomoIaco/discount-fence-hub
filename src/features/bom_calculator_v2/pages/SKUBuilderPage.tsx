@@ -370,27 +370,17 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   }, [variableValues]);
 
   // Get visible material components (non-labor, assigned, visible)
+  // Exclude concrete components - they're handled separately via the concrete type selector
+  const CONCRETE_COMPONENT_CODES = ['concrete', 'concrete_sand', 'concrete_portland', 'concrete_quickrock', 'concrete_yellow', 'concrete_red'];
+
   const visibleMaterialComponents = useMemo(() => {
     return assignedComponentsV2
       .filter(c => c.is_assigned && !c.is_labor)
+      .filter(c => !CONCRETE_COMPONENT_CODES.includes(c.component_code)) // Exclude concrete
       .filter(c => isComponentVisible(c))
       .sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
   }, [assignedComponentsV2, isComponentVisible]);
 
-  // Check if all required fields are filled (for auto-calculation)
-  const allRequiredFieldsFilled = useMemo(() => {
-    // Need at least style selected
-    if (!selectedStyleV2) return false;
-
-    // Check all required (non-optional) visible components have materials selected
-    const requiredComponents = visibleMaterialComponents.filter(c => !c.is_optional);
-    const allHaveMaterials = requiredComponents.every(c => {
-      const selectedId = componentSelections[c.component_code];
-      return selectedId && selectedId !== '';
-    });
-
-    return allHaveMaterials && requiredComponents.length > 0;
-  }, [selectedStyleV2, visibleMaterialComponents, componentSelections]);
 
   // =============================================================================
   // HELPERS
@@ -951,8 +941,9 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   // AUTO-CALCULATION
   // =============================================================================
 
-  // Auto-calculate when all required fields are filled
-  const lastAutoCalcKey = useMemo(() => {
+  // Generate a key that represents the current configuration
+  // This is used to detect when any input has changed
+  const configKey = useMemo(() => {
     return JSON.stringify({
       productType,
       styleCode,
@@ -962,25 +953,45 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       testLines,
       testGates,
       concreteType,
+      businessUnitId,
     });
-  }, [productType, styleCode, variableValues, componentSelections, testLength, testLines, testGates, concreteType]);
+  }, [productType, styleCode, variableValues, componentSelections, testLength, testLines, testGates, concreteType, businessUnitId]);
 
+  // Track the last calculated config key
   const [lastCalcKey, setLastCalcKey] = useState<string>('');
 
+  // Auto-calculate whenever the configuration changes
+  // This matches V1 behavior - always recalculate when ANY input changes
   useEffect(() => {
-    // Auto-calculate when:
-    // 1. All required fields are filled
-    // 2. Not currently calculating
-    // 3. Configuration changed since last calculation
-    if (allRequiredFieldsFilled && !isCalculating && lastAutoCalcKey !== lastCalcKey) {
-      // Small delay to avoid too rapid recalculation
-      const timer = setTimeout(() => {
-        runBOMTest();
-        setLastCalcKey(lastAutoCalcKey);
-      }, 300);
-      return () => clearTimeout(timer);
+    // Skip if:
+    // 1. Currently calculating
+    // 2. No style selected yet
+    // 3. Config hasn't changed
+    if (isCalculating || !selectedStyleV2 || configKey === lastCalcKey) {
+      return;
     }
-  }, [allRequiredFieldsFilled, isCalculating, lastAutoCalcKey, lastCalcKey, runBOMTest]);
+
+    // Check if at least one material is selected (otherwise nothing to calculate)
+    const hasAnyMaterialSelected = Object.values(componentSelections).some(v => v);
+
+    if (!hasAnyMaterialSelected) {
+      // Clear results if no materials selected
+      if (testResults.length > 0) {
+        setTestResults([]);
+        setTotalMaterialCost(0);
+        setTotalLaborCost(0);
+      }
+      return;
+    }
+
+    // Debounce the calculation to avoid rapid recalculations
+    const timer = setTimeout(() => {
+      runBOMTest();
+      setLastCalcKey(configKey);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [configKey, lastCalcKey, isCalculating, selectedStyleV2, componentSelections, runBOMTest, testResults.length]);
 
   // =============================================================================
   // RENDER HELPERS
