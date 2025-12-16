@@ -145,27 +145,44 @@ async function queryCustomerByName(
 }
 
 /**
- * Get all sub-customers for a parent
+ * Get all sub-customers for a parent using FullyQualifiedName LIKE query
+ * (ParentRef query doesn't work reliably in QBO API)
  */
 async function getSubCustomers(
   oauthClient: OAuthClient,
   baseUrl: string,
   realmId: string,
-  parentId: string
+  parentName: string
 ): Promise<QboCustomer[]> {
-  const query = encodeURIComponent(`SELECT * FROM Customer WHERE ParentRef = '${parentId}' MAXRESULTS 200`);
+  const escapedName = parentName.replace(/'/g, "\\'");
+  const allSubCustomers: QboCustomer[] = [];
+  let startPosition = 1;
+  const batchSize = 500;
 
-  try {
-    const response = await oauthClient.makeApiCall({
-      url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
-      method: 'GET',
-    });
-    const result = response.json;
-    return result.QueryResponse?.Customer || [];
-  } catch (error) {
-    console.error(`Error getting sub-customers for ${parentId}:`, error);
-    return [];
+  // Paginate through all sub-customers
+  for (let batch = 0; batch < 10; batch++) {
+    const query = encodeURIComponent(
+      `SELECT * FROM Customer WHERE FullyQualifiedName LIKE '${escapedName}:%' STARTPOSITION ${startPosition} MAXRESULTS ${batchSize}`
+    );
+
+    try {
+      const response = await oauthClient.makeApiCall({
+        url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
+        method: 'GET',
+      });
+      const result = response.json;
+      const customers = result.QueryResponse?.Customer || [];
+      allSubCustomers.push(...customers);
+
+      if (customers.length < batchSize) break;
+      startPosition += batchSize;
+    } catch (error) {
+      console.error(`Error getting sub-customers for ${parentName}:`, error);
+      break;
+    }
   }
+
+  return allSubCustomers;
 }
 
 /**
@@ -310,7 +327,7 @@ export const handler: Handler = async (event) => {
 
             // If QBO linked, get and create communities (sub-customers)
             if (qboCustomer) {
-              const subCustomers = await getSubCustomers(oauthClient, baseUrl, realmId, qboCustomer.Id);
+              const subCustomers = await getSubCustomers(oauthClient, baseUrl, realmId, builder.name);
 
               for (const sub of subCustomers) {
                 // Extract community name (remove "Parent:" prefix)
@@ -368,7 +385,7 @@ export const handler: Handler = async (event) => {
             // Dry run - just count what would be created
             result.clientId = 'dry-run';
             if (qboCustomer) {
-              const subCustomers = await getSubCustomers(oauthClient, baseUrl, realmId, qboCustomer.Id);
+              const subCustomers = await getSubCustomers(oauthClient, baseUrl, realmId, builder.name);
               result.communitiesCreated = subCustomers.length;
             }
           }
