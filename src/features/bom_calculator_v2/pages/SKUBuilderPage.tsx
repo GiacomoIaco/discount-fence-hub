@@ -11,7 +11,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package, AlertCircle, Play
+  Loader2, Save, RotateCcw, ArrowLeft, Grid3X3, Layers, Package, AlertCircle, Play, CheckCircle, ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
@@ -20,11 +20,13 @@ import {
   useProductStylesV2,
   useProductVariablesV2,
   useSKUV2,
+  useSKUCatalogV2,
   useMaterialEligibilityV2,
   useProductTypeComponentsFull,
   useProductTypeLaborGroupsV2,
   useLaborGroupEligibilityV2,
 } from '../hooks';
+import type { SKUCatalogV2WithRelations } from '../hooks';
 import type { ProductTypeComponentFull, ProductVariableV2, LaborGroupEligibilityV2 } from '../hooks';
 import {
   FormulaInterpreter,
@@ -211,6 +213,9 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
     },
     enabled: !!businessUnitId,
   });
+
+  // Fetch all existing SKUs for matching detection
+  const { data: existingSKUs = [] } = useSKUCatalogV2();
 
   // Set default business unit
   useEffect(() => {
@@ -403,22 +408,163 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
   const getMaterial = (id: string): Material | undefined => materials.find(m => m.id === id);
   const getMaterialSku = (id: string): string => getMaterial(id)?.material_sku || '';
 
-  // Generate suggested SKU name
-  const suggestedSkuName = useMemo(() => {
-    const h = `${height}'`;
-    const styleShort = styleCode.includes('good_neighbor') ? 'GN' :
-                       styleCode.includes('board_on_board') ? 'BOB' : 'STD';
+  // =============================================================================
+  // SKU MATCHING & AUTO-GENERATION
+  // =============================================================================
+
+  // Build current configuration signature for matching
+  const currentConfigSignature = useMemo(() => {
+    if (!selectedProductTypeV2 || !selectedStyleV2) return null;
+
+    // Build components object with material SKUs (not IDs)
+    const componentSkus: Record<string, string> = {};
+    Object.entries(componentSelections).forEach(([code, materialId]) => {
+      if (materialId) {
+        const sku = getMaterialSku(materialId);
+        if (sku) componentSkus[code] = sku;
+      }
+    });
+
+    return {
+      productTypeId: selectedProductTypeV2.id,
+      styleId: selectedStyleV2.id,
+      height,
+      postType,
+      railCount: productType === 'wood-vertical' ? railCount : null,
+      components: componentSkus,
+    };
+  }, [selectedProductTypeV2, selectedStyleV2, height, postType, railCount, productType, componentSelections, getMaterialSku]);
+
+  // Find matching existing SKU (same configuration)
+  const matchingSKU = useMemo((): SKUCatalogV2WithRelations | null => {
+    if (!currentConfigSignature || !selectedProductTypeV2) return null;
+
+    // Don't match against the SKU we're currently editing
+    const skusToCheck = editingId
+      ? existingSKUs.filter(s => s.id !== editingId)
+      : existingSKUs;
+
+    for (const sku of skusToCheck) {
+      // Must match product type, style, height, and post_type
+      if (sku.product_type_id !== currentConfigSignature.productTypeId) continue;
+      if (sku.product_style_id !== currentConfigSignature.styleId) continue;
+      if (sku.height !== currentConfigSignature.height) continue;
+      if (sku.post_type !== currentConfigSignature.postType) continue;
+
+      // Check rail_count for wood-vertical
+      const skuVars = sku.variables || {};
+      if (productType === 'wood-vertical') {
+        if ((skuVars.rail_count || 2) !== currentConfigSignature.railCount) continue;
+      }
+
+      // Check if components match
+      const skuComponents = sku.components || {};
+      const currentComponents = currentConfigSignature.components;
+
+      // Get all component keys from both
+      const allKeys = new Set([...Object.keys(skuComponents), ...Object.keys(currentComponents)]);
+
+      let componentsMatch = true;
+      for (const key of allKeys) {
+        const skuVal = skuComponents[key] || '';
+        const currentVal = currentComponents[key] || '';
+        if (skuVal !== currentVal) {
+          componentsMatch = false;
+          break;
+        }
+      }
+
+      if (componentsMatch) {
+        return sku;
+      }
+    }
+
+    return null;
+  }, [currentConfigSignature, existingSKUs, editingId, productType, selectedProductTypeV2]);
+
+  // Generate style abbreviation
+  const styleAbbrev = useMemo(() => {
+    if (styleCode.includes('good-neighbor') || styleCode.includes('good_neighbor')) return 'GN';
+    if (styleCode.includes('board-on-board') || styleCode.includes('board_on_board')) return 'BOB';
+    if (styleCode.includes('cap-and-trim') || styleCode.includes('cap_and_trim')) return 'CT';
+    if (styleCode.includes('shadow-box') || styleCode.includes('shadow_box')) return 'SB';
+    if (styleCode.includes('flat-fence') || styleCode.includes('flat_fence')) return 'FL';
+    return 'STD';
+  }, [styleCode]);
+
+  // Generate product type abbreviation
+  const productTypeAbbrev = useMemo(() => {
+    if (productType === 'wood-vertical') return 'WV';
+    if (productType === 'wood-horizontal') return 'WH';
+    if (productType === 'iron') return 'IR';
+    return 'XX';
+  }, [productType]);
+
+  // Find next available SKU code
+  const nextSkuNumber = useMemo(() => {
+    // Get existing SKUs for this product type prefix
+    const prefix = productTypeAbbrev;
+    const existingCodes = existingSKUs
+      .map(s => s.sku_code)
+      .filter(code => code.startsWith(prefix));
+
+    // Find max number
+    let maxNum = 0;
+    for (const code of existingCodes) {
+      // Try to extract number from end of code (e.g., WV-6-STD-2R-WD-001 -> 001)
+      const match = code.match(/(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+    return maxNum + 1;
+  }, [existingSKUs, productTypeAbbrev]);
+
+  // Generate suggested SKU code (e.g., "WV-6-STD-2R-WD" or with sequence number)
+  const suggestedSkuCode = useMemo(() => {
     const pt = postType === 'STEEL' ? 'ST' : 'WD';
-    const rails = productType === 'wood-vertical' ? `${railCount}R` : '';
 
     if (productType === 'wood-vertical') {
-      return `${h} ${styleShort} ${rails} : ${pt}`;
+      return `${productTypeAbbrev}${height}${styleAbbrev}${railCount}R${pt}`;
     } else if (productType === 'wood-horizontal') {
-      return `${h} HOR ${styleShort} : ${pt}`;
+      return `${productTypeAbbrev}${height}${styleAbbrev}${pt}`;
     } else {
-      return `${h} Iron ${styleCode}`;
+      return `${productTypeAbbrev}${height}${styleAbbrev}`;
     }
-  }, [height, styleCode, postType, railCount, productType]);
+  }, [productTypeAbbrev, height, styleAbbrev, railCount, postType, productType]);
+
+  // Check if suggested code already exists
+  const suggestedCodeExists = useMemo(() => {
+    return existingSKUs.some(s => s.sku_code === suggestedSkuCode);
+  }, [existingSKUs, suggestedSkuCode]);
+
+  // Final suggested code with sequence if needed
+  const finalSuggestedSkuCode = useMemo(() => {
+    if (!suggestedCodeExists) return suggestedSkuCode;
+    // Add sequence number
+    return `${suggestedSkuCode}-${String(nextSkuNumber).padStart(2, '0')}`;
+  }, [suggestedSkuCode, suggestedCodeExists, nextSkuNumber]);
+
+  // Generate suggested SKU name (human readable)
+  const suggestedSkuName = useMemo(() => {
+    const h = `${height}'`;
+    const styleShort = styleAbbrev === 'GN' ? 'Good Neighbor' :
+                       styleAbbrev === 'BOB' ? 'Board on Board' :
+                       styleAbbrev === 'CT' ? 'Cap & Trim' :
+                       styleAbbrev === 'SB' ? 'Shadow Box' :
+                       styleAbbrev === 'FL' ? 'Flat Fence' : 'Standard';
+    const pt = postType === 'STEEL' ? 'Steel Post' : 'Wood Post';
+    const rails = productType === 'wood-vertical' ? `, ${railCount} Rail` : '';
+
+    if (productType === 'wood-vertical') {
+      return `${h} ${styleShort}${rails}, ${pt}`;
+    } else if (productType === 'wood-horizontal') {
+      return `${h} Horizontal ${styleShort}, ${pt}`;
+    } else {
+      return `${h} Iron ${styleShort}`;
+    }
+  }, [height, styleAbbrev, postType, railCount, productType]);
 
   // =============================================================================
   // RESET & PRODUCT TYPE CHANGE
@@ -888,6 +1034,19 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
       if (!selectedProductTypeV2) throw new Error('Product type not found');
       if (!selectedStyleV2) throw new Error('Style not found');
 
+      // Check for matching SKU (duplicate configuration) - only when creating new
+      if (!editingId && matchingSKU) {
+        throw new Error(`This configuration already exists as SKU "${matchingSKU.sku_code}". Use the existing SKU instead.`);
+      }
+
+      // Check if SKU code already exists (different from matching - this is code collision)
+      if (!editingId) {
+        const existingWithCode = existingSKUs.find(s => s.sku_code === skuCode);
+        if (existingWithCode) {
+          throw new Error(`SKU code "${skuCode}" is already taken. Please use a different code.`);
+        }
+      }
+
       // Build variables JSONB
       const variables: Record<string, number | string> = {};
       variablesV2.forEach(v => {
@@ -1182,10 +1341,11 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
             </button>
             <button
               onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || !skuCode}
+              disabled={saveMutation.isPending || !skuCode || (!editingId && !!matchingSKU)}
               className={`px-3 py-1.5 text-white rounded text-xs font-medium flex items-center gap-1.5 disabled:bg-gray-400 ${
                 editingId ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'
               }`}
+              title={!editingId && matchingSKU ? 'This configuration already exists' : undefined}
             >
               {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               {editingId ? 'Update SKU' : 'Save SKU'}
@@ -1194,16 +1354,55 @@ export function SKUBuilderPage({ editingSKUId, onClearSelection, isAdmin: _isAdm
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
+          {/* Matching SKU Warning */}
+          {!editingId && matchingSKU && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-800">
+                    This configuration already exists!
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    SKU <span className="font-mono font-bold">{matchingSKU.sku_code}</span> matches your current selection.
+                  </p>
+                  <p className="text-xs text-green-600 mt-0.5">
+                    {matchingSKU.sku_name}
+                  </p>
+                  <button
+                    onClick={() => {
+                      // Navigate to edit this SKU - set it as the editing SKU
+                      if (editingSKUId !== matchingSKU.id) {
+                        // Use the callback if available, or set directly
+                        setEditingId(matchingSKU.id);
+                        setSkuCode(matchingSKU.sku_code);
+                        setSkuName(matchingSKU.sku_name);
+                      }
+                    }}
+                    className="mt-2 text-xs font-medium text-green-700 hover:text-green-800 flex items-center gap-1 underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    View/Edit this SKU
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* SKU Code & Name */}
           <div className="flex gap-2 mb-3">
-            <div className="w-24 flex-shrink-0">
-              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU #</label>
+            <div className="w-32 flex-shrink-0">
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">
+                SKU # <span className="text-purple-500">(auto)</span>
+              </label>
               <input
                 type="text"
-                value={skuCode}
+                value={skuCode || finalSuggestedSkuCode}
                 onChange={(e) => setSkuCode(e.target.value.toUpperCase())}
-                placeholder="A07"
-                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-purple-500"
+                placeholder={finalSuggestedSkuCode}
+                className={`w-full px-2 py-1.5 border rounded text-sm focus:ring-1 focus:ring-purple-500 font-mono ${
+                  skuCode ? 'border-gray-300' : 'border-purple-300 bg-purple-50'
+                }`}
               />
             </div>
             <div className="flex-1">
