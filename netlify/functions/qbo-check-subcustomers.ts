@@ -112,16 +112,33 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Query for sub-customers
-    const query = encodeURIComponent(`SELECT * FROM Customer WHERE ParentRef = '${resolvedParentId}' MAXRESULTS 500`);
+    // Query for sub-customers using DisplayName pattern
+    // QBO uses "Parent:Child" format, so we search for names starting with parent
+    const parentDisplayName = parentInfo?.displayName || parentName || '';
+    const escapedParent = parentDisplayName.replace(/'/g, "\\'");
 
-    const response = await oauthClient.makeApiCall({
-      url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
-      method: 'GET',
-    });
+    // Use pagination to get all sub-customers
+    const subCustomers: any[] = [];
+    let startPosition = 1;
+    const batchSize = 1000;
 
-    const result = response.json;
-    const subCustomers = result.QueryResponse?.Customer || [];
+    for (let batch = 0; batch < 10; batch++) {
+      const query = encodeURIComponent(
+        `SELECT * FROM Customer WHERE DisplayName LIKE '${escapedParent}:%' STARTPOSITION ${startPosition} MAXRESULTS ${batchSize}`
+      );
+
+      const response = await oauthClient.makeApiCall({
+        url: `${baseUrl}/v3/company/${realmId}/query?query=${query}`,
+        method: 'GET',
+      });
+
+      const result = response.json;
+      const customers = result.QueryResponse?.Customer || [];
+      subCustomers.push(...customers);
+
+      if (customers.length < batchSize) break;
+      startPosition += batchSize;
+    }
 
     // Format results
     const formatted = subCustomers.map((c: any) => ({
