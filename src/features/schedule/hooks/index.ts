@@ -14,3 +14,5 @@ export {
   useCrewCapacityForDate,
   useCrewCapacitySummary,
 } from './useCrewCapacity';
+
+export { useUnscheduledJobs } from './useUnscheduledJobs';

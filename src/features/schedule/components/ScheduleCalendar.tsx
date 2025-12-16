@@ -13,8 +13,10 @@ import type {
   DatesSetArg,
 } from '@fullcalendar/core';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { ChevronLeft } from 'lucide-react';
 
-import { useScheduleEntries, useQuickUpdateEntry } from '../hooks/useScheduleEntries';
+import { useScheduleEntries, useQuickUpdateEntry, useCreateScheduleEntry } from '../hooks/useScheduleEntries';
+import { useCrewCapacity } from '../hooks/useCrewCapacity';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import type {
@@ -26,6 +28,8 @@ import type {
 import type { Crew, SalesRep } from '../../fsm/types';
 import { EventCard } from './EventCard';
 import { ScheduleEntryModal } from './ScheduleEntryModal';
+import { UnscheduledJobsSidebar } from './UnscheduledJobsSidebar';
+import { InlineCapacity } from './CapacityBar';
 
 // ============================================
 // HELPERS
@@ -105,6 +109,7 @@ export function ScheduleCalendar({
     isOpen: false,
     mode: 'create',
   });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Fetch crews
   const { data: crews = [] } = useQuery({
@@ -140,8 +145,30 @@ export function ScheduleCalendar({
     endDate: dateRange.end,
   });
 
+  // Fetch crew capacity for visible date range
+  const { data: capacityData = [] } = useCrewCapacity(dateRange.start, dateRange.end);
+
+  // Build capacity lookup map: crewId -> date -> capacity
+  const capacityMap = useMemo(() => {
+    const map = new Map<string, Map<string, { scheduled: number; max: number; jobs: number }>>();
+    capacityData.forEach((cap) => {
+      if (!map.has(cap.crew_id)) {
+        map.set(cap.crew_id, new Map());
+      }
+      map.get(cap.crew_id)!.set(cap.capacity_date, {
+        scheduled: cap.scheduled_footage,
+        max: cap.max_footage,
+        jobs: cap.job_count,
+      });
+    });
+    return map;
+  }, [capacityData]);
+
   // Mutation for drag-drop updates
   const quickUpdate = useQuickUpdateEntry();
+
+  // Mutation for creating new entries (from sidebar drag)
+  const createEntry = useCreateScheduleEntry();
 
   // ─────────────────────────────────────────────────────────────────────────
   // BUILD RESOURCES (Crews + Sales Reps as rows)
@@ -335,95 +362,192 @@ export function ScheduleCalendar({
     setModalState({ isOpen: false, mode: 'create' });
   }, []);
 
+  // Handle external events dropped from sidebar
+  const handleEventReceive = useCallback(
+    async (info: { event: { extendedProps: Record<string, unknown>; start: Date | null; end: Date | null; allDay: boolean; getResources: () => { id: string }[]; remove: () => void } }) => {
+      const { event } = info;
+      const jobId = event.extendedProps.jobId as string;
+      const footage = event.extendedProps.footage as number | null;
+
+      // Get crew assignment from resource
+      let crewId: string | null = null;
+      const resourceId = event.getResources()[0]?.id;
+      if (resourceId?.startsWith('crew-')) {
+        crewId = resourceId.replace('crew-', '');
+      }
+
+      // Remove the temporary event (we'll create a real one)
+      event.remove();
+
+      // Create a new schedule entry
+      try {
+        await createEntry.mutateAsync({
+          entry_type: 'job_visit',
+          job_id: jobId,
+          crew_id: crewId,
+          scheduled_date: format(event.start!, 'yyyy-MM-dd'),
+          start_time: event.allDay ? null : format(event.start!, 'HH:mm'),
+          end_time: event.end && !event.allDay ? format(event.end, 'HH:mm') : null,
+          estimated_footage: footage,
+        });
+      } catch (error) {
+        console.error('Failed to create schedule entry:', error);
+      }
+    },
+    [createEntry]
+  );
+
+  // Custom resource label rendering with capacity
+  const renderResourceLabel = useCallback(
+    (arg: { resource: { id: string; title: string; extendedProps?: Record<string, unknown> } }) => {
+      const { resource } = arg;
+      const props = resource.extendedProps || {};
+      const isGroup = resource.id === 'crews-group' || resource.id === 'reps-group';
+
+      if (isGroup) {
+        return (
+          <div className="font-semibold text-xs text-gray-500 uppercase tracking-wide py-1">
+            {resource.title}
+          </div>
+        );
+      }
+
+      const isCrew = props.type === 'crew';
+      const maxFootage = (props.maxFootage as number) || 200;
+
+      // Get today's capacity for this crew
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const todayCapacity = isCrew && props.entityId
+        ? capacityMap.get(props.entityId as string)?.get(today)
+        : null;
+
+      return (
+        <div className="py-1">
+          <div className="font-medium text-sm text-gray-900">{resource.title}</div>
+          {isCrew && (
+            <InlineCapacity
+              scheduledFootage={todayCapacity?.scheduled ?? 0}
+              maxFootage={maxFootage}
+              jobCount={todayCapacity?.jobs}
+            />
+          )}
+        </div>
+      );
+    },
+    [capacityMap]
+  );
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Calendar */}
-      <div className="flex-1 overflow-hidden bg-white rounded-lg border">
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[
-            dayGridPlugin,
-            timeGridPlugin,
-            interactionPlugin,
-            listPlugin,
-            resourceTimelinePlugin,
-          ]}
-          initialView="resourceTimelineWeek"
-          // Header toolbar
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'resourceTimelineDay,resourceTimelineWeek,dayGridMonth,listWeek',
-          }}
-          // Button text
-          buttonText={{
-            today: 'Today',
-            day: 'Day',
-            week: 'Week',
-            month: 'Month',
-            list: 'List',
-          }}
-          // Resources (crews + reps as rows)
-          resources={resources}
-          resourceAreaHeaderContent="Crews & Reps"
-          resourceAreaWidth="180px"
-          resourceGroupField="parentId"
-          // Events
-          events={events}
-          eventContent={renderEventContent}
-          eventClick={handleEventClick}
-          eventDrop={handleEventDrop}
-          eventResize={(info) => {
-            // Handle resize similar to drop
-            const { event } = info;
-            const entry = event.extendedProps.entry as ScheduleEntry;
-            quickUpdate.mutate({
-              id: event.id,
-              scheduled_date: format(event.start!, 'yyyy-MM-dd'),
-              start_time: event.allDay ? null : format(event.start!, 'HH:mm'),
-              end_time: event.end && !event.allDay ? format(event.end, 'HH:mm') : null,
-              crew_id: entry.crew_id,
-              sales_rep_id: entry.sales_rep_id,
-            });
-          }}
-          // Interaction
-          editable={true}
-          selectable={true}
-          selectMirror={true}
-          select={handleDateSelect}
-          droppable={true}
-          // Time settings
-          slotMinTime="06:00:00"
-          slotMaxTime="20:00:00"
-          slotDuration="00:30:00"
-          scrollTime="07:00:00"
-          // Display
-          nowIndicator={true}
-          dayMaxEvents={true}
-          weekends={true}
-          height="100%"
-          // Loading - can add spinner later
-          loading={() => {}}
-          // Date change handler
-          datesSet={handleDatesSet}
-          // Business hours (visual highlighting)
-          businessHours={{
-            daysOfWeek: [1, 2, 3, 4, 5, 6], // Mon-Sat
-            startTime: '07:00',
-            endTime: '18:00',
-          }}
-          // Slot label format
-          slotLabelFormat={{
-            hour: 'numeric',
-            minute: '2-digit',
-            meridiem: 'short',
-          }}
-        />
+    <div className="h-full flex">
+      {/* Main Calendar Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Calendar */}
+        <div className="flex-1 overflow-hidden bg-white rounded-lg border">
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[
+              dayGridPlugin,
+              timeGridPlugin,
+              interactionPlugin,
+              listPlugin,
+              resourceTimelinePlugin,
+            ]}
+            initialView="resourceTimelineWeek"
+            // Header toolbar
+            headerToolbar={{
+              left: 'prev,next today',
+              center: 'title',
+              right: 'resourceTimelineDay,resourceTimelineWeek,dayGridMonth,listWeek',
+            }}
+            // Button text
+            buttonText={{
+              today: 'Today',
+              day: 'Day',
+              week: 'Week',
+              month: 'Month',
+              list: 'List',
+            }}
+            // Resources (crews + reps as rows)
+            resources={resources}
+            resourceAreaHeaderContent="Crews & Reps"
+            resourceAreaWidth="200px"
+            resourceGroupField="parentId"
+            resourceLabelContent={renderResourceLabel}
+            // Events
+            events={events}
+            eventContent={renderEventContent}
+            eventClick={handleEventClick}
+            eventDrop={handleEventDrop}
+            eventReceive={handleEventReceive}
+            eventResize={(info) => {
+              // Handle resize similar to drop
+              const { event } = info;
+              const entry = event.extendedProps.entry as ScheduleEntry;
+              quickUpdate.mutate({
+                id: event.id,
+                scheduled_date: format(event.start!, 'yyyy-MM-dd'),
+                start_time: event.allDay ? null : format(event.start!, 'HH:mm'),
+                end_time: event.end && !event.allDay ? format(event.end, 'HH:mm') : null,
+                crew_id: entry.crew_id,
+                sales_rep_id: entry.sales_rep_id,
+              });
+            }}
+            // Interaction
+            editable={true}
+            selectable={true}
+            selectMirror={true}
+            select={handleDateSelect}
+            droppable={true}
+            // Time settings
+            slotMinTime="06:00:00"
+            slotMaxTime="20:00:00"
+            slotDuration="00:30:00"
+            scrollTime="07:00:00"
+            // Display
+            nowIndicator={true}
+            dayMaxEvents={true}
+            weekends={true}
+            height="100%"
+            // Loading - can add spinner later
+            loading={() => {}}
+            // Date change handler
+            datesSet={handleDatesSet}
+            // Business hours (visual highlighting)
+            businessHours={{
+              daysOfWeek: [1, 2, 3, 4, 5, 6], // Mon-Sat
+              startTime: '07:00',
+              endTime: '18:00',
+            }}
+            // Slot label format
+            slotLabelFormat={{
+              hour: 'numeric',
+              minute: '2-digit',
+              meridiem: 'short',
+            }}
+          />
+        </div>
       </div>
+
+      {/* Sidebar Toggle Button (when collapsed) */}
+      {sidebarCollapsed && (
+        <button
+          onClick={() => setSidebarCollapsed(false)}
+          className="absolute right-0 top-1/2 -translate-y-1/2 bg-white border border-r-0 rounded-l-lg p-2 shadow-sm hover:bg-gray-50 z-10"
+          title="Show unscheduled jobs"
+        >
+          <ChevronLeft className="w-4 h-4 text-gray-600" />
+        </button>
+      )}
+
+      {/* Unscheduled Jobs Sidebar */}
+      <UnscheduledJobsSidebar
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
 
       {/* Modal */}
       <ScheduleEntryModal
