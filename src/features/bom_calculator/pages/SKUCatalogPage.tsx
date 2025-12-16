@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Search, RefreshCw, Pencil, Info } from 'lucide-react';
+import { Loader2, Search, RefreshCw, Pencil, Info, Download, Upload, FileSpreadsheet } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import { recalculateAllSKUs, SKU_STANDARD_ASSUMPTIONS } from '../services/recalculateSKUs';
+import { exportSKUsToExcel, exportTemplateToExcel, importSKUsFromExcel, downloadBlob } from '../services/skuExportImport';
 import type { SelectedSKU } from '../BOMCalculatorHub';
 
 // Product interfaces with cost fields
@@ -132,6 +133,11 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
   // Recalculation state
   const [recalculating, setRecalculating] = useState(false);
   const [recalcProgress, setRecalcProgress] = useState({ current: 0, total: 0, phase: '' });
+
+  // Export/Import state
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch business units
   const { data: businessUnits = [] } = useQuery({
@@ -500,6 +506,72 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
     }
   };
 
+  // Export SKU data to Excel
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportSKUsToExcel();
+      const date = new Date().toISOString().split('T')[0];
+      downloadBlob(blob, `sku_catalog_${date}.xlsx`);
+      showSuccess('SKU data exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      showError('Failed to export SKU data');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Export empty template
+  const handleExportTemplate = () => {
+    try {
+      const blob = exportTemplateToExcel();
+      downloadBlob(blob, 'sku_import_template.xlsx');
+      showSuccess('Template downloaded');
+    } catch (error) {
+      console.error('Template export failed:', error);
+      showError('Failed to export template');
+    }
+  };
+
+  // Handle file upload
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const result = await importSKUsFromExcel(file);
+
+      if (result.success) {
+        const details = [];
+        if (result.details.woodVertical.imported > 0) details.push(`Wood Vertical: ${result.details.woodVertical.imported}`);
+        if (result.details.woodHorizontal.imported > 0) details.push(`Wood Horizontal: ${result.details.woodHorizontal.imported}`);
+        if (result.details.iron.imported > 0) details.push(`Iron: ${result.details.iron.imported}`);
+        if (result.details.custom.imported > 0) details.push(`Custom: ${result.details.custom.imported}`);
+
+        showSuccess(`Imported ${result.imported} SKUs${details.length ? ` (${details.join(', ')})` : ''}${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`);
+
+        // Refresh data
+        queryClient.invalidateQueries({ queryKey: ['wood-vertical-products-catalog'] });
+        queryClient.invalidateQueries({ queryKey: ['wood-horizontal-products-catalog'] });
+        queryClient.invalidateQueries({ queryKey: ['iron-products-catalog'] });
+        queryClient.invalidateQueries({ queryKey: ['custom-products-catalog'] });
+      } else {
+        showError(`Import failed: ${result.errors.join(', ')}`);
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      showError('Failed to import SKU data');
+    } finally {
+      setImporting(false);
+      // Clear the input so same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -513,7 +585,7 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-      {/* Header with title and Recalculate button */}
+      {/* Header with title and action buttons */}
       <div className="bg-white border-b border-gray-200 px-4 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -523,25 +595,75 @@ export default function SKUCatalogPage({ onEditSKU, isAdmin }: SKUCatalogPagePro
               <span>Costs based on {SKU_STANDARD_ASSUMPTIONS.netLength}ft, {SKU_STANDARD_ASSUMPTIONS.numberOfLines} lines</span>
             </div>
           </div>
-          {isAdmin && (
+          <div className="flex items-center gap-2">
+            {/* Download Data */}
             <button
-              onClick={handleRecalculateAll}
-              disabled={recalculating}
-              className="px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 font-medium transition-colors disabled:bg-gray-400"
+              onClick={handleExportData}
+              disabled={exporting}
+              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium transition-colors disabled:bg-gray-400"
+              title="Download all SKU data as Excel"
             >
-              {recalculating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-xs">{recalcProgress.current}/{recalcProgress.total}</span>
-                </>
+              {exporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <>
-                  <RefreshCw className="w-4 h-4" />
-                  Recalculate All
-                </>
+                <Download className="w-4 h-4" />
               )}
+              Download
             </button>
-          )}
+
+            {/* Download Template */}
+            <button
+              onClick={handleExportTemplate}
+              className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 font-medium transition-colors border border-gray-300"
+              title="Download empty template for import"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Template
+            </button>
+
+            {/* Upload */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".xlsx,.xls"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium transition-colors disabled:bg-gray-400"
+              title="Upload Excel file to import SKUs"
+            >
+              {importing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              Upload
+            </button>
+
+            {/* Recalculate All (Admin only) */}
+            {isAdmin && (
+              <button
+                onClick={handleRecalculateAll}
+                disabled={recalculating}
+                className="px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 font-medium transition-colors disabled:bg-gray-400"
+              >
+                {recalculating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">{recalcProgress.current}/{recalcProgress.total}</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Recalculate All
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
