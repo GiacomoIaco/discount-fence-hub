@@ -9,3 +9,4 @@ export { RightPaneMessaging } from './RightPaneMessaging';
 export { FloatingMessageButton } from './FloatingMessageButton';
 export { MessageButton } from './MessageButton';
 export { NewConversationModal } from './NewConversationModal';
+export { AddParticipantsModal } from './AddParticipantsModal';

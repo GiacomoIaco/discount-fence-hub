@@ -35,6 +35,12 @@ export interface Conversation {
   quo_conversation_id?: string;
   contact_id?: string;
   contact?: Contact;
+  // Group conversation fields
+  is_group: boolean;
+  group_avatar_url?: string;
+  participant_count: number;
+  participants?: ConversationParticipant[];
+  // Status
   status: ConversationStatus;
   last_message_at?: string;
   last_message_preview?: string;
@@ -47,6 +53,19 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   created_by?: string;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  conversation_id: string;
+  contact_id: string;
+  contact?: Contact;
+  role: 'owner' | 'admin' | 'member';
+  is_muted: boolean;
+  muted_until?: string;
+  joined_at: string;
+  left_at?: string;
+  added_by?: string;
 }
 
 export interface Message {

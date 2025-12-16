@@ -1,21 +1,24 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus, Archive, ArchiveRestore } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus, Archive, ArchiveRestore, UserPlus, Users } from 'lucide-react';
 import { MessageCenterSidebar } from './components/MessageCenterSidebar';
 import { ConversationList } from './components/ConversationList';
 import { MessageThread } from './components/MessageThread';
 import { MessageComposer } from './components/MessageComposer';
 import { NewConversationModal } from './components/NewConversationModal';
+import { AddParticipantsModal } from './components/AddParticipantsModal';
 import { useConversations, useConversationCounts, useMarkConversationRead, useArchiveConversation } from './hooks/useConversations';
 import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
 import * as messageService from './services/messageService';
-import type { ConversationWithContact, ConversationFilter, Contact } from './types';
+import type { ConversationWithContact, ConversationFilter, Contact, ConversationParticipant } from './types';
 
 export function MessageCenterHub() {
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>('all');
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithContact | null>(null);
   const [isMobileThreadView, setIsMobileThreadView] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [showAddParticipants, setShowAddParticipants] = useState(false);
+  const [participants, setParticipants] = useState<ConversationParticipant[]>([]);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +46,26 @@ export function MessageCenterHub() {
       markRead.mutate(selectedConversation.id);
     }
   }, [selectedConversation?.id]);
+
+  // Load participants for selected conversation
+  useEffect(() => {
+    async function loadParticipants() {
+      if (selectedConversation?.is_group) {
+        const parts = await messageService.getConversationParticipants(selectedConversation.id);
+        setParticipants(parts);
+      } else {
+        setParticipants([]);
+      }
+    }
+    loadParticipants();
+  }, [selectedConversation?.id, selectedConversation?.is_group]);
+
+  const handleParticipantAdded = async () => {
+    if (selectedConversation) {
+      const parts = await messageService.getConversationParticipants(selectedConversation.id);
+      setParticipants(parts);
+    }
+  };
 
   // Build shortcode context for quick replies
   const shortcodeContext = useMemo(() => {
@@ -221,6 +244,13 @@ export function MessageCenterHub() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                  {/* Participant count for groups */}
+                  {selectedConversation.is_group && participants.length > 0 && (
+                    <span className="text-xs text-gray-500 flex items-center gap-1 mr-2">
+                      <Users className="w-4 h-4" />
+                      {participants.length}
+                    </span>
+                  )}
                   {selectedConversation.contact?.phone_primary && (
                     <a
                       href={`tel:${selectedConversation.contact.phone_primary}`}
@@ -239,6 +269,14 @@ export function MessageCenterHub() {
                       <Mail className="w-5 h-5" />
                     </a>
                   )}
+                  {/* Add People button */}
+                  <button
+                    onClick={() => setShowAddParticipants(true)}
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700"
+                    title="Add people to conversation"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                  </button>
                   <div className="relative" ref={moreMenuRef}>
                     <button
                       onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -307,6 +345,17 @@ export function MessageCenterHub() {
         onClose={() => setShowNewConversation(false)}
         onSelectContact={handleNewConversation}
       />
+
+      {/* Add Participants Modal */}
+      {selectedConversation && (
+        <AddParticipantsModal
+          isOpen={showAddParticipants}
+          onClose={() => setShowAddParticipants(false)}
+          conversationId={selectedConversation.id}
+          existingParticipants={participants}
+          onParticipantAdded={handleParticipantAdded}
+        />
+      )}
     </div>
   );
 }

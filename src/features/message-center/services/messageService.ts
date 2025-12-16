@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabase';
 import type {
   Conversation,
   ConversationWithContact,
+  ConversationParticipant,
   Message,
   NewMessage,
   Contact,
@@ -123,6 +124,105 @@ export async function unarchiveConversation(conversationId: string): Promise<voi
     .eq('id', conversationId);
 
   if (error) throw error;
+}
+
+// ============================================================================
+// GROUP CONVERSATIONS
+// ============================================================================
+
+export async function createGroupConversation(
+  contactIds: string[],
+  title?: string,
+  type: 'client' | 'team_group' = 'team_group'
+): Promise<Conversation> {
+  // Create the conversation
+  const { data: conversation, error: convError } = await supabase
+    .from('mc_conversations')
+    .insert({
+      conversation_type: type,
+      title: title || null,
+      is_group: true,
+      participant_count: contactIds.length,
+      status: 'active'
+    })
+    .select()
+    .single();
+
+  if (convError) throw convError;
+
+  // Add all participants
+  const participants = contactIds.map(contactId => ({
+    conversation_id: conversation.id,
+    contact_id: contactId,
+    role: 'member'
+  }));
+
+  const { error: partError } = await supabase
+    .from('mc_conversation_participants')
+    .insert(participants);
+
+  if (partError) throw partError;
+
+  return conversation;
+}
+
+export async function addParticipantToConversation(
+  conversationId: string,
+  contactId: string,
+  addedBy?: string
+): Promise<ConversationParticipant> {
+  // First, mark conversation as group if not already
+  await supabase
+    .from('mc_conversations')
+    .update({ is_group: true })
+    .eq('id', conversationId);
+
+  const { data, error } = await supabase
+    .from('mc_conversation_participants')
+    .insert({
+      conversation_id: conversationId,
+      contact_id: contactId,
+      role: 'member',
+      added_by: addedBy
+    })
+    .select(`
+      *,
+      contact:mc_contacts(*)
+    `)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function removeParticipantFromConversation(
+  conversationId: string,
+  contactId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('mc_conversation_participants')
+    .update({ left_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('contact_id', contactId);
+
+  if (error) throw error;
+}
+
+export async function getConversationParticipants(
+  conversationId: string
+): Promise<ConversationParticipant[]> {
+  const { data, error } = await supabase
+    .from('mc_conversation_participants')
+    .select(`
+      *,
+      contact:mc_contacts(*)
+    `)
+    .eq('conversation_id', conversationId)
+    .is('left_at', null)
+    .order('joined_at');
+
+  if (error) throw error;
+  return data || [];
 }
 
 // ============================================================================
