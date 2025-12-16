@@ -228,9 +228,9 @@ export default function ClientsList({
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-gray-900">{client.name}</span>
                           {client.quickbooks_id ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-500" title="Synced with QBO" />
+                            <span title="Synced with QBO"><CheckCircle2 className="w-4 h-4 text-green-500" /></span>
                           ) : (
-                            <XCircle className="w-4 h-4 text-red-400" title="Not synced with QBO" />
+                            <span title="Not synced with QBO"><XCircle className="w-4 h-4 text-red-400" /></span>
                           )}
                         </div>
                         {client.code && (
