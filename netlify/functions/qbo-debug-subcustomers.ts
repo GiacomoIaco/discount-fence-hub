@@ -139,6 +139,52 @@ export const handler: Handler = async (event) => {
           id: c.Id,
           displayName: c.DisplayName,
           parentRefId: c.ParentRef?.value,
+          fullyQualifiedName: c.FullyQualifiedName,
+        })),
+      };
+
+      // 4. Try FullyQualifiedName LIKE approach
+      const fqnQuery = encodeURIComponent(`SELECT * FROM Customer WHERE FullyQualifiedName LIKE '${escapedName}:%' MAXRESULTS 50`);
+
+      const fqnResponse = await oauthClient.makeApiCall({
+        url: `${baseUrl}/v3/company/${realmId}/query?query=${fqnQuery}`,
+        method: 'GET',
+      });
+
+      const fqnResult = fqnResponse.json;
+      const fqnCustomers = fqnResult.QueryResponse?.Customer || [];
+
+      results.approaches.fullyQualifiedName = {
+        query: `FullyQualifiedName LIKE '${parentName}:%'`,
+        count: fqnCustomers.length,
+        samples: fqnCustomers.slice(0, 10).map((c: any) => ({
+          id: c.Id,
+          displayName: c.DisplayName,
+          fullyQualifiedName: c.FullyQualifiedName,
+          parentRefId: c.ParentRef?.value,
+          job: c.Job,
+        })),
+      };
+
+      // 5. Get all Jobs (sub-customers) - sample to see structure
+      const jobsQuery = encodeURIComponent(`SELECT * FROM Customer WHERE Job = true MAXRESULTS 20`);
+
+      const jobsResponse = await oauthClient.makeApiCall({
+        url: `${baseUrl}/v3/company/${realmId}/query?query=${jobsQuery}`,
+        method: 'GET',
+      });
+
+      const jobsResult = jobsResponse.json;
+      const allJobs = jobsResult.QueryResponse?.Customer || [];
+
+      results.approaches.allJobs = {
+        query: `Job = true (sample)`,
+        count: allJobs.length,
+        samples: allJobs.slice(0, 10).map((c: any) => ({
+          id: c.Id,
+          displayName: c.DisplayName,
+          fullyQualifiedName: c.FullyQualifiedName,
+          parentRefId: c.ParentRef?.value,
         })),
       };
     }
