@@ -133,7 +133,13 @@ export function useUpdateClient() {
       toast.success('Client updated');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update client');
+      console.error('Client update error:', error);
+      // Handle specific error cases
+      if (error.code === '23505') {
+        toast.error('A client with this code already exists');
+      } else {
+        toast.error(error.message || 'Failed to update client');
+      }
     },
   });
 }
