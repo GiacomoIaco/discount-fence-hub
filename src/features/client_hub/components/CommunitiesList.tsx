@@ -11,6 +11,8 @@ import {
   MapPin,
   Filter,
   Lock,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { useCommunities, useDeleteCommunity } from '../hooks/useCommunities';
 import { useClients, useGeographies } from '../hooks/useClients';
@@ -208,7 +210,14 @@ export default function CommunitiesList({ onNavigateToEntity }: Props) {
                         <Home className="w-5 h-5 text-green-600" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{community.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{community.name}</span>
+                          {community.quickbooks_id ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" title="Synced with QBO" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-400" title="Not synced with QBO" />
+                          )}
+                        </div>
                         {community.code && (
                           <div className="text-sm text-gray-500">{community.code}</div>
                         )}

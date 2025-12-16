@@ -10,6 +10,8 @@ import {
   Phone,
   Mail,
   Filter,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { useClients, useDeleteClient } from '../hooks/useClients';
 import {
@@ -223,7 +225,14 @@ export default function ClientsList({
                         <Building2 className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{client.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{client.name}</span>
+                          {client.quickbooks_id ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" title="Synced with QBO" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-400" title="Not synced with QBO" />
+                          )}
+                        </div>
                         {client.code && (
                           <div className="text-sm text-gray-500">{client.code}</div>
                         )}
