@@ -229,33 +229,60 @@ ALTER TABLE mc_attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mc_quick_replies ENABLE ROW LEVEL SECURITY;
 
 -- Contacts policies
+DROP POLICY IF EXISTS "Users can view all contacts" ON mc_contacts;
+DROP POLICY IF EXISTS "Users can insert contacts" ON mc_contacts;
+DROP POLICY IF EXISTS "Users can update contacts" ON mc_contacts;
 CREATE POLICY "Users can view all contacts" ON mc_contacts FOR SELECT USING (true);
 CREATE POLICY "Users can insert contacts" ON mc_contacts FOR INSERT WITH CHECK (true);
 CREATE POLICY "Users can update contacts" ON mc_contacts FOR UPDATE USING (true);
 
 -- Conversations policies
+DROP POLICY IF EXISTS "Users can view all conversations" ON mc_conversations;
+DROP POLICY IF EXISTS "Users can insert conversations" ON mc_conversations;
+DROP POLICY IF EXISTS "Users can update conversations" ON mc_conversations;
 CREATE POLICY "Users can view all conversations" ON mc_conversations FOR SELECT USING (true);
 CREATE POLICY "Users can insert conversations" ON mc_conversations FOR INSERT WITH CHECK (true);
 CREATE POLICY "Users can update conversations" ON mc_conversations FOR UPDATE USING (true);
 
 -- Messages policies
+DROP POLICY IF EXISTS "Users can view all messages" ON mc_messages;
+DROP POLICY IF EXISTS "Users can insert messages" ON mc_messages;
+DROP POLICY IF EXISTS "Users can update messages" ON mc_messages;
 CREATE POLICY "Users can view all messages" ON mc_messages FOR SELECT USING (true);
 CREATE POLICY "Users can insert messages" ON mc_messages FOR INSERT WITH CHECK (true);
 CREATE POLICY "Users can update messages" ON mc_messages FOR UPDATE USING (true);
 
 -- Attachments policies
+DROP POLICY IF EXISTS "Users can view all attachments" ON mc_attachments;
+DROP POLICY IF EXISTS "Users can insert attachments" ON mc_attachments;
 CREATE POLICY "Users can view all attachments" ON mc_attachments FOR SELECT USING (true);
 CREATE POLICY "Users can insert attachments" ON mc_attachments FOR INSERT WITH CHECK (true);
 
 -- Quick replies policies
+DROP POLICY IF EXISTS "Users can view all quick replies" ON mc_quick_replies;
+DROP POLICY IF EXISTS "Admins can manage quick replies" ON mc_quick_replies;
 CREATE POLICY "Users can view all quick replies" ON mc_quick_replies FOR SELECT USING (true);
 CREATE POLICY "Admins can manage quick replies" ON mc_quick_replies FOR ALL USING (true);
 
 -- ============================================================================
 -- Enable Realtime for live updates
 -- ============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE mc_conversations;
-ALTER PUBLICATION supabase_realtime ADD TABLE mc_messages;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'mc_conversations'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE mc_conversations;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'mc_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE mc_messages;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- Add Message Center to menu_visibility
