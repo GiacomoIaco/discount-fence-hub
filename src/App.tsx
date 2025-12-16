@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package, Phone } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -60,6 +60,7 @@ const RequestsHub = lazy(() => import('./features/fsm/pages/RequestsHub'));
 const QuotesHub = lazy(() => import('./features/fsm/pages/QuotesHub'));
 const JobsHub = lazy(() => import('./features/fsm/pages/JobsHub'));
 const InvoicesHub = lazy(() => import('./features/fsm/pages/InvoicesHub'));
+const MessageCenterHub = lazy(() => import('./features/message-center/MessageCenterHub'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -115,7 +116,7 @@ function App() {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'message-center';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -244,6 +245,7 @@ function App() {
       // Personal/Sales Section
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
       { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp },
+      { id: 'message-center' as Section, menuId: 'message-center', name: 'Messages', icon: Phone },
       { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
 
       // Admin/Management Section
@@ -465,6 +467,15 @@ function App() {
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             <DirectMessages onUnreadCountChange={setUnreadAnnouncementsCount} />
+          </Suspense>
+        </ErrorBoundary>
+      );
+    }
+    if (activeSection === 'message-center') {
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <MessageCenterHub />
           </Suspense>
         </ErrorBoundary>
       );
