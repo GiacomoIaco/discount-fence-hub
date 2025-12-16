@@ -37,7 +37,7 @@ export const handler: Handler = async (event) => {
         body: `
           <html>
             <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-              <h1>❌ QuickBooks Connection Failed</h1>
+              <h1>&#10008; QuickBooks Connection Failed</h1>
               <p>Error: ${event.queryStringParameters.error}</p>
               <p>${event.queryStringParameters.error_description || ''}</p>
               <a href="/">Return to App</a>
@@ -93,7 +93,7 @@ export const handler: Handler = async (event) => {
       body: `
         <html>
           <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>✅ QuickBooks Connected!</h1>
+            <h1>&#10004; QuickBooks Connected!</h1>
             <p>Your QuickBooks account has been successfully connected.</p>
             <p><strong>Company ID (Realm):</strong> ${realmId}</p>
             <p><strong>Environment:</strong> ${process.env.QBO_ENVIRONMENT || 'sandbox'}</p>
@@ -119,7 +119,7 @@ export const handler: Handler = async (event) => {
       body: `
         <html>
           <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>❌ Connection Error</h1>
+            <h1>&#10008; Connection Error</h1>
             <p>${error instanceof Error ? error.message : 'Unknown error occurred'}</p>
             <a href="/.netlify/functions/qbo-auth">Try Again</a>
           </body>

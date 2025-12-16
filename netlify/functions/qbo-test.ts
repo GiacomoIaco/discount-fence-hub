@@ -29,7 +29,7 @@ export const handler: Handler = async () => {
         body: `
           <html>
             <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-              <h1>⚠️ Not Connected</h1>
+              <h1>&#9888; Not Connected</h1>
               <p>No QuickBooks connection found. Please connect first.</p>
               <a href="/.netlify/functions/qbo-auth" style="padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 5px;">
                 Connect to QuickBooks
@@ -113,7 +113,7 @@ export const handler: Handler = async () => {
       body: `
         <html>
           <body style="font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto;">
-            <h1>✅ QuickBooks API Working!</h1>
+            <h1>&#10004; QuickBooks API Working!</h1>
 
             <h2>Company Info</h2>
             <table style="width: 100%; border-collapse: collapse;">
@@ -153,7 +153,7 @@ export const handler: Handler = async () => {
       body: `
         <html>
           <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>❌ API Test Failed</h1>
+            <h1>&#10008; API Test Failed</h1>
             <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
             <pre style="text-align: left; background: #f5f5f5; padding: 20px; overflow: auto;">${error instanceof Error ? error.stack : ''}</pre>
             <br/>
