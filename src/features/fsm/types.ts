@@ -92,12 +92,15 @@ export interface Crew {
   product_skills: string[];
   business_unit_id: string | null;
   home_territory_id: string | null;
+  crew_type: CrewType;
+  lead_user_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
   // Joined
   members?: CrewMember[];
   territory?: Territory;
+  lead_user?: { id: string; email: string; full_name: string | null };
 }
 
 export interface CrewMember {
@@ -516,6 +519,8 @@ export interface CrewFormData {
   product_skills: string[];
   business_unit_id: string;
   home_territory_id: string;
+  crew_type: CrewType;
+  lead_user_id: string;
   is_active: boolean;
 }
 
@@ -735,3 +740,245 @@ export const APPROVAL_THRESHOLDS = {
   MARGIN_MINIMUM: 15,        // Quotes < 15% margin need approval
   DISCOUNT_MAXIMUM: 10,      // Quotes with > 10% discount need approval
 };
+
+// ============================================
+// FSM TEAM PROFILE TYPES (Person-Centric Model)
+// ============================================
+
+export type FsmRole = 'rep' | 'project_manager' | 'crew_lead' | 'dispatcher' | 'manager';
+export type CrewType = 'standard' | 'internal' | 'small_jobs';
+export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type SkillProficiency = 'trainee' | 'basic' | 'standard' | 'expert';
+
+export const FSM_ROLE_LABELS: Record<FsmRole, string> = {
+  rep: 'Sales Rep',
+  project_manager: 'Project Manager',
+  crew_lead: 'Crew Lead',
+  dispatcher: 'Dispatcher',
+  manager: 'Manager',
+};
+
+export const CREW_TYPE_LABELS: Record<CrewType, string> = {
+  standard: 'Standard Crew',
+  internal: 'Internal Crew',
+  small_jobs: 'Small Jobs Crew',
+};
+
+export const DAY_LABELS: Record<DayOfWeek, string> = {
+  mon: 'Monday',
+  tue: 'Tuesday',
+  wed: 'Wednesday',
+  thu: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+  sun: 'Sunday',
+};
+
+export const DAY_SHORT_LABELS: Record<DayOfWeek, string> = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+};
+
+export const PROFICIENCY_LABELS: Record<SkillProficiency, string> = {
+  trainee: 'Trainee',
+  basic: 'Basic',
+  standard: 'Standard',
+  expert: 'Expert',
+};
+
+export const PROFICIENCY_MULTIPLIERS: Record<SkillProficiency, number> = {
+  trainee: 1.30,
+  basic: 1.15,
+  standard: 1.00,
+  expert: 0.85,
+};
+
+export const PROFICIENCY_COLORS: Record<SkillProficiency, string> = {
+  trainee: 'bg-orange-100 text-orange-700',
+  basic: 'bg-yellow-100 text-yellow-700',
+  standard: 'bg-blue-100 text-blue-700',
+  expert: 'bg-green-100 text-green-700',
+};
+
+// ============================================
+// PROJECT TYPES (BU-specific reference data)
+// ============================================
+
+export interface ProjectType {
+  id: string;
+  name: string;
+  code: string;
+  business_unit_id: string;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  // Joined
+  business_unit?: { id: string; name: string };
+}
+
+// ============================================
+// FSM TEAM PROFILE
+// ============================================
+
+export interface FsmTeamProfile {
+  id: string;
+  user_id: string;
+  fsm_roles: FsmRole[];
+  business_unit_ids: string[];
+  max_daily_assessments: number;
+  crew_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined from auth.users
+  user?: {
+    id: string;
+    email: string;
+    raw_user_meta_data?: {
+      full_name?: string;
+    };
+  };
+  // Joined crew
+  crew?: Crew;
+}
+
+// ============================================
+// TERRITORY COVERAGE
+// ============================================
+
+export interface FsmTerritoryCoverage {
+  id: string;
+  user_id: string;
+  territory_id: string;
+  coverage_days: DayOfWeek[] | null;  // null = all days
+  is_primary: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  territory?: Territory;
+}
+
+// ============================================
+// WORK SCHEDULE
+// ============================================
+
+export interface FsmWorkSchedule {
+  id: string;
+  user_id: string;
+  day_of_week: DayOfWeek;
+  start_time: string;  // TIME as string "HH:MM:SS"
+  end_time: string;
+  created_at: string;
+}
+
+// ============================================
+// PERSON SKILLS
+// ============================================
+
+export interface FsmPersonSkill {
+  id: string;
+  user_id: string;
+  project_type_id: string;
+  proficiency: SkillProficiency;
+  duration_multiplier: number;
+  certified_at: string | null;
+  certification_expires: string | null;
+  certified_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  project_type?: ProjectType;
+}
+
+// ============================================
+// FULL TEAM MEMBER VIEW (from fsm_team_full view)
+// ============================================
+
+export interface FsmTeamMember {
+  user_id: string;
+  email: string;
+  name: string;
+  profile_id: string | null;
+  fsm_roles: FsmRole[];
+  business_unit_ids: string[];
+  max_daily_assessments: number;
+  crew_id: string | null;
+  crew_name: string | null;
+  is_active: boolean;
+  // Aggregated data
+  territories: {
+    territory_id: string;
+    territory_name: string;
+    coverage_days: DayOfWeek[] | null;
+    is_primary: boolean;
+  }[];
+  skills: {
+    project_type_id: string;
+    project_type_name: string;
+    proficiency: SkillProficiency;
+    duration_multiplier: number;
+  }[];
+  work_schedule: {
+    day: DayOfWeek;
+    start: string;
+    end: string;
+  }[];
+}
+
+// ============================================
+// FORM DATA TYPES FOR NEW ENTITIES
+// ============================================
+
+export interface ProjectTypeFormData {
+  name: string;
+  code: string;
+  business_unit_id: string;
+  description: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface FsmTeamProfileFormData {
+  user_id: string;
+  fsm_roles: FsmRole[];
+  business_unit_ids: string[];
+  max_daily_assessments: number;
+  crew_id: string;
+  is_active: boolean;
+  // Sub-forms
+  territory_coverage: {
+    territory_id: string;
+    coverage_days: DayOfWeek[];
+    is_primary: boolean;
+  }[];
+  work_schedule: {
+    day_of_week: DayOfWeek;
+    start_time: string;
+    end_time: string;
+  }[];
+  skills: {
+    project_type_id: string;
+    proficiency: SkillProficiency;
+  }[];
+}
+
+
+// Extended Job type with PM
+export interface JobExtended extends Job {
+  project_manager_id: string | null;
+  project_manager?: {
+    id: string;
+    email: string;
+    raw_user_meta_data?: {
+      full_name?: string;
+    };
+  };
+}

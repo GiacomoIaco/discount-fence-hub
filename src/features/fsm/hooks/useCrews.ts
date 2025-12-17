@@ -13,7 +13,8 @@ export function useCrews() {
           *,
           territory:territories(id, name, code),
           business_unit:business_units(id, name, code),
-          members:crew_members(*)
+          members:crew_members(*),
+          lead_user:user_profiles!crews_lead_user_id_fkey(id, email, full_name)
         `)
         .order('name');
 
@@ -22,6 +23,7 @@ export function useCrews() {
         territory: { id: string; name: string; code: string } | null;
         business_unit: { id: string; name: string; code: string } | null;
         members: CrewMember[];
+        lead_user: { id: string; email: string; full_name: string | null } | null;
       })[];
     },
   });
@@ -39,7 +41,8 @@ export function useCrew(id: string | undefined) {
           *,
           territory:territories(id, name, code),
           business_unit:business_units(id, name, code),
-          members:crew_members(*)
+          members:crew_members(*),
+          lead_user:user_profiles!crews_lead_user_id_fkey(id, email, full_name)
         `)
         .eq('id', id)
         .single();
@@ -49,6 +52,7 @@ export function useCrew(id: string | undefined) {
         territory: { id: string; name: string; code: string } | null;
         business_unit: { id: string; name: string; code: string } | null;
         members: CrewMember[];
+        lead_user: { id: string; email: string; full_name: string | null } | null;
       };
     },
     enabled: !!id,
@@ -70,6 +74,8 @@ export function useCreateCrew() {
           product_skills: data.product_skills,
           business_unit_id: data.business_unit_id || null,
           home_territory_id: data.home_territory_id || null,
+          crew_type: data.crew_type || 'standard',
+          lead_user_id: data.lead_user_id || null,
           is_active: data.is_active,
         })
         .select()
@@ -103,6 +109,8 @@ export function useUpdateCrew() {
           product_skills: data.product_skills,
           business_unit_id: data.business_unit_id || null,
           home_territory_id: data.home_territory_id || null,
+          crew_type: data.crew_type || 'standard',
+          lead_user_id: data.lead_user_id || null,
           is_active: data.is_active,
           updated_at: new Date().toISOString(),
         })

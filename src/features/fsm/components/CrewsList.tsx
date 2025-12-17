@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, MapPin, Wrench } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, MapPin, Wrench, UserCircle } from 'lucide-react';
 import { useCrews, useDeleteCrew } from '../hooks';
 import type { Crew } from '../types';
+import { CREW_TYPE_LABELS } from '../types';
 import CrewEditorModal from './CrewEditorModal';
 
 export default function CrewsList() {
@@ -71,6 +72,15 @@ export default function CrewsList() {
                     <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">
                       {crew.code}
                     </span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      crew.crew_type === 'internal'
+                        ? 'bg-purple-100 text-purple-700'
+                        : crew.crew_type === 'small_jobs'
+                        ? 'bg-cyan-100 text-cyan-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {CREW_TYPE_LABELS[crew.crew_type] || 'Standard'}
+                    </span>
                     {!crew.is_active && (
                       <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded">
                         Inactive
@@ -87,6 +97,12 @@ export default function CrewsList() {
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5" />
                         {crew.territory.name}
+                      </span>
+                    )}
+                    {crew.lead_user && (
+                      <span className="flex items-center gap-1">
+                        <UserCircle className="w-3.5 h-3.5" />
+                        {crew.lead_user.full_name || crew.lead_user.email}
                       </span>
                     )}
                   </div>

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
 import { useCreateCrew, useUpdateCrew, useTerritories } from '../hooks';
-import type { Crew, CrewFormData } from '../types';
-import { PRODUCT_TYPES } from '../types';
+import type { Crew, CrewFormData, CrewType } from '../types';
+import { PRODUCT_TYPES, CREW_TYPE_LABELS } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
+import { useTeamMembers } from '../../settings/hooks';
 
 interface Props {
   crew: Crew | null;
@@ -16,8 +17,9 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
   const createMutation = useCreateCrew();
   const updateMutation = useUpdateCrew();
 
-  // Load territories and business units
+  // Load territories, business units, and team members
   const { data: territories } = useTerritories();
+  const { data: teamMembers } = useTeamMembers();
   const { data: businessUnits } = useQuery({
     queryKey: ['business_units'],
     queryFn: async () => {
@@ -38,6 +40,8 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
     product_skills: [],
     business_unit_id: '',
     home_territory_id: '',
+    crew_type: 'standard',
+    lead_user_id: '',
     is_active: true,
   });
 
@@ -51,6 +55,8 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
         product_skills: crew.product_skills,
         business_unit_id: crew.business_unit_id || '',
         home_territory_id: crew.home_territory_id || '',
+        crew_type: crew.crew_type || 'standard',
+        lead_user_id: crew.lead_user_id || '',
         is_active: crew.is_active,
       });
     }
@@ -196,6 +202,49 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Crew Type & Lead */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Crew Type
+              </label>
+              <select
+                value={formData.crew_type}
+                onChange={(e) => setFormData({ ...formData, crew_type: e.target.value as CrewType })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              >
+                {(Object.keys(CREW_TYPE_LABELS) as CrewType[]).map((type) => (
+                  <option key={type} value={type}>
+                    {CREW_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Internal = in-house, Small Jobs = quick turnaround
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Crew Lead
+              </label>
+              <select
+                value={formData.lead_user_id}
+                onChange={(e) => setFormData({ ...formData, lead_user_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              >
+                <option value="">-- No Lead --</option>
+                {teamMembers?.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.full_name || member.email}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Point of contact for this crew
+              </p>
             </div>
           </div>
 

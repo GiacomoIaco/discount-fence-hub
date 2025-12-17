@@ -8,3 +8,10 @@ export { default as SalesRepsList } from './SalesRepsList';
 export { default as SalesRepEditorModal } from './SalesRepEditorModal';
 export { default as RequestsList } from './RequestsList';
 export { default as RequestEditorModal } from './RequestEditorModal';
+
+// Person-centric FSM components (Phase 3B)
+export { default as ProjectTypesList } from './ProjectTypesList';
+export { default as ProjectTypeEditorModal } from './ProjectTypeEditorModal';
+export { default as AttributesTab } from './AttributesTab';
+export { default as FsmTeamList } from './FsmTeamList';
+export { default as FsmTeamEditorModal } from './FsmTeamEditorModal';

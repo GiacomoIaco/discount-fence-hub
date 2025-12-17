@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen, Calendar, User } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen, Calendar, User, Truck } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
 import { useClients, useGeographies, useUserProfiles } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
+import { useCrews } from '../../fsm/hooks';
 import type { Community, CommunityFormData, CommunityStatus } from '../types';
 import { COMMUNITY_STATUS_LABELS } from '../types';
 
@@ -21,8 +22,8 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
   const { data: geographies } = useGeographies();
   const { data: rateSheets } = useRateSheets({ is_active: true });
   const { data: qboClasses } = useQboClasses(true); // Only selectable classes
-
   const { data: userProfiles } = useUserProfiles();
+  const { data: crews } = useCrews();
 
   const [formData, setFormData] = useState<CommunityFormData>({
     client_id: community?.client_id || defaultClientId || '',
@@ -43,6 +44,8 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
     default_rep_id: community?.default_rep_id || null,
     priority_crew_ids: community?.priority_crew_ids || [],
     priority_pm_ids: community?.priority_pm_ids || [],
+    assigned_rep_id: community?.assigned_rep_id || null,
+    preferred_crew_id: community?.preferred_crew_id || null,
     status: community?.status || 'new',
     notes: community?.notes || '',
   });
@@ -226,29 +229,51 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-gray-400" />
-                  Default Sales Rep
-                </div>
-              </label>
-              <select
-                value={formData.default_rep_id || ''}
-                onChange={(e) => setFormData({ ...formData, default_rep_id: e.target.value || null })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Not assigned</option>
-                {userProfiles?.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.display_name || user.email}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                The default sales rep assigned to quotes and jobs in this community
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" />
+                    Default Sales Rep
+                  </div>
+                </label>
+                <select
+                  value={formData.default_rep_id || ''}
+                  onChange={(e) => setFormData({ ...formData, default_rep_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Not assigned</option>
+                  {userProfiles?.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.display_name || user.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-gray-400" />
+                    Preferred Crew
+                  </div>
+                </label>
+                <select
+                  value={formData.preferred_crew_id || ''}
+                  onChange={(e) => setFormData({ ...formData, preferred_crew_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">No preference</option>
+                  {crews?.filter(c => c.is_active).map((crew) => (
+                    <option key={crew.id} value={crew.id}>
+                      {crew.name} ({crew.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+            <p className="text-xs text-gray-500">
+              Default assignments for new requests and jobs in this community
+            </p>
           </div>
 
           {/* Rate Sheet & QBO Class Override */}

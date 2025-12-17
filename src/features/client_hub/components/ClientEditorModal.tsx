@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen, User, Truck } from 'lucide-react';
 import { useCreateClient, useUpdateClient } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
+import { useTeamMembers } from '../../settings/hooks';
+import { useCrews } from '../../fsm/hooks';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
@@ -22,6 +24,8 @@ export default function ClientEditorModal({ client, onClose }: Props) {
   const updateMutation = useUpdateClient();
   const { data: rateSheets } = useRateSheets({ is_active: true });
   const { data: qboClasses } = useQboClasses(true); // Only selectable classes
+  const { data: teamMembers } = useTeamMembers();
+  const { data: crews } = useCrews();
 
   const [formData, setFormData] = useState<ClientFormData>({
     name: client?.name || '',
@@ -42,6 +46,8 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     invoicing_frequency: client?.invoicing_frequency || 'per_job',
     payment_terms: client?.payment_terms || 30,
     requires_po: client?.requires_po || false,
+    assigned_rep_id: client?.assigned_rep_id || null,
+    preferred_crew_id: client?.preferred_crew_id || null,
     notes: client?.notes || '',
   });
 
@@ -340,6 +346,57 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                 </label>
               </div>
             </div>
+          </div>
+
+          {/* Assignment Preferences */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Assignment Preferences</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" />
+                    Assigned Sales Rep
+                  </div>
+                </label>
+                <select
+                  value={formData.assigned_rep_id || ''}
+                  onChange={(e) => setFormData({ ...formData, assigned_rep_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Not assigned</option>
+                  {teamMembers?.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.full_name || member.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-gray-400" />
+                    Preferred Crew
+                  </div>
+                </label>
+                <select
+                  value={formData.preferred_crew_id || ''}
+                  onChange={(e) => setFormData({ ...formData, preferred_crew_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">No preference</option>
+                  {crews?.filter(c => c.is_active).map((crew) => (
+                    <option key={crew.id} value={crew.id}>
+                      {crew.name} ({crew.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Default assignments for new requests and jobs from this client
+            </p>
           </div>
 
           {/* Notes */}

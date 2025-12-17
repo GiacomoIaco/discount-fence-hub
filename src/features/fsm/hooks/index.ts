@@ -8,3 +8,7 @@ export * from './useQuotes';
 export * from './useJobs';
 export * from './useInvoices';
 export * from './useProjects';
+
+// Person-centric FSM model (Phase 3)
+export * from './useProjectTypes';
+export * from './useFsmTeamProfiles';

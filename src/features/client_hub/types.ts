@@ -91,6 +91,10 @@ export interface Client {
   onboarding_started_at: string | null;
   onboarding_completed_at: string | null;
 
+  // Builder preferences (FSM)
+  assigned_rep_id: string | null;
+  preferred_crew_id: string | null;
+
   // Metadata
   notes: string | null;
   created_at: string;
@@ -100,6 +104,8 @@ export interface Client {
   // Computed/joined
   communities_count?: number;
   contacts?: ClientContact[];
+  assigned_rep?: { id: string; email: string; full_name: string | null };
+  preferred_crew?: { id: string; name: string; code: string };
 }
 
 export interface ClientContact {
@@ -157,6 +163,9 @@ export interface Community {
   default_rep_id: string | null;
   priority_crew_ids: string[];
   priority_pm_ids: string[];
+  // Builder preferences (FSM) - from migration 175
+  assigned_rep_id: string | null;
+  preferred_crew_id: string | null;
 
   // Status
   status: CommunityStatus;
@@ -173,6 +182,8 @@ export interface Community {
   geography?: Geography;
   contacts?: CommunityContact[];
   default_rep?: UserProfile;
+  assigned_rep?: { id: string; email: string; full_name: string | null };
+  preferred_crew?: { id: string; name: string; code: string };
 }
 
 export interface CommunityContact {
@@ -335,6 +346,8 @@ export interface ClientFormData {
   invoicing_frequency: 'per_job' | 'weekly' | 'monthly';
   payment_terms: number;
   requires_po: boolean;
+  assigned_rep_id: string | null;
+  preferred_crew_id: string | null;
   notes: string;
 }
 
@@ -354,10 +367,13 @@ export interface CommunityFormData {
   // Lifecycle dates
   start_date: string | null;
   end_date: string | null;
-  // Assignments
+  // Assignments (legacy)
   default_rep_id: string | null;
   priority_crew_ids: string[];
   priority_pm_ids: string[];
+  // Builder preferences (FSM) - from migration 175
+  assigned_rep_id: string | null;
+  preferred_crew_id: string | null;
   // Status
   status: CommunityStatus;
   notes: string;
