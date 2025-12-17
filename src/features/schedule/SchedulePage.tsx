@@ -12,6 +12,7 @@ import { useScheduleFilters } from './hooks/useScheduleFilters';
 import { useCalendarViews } from './hooks/useCalendarViews';
 import { useScheduleEntries } from './hooks/useScheduleEntries';
 import { useCrewCapacity } from './hooks/useCrewCapacity';
+import { useScheduleRealtime } from './hooks/useScheduleRealtime';
 import type { Crew, SalesRep } from '../fsm/types';
 import type { CreateScheduleEntryInput } from './types/schedule.types';
 
@@ -50,6 +51,9 @@ export default function SchedulePage({
     removeTab,
     isCrewCapacityView,
   } = useCalendarViews();
+
+  // Real-time updates subscription
+  useScheduleRealtime();
 
   // Modal state for CrewCapacityView
   const [modalState, setModalState] = useState<{

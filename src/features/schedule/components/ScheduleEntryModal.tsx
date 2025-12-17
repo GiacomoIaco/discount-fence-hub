@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Calendar, Clock, User, Truck, Save, Trash2, Clipboard, Ban, Users } from 'lucide-react';
+import { X, Calendar, Clock, User, Truck, Save, Trash2, Clipboard, Ban, Users, AlertTriangle, AlertCircle, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -8,6 +8,8 @@ import {
   useUpdateScheduleEntry,
   useDeleteScheduleEntry,
 } from '../hooks/useScheduleEntries';
+import { useConflictDetection } from '../hooks/useConflictDetection';
+import type { ScheduleConflict } from '../utils/conflictDetector';
 import type {
   ScheduleEntryType,
   ScheduleEntryStatus,
@@ -97,6 +99,24 @@ export function ScheduleEntryModal({
   const createEntry = useCreateScheduleEntry();
   const updateEntry = useUpdateScheduleEntry();
   const deleteEntry = useDeleteScheduleEntry();
+
+  // Get crew max footage for conflict detection
+  const selectedCrew = crews.find((c) => c.id === crewId);
+
+  // Conflict detection
+  const { conflicts, hasBlockingConflicts: hasErrors } = useConflictDetection({
+    entryId: mode === 'edit' ? entryId : undefined,
+    crewId: crewId || null,
+    salesRepId: salesRepId || null,
+    scheduledDate: scheduledDate || null,
+    startTime: isAllDay ? null : startTime || null,
+    endTime: isAllDay ? null : endTime || null,
+    estimatedFootage: estimatedFootage !== '' ? Number(estimatedFootage) : null,
+    entryType,
+    jobId: entryType === 'job_visit' ? jobId || null : null,
+    crewMaxFootage: selectedCrew?.max_daily_lf,
+    enabled: isOpen && !!scheduledDate,
+  });
 
   // Initialize form when modal opens or entry loads
   useEffect(() => {
@@ -446,6 +466,11 @@ export function ScheduleEntryModal({
             />
           </div>
 
+          {/* Conflict Warnings */}
+          {conflicts.length > 0 && (
+            <ConflictWarnings conflicts={conflicts} />
+          )}
+
           {/* Status (edit mode only) */}
           {mode === 'edit' && (
             <div>
@@ -489,15 +514,86 @@ export function ScheduleEntryModal({
               <button
                 type="submit"
                 disabled={createEntry.isPending || updateEntry.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                  hasErrors
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                <Save className="w-4 h-4" />
-                {createEntry.isPending || updateEntry.isPending ? 'Saving...' : 'Save'}
+                {hasErrors && <AlertTriangle className="w-4 h-4" />}
+                {!hasErrors && <Save className="w-4 h-4" />}
+                {createEntry.isPending || updateEntry.isPending
+                  ? 'Saving...'
+                  : hasErrors
+                  ? 'Save Anyway'
+                  : 'Save'}
               </button>
             </div>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ============================================
+// CONFLICT WARNINGS COMPONENT
+// ============================================
+
+function ConflictWarnings({ conflicts }: { conflicts: ScheduleConflict[] }) {
+  const errors = conflicts.filter((c) => c.severity === 'error');
+  const warnings = conflicts.filter((c) => c.severity === 'warning');
+  const infos = conflicts.filter((c) => c.severity === 'info');
+
+  return (
+    <div className="space-y-2">
+      {/* Errors */}
+      {errors.map((conflict, i) => (
+        <div
+          key={`error-${i}`}
+          className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg"
+        >
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-800">{conflict.message}</p>
+            {conflict.details && (
+              <p className="text-xs text-red-600 mt-0.5">{conflict.details}</p>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Warnings */}
+      {warnings.map((conflict, i) => (
+        <div
+          key={`warning-${i}`}
+          className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
+        >
+          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-yellow-800">{conflict.message}</p>
+            {conflict.details && (
+              <p className="text-xs text-yellow-600 mt-0.5">{conflict.details}</p>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Info */}
+      {infos.map((conflict, i) => (
+        <div
+          key={`info-${i}`}
+          className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
+        >
+          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-blue-800">{conflict.message}</p>
+            {conflict.details && (
+              <p className="text-xs text-blue-600 mt-0.5">{conflict.details}</p>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
