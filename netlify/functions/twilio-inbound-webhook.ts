@@ -62,8 +62,16 @@ export const handler: Handler = async (event) => {
     // Find or create contact
     const contact = await findOrCreateContact(fromPhone);
 
-    // Find or create conversation
-    const conversation = await findOrCreateConversation(contact.id);
+    // Check if this contact is part of any group conversations first
+    // If so, route the message to the most recently active group
+    let conversation = await findGroupConversationForContact(contact.id);
+
+    // If no group conversation, find or create a regular 1:1 conversation
+    if (!conversation) {
+      conversation = await findOrCreateConversation(contact.id);
+    } else {
+      console.log(`Routing inbound to group conversation: ${conversation.id}`);
+    }
 
     // Insert message
     const { data: message, error: messageError } = await supabase
@@ -103,12 +111,19 @@ export const handler: Handler = async (event) => {
     }
 
     // Update conversation with last message info
+    // Get current unread count first to handle group conversations correctly
+    const { data: currentConv } = await supabase
+      .from('mc_conversations')
+      .select('unread_count')
+      .eq('id', conversation.id)
+      .single();
+
     await supabase
       .from('mc_conversations')
       .update({
         last_message_at: new Date().toISOString(),
         last_message_preview: (body || '').substring(0, 100),
-        unread_count: conversation.unread_count + 1,
+        unread_count: (currentConv?.unread_count || 0) + 1,
       })
       .eq('id', conversation.id);
 
@@ -183,6 +198,34 @@ async function findOrCreateContact(phone: string) {
 
   if (error) throw error;
   return newContact;
+}
+
+// Find group conversation that this contact is a participant of
+async function findGroupConversationForContact(contactId: string) {
+  // Look for group conversations where this contact is a participant
+  const { data: participations } = await supabase
+    .from('mc_conversation_participants')
+    .select(`
+      conversation_id,
+      conversation:mc_conversations(*)
+    `)
+    .eq('contact_id', contactId)
+    .is('left_at', null);
+
+  if (!participations || participations.length === 0) return null;
+
+  // Filter to only group conversations that are active and sort by last_message_at
+  const groupConversations = participations
+    .filter(p => p.conversation && (p.conversation as any).is_group && (p.conversation as any).status === 'active')
+    .map(p => p.conversation)
+    .sort((a: any, b: any) => {
+      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return bTime - aTime; // Most recent first
+    });
+
+  // Return the most recently active group conversation
+  return groupConversations.length > 0 ? groupConversations[0] : null;
 }
 
 // Find or create conversation

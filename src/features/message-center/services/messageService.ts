@@ -281,6 +281,8 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
     conversation_id: message.conversation_id,
     channel: message.channel,
     to_phone: message.to_phone,
+    is_group: message.is_group,
+    group_recipients_count: message.group_recipients?.length,
     bodyLength: message.body?.length
   });
 
@@ -295,39 +297,72 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
       to_phone: message.to_phone,
       to_email: message.to_email,
       status: 'sending',
-      sent_at: new Date().toISOString()
+      sent_at: new Date().toISOString(),
+      metadata: message.is_group ? {
+        is_group_message: true,
+        recipient_count: message.group_recipients?.length
+      } : undefined
     })
     .select()
     .single();
 
   if (error) throw error;
 
-  // 2. Call Netlify function to send via Twilio (for SMS)
-  if (message.channel === 'sms' && message.to_phone) {
-    console.log('[MC SMS] Sending to:', message.to_phone, 'message_id:', data.id);
-    try {
-      const response = await fetch('/.netlify/functions/send-mc-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message_id: data.id,
-          to: message.to_phone,
-          body: message.body,
-        }),
-      });
+  // 2. Call Netlify function to send via Twilio (for SMS/MMS)
+  if (message.channel === 'sms') {
+    // MMS Group messaging
+    if (message.is_group && message.group_recipients && message.group_recipients.length > 0) {
+      console.log('[MC MMS Group] Sending to:', message.group_recipients.length, 'recipients, message_id:', data.id);
+      try {
+        const response = await fetch('/.netlify/functions/send-mc-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message_id: data.id,
+            conversation_id: message.conversation_id,
+            is_group: true,
+            recipients: message.group_recipients,
+            body: message.body,
+          }),
+        });
 
-      const responseData = await response.json();
-      console.log('[MC SMS] Response:', response.status, responseData);
+        const responseData = await response.json();
+        console.log('[MC MMS Group] Response:', response.status, responseData);
 
-      if (!response.ok) {
-        console.error('[MC SMS] Failed:', responseData);
-        // Update the message in the UI to show failure
-        throw new Error(responseData.error || 'Failed to send SMS');
+        if (!response.ok) {
+          console.error('[MC MMS Group] Failed:', responseData);
+          throw new Error(responseData.error || 'Failed to send group MMS');
+        }
+      } catch (err) {
+        console.error('[MC MMS Group] Error:', err);
+        throw err;
       }
-    } catch (err) {
-      console.error('[MC SMS] Error:', err);
-      // Re-throw so user sees the error
-      throw err;
+    }
+    // Single SMS
+    else if (message.to_phone) {
+      console.log('[MC SMS] Sending to:', message.to_phone, 'message_id:', data.id);
+      try {
+        const response = await fetch('/.netlify/functions/send-mc-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message_id: data.id,
+            to: message.to_phone,
+            body: message.body,
+          }),
+        });
+
+        const responseData = await response.json();
+        console.log('[MC SMS] Response:', response.status, responseData);
+
+        if (!response.ok) {
+          console.error('[MC SMS] Failed:', responseData);
+          throw new Error(responseData.error || 'Failed to send SMS');
+        }
+      } catch (err) {
+        console.error('[MC SMS] Error:', err);
+        throw err;
+      }
     }
   }
 

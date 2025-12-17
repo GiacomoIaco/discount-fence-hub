@@ -200,6 +200,9 @@ export interface NewMessage {
   body: string;
   to_phone?: string;
   to_email?: string;
+  // For MMS group messaging - send to all these numbers
+  group_recipients?: string[];
+  is_group?: boolean;
 }
 
 // Filter types for sidebar
