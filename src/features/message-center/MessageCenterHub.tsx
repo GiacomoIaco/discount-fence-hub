@@ -39,8 +39,11 @@ export function MessageCenterHub() {
 
   // Only apply client filters when on clients tab
   const activeClientFilters = activeFilter === 'clients' ? clientFilters : undefined;
-  const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter, activeClientFilters);
-  const { data: counts = { all: 0, team: 0, clients: 0, requests: 0, archived: 0 } } = useConversationCounts();
+
+  // Create user context for conversation filtering (sales reps only see invited conversations)
+  const userContext = profile ? { userId: profile.id, userRole: profile.role } : undefined;
+  const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter, activeClientFilters, userContext);
+  const { data: counts = { all: 0, team: 0, clients: 0, requests: 0, archived: 0 } } = useConversationCounts(userContext);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(selectedConversation?.id || null);
   const markRead = useMarkConversationRead();
   const sendMessage = useSendMessage();

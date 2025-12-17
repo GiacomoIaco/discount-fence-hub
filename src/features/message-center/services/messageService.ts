@@ -15,12 +15,60 @@ import type {
 // CONVERSATIONS
 // ============================================================================
 
+// Roles that have full access to all conversations (Front Desk)
+const FULL_ACCESS_ROLES = ['admin', 'operations'];
+
+export interface UserContext {
+  userId: string;
+  userRole: string;
+}
+
 export async function getConversations(
   filter: ConversationFilter = 'all',
-  clientFilters?: ClientFilters
+  clientFilters?: ClientFilters,
+  userContext?: UserContext
 ): Promise<ConversationWithContact[]> {
   // If client filters are applied, we need to join to the clients table
   const needsClientJoin = clientFilters?.businessUnit || clientFilters?.city || clientFilters?.state;
+
+  // Check if user needs filtered view (sales reps only see conversations they're invited to)
+  const needsParticipantFilter = userContext && !FULL_ACCESS_ROLES.includes(userContext.userRole);
+
+  // If user needs filtered view, get their conversation IDs first
+  let allowedConversationIds: string[] | null = null;
+
+  if (needsParticipantFilter && userContext) {
+    // Find mc_contact for this user
+    const { data: userContact } = await supabase
+      .from('mc_contacts')
+      .select('id')
+      .eq('employee_id', userContext.userId)
+      .single();
+
+    if (userContact) {
+      // Get conversation IDs they're participating in
+      const { data: participations } = await supabase
+        .from('mc_conversation_participants')
+        .select('conversation_id')
+        .eq('contact_id', userContact.id)
+        .is('left_at', null);
+
+      allowedConversationIds = (participations || []).map(p => p.conversation_id);
+
+      // Also include conversations where they are the primary contact
+      const { data: directConversations } = await supabase
+        .from('mc_conversations')
+        .select('id')
+        .eq('contact_id', userContact.id);
+
+      if (directConversations) {
+        allowedConversationIds = [...new Set([
+          ...allowedConversationIds,
+          ...directConversations.map(c => c.id)
+        ])];
+      }
+    }
+  }
 
   let query = supabase
     .from('mc_conversations')
@@ -29,6 +77,15 @@ export async function getConversations(
       contact:mc_contacts(*, client:clients(id, business_unit, city, state))
     `)
     .order('last_message_at', { ascending: false, nullsFirst: false });
+
+  // Apply participant filter if needed
+  if (allowedConversationIds !== null) {
+    if (allowedConversationIds.length === 0) {
+      // User has no conversations - return empty array
+      return [];
+    }
+    query = query.in('id', allowedConversationIds);
+  }
 
   // Apply filter
   switch (filter) {
@@ -81,14 +138,69 @@ export async function getConversations(
   return results;
 }
 
-export async function getConversationCounts(): Promise<ConversationCounts> {
-  // Get all counts in parallel
+export async function getConversationCounts(userContext?: UserContext): Promise<ConversationCounts> {
+  // Check if user needs filtered view
+  const needsParticipantFilter = userContext && !FULL_ACCESS_ROLES.includes(userContext.userRole);
+
+  // For filtered users, get their allowed conversation IDs first
+  let allowedIds: string[] | null = null;
+
+  if (needsParticipantFilter && userContext) {
+    const { data: userContact } = await supabase
+      .from('mc_contacts')
+      .select('id')
+      .eq('employee_id', userContext.userId)
+      .single();
+
+    if (userContact) {
+      const { data: participations } = await supabase
+        .from('mc_conversation_participants')
+        .select('conversation_id')
+        .eq('contact_id', userContact.id)
+        .is('left_at', null);
+
+      allowedIds = (participations || []).map(p => p.conversation_id);
+
+      const { data: directConversations } = await supabase
+        .from('mc_conversations')
+        .select('id')
+        .eq('contact_id', userContact.id);
+
+      if (directConversations) {
+        allowedIds = [...new Set([...allowedIds, ...directConversations.map(c => c.id)])];
+      }
+    } else {
+      // User has no mc_contact - no conversations
+      return { all: 0, team: 0, clients: 0, requests: 0, archived: 0 };
+    }
+
+    if (allowedIds.length === 0) {
+      return { all: 0, team: 0, clients: 0, requests: 0, archived: 0 };
+    }
+  }
+
+  // Get all counts in parallel - with ID filtering if needed
+  let allQuery = supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active');
+  let teamQuery = supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active').in('conversation_type', ['team_direct', 'team_group']);
+  let clientsQuery = supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active').eq('conversation_type', 'client');
+  let requestsQuery = supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active').eq('has_project_signal', true);
+  let archivedQuery = supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'archived');
+
+  // Add ID filter if needed
+  if (allowedIds) {
+    allQuery = allQuery.in('id', allowedIds);
+    teamQuery = teamQuery.in('id', allowedIds);
+    clientsQuery = clientsQuery.in('id', allowedIds);
+    requestsQuery = requestsQuery.in('id', allowedIds);
+    archivedQuery = archivedQuery.in('id', allowedIds);
+  }
+
   const [allResult, teamResult, clientsResult, requestsResult, archivedResult] = await Promise.all([
-    supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active').in('conversation_type', ['team_direct', 'team_group']),
-    supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active').eq('conversation_type', 'client'),
-    supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'active').eq('has_project_signal', true),
-    supabase.from('mc_conversations').select('id', { count: 'exact', head: true }).eq('status', 'archived'),
+    allQuery,
+    teamQuery,
+    clientsQuery,
+    requestsQuery,
+    archivedQuery,
   ]);
 
   return {

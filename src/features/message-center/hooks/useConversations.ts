@@ -1,14 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import * as messageService from '../services/messageService';
+import type { UserContext } from '../services/messageService';
 import type { ConversationFilter, ClientFilters } from '../types';
 
-export function useConversations(filter: ConversationFilter = 'all', clientFilters?: ClientFilters) {
+export function useConversations(
+  filter: ConversationFilter = 'all',
+  clientFilters?: ClientFilters,
+  userContext?: UserContext
+) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['mc_conversations', filter, clientFilters],
-    queryFn: () => messageService.getConversations(filter, clientFilters),
+    queryKey: ['mc_conversations', filter, clientFilters, userContext?.userId],
+    queryFn: () => messageService.getConversations(filter, clientFilters, userContext),
   });
 
   // Subscribe to realtime updates
@@ -26,10 +31,10 @@ export function useConversations(filter: ConversationFilter = 'all', clientFilte
   return query;
 }
 
-export function useConversationCounts() {
+export function useConversationCounts(userContext?: UserContext) {
   return useQuery({
-    queryKey: ['mc_conversation_counts'],
-    queryFn: messageService.getConversationCounts,
+    queryKey: ['mc_conversation_counts', userContext?.userId],
+    queryFn: () => messageService.getConversationCounts(userContext),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 }
