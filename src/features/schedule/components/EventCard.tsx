@@ -1,5 +1,5 @@
 import type { EventApi } from '@fullcalendar/core';
-import { Truck, Clipboard, Ban, Users } from 'lucide-react';
+import { Truck, Clipboard, Ban, Users, Layers } from 'lucide-react';
 import type { ScheduleEntryType } from '../types/schedule.types';
 
 // ============================================
@@ -16,6 +16,8 @@ export function EventCard({ event, timeText }: EventCardProps) {
   const entryType = event.extendedProps.entryType as ScheduleEntryType;
   const footage = event.extendedProps.footage as number | undefined;
   const materialStatus = event.extendedProps.materialStatus as string | undefined;
+  const isMultiJobProject = event.extendedProps.isMultiJobProject as boolean | undefined;
+  const projectNumber = event.extendedProps.projectNumber as string | undefined;
 
   const Icon = getEntryIcon(entryType);
   const statusBadge = materialStatus ? getMaterialStatusBadge(materialStatus) : null;
@@ -42,7 +44,15 @@ export function EventCard({ event, timeText }: EventCardProps) {
         </div>
 
         {/* Metadata row */}
-        <div className="flex items-center gap-1 mt-0.5">
+        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+          {/* Multi-job project badge */}
+          {isMultiJobProject && (
+            <span className="text-[10px] bg-purple-500/40 text-white px-1 rounded flex items-center gap-0.5">
+              <Layers className="w-2.5 h-2.5" />
+              {projectNumber ? projectNumber.split('-').pop() : 'Multi'}
+            </span>
+          )}
+
           {/* Footage badge for jobs */}
           {footage && (
             <span className="text-[10px] bg-white/20 text-white px-1 rounded">
@@ -108,9 +118,13 @@ function getMaterialStatusBadge(status: string): { label: string; className: str
 
 export function CompactEventCard({ event }: { event: EventApi }) {
   const footage = event.extendedProps.footage as number | undefined;
+  const isMultiJobProject = event.extendedProps.isMultiJobProject as boolean | undefined;
 
   return (
     <div className="flex items-center gap-1 px-1 py-0.5 text-xs truncate">
+      {isMultiJobProject && (
+        <Layers className="w-2.5 h-2.5 flex-shrink-0 opacity-80" />
+      )}
       <span className="font-medium truncate">{event.title}</span>
       {footage && (
         <span className="text-[10px] opacity-70 flex-shrink-0">

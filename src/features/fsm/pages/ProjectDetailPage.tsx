@@ -24,6 +24,7 @@ import {
   Building,
 } from 'lucide-react';
 import { useProject, useProjectEntities, useUpdateProjectStatus } from '../hooks/useProjects';
+import ProjectJobsTimeline from '../components/ProjectJobsTimeline';
 import {
   REQUEST_STATUS_LABELS,
   REQUEST_STATUS_COLORS,
@@ -353,7 +354,7 @@ export default function ProjectDetailPage({
                   </div>
                 )}
 
-                {/* Jobs Section */}
+                {/* Jobs Section - Enhanced Timeline */}
                 {entities?.jobs && entities.jobs.length > 0 && (
                   <div className="bg-white rounded-lg border overflow-hidden">
                     <button
@@ -363,14 +364,20 @@ export default function ProjectDetailPage({
                       <div className="flex items-center gap-2">
                         <Hammer className="w-5 h-5 text-orange-600" />
                         <span className="font-medium">Jobs ({entities.jobs.length})</span>
+                        {entities.jobs.length > 1 && (
+                          <span className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600">
+                            Multi-Job Project
+                          </span>
+                        )}
                       </div>
                       <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${expandedSection === 'jobs' || expandedSection === 'all' ? 'rotate-90' : ''}`} />
                     </button>
                     {(expandedSection === 'jobs' || expandedSection === 'all') && (
-                      <div className="p-4 pt-0 space-y-2">
-                        {entities.jobs.map((job) =>
-                          renderEntityCard('job', job, () => onNavigateToJob?.(job.id))
-                        )}
+                      <div className="p-4 pt-0">
+                        <ProjectJobsTimeline
+                          projectId={projectId}
+                          onNavigateToJob={onNavigateToJob}
+                        />
                       </div>
                     )}
                   </div>

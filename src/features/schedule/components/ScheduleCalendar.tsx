@@ -62,6 +62,13 @@ function formatEntryTitle(entry: ScheduleEntry): string {
     const footage = entry.estimated_footage ? ` (${entry.estimated_footage} LF)` : '';
     const jobNumber = entry.job?.job_number || 'Job';
     const clientName = entry.job?.client_name;
+    const jobName = entry.job?.name;
+
+    // For multi-job projects, show job name if available
+    if (jobName && entry.job?.project_job_count && entry.job.project_job_count > 1) {
+      return clientName ? `${jobName}: ${clientName}${footage}` : `${jobName}${footage}`;
+    }
+
     return clientName ? `${jobNumber}: ${clientName}${footage}` : `${jobNumber}${footage}`;
   }
   if (entry.entry_type === 'assessment') {
@@ -255,6 +262,12 @@ export function ScheduleCalendar({
           footage: entry.estimated_footage,
           hours: entry.estimated_hours,
           materialStatus: entry.job?.material_status,
+          // Project context for multi-job projects
+          projectId: entry.job?.project_id || null,
+          projectNumber: entry.job?.project_number || null,
+          jobName: entry.job?.name || null,
+          isMultiJobProject: (entry.job?.project_job_count || 0) > 1,
+          invoiceGroupId: entry.job?.invoice_group_id || null,
           entry,
         },
       };

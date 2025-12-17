@@ -38,7 +38,16 @@ export function useScheduleEntries(filter: ScheduleEntriesFilter) {
         .from('schedule_entries')
         .select(`
           *,
-          job:jobs(id, job_number, client:clients(name), material_status),
+          job:jobs(
+            id,
+            job_number,
+            name,
+            material_status,
+            project_id,
+            invoice_group_id,
+            client:clients(name),
+            project:projects(id, project_number)
+          ),
           service_request:service_requests(id, request_number, contact_name),
           crew:crews(id, name, code),
           sales_rep:sales_reps(id, name)
@@ -70,13 +79,38 @@ export function useScheduleEntries(filter: ScheduleEntriesFilter) {
         throw error;
       }
 
-      // Transform the nested job client name
+      // Get project job counts for multi-job detection
+      const projectIds = [...new Set(
+        (data || [])
+          .filter((e: any) => e.job?.project_id)
+          .map((e: any) => e.job.project_id)
+      )];
+
+      let projectJobCounts: Record<string, number> = {};
+      if (projectIds.length > 0) {
+        const { data: jobCounts } = await supabase
+          .from('jobs')
+          .select('project_id')
+          .in('project_id', projectIds);
+
+        if (jobCounts) {
+          jobCounts.forEach((j: any) => {
+            projectJobCounts[j.project_id] = (projectJobCounts[j.project_id] || 0) + 1;
+          });
+        }
+      }
+
+      // Transform the nested job and project data
       return (data || []).map((entry: any) => ({
         ...entry,
         job: entry.job
           ? {
               ...entry.job,
               client_name: entry.job.client?.name,
+              project_number: entry.job.project?.project_number,
+              project_job_count: entry.job.project_id
+                ? projectJobCounts[entry.job.project_id] || 1
+                : 1,
             }
           : undefined,
         service_request: entry.service_request

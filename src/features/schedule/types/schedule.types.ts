@@ -56,7 +56,16 @@ export interface ScheduleEntry {
   updated_at: string;
 
   // Joined relations (populated by select queries)
-  job?: Partial<Job> & { job_number?: string; client_name?: string; material_status?: string };
+  job?: Partial<Job> & {
+    job_number?: string;
+    client_name?: string;
+    material_status?: string;
+    name?: string;
+    project_id?: string;
+    project_number?: string;
+    project_job_count?: number;
+    invoice_group_id?: string;
+  };
   service_request?: Partial<ServiceRequest> & { client_name?: string; request_number?: string };
   crew?: Pick<Crew, 'id' | 'name' | 'code'>;
   sales_rep?: Pick<SalesRep, 'id' | 'name'>;
@@ -159,6 +168,12 @@ export interface CalendarEvent {
     footage?: number | null;
     hours?: number | null;
     materialStatus?: string;
+    // Project context for multi-job projects
+    projectId?: string | null;
+    projectNumber?: string | null;
+    jobName?: string | null;
+    isMultiJobProject?: boolean;
+    invoiceGroupId?: string | null;
     entry: ScheduleEntry;
   };
 }
