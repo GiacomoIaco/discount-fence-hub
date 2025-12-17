@@ -4,6 +4,7 @@ import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, Message
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
+import PushNotificationBanner from './components/PushNotificationBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './contexts/AuthContext';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
@@ -759,6 +760,9 @@ function App() {
           {/* PWA Update Prompt */}
           <PWAUpdatePrompt />
 
+          {/* Push Notification Banner */}
+          <PushNotificationBanner />
+
           {/* Profile Modals */}
           {showProfileView && (
             <Suspense fallback={<LoadingFallback />}>
@@ -833,6 +837,9 @@ function App() {
 
         {/* PWA Update Prompt */}
         <PWAUpdatePrompt />
+
+        {/* Push Notification Banner */}
+        <PushNotificationBanner />
 
         {/* Floating Action Button for Composing Messages (Admin/Manager only) */}
         {(userRole === 'admin' || userRole === 'sales-manager') && activeSection === 'team-communication' && (

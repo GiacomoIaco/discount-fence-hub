@@ -1,10 +1,20 @@
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import webpush from 'web-push';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// Initialize web-push for notifications
+const vapidPublicKey = process.env.VITE_VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:notifications@discountfence.com';
+
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+}
 
 export const handler: Handler = async (event) => {
   // Twilio sends POST requests
@@ -128,6 +138,11 @@ export const handler: Handler = async (event) => {
       .eq('id', conversation.id);
 
     console.log(`Processed inbound SMS from ${fromPhone}: ${messageSid}`);
+
+    // Send push notifications to relevant users (async, don't wait)
+    sendPushNotifications(contact, body || 'New message', conversation.id).catch(err => {
+      console.error('Failed to send push notifications:', err);
+    });
 
     // Return empty TwiML (no auto-reply)
     return {
@@ -288,4 +303,131 @@ async function handleOptIn(phone: string) {
     .or(`phone_primary.ilike.%${last10}%,phone_secondary.ilike.%${last10}%`);
 
   console.log(`Contact opted in: ${phone}`);
+}
+
+// Send push notifications for new message
+async function sendPushNotifications(
+  contact: { display_name: string; id: string },
+  messageBody: string,
+  conversationId: string
+) {
+  // Skip if VAPID not configured
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.log('[Push] VAPID not configured, skipping push notifications');
+    return;
+  }
+
+  // Get users who should be notified:
+  // 1. Users with 'admin' or 'operations' role (Front Desk - see all)
+  // 2. Users who are participants in this conversation
+
+  // Get Front Desk users
+  const { data: frontDeskUsers } = await supabase
+    .from('user_profiles')
+    .select('id')
+    .in('role', ['admin', 'operations']);
+
+  // Get conversation participants
+  const { data: participants } = await supabase
+    .from('mc_conversation_participants')
+    .select('contact:mc_contacts(employee_id)')
+    .eq('conversation_id', conversationId)
+    .is('left_at', null);
+
+  // Collect all user IDs to notify
+  const userIds = new Set<string>();
+
+  // Add front desk users
+  frontDeskUsers?.forEach(u => userIds.add(u.id));
+
+  // Add participants (employees only)
+  participants?.forEach(p => {
+    const employeeId = (p.contact as any)?.employee_id;
+    if (employeeId) userIds.add(employeeId);
+  });
+
+  if (userIds.size === 0) {
+    console.log('[Push] No users to notify');
+    return;
+  }
+
+  console.log(`[Push] Sending to ${userIds.size} users`);
+
+  // Get push subscriptions for these users
+  const { data: subscriptions } = await supabase
+    .from('push_subscriptions')
+    .select('id, user_id, endpoint, p256dh, auth')
+    .in('user_id', Array.from(userIds))
+    .eq('is_active', true)
+    .lt('error_count', 3);
+
+  if (!subscriptions || subscriptions.length === 0) {
+    console.log('[Push] No active subscriptions found');
+    return;
+  }
+
+  console.log(`[Push] Found ${subscriptions.length} subscription(s)`);
+
+  // Build notification payload
+  const payload = JSON.stringify({
+    title: `Message from ${contact.display_name}`,
+    body: messageBody.substring(0, 100),
+    icon: '/Logo-DF-Transparent.png',
+    badge: '/favicon-96x96.png',
+    url: `/message-center?conversation=${conversationId}`,
+    tag: `msg-${conversationId}`,
+  });
+
+  // Send to all subscriptions
+  const results = await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
+          payload
+        );
+
+        // Update last_used_at
+        await supabase
+          .from('push_subscriptions')
+          .update({ last_used_at: new Date().toISOString() })
+          .eq('id', sub.id);
+
+        return { success: true };
+      } catch (error: any) {
+        console.error(`[Push] Failed: ${error.message}`);
+
+        // Handle expired subscriptions
+        if (error.statusCode === 410 || error.statusCode === 404) {
+          await supabase
+            .from('push_subscriptions')
+            .update({ is_active: false, last_error: 'Subscription expired' })
+            .eq('id', sub.id);
+        } else {
+          // Increment error count
+          const { data: current } = await supabase
+            .from('push_subscriptions')
+            .select('error_count')
+            .eq('id', sub.id)
+            .single();
+
+          await supabase
+            .from('push_subscriptions')
+            .update({
+              error_count: (current?.error_count || 0) + 1,
+              last_error: error.message,
+            })
+            .eq('id', sub.id);
+        }
+
+        return { success: false, error: error.message };
+      }
+    })
+  );
+
+  const sent = results.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
+  console.log(`[Push] Sent: ${sent}/${subscriptions.length}`);
 }

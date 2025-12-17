@@ -10,7 +10,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',  // User controls when to update (was 'autoUpdate')
+      strategies: 'injectManifest',  // Use custom service worker
+      srcDir: 'src',
+      filename: 'sw.ts',
+      registerType: 'prompt',  // User controls when to update
+      injectRegister: false,   // We handle registration in main.tsx
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'Discount Fence Hub',
@@ -41,35 +45,13 @@ export default defineConfig({
           }
         ]
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB (to handle Survey.js bundle)
-        // Don't intercept /qr/* routes - let them load the intermediate HTML page
-        navigateFallbackDenylist: [/^\/qr\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.anthropic\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'anthropic-api-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/api\.assemblyai\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'assemblyai-api-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              }
-            }
-          }
-        ]
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
       }
     })
   ],

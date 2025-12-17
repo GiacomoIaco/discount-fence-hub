@@ -49,6 +49,7 @@
     "react-router-dom": "^7.10.1",
     "recharts": "^3.5.1",
     "survey-react-ui": "^2.3.10",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5",
     "zod": "^4.1.12"
   },
