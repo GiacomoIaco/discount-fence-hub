@@ -178,6 +178,9 @@ export interface ServiceRequest {
   city: string | null;
   state: string;
   zip: string | null;
+  // Geocoding (from migration 178)
+  latitude: number | null;
+  longitude: number | null;
   // Details
   source: RequestSource;
   request_type: RequestType;
