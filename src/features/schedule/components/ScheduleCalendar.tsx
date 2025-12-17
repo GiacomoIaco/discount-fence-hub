@@ -26,6 +26,7 @@ import type {
   CreateScheduleEntryInput,
   ScheduleFilters,
 } from '../types/schedule.types';
+import type { CalendarViewType } from '../hooks/useCalendarViews';
 import { filterResources, filterEntries } from '../hooks/useScheduleFilters';
 import type { Crew, SalesRep } from '../../fsm/types';
 import { EventCard } from './EventCard';
@@ -94,6 +95,9 @@ interface ScheduleCalendarProps {
   filters?: ScheduleFilters;
   onNavigateToJob?: (jobId: string) => void;
   onNavigateToRequest?: (requestId: string) => void;
+  viewType?: CalendarViewType;
+  showCrews?: boolean;
+  showReps?: boolean;
 }
 
 export function ScheduleCalendar({
@@ -103,6 +107,9 @@ export function ScheduleCalendar({
   onNavigateToJob: _onNavigateToJob,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onNavigateToRequest: _onNavigateToRequest,
+  viewType = 'timeline_week',
+  showCrews = true,
+  showReps = true,
 }: ScheduleCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null);
 
@@ -187,8 +194,8 @@ export function ScheduleCalendar({
   const resources: CalendarResource[] = useMemo(() => {
     let result: CalendarResource[] = [];
 
-    // Crews group
-    if (crews.length > 0) {
+    // Crews group (respect showCrews prop)
+    if (showCrews && crews.length > 0) {
       const crewResources: CalendarResource[] = [];
       crews.forEach((crew) => {
         crewResources.push({
@@ -218,8 +225,8 @@ export function ScheduleCalendar({
       }
     }
 
-    // Sales Reps group
-    if (salesReps.length > 0) {
+    // Sales Reps group (respect showReps prop)
+    if (showReps && salesReps.length > 0) {
       const repResources: CalendarResource[] = [];
       salesReps.forEach((rep) => {
         repResources.push({
@@ -249,7 +256,7 @@ export function ScheduleCalendar({
     }
 
     return result;
-  }, [crews, salesReps, filters]);
+  }, [crews, salesReps, filters, showCrews, showReps]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // BUILD EVENTS from schedule entries
@@ -437,6 +444,22 @@ export function ScheduleCalendar({
     [createEntry]
   );
 
+  // Map viewType prop to FullCalendar view names
+  const fullCalendarView = useMemo(() => {
+    switch (viewType) {
+      case 'timeline_day':
+        return 'resourceTimelineDay';
+      case 'timeline_week':
+        return 'resourceTimelineWeek';
+      case 'month':
+        return 'dayGridMonth';
+      case 'list':
+        return 'listWeek';
+      default:
+        return 'resourceTimelineWeek';
+    }
+  }, [viewType]);
+
   // Custom resource label rendering with capacity
   const renderResourceLabel = useCallback(
     (arg: { resource: { id: string; title: string; extendedProps?: Record<string, unknown> } }) => {
@@ -496,7 +519,7 @@ export function ScheduleCalendar({
               listPlugin,
               resourceTimelinePlugin,
             ]}
-            initialView="resourceTimelineWeek"
+            initialView={fullCalendarView}
             // Header toolbar
             headerToolbar={{
               left: 'prev,next today',
