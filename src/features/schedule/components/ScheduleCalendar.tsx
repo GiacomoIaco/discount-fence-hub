@@ -24,7 +24,9 @@ import type {
   CalendarResource,
   CalendarEvent,
   CreateScheduleEntryInput,
+  ScheduleFilters,
 } from '../types/schedule.types';
+import { filterResources, filterEntries } from '../hooks/useScheduleFilters';
 import type { Crew, SalesRep } from '../../fsm/types';
 import { EventCard } from './EventCard';
 import { ScheduleEntryModal } from './ScheduleEntryModal';
@@ -89,11 +91,13 @@ function formatEntryTitle(entry: ScheduleEntry): string {
 // ============================================
 
 interface ScheduleCalendarProps {
+  filters?: ScheduleFilters;
   onNavigateToJob?: (jobId: string) => void;
   onNavigateToRequest?: (requestId: string) => void;
 }
 
 export function ScheduleCalendar({
+  filters,
   // These will be used in Phase 2 for event click navigation
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onNavigateToJob: _onNavigateToJob,
@@ -181,16 +185,13 @@ export function ScheduleCalendar({
   // BUILD RESOURCES (Crews + Sales Reps as rows)
   // ─────────────────────────────────────────────────────────────────────────
   const resources: CalendarResource[] = useMemo(() => {
-    const result: CalendarResource[] = [];
+    let result: CalendarResource[] = [];
 
     // Crews group
     if (crews.length > 0) {
-      result.push({
-        id: 'crews-group',
-        title: 'CREWS',
-      });
+      const crewResources: CalendarResource[] = [];
       crews.forEach((crew) => {
-        result.push({
+        crewResources.push({
           id: `crew-${crew.id}`,
           parentId: 'crews-group',
           title: crew.name,
@@ -202,16 +203,26 @@ export function ScheduleCalendar({
           },
         });
       });
+
+      // Apply filters to crew resources
+      const filteredCrewResources = filters
+        ? filterResources(crewResources, filters)
+        : crewResources;
+
+      if (filteredCrewResources.length > 0) {
+        result.push({
+          id: 'crews-group',
+          title: 'CREWS',
+        });
+        result = result.concat(filteredCrewResources);
+      }
     }
 
     // Sales Reps group
     if (salesReps.length > 0) {
-      result.push({
-        id: 'reps-group',
-        title: 'SALES REPS',
-      });
+      const repResources: CalendarResource[] = [];
       salesReps.forEach((rep) => {
-        result.push({
+        repResources.push({
           id: `rep-${rep.id}`,
           parentId: 'reps-group',
           title: rep.name,
@@ -222,16 +233,32 @@ export function ScheduleCalendar({
           },
         });
       });
+
+      // Apply filters to rep resources
+      const filteredRepResources = filters
+        ? filterResources(repResources, filters)
+        : repResources;
+
+      if (filteredRepResources.length > 0) {
+        result.push({
+          id: 'reps-group',
+          title: 'SALES REPS',
+        });
+        result = result.concat(filteredRepResources);
+      }
     }
 
     return result;
-  }, [crews, salesReps]);
+  }, [crews, salesReps, filters]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // BUILD EVENTS from schedule entries
   // ─────────────────────────────────────────────────────────────────────────
   const events: CalendarEvent[] = useMemo(() => {
-    return entries.map((entry) => {
+    // Apply filters to entries
+    const filteredEntries = filters ? filterEntries(entries, filters) : entries;
+
+    return filteredEntries.map((entry) => {
       const resourceId = entry.crew_id
         ? `crew-${entry.crew_id}`
         : entry.sales_rep_id
@@ -272,7 +299,7 @@ export function ScheduleCalendar({
         },
       };
     });
-  }, [entries]);
+  }, [entries, filters]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // EVENT HANDLERS

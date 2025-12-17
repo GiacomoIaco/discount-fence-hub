@@ -192,6 +192,53 @@ export interface ScheduleEntriesFilter {
 }
 
 // ============================================
+// ADVANCED FILTER TYPES (Phase 4)
+// ============================================
+
+export type FilterPreset = 'all' | 'my_schedule' | 'needs_attention' | 'over_capacity' | 'unassigned';
+
+export interface ScheduleFilters {
+  // Entity filters
+  crewIds: string[];
+  repIds: string[];
+  territoryIds: string[];
+  projectTypeIds: string[];  // Skills/fence types
+
+  // Status filters
+  entryTypes: ScheduleEntryType[];
+  statuses: ScheduleEntryStatus[];
+
+  // Business unit filter
+  businessUnitIds: string[];
+
+  // Presets
+  preset: FilterPreset;
+
+  // Search
+  searchQuery: string;
+}
+
+export const DEFAULT_SCHEDULE_FILTERS: ScheduleFilters = {
+  crewIds: [],
+  repIds: [],
+  territoryIds: [],
+  projectTypeIds: [],
+  entryTypes: [],
+  statuses: [],
+  businessUnitIds: [],
+  preset: 'all',
+  searchQuery: '',
+};
+
+export const FILTER_PRESET_LABELS: Record<FilterPreset, string> = {
+  all: 'All',
+  my_schedule: 'My Schedule',
+  needs_attention: 'Needs Attention',
+  over_capacity: 'Over Capacity',
+  unassigned: 'Unassigned',
+};
+
+// ============================================
 // UI STATE TYPES
 // ============================================
 

@@ -1,5 +1,7 @@
 import { Calendar } from 'lucide-react';
 import { ScheduleCalendar } from './components/ScheduleCalendar';
+import FilterBar from './components/FilterBar';
+import { useScheduleFilters } from './hooks/useScheduleFilters';
 
 // ============================================
 // SCHEDULE PAGE
@@ -16,6 +18,14 @@ export default function SchedulePage({
   onNavigateToRequest,
   onNavigateToJob,
 }: SchedulePageProps) {
+  const {
+    filters,
+    setFilters,
+    resetFilters,
+    setPreset,
+    activeFilterCount,
+  } = useScheduleFilters();
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
@@ -58,9 +68,19 @@ export default function SchedulePage({
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <FilterBar
+        filters={filters}
+        onFilterChange={setFilters}
+        onPresetChange={setPreset}
+        onReset={resetFilters}
+        activeFilterCount={activeFilterCount}
+      />
+
       {/* Calendar */}
       <div className="flex-1 p-4 overflow-hidden">
         <ScheduleCalendar
+          filters={filters}
           onNavigateToJob={onNavigateToJob}
           onNavigateToRequest={onNavigateToRequest}
         />
