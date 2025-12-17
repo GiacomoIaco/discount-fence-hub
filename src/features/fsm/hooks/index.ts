@@ -12,3 +12,7 @@ export * from './useProjects';
 // Person-centric FSM model (Phase 3)
 export * from './useProjectTypes';
 export * from './useFsmTeamProfiles';
+
+// Skills & Multi-Job Projects (Phase 4)
+export * from './useSkillTags';
+export * from './useQuoteToProject';

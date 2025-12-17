@@ -971,14 +971,172 @@ export interface FsmTeamProfileFormData {
 }
 
 
-// Extended Job type with PM
-export interface JobExtended extends Job {
-  project_manager_id: string | null;
-  project_manager?: {
+// ============================================
+// SKILL TAGS (User-Definable)
+// ============================================
+
+export interface SkillTag {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  color: string;
+  triggers_pm: boolean;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrewSkillTag {
+  id: string;
+  crew_id: string;
+  skill_tag_id: string;
+  proficiency: SkillProficiency;
+  created_at: string;
+  // Joined
+  skill_tag?: SkillTag;
+}
+
+export interface SkillTagFormData {
+  name: string;
+  code: string;
+  description: string;
+  color: string;
+  triggers_pm: boolean;
+  display_order: number;
+  is_active: boolean;
+}
+
+// ============================================
+// INVOICE GROUPS (For Combined Invoicing)
+// ============================================
+
+export type InvoiceGroupStatus = 'pending' | 'ready' | 'invoiced' | 'partial';
+
+export interface InvoiceGroup {
+  id: string;
+  group_number: string;
+  project_id: string;
+  total_value: number;
+  status: InvoiceGroupStatus;
+  invoice_id: string | null;
+  invoiced_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  project?: Project;
+  invoice?: Invoice;
+  jobs?: Job[];
+}
+
+export const INVOICE_GROUP_STATUS_LABELS: Record<InvoiceGroupStatus, string> = {
+  pending: 'Pending',
+  ready: 'Ready to Invoice',
+  invoiced: 'Invoiced',
+  partial: 'Partial',
+};
+
+export const INVOICE_GROUP_STATUS_COLORS: Record<InvoiceGroupStatus, string> = {
+  pending: 'bg-gray-100 text-gray-700',
+  ready: 'bg-green-100 text-green-700',
+  invoiced: 'bg-blue-100 text-blue-700',
+  partial: 'bg-amber-100 text-amber-700',
+};
+
+// ============================================
+// EXTENDED JOB (with multi-job project support)
+// ============================================
+
+export interface JobWithContext extends Job {
+  // New multi-job fields
+  name: string | null;
+  project_type_id: string | null;
+  skill_tag_ids: string[];
+  quote_line_item_ids: string[];
+  sequence_order: number;
+  depends_on_job_id: string | null;
+  estimated_value: number | null;
+  invoice_group_id: string | null;
+  pm_required: boolean;
+  pm_id: string | null;
+  // Additional joins
+  project?: ProjectWithJobs;
+  project_type?: ProjectType;
+  invoice_group?: InvoiceGroup;
+  depends_on_job?: Job;
+  skill_tags?: SkillTag[];
+  quote_line_items?: QuoteLineItem[];
+  pm?: {
     id: string;
     email: string;
-    raw_user_meta_data?: {
-      full_name?: string;
-    };
+    full_name?: string;
   };
+}
+
+export interface JobFormData {
+  name: string;
+  project_id: string;
+  project_type_id: string;
+  skill_tag_ids: string[];
+  quote_line_item_ids: string[];
+  sequence_order: number;
+  depends_on_job_id: string;
+  estimated_value: string;  // String for form input
+  assigned_crew_id: string;
+  scheduled_date: string;
+  pm_required: boolean;
+  pm_id: string;
+  description: string;
+  special_instructions: string;
+}
+
+// ============================================
+// EXTENDED PROJECT (with jobs and invoice grouping)
+// ============================================
+
+export interface ProjectWithJobs extends Project {
+  // New fields
+  default_invoice_together: boolean;
+  job_count: number;
+  // Extended joins
+  jobs?: JobWithContext[];
+  invoice_groups?: InvoiceGroup[];
+}
+
+export interface ProjectFormData {
+  name: string;
+  client_id: string;
+  community_id: string;
+  property_id: string;
+  product_type: string;
+  address_line1: string;
+  city: string;
+  state: string;
+  zip: string;
+  territory_id: string;
+  assigned_rep_id: string;
+  default_invoice_together: boolean;
+}
+
+// ============================================
+// QUOTE TO PROJECT CONVERSION
+// ============================================
+
+export interface QuoteToJobConfig {
+  name: string;
+  project_type_id: string;
+  skill_tag_ids: string[];
+  quote_line_item_ids: string[];
+  assigned_crew_id: string;
+  scheduled_date: string;
+  sequence_order: number;
+  depends_on_previous: boolean;
+}
+
+export interface QuoteToProjectConversion {
+  quote_id: string;
+  project_name: string;
+  invoice_together: boolean;
+  jobs: QuoteToJobConfig[];
 }
