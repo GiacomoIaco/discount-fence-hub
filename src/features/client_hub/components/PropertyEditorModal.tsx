@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { X, MapPin, Key, User, Phone, Mail } from 'lucide-react';
 import { useCreateProperty, useUpdateProperty } from '../hooks/useProperties';
+import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
+import type { AddressFormData } from '../../shared/types/location';
 import {
   PROPERTY_STATUS_LABELS,
   type Property,
@@ -33,10 +35,25 @@ export default function PropertyEditorModal({ property, communityId, onClose }: 
     homeowner_email: property?.homeowner_email || '',
     status: property?.status || 'available',
     notes: property?.notes || '',
+    // Geocoding fields
+    latitude: property?.latitude ?? null,
+    longitude: property?.longitude ?? null,
   });
 
   const isEditing = !!property;
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  const handleAddressChange = (address: AddressFormData) => {
+    setFormData((prev) => ({
+      ...prev,
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,54 +134,25 @@ export default function PropertyEditorModal({ property, communityId, onClose }: 
             </div>
           </div>
 
-          {/* Address */}
+          {/* Address - Smart Search */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Address</h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Street Address <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.address_line1}
-                onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
-                placeholder="123 Main St"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  maxLength={2}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
-                <input
-                  type="text"
-                  value={formData.zip}
-                  onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
+            <SmartAddressInput
+              value={{
+                address_line1: formData.address_line1,
+                city: formData.city,
+                state: formData.state,
+                zip: formData.zip,
+                latitude: formData.latitude ?? null,
+                longitude: formData.longitude ?? null,
+              }}
+              onChange={handleAddressChange}
+              label="Street Address"
+              required
+              restrictToTexas
+              placeholder="Start typing address..."
+            />
           </div>
 
           {/* Access Info */}

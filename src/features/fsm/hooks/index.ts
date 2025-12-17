@@ -16,3 +16,7 @@ export * from './useFsmTeamProfiles';
 // Skills & Multi-Job Projects (Phase 4)
 export * from './useSkillTags';
 export * from './useQuoteToProject';
+
+// Smart Address & Location (Phase 5)
+export * from './useTerritoryDetection';
+export * from './useCrewRouting';

@@ -273,6 +273,9 @@ export interface PropertyFormData {
   homeowner_email: string;
   status: PropertyStatus;
   notes: string;
+  // Geocoding (from migration 178)
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export const PROPERTY_STATUS_LABELS: Record<PropertyStatus, string> = {

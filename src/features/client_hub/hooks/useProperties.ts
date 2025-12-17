@@ -87,6 +87,9 @@ export function useCreateProperty() {
 
   return useMutation({
     mutationFn: async (data: PropertyFormData) => {
+      // Track when coordinates are provided
+      const hasCoordinates = data.latitude != null && data.longitude != null;
+
       const { data: property, error } = await supabase
         .from('properties')
         .insert({
@@ -99,6 +102,10 @@ export function useCreateProperty() {
           homeowner_phone: data.homeowner_phone || null,
           homeowner_email: data.homeowner_email || null,
           notes: data.notes || null,
+          // Geocoding fields
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
+          geocoded_at: hasCoordinates ? new Date().toISOString() : null,
         })
         .select()
         .single();
@@ -125,11 +132,19 @@ export function useUpdateProperty() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<PropertyFormData> }) => {
+      // If coordinates are being updated, track geocoded_at
+      const coordinatesProvided = 'latitude' in data || 'longitude' in data;
+      const hasCoordinates = data.latitude != null && data.longitude != null;
+
       const { data: property, error } = await supabase
         .from('properties')
         .update({
           ...data,
           updated_at: new Date().toISOString(),
+          // Update geocoded_at only if coordinates are being changed
+          ...(coordinatesProvided && {
+            geocoded_at: hasCoordinates ? new Date().toISOString() : null,
+          }),
         })
         .eq('id', id)
         .select()

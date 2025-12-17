@@ -1,0 +1,235 @@
+import { useState } from 'react';
+import { MapPin, Check, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
+import { AddressAutocomplete } from './AddressAutocomplete';
+import { CaptureLocationButton } from './CaptureLocationButton';
+import type { AddressSuggestion, AddressFormData } from '../types/location';
+import { hasValidCoordinates, formatCoordinates } from '../types/location';
+
+interface SmartAddressInputProps {
+  value: AddressFormData;
+  onChange: (address: AddressFormData) => void;
+  label?: string;
+  required?: boolean;
+  showManualFields?: boolean;
+  restrictToTexas?: boolean;
+  disabled?: boolean;
+  error?: string;
+  placeholder?: string;
+}
+
+export function SmartAddressInput({
+  value,
+  onChange,
+  label = 'Address',
+  required = false,
+  showManualFields = false,
+  restrictToTexas = true,
+  disabled = false,
+  error,
+  placeholder = 'Start typing an address...',
+}: SmartAddressInputProps) {
+  const [showManual, setShowManual] = useState(showManualFields);
+  const [, setIsVerified] = useState(
+    hasValidCoordinates(value.latitude, value.longitude)
+  );
+
+  const handleAddressSelect = (suggestion: AddressSuggestion) => {
+    onChange({
+      address_line1: suggestion.address_line1,
+      address_line2: suggestion.address_line2 || '',
+      city: suggestion.city,
+      state: suggestion.state,
+      zip: suggestion.zip,
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    });
+    setIsVerified(true);
+    setShowManual(false);
+  };
+
+  const handleManualChange = (field: keyof AddressFormData, newValue: string) => {
+    onChange({
+      ...value,
+      [field]: newValue,
+      // Clear coordinates when user manually edits
+      latitude: null,
+      longitude: null,
+    });
+    setIsVerified(false);
+  };
+
+  const handleInputChange = (newValue: string) => {
+    onChange({
+      ...value,
+      address_line1: newValue,
+      // Clear coordinates when typing (user is searching)
+      latitude: null,
+      longitude: null,
+    });
+    setIsVerified(false);
+  };
+
+  const handleGpsCapture = (coords: { latitude: number; longitude: number; accuracy: number }) => {
+    onChange({
+      ...value,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    });
+    setIsVerified(true);
+  };
+
+  const hasCoords = hasValidCoordinates(value.latitude, value.longitude);
+
+  return (
+    <div className="space-y-3">
+      <AddressAutocomplete
+        value={value.address_line1}
+        onChange={handleInputChange}
+        onAddressSelect={handleAddressSelect}
+        label={label}
+        required={required}
+        restrictToTexas={restrictToTexas}
+        disabled={disabled}
+        error={error}
+        placeholder={placeholder}
+      />
+
+      {/* Location verified indicator */}
+      {hasCoords && (
+        <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-1 text-green-600">
+            <Check className="w-3 h-3" />
+            <span>Location verified</span>
+          </div>
+          <span className="text-gray-400">
+            ({formatCoordinates(value.latitude!, value.longitude!, 4)})
+          </span>
+        </div>
+      )}
+
+      {/* Collapsed address summary */}
+      {!showManual && (value.city || value.state || value.zip) && (
+        <div className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg text-sm">
+          <span className="text-gray-600">
+            {[value.city, value.state, value.zip].filter(Boolean).join(', ')}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowManual(true)}
+            className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            disabled={disabled}
+          >
+            <Edit2 className="w-3 h-3" />
+            <span>Edit</span>
+          </button>
+        </div>
+      )}
+
+      {/* Toggle manual entry */}
+      <button
+        type="button"
+        onClick={() => setShowManual(!showManual)}
+        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+        disabled={disabled}
+      >
+        {showManual ? (
+          <>
+            <ChevronUp className="w-4 h-4" />
+            Hide manual entry
+          </>
+        ) : (
+          <>
+            <ChevronDown className="w-4 h-4" />
+            Enter address manually
+          </>
+        )}
+      </button>
+
+      {/* GPS Capture - Mobile/Tablet only */}
+      <CaptureLocationButton
+        onCapture={handleGpsCapture}
+        currentLatitude={value.latitude}
+        currentLongitude={value.longitude}
+        disabled={disabled}
+      />
+
+      {/* Manual entry fields */}
+      {showManual && (
+        <div className="space-y-4 pt-2 border-t border-gray-100">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Apt / Suite / Unit
+            </label>
+            <input
+              type="text"
+              value={value.address_line2 || ''}
+              onChange={(e) => handleManualChange('address_line2', e.target.value)}
+              placeholder="Apt 101"
+              disabled={disabled}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
+            />
+          </div>
+
+          <div className="grid grid-cols-6 gap-4">
+            <div className="col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                value={value.city}
+                onChange={(e) => handleManualChange('city', e.target.value)}
+                placeholder="Austin"
+                disabled={disabled}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                State
+              </label>
+              <input
+                type="text"
+                value={value.state}
+                onChange={(e) => handleManualChange('state', e.target.value)}
+                placeholder="TX"
+                maxLength={2}
+                disabled={disabled}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 uppercase"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ZIP Code
+              </label>
+              <input
+                type="text"
+                value={value.zip}
+                onChange={(e) => handleManualChange('zip', e.target.value)}
+                placeholder="78701"
+                maxLength={10}
+                disabled={disabled}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
+              />
+            </div>
+          </div>
+
+          {/* Warning for manual entry */}
+          {!hasCoords && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+              <MapPin className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-amber-800">
+                <strong>Note:</strong> Manually entered addresses won't have GPS coordinates.
+                Select an address from the dropdown for accurate location tracking and routing.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SmartAddressInput;

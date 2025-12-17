@@ -20,9 +20,7 @@ export function useClients(filters?: {
         .from('clients')
         .select(`
           *,
-          communities:communities(count),
-          assigned_rep:user_profiles!clients_assigned_rep_id_fkey(id, email, full_name),
-          preferred_crew:crews!clients_preferred_crew_id_fkey(id, name, code)
+          communities:communities(count)
         `)
         .order('name');
 
@@ -72,9 +70,7 @@ export function useClient(id: string | null) {
               *,
               contact_role:contact_roles(*)
             )
-          ),
-          assigned_rep:user_profiles!clients_assigned_rep_id_fkey(id, email, full_name),
-          preferred_crew:crews!clients_preferred_crew_id_fkey(id, name, code)
+          )
         `)
         .eq('id', id)
         .single();

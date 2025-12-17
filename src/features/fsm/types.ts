@@ -97,6 +97,10 @@ export interface Crew {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Geocoding (from migration 178)
+  home_latitude?: number | null;
+  home_longitude?: number | null;
+  home_address?: string | null;
   // Joined
   members?: CrewMember[];
   territory?: Territory;
@@ -330,6 +334,10 @@ export interface Job {
   community_id: string | null;
   property_id: string | null;
   job_address: AddressSnapshot;
+  // Geocoding (from migration 178)
+  site_latitude?: number | null;
+  site_longitude?: number | null;
+  geocoded_at?: string | null;
   // Scope
   product_type: string | null;
   linear_feet: number | null;
@@ -538,6 +546,9 @@ export interface RequestFormData {
   city: string;
   state: string;
   zip: string;
+  // Geocoding (from migration 178)
+  latitude?: number | null;
+  longitude?: number | null;
   // Details
   source: RequestSource;
   product_type: string;
