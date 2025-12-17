@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import * as messageService from '../services/messageService';
+import { showError } from '../../../lib/toast';
 import type { NewMessage } from '../types';
 
 export function useMessages(conversationId: string | null) {
@@ -37,6 +38,9 @@ export function useSendMessage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['mc_messages', variables.conversation_id] });
       queryClient.invalidateQueries({ queryKey: ['mc_conversations'] });
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to send message');
     },
   });
 }

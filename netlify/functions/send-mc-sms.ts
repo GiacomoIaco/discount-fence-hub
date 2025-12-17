@@ -85,6 +85,8 @@ export const handler: Handler = async (event) => {
 
     // Send via Twilio
     const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
+    const appUrl = process.env.URL || 'https://discount-fence-hub.netlify.app';
+    const statusCallbackUrl = `${appUrl}/.netlify/functions/twilio-status-webhook`;
 
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
@@ -98,6 +100,7 @@ export const handler: Handler = async (event) => {
           To: formattedPhone,
           From: twilioPhoneNumber,
           Body: body,
+          StatusCallback: statusCallbackUrl,
         }),
       }
     );
