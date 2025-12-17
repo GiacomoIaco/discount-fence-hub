@@ -6,6 +6,7 @@ import { MessageThread } from './components/MessageThread';
 import { MessageComposer } from './components/MessageComposer';
 import { NewConversationModal } from './components/NewConversationModal';
 import { AddParticipantsModal } from './components/AddParticipantsModal';
+import { ContactInfoPanel } from './components/ContactInfoPanel';
 import { useConversations, useConversationCounts, useMarkConversationRead, useArchiveConversation } from './hooks/useConversations';
 import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
@@ -29,6 +30,7 @@ export function MessageCenterHub() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showClientFilters, setShowClientFilters] = useState(false);
   const [clientFilters, setClientFilters] = useState<ClientFilters>({});
+  const [showContactInfo, setShowContactInfo] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   // Only apply client filters when on clients tab
@@ -280,50 +282,57 @@ export function MessageCenterHub() {
                     <ArrowLeft className="w-5 h-5" />
                   </button>
 
-                  {/* Contact/Group Avatar */}
-                  {selectedConversation.is_group ? (
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-purple-600" />
-                    </div>
-                  ) : selectedConversation.contact?.avatar_url ? (
-                    <img
-                      src={selectedConversation.contact.avatar_url}
-                      className="w-10 h-10 rounded-full object-cover"
-                      alt=""
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-blue-600 font-medium">
-                        {(selectedConversation.contact?.display_name || 'U').charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Contact/Group Info */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-semibold text-gray-900">
-                        {selectedConversation.title || selectedConversation.contact?.display_name || 'Unknown'}
-                      </h2>
-                      {selectedConversation.is_group && (
-                        <span className="text-xs font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
-                          Group
+                  {/* Contact/Group Avatar & Info - Clickable to open info panel */}
+                  <button
+                    onClick={() => !selectedConversation.is_group && setShowContactInfo(true)}
+                    className={`flex items-center gap-3 ${!selectedConversation.is_group ? 'hover:bg-gray-50 -ml-2 px-2 py-1 rounded-lg transition-colors cursor-pointer' : ''}`}
+                    disabled={selectedConversation.is_group}
+                  >
+                    {/* Avatar */}
+                    {selectedConversation.is_group ? (
+                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-purple-600" />
+                      </div>
+                    ) : selectedConversation.contact?.avatar_url ? (
+                      <img
+                        src={selectedConversation.contact.avatar_url}
+                        className="w-10 h-10 rounded-full object-cover"
+                        alt=""
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="text-blue-600 font-medium">
+                          {(selectedConversation.contact?.display_name || 'U').charAt(0).toUpperCase()}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-gray-900">
+                          {selectedConversation.title || selectedConversation.contact?.display_name || 'Unknown'}
+                        </h2>
+                        {selectedConversation.is_group && (
+                          <span className="text-xs font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                            Group
+                          </span>
+                        )}
+                      </div>
+                      {selectedConversation.is_group && participants.length > 0 ? (
+                        <p className="text-sm text-gray-500 truncate max-w-[200px]">
+                          {participants.slice(0, 3).map(p => p.contact?.display_name || 'Unknown').join(', ')}
+                          {participants.length > 3 && ` +${participants.length - 3} more`}
+                        </p>
+                      ) : (selectedConversation.contact?.company_name || selectedConversation.contact?.context_label) && (
+                        <p className="text-sm text-gray-500">
+                          {selectedConversation.contact.company_name}
+                          {selectedConversation.contact.company_name && selectedConversation.contact.context_label && ' · '}
+                          {selectedConversation.contact.context_label}
+                        </p>
                       )}
                     </div>
-                    {selectedConversation.is_group && participants.length > 0 ? (
-                      <p className="text-sm text-gray-500 truncate max-w-[200px]">
-                        {participants.slice(0, 3).map(p => p.contact?.display_name || 'Unknown').join(', ')}
-                        {participants.length > 3 && ` +${participants.length - 3} more`}
-                      </p>
-                    ) : (selectedConversation.contact?.company_name || selectedConversation.contact?.context_label) && (
-                      <p className="text-sm text-gray-500">
-                        {selectedConversation.contact.company_name}
-                        {selectedConversation.contact.company_name && selectedConversation.contact.context_label && ' · '}
-                        {selectedConversation.contact.context_label}
-                      </p>
-                    )}
-                  </div>
+                  </button>
                 </div>
 
                 {/* Actions */}
@@ -421,6 +430,16 @@ export function MessageCenterHub() {
             </div>
           )}
         </div>
+
+        {/* Contact Info Panel */}
+        {selectedConversation && !selectedConversation.is_group && (
+          <ContactInfoPanel
+            contact={selectedConversation.contact}
+            conversationId={selectedConversation.id}
+            isOpen={showContactInfo}
+            onClose={() => setShowContactInfo(false)}
+          />
+        )}
       </div>
 
       {/* New Conversation Modal */}
