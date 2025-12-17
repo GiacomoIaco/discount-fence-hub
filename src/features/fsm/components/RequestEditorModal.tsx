@@ -3,6 +3,8 @@ import { X, Phone, Globe, Users, Building } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { ClientLookup, PropertyLookup } from '../../../components/common/SmartLookup';
+import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
+import type { AddressFormData } from '../../shared/types/location';
 import type { SelectedEntity } from '../../../components/common/SmartLookup';
 import type { Property } from '../../client_hub/types';
 import type { ServiceRequest, RequestFormData, RequestSource, Priority } from '../types';
@@ -60,6 +62,9 @@ const INITIAL_FORM_DATA: RequestFormData = {
   assigned_rep_id: '',
   territory_id: '',
   priority: 'normal',
+  // Geocoding fields
+  latitude: null,
+  longitude: null,
 };
 
 export default function RequestEditorModal({ isOpen, onClose, request }: RequestEditorModalProps) {
@@ -143,6 +148,8 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
         city: selectedProperty.city || prev.city,
         state: selectedProperty.state || prev.state,
         zip: selectedProperty.zip || prev.zip,
+        latitude: selectedProperty.latitude ?? null,
+        longitude: selectedProperty.longitude ?? null,
       }));
     } else {
       setFormData(prev => ({
@@ -151,6 +158,19 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
       }));
     }
   }, [selectedProperty]);
+
+  // Handler for SmartAddressInput
+  const handleAddressChange = (address: AddressFormData) => {
+    setFormData(prev => ({
+      ...prev,
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    }));
+  };
 
   // Auto-detect territory from zip code
   useEffect(() => {
@@ -262,38 +282,20 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {selectedEntity ? 'Or Enter Address Manually' : 'Job Address'}
               </label>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={formData.address_line1}
-                  onChange={(e) => updateField('address_line1', e.target.value)}
-                  placeholder="Street Address"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="grid grid-cols-6 gap-3">
-                  <input
-                    type="text"
-                    value={formData.city}
-                    onChange={(e) => updateField('city', e.target.value)}
-                    placeholder="City"
-                    className="col-span-3 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={formData.state}
-                    onChange={(e) => updateField('state', e.target.value)}
-                    placeholder="State"
-                    className="col-span-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={formData.zip}
-                    onChange={(e) => updateField('zip', e.target.value)}
-                    placeholder="ZIP"
-                    className="col-span-2 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
+              <SmartAddressInput
+                value={{
+                  address_line1: formData.address_line1,
+                  city: formData.city,
+                  state: formData.state,
+                  zip: formData.zip,
+                  latitude: formData.latitude ?? null,
+                  longitude: formData.longitude ?? null,
+                }}
+                onChange={handleAddressChange}
+                label=""
+                restrictToTexas
+                placeholder="Start typing address..."
+              />
             </div>
           )}
 

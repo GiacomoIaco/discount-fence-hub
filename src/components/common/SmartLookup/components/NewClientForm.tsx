@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import { showSuccess, showError } from '../../../../lib/toast';
+import { SmartAddressInput } from '../../../../features/shared/components/SmartAddressInput';
+import type { AddressFormData } from '../../../../features/shared/types/location';
 import type { Client, ClientType, BusinessUnit } from '../../../../features/client_hub/types';
 
 interface NewClientFormProps {
@@ -39,6 +41,17 @@ export function NewClientForm({ initialName = '', onSubmit, onCancel }: NewClien
     state: 'TX',
     zip: '',
   });
+
+  // Handler for SmartAddressInput
+  const handleAddressChange = (address: AddressFormData) => {
+    setForm((prev) => ({
+      ...prev,
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+    }));
+  };
 
   // Update business_unit based on client_type
   const handleClientTypeChange = (type: ClientType) => {
@@ -196,63 +209,25 @@ export function NewClientForm({ initialName = '', onSubmit, onCancel }: NewClien
         </div>
       </div>
 
-      {/* Address Section (optional, collapsed by default for residential) */}
+      {/* Address Section (optional) */}
       <div className="border-t border-gray-200 pt-4">
         <h3 className="text-sm font-medium text-gray-700 mb-3">Address (Optional)</h3>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Street Address
-        </label>
-        <input
-          type="text"
-          value={form.address_line1}
-          onChange={(e) => setForm((prev) => ({ ...prev, address_line1: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="123 Main St"
-        />
-      </div>
-
-      {/* City, State, Zip row */}
-      <div className="grid grid-cols-6 gap-3">
-        <div className="col-span-3">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            City
-          </label>
-          <input
-            type="text"
-            value={form.city}
-            onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Austin"
-          />
-        </div>
-        <div className="col-span-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            State
-          </label>
-          <input
-            type="text"
-            value={form.state}
-            onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            maxLength={2}
-          />
-        </div>
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ZIP
-          </label>
-          <input
-            type="text"
-            value={form.zip}
-            onChange={(e) => setForm((prev) => ({ ...prev, zip: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="78701"
-          />
-        </div>
-      </div>
+      <SmartAddressInput
+        value={{
+          address_line1: form.address_line1,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          latitude: null,
+          longitude: null,
+        }}
+        onChange={handleAddressChange}
+        label=""
+        restrictToTexas
+        placeholder="Start typing address..."
+      />
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 border-t border-gray-200">

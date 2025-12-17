@@ -5,6 +5,8 @@ import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
 import { useTeamMembers } from '../../settings/hooks';
 import { useCrews } from '../../fsm/hooks';
+import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
+import type { AddressFormData } from '../../shared/types/location';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
@@ -53,6 +55,17 @@ export default function ClientEditorModal({ client, onClose }: Props) {
 
   const isEditing = !!client;
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  // Handler for SmartAddressInput
+  const handleAddressChange = (address: AddressFormData) => {
+    setFormData(prev => ({
+      ...prev,
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,15 +215,20 @@ export default function ClientEditorModal({ client, onClose }: Props) {
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Address</h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
-              <input
-                type="text"
-                value={formData.address_line1}
-                onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+            <SmartAddressInput
+              value={{
+                address_line1: formData.address_line1,
+                city: formData.city,
+                state: formData.state,
+                zip: formData.zip,
+                latitude: null,
+                longitude: null,
+              }}
+              onChange={handleAddressChange}
+              label="Office/Business Address"
+              restrictToTexas
+              placeholder="Start typing address..."
+            />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
@@ -218,39 +236,9 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                 type="text"
                 value={formData.address_line2}
                 onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                placeholder="Suite, Unit, Building, etc."
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  maxLength={2}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
-                <input
-                  type="text"
-                  value={formData.zip}
-                  onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
             </div>
           </div>
 
