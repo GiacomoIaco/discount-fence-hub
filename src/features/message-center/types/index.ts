@@ -97,6 +97,12 @@ export interface Message {
   attachments?: Attachment[];
   created_at: string;
   metadata?: Record<string, unknown>;
+  // Joined sender info for display
+  sender?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
 }
 
 export interface Attachment {
@@ -203,6 +209,8 @@ export interface NewMessage {
   // For MMS group messaging - send to all these numbers
   group_recipients?: string[];
   is_group?: boolean;
+  // Who sent this message (for internal attribution)
+  from_user_id?: string;
 }
 
 // Filter types for sidebar

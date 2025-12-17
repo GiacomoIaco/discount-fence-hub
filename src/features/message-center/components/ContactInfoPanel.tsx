@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Phone, Mail, MapPin, User, ExternalLink, Clock } from 'lucide-react';
+import { X, Phone, Mail, MapPin, User, ExternalLink, Clock, Briefcase, UserPlus } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import type { Contact, Message } from '../types';
 
 interface ContactInfoPanelProps {
@@ -9,6 +9,7 @@ interface ContactInfoPanelProps {
   conversationId: string | null;
   isOpen: boolean;
   onClose: () => void;
+  onInviteSalesRep?: (salesRepId: string, salesRepName: string) => void;
 }
 
 interface LinkedClient {
@@ -26,9 +27,24 @@ interface LinkedCommunity {
   client_name: string;
 }
 
-export function ContactInfoPanel({ contact, conversationId, isOpen, onClose }: ContactInfoPanelProps) {
+interface LinkedProject {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  assigned_rep: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    user_id?: string;
+  } | null;
+}
+
+export function ContactInfoPanel({ contact, conversationId, isOpen, onClose, onInviteSalesRep }: ContactInfoPanelProps) {
   const [linkedClient, setLinkedClient] = useState<LinkedClient | null>(null);
   const [linkedCommunity, setLinkedCommunity] = useState<LinkedCommunity | null>(null);
+  const [linkedProjects, setLinkedProjects] = useState<LinkedProject[]>([]);
   const [recentMessages, setRecentMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -51,8 +67,32 @@ export function ContactInfoPanel({ contact, conversationId, isOpen, onClose }: C
           .eq('id', contact.client_id)
           .single();
         setLinkedClient(client);
+
+        // Load projects for this client
+        if (client) {
+          const { data: projects } = await supabase
+            .from('projects')
+            .select(`
+              id, name, status, created_at,
+              assigned_rep:sales_reps(id, name, email, phone, user_id)
+            `)
+            .eq('client_id', client.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+          // Map to handle Supabase returning joined data as array
+          const mappedProjects: LinkedProject[] = (projects || []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            status: p.status,
+            created_at: p.created_at,
+            assigned_rep: Array.isArray(p.assigned_rep) ? p.assigned_rep[0] || null : p.assigned_rep
+          }));
+          setLinkedProjects(mappedProjects);
+        }
       } else {
         setLinkedClient(null);
+        setLinkedProjects([]);
       }
 
       // Try to find linked community via context_label or company
@@ -258,6 +298,66 @@ export function ContactInfoPanel({ contact, conversationId, isOpen, onClose }: C
                     <ExternalLink className="w-4 h-4 text-gray-400" />
                   </div>
                 </a>
+              </div>
+            )}
+
+            {/* Active Projects */}
+            {linkedProjects.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Active Projects
+                </h4>
+                <div className="space-y-2">
+                  {linkedProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className="p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={`/projects/${project.id}`}
+                            className="font-medium text-gray-900 hover:text-blue-600 flex items-center gap-1"
+                          >
+                            <Briefcase className="w-3 h-3" />
+                            <span className="truncate">{project.name}</span>
+                          </a>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                              project.status === 'active' ? 'bg-green-100 text-green-700' :
+                              project.status === 'quote_sent' ? 'bg-yellow-100 text-yellow-700' :
+                              project.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                              project.status === 'completed' ? 'bg-gray-100 text-gray-600' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {project.status?.replace('_', ' ')}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {format(new Date(project.created_at), 'MMM d')}
+                            </span>
+                          </div>
+                          {project.assigned_rep && (
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-xs text-gray-500">
+                                Sales: {project.assigned_rep.name}
+                              </p>
+                              {onInviteSalesRep && (
+                                <button
+                                  onClick={() => onInviteSalesRep(project.assigned_rep!.id, project.assigned_rep!.name)}
+                                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                  title={`Invite ${project.assigned_rep.name} to conversation`}
+                                >
+                                  <UserPlus className="w-3 h-3" />
+                                  Invite
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

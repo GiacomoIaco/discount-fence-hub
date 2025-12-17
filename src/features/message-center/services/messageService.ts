@@ -267,7 +267,8 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
     .from('mc_messages')
     .select(`
       *,
-      attachments:mc_attachments(*)
+      attachments:mc_attachments(*),
+      sender:user_profiles!from_user_id(id, full_name, avatar_url)
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
@@ -296,6 +297,7 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
       body: message.body,
       to_phone: message.to_phone,
       to_email: message.to_email,
+      from_user_id: message.from_user_id,
       status: 'sending',
       sent_at: new Date().toISOString(),
       metadata: message.is_group ? {

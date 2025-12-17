@@ -11,6 +11,9 @@ import { useConversations, useConversationCounts, useMarkConversationRead, useAr
 import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
 import * as messageService from './services/messageService';
+import { useAuth } from '../../contexts/AuthContext';
+import { showSuccess, showError } from '../../lib/toast';
+import { supabase } from '../../lib/supabase';
 import type { ConversationWithContact, ConversationFilter, Contact, ConversationParticipant, ClientFilters } from './types';
 
 const BUSINESS_UNIT_OPTIONS = [
@@ -21,6 +24,7 @@ const BUSINESS_UNIT_OPTIONS = [
 ];
 
 export function MessageCenterHub() {
+  const { profile } = useAuth();
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>('all');
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithContact | null>(null);
   const [isMobileThreadView, setIsMobileThreadView] = useState(false);
@@ -80,6 +84,87 @@ export function MessageCenterHub() {
     }
   };
 
+  // Invite sales rep to conversation from Contact Info Panel
+  const handleInviteSalesRep = async (salesRepId: string, salesRepName: string) => {
+    if (!selectedConversation) return;
+
+    try {
+      // Fetch full sales rep data
+      const { data: salesRep, error: repError } = await supabase
+        .from('sales_reps')
+        .select('id, name, email, phone, user_id')
+        .eq('id', salesRepId)
+        .single();
+
+      if (repError || !salesRep) {
+        showError('Could not find sales rep information');
+        return;
+      }
+
+      // Check if mc_contact already exists for this sales rep (by user_id or email)
+      let mcContact = null;
+
+      if (salesRep.user_id) {
+        const { data: existing } = await supabase
+          .from('mc_contacts')
+          .select('id')
+          .eq('employee_id', salesRep.user_id)
+          .single();
+        mcContact = existing;
+      }
+
+      if (!mcContact && salesRep.email) {
+        const { data: existing } = await supabase
+          .from('mc_contacts')
+          .select('id')
+          .eq('email_primary', salesRep.email)
+          .single();
+        mcContact = existing;
+      }
+
+      // Create mc_contact if doesn't exist
+      if (!mcContact) {
+        const nameParts = salesRep.name.split(' ');
+        const { data: newContact, error: createError } = await supabase
+          .from('mc_contacts')
+          .insert({
+            contact_type: 'employee',
+            display_name: salesRep.name,
+            first_name: nameParts[0],
+            last_name: nameParts.slice(1).join(' '),
+            email_primary: salesRep.email,
+            phone_primary: salesRep.phone,
+            employee_id: salesRep.user_id,
+            company_name: 'Discount Fence',
+            context_label: 'Sales Rep'
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          showError('Failed to create contact for sales rep');
+          return;
+        }
+        mcContact = newContact;
+      }
+
+      // Add to conversation
+      await messageService.addParticipantToConversation(
+        selectedConversation.id,
+        mcContact.id,
+        profile?.id
+      );
+
+      // Refresh participants
+      await handleParticipantAdded();
+
+      showSuccess(`${salesRepName} invited to conversation`);
+    } catch (error) {
+      console.error('Error inviting sales rep:', error);
+      showError('Failed to invite sales rep');
+    }
+  };
+
   // Build shortcode context for quick replies
   const shortcodeContext = useMemo(() => {
     if (!selectedConversation?.contact) return {};
@@ -121,7 +206,8 @@ export function MessageCenterHub() {
         direction: 'outbound',
         body,
         is_group: true,
-        group_recipients: groupPhones
+        group_recipients: groupPhones,
+        from_user_id: profile?.id
       });
     } else {
       // Single recipient SMS
@@ -129,7 +215,8 @@ export function MessageCenterHub() {
         contact_id: selectedConversation.contact?.id,
         display_name: selectedConversation.contact?.display_name,
         phone_primary: selectedConversation.contact?.phone_primary,
-        has_contact: !!selectedConversation.contact
+        has_contact: !!selectedConversation.contact,
+        from_user: profile?.full_name
       });
 
       sendMessage.mutate({
@@ -137,7 +224,8 @@ export function MessageCenterHub() {
         channel: 'sms',
         direction: 'outbound',
         body,
-        to_phone: selectedConversation.contact?.phone_primary
+        to_phone: selectedConversation.contact?.phone_primary,
+        from_user_id: profile?.id
       });
     }
   };
@@ -460,6 +548,7 @@ export function MessageCenterHub() {
             conversationId={selectedConversation.id}
             isOpen={showContactInfo}
             onClose={() => setShowContactInfo(false)}
+            onInviteSalesRep={handleInviteSalesRep}
           />
         )}
       </div>

@@ -65,6 +65,7 @@ interface MessageBubbleProps {
 
 function MessageBubble({ message }: MessageBubbleProps) {
   const isOutbound = message.direction === 'outbound';
+  const senderName = message.sender?.full_name;
 
   return (
     <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
@@ -75,6 +76,13 @@ function MessageBubble({ message }: MessageBubbleProps) {
             : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
         }`}
       >
+        {/* Sender name for outbound messages (internal attribution) */}
+        {isOutbound && senderName && (
+          <p className="text-xs text-blue-200 mb-1 font-medium">
+            {senderName}
+          </p>
+        )}
+
         {/* Message Body */}
         <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
 
