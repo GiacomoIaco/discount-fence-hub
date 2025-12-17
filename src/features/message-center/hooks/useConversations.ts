@@ -1,14 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import * as messageService from '../services/messageService';
-import type { ConversationFilter } from '../types';
+import type { ConversationFilter, ClientFilters } from '../types';
 
-export function useConversations(filter: ConversationFilter = 'all') {
+export function useConversations(filter: ConversationFilter = 'all', clientFilters?: ClientFilters) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['mc_conversations', filter],
-    queryFn: () => messageService.getConversations(filter),
+    queryKey: ['mc_conversations', filter, clientFilters],
+    queryFn: () => messageService.getConversations(filter, clientFilters),
   });
 
   // Subscribe to realtime updates

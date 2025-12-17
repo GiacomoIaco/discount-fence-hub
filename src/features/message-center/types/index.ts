@@ -205,6 +205,13 @@ export interface NewMessage {
 // Filter types for sidebar
 export type ConversationFilter = 'all' | 'team' | 'clients' | 'requests' | 'archived';
 
+// Advanced client filters
+export interface ClientFilters {
+  businessUnit?: 'residential' | 'commercial' | 'builders';
+  city?: string;
+  state?: string;
+}
+
 export interface ConversationCounts {
   all: number;
   team: number;

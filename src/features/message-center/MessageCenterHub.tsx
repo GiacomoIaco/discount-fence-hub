@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus, Archive, ArchiveRestore, UserPlus, Users } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Phone, Mail, MoreVertical, Plus, Archive, ArchiveRestore, UserPlus, Users, Filter, X } from 'lucide-react';
 import { MessageCenterSidebar } from './components/MessageCenterSidebar';
 import { ConversationList } from './components/ConversationList';
 import { MessageThread } from './components/MessageThread';
@@ -10,7 +10,14 @@ import { useConversations, useConversationCounts, useMarkConversationRead, useAr
 import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
 import * as messageService from './services/messageService';
-import type { ConversationWithContact, ConversationFilter, Contact, ConversationParticipant } from './types';
+import type { ConversationWithContact, ConversationFilter, Contact, ConversationParticipant, ClientFilters } from './types';
+
+const BUSINESS_UNIT_OPTIONS = [
+  { value: '', label: 'All Business Units' },
+  { value: 'residential', label: 'Residential' },
+  { value: 'commercial', label: 'Commercial' },
+  { value: 'builders', label: 'Builders' },
+];
 
 export function MessageCenterHub() {
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>('all');
@@ -20,9 +27,13 @@ export function MessageCenterHub() {
   const [showAddParticipants, setShowAddParticipants] = useState(false);
   const [participants, setParticipants] = useState<ConversationParticipant[]>([]);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showClientFilters, setShowClientFilters] = useState(false);
+  const [clientFilters, setClientFilters] = useState<ClientFilters>({});
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
-  const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter);
+  // Only apply client filters when on clients tab
+  const activeClientFilters = activeFilter === 'clients' ? clientFilters : undefined;
+  const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter, activeClientFilters);
   const { data: counts = { all: 0, team: 0, clients: 0, requests: 0, archived: 0 } } = useConversationCounts();
   const { data: messages = [], isLoading: messagesLoading } = useMessages(selectedConversation?.id || null);
   const markRead = useMarkConversationRead();
@@ -175,14 +186,64 @@ export function MessageCenterHub() {
               {activeFilter === 'requests' && 'Project Requests'}
               {activeFilter === 'archived' && 'Archived'}
             </h2>
-            <button
-              onClick={() => setShowNewConversation(true)}
-              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              title="New Conversation"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Filter button - only show for clients */}
+              {activeFilter === 'clients' && (
+                <button
+                  onClick={() => setShowClientFilters(!showClientFilters)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    showClientFilters || clientFilters.businessUnit || clientFilters.city
+                      ? 'text-blue-600 bg-blue-50'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                  title="Filter clients"
+                >
+                  <Filter className="w-5 h-5" />
+                </button>
+              )}
+              <button
+                onClick={() => setShowNewConversation(true)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="New Conversation"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
           </div>
+
+          {/* Client Filters Bar */}
+          {activeFilter === 'clients' && showClientFilters && (
+            <div className="px-4 py-2 border-b bg-gray-50 space-y-2">
+              <div className="flex items-center gap-2">
+                <select
+                  value={clientFilters.businessUnit || ''}
+                  onChange={(e) => setClientFilters(prev => ({
+                    ...prev,
+                    businessUnit: e.target.value as ClientFilters['businessUnit'] || undefined
+                  }))}
+                  className="flex-1 text-sm px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {BUSINESS_UNIT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {(clientFilters.businessUnit || clientFilters.city) && (
+                  <button
+                    onClick={() => setClientFilters({})}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded"
+                    title="Clear filters"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {(clientFilters.businessUnit || clientFilters.city) && (
+                <div className="text-xs text-gray-500">
+                  Showing {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Conversation List */}
           <ConversationList

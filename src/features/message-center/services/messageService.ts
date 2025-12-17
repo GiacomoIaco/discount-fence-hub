@@ -7,19 +7,26 @@ import type {
   NewMessage,
   Contact,
   ConversationFilter,
-  ConversationCounts
+  ConversationCounts,
+  ClientFilters
 } from '../types';
 
 // ============================================================================
 // CONVERSATIONS
 // ============================================================================
 
-export async function getConversations(filter: ConversationFilter = 'all'): Promise<ConversationWithContact[]> {
+export async function getConversations(
+  filter: ConversationFilter = 'all',
+  clientFilters?: ClientFilters
+): Promise<ConversationWithContact[]> {
+  // If client filters are applied, we need to join to the clients table
+  const needsClientJoin = clientFilters?.businessUnit || clientFilters?.city || clientFilters?.state;
+
   let query = supabase
     .from('mc_conversations')
     .select(`
       *,
-      contact:mc_contacts(*)
+      contact:mc_contacts(*, client:clients(id, business_unit, city, state))
     `)
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
@@ -45,7 +52,33 @@ export async function getConversations(filter: ConversationFilter = 'all'): Prom
   const { data, error } = await query;
 
   if (error) throw error;
-  return data || [];
+
+  // Apply client-level filters in memory since Supabase doesn't support
+  // filtering on nested joins easily
+  let results = data || [];
+
+  if (needsClientJoin && results.length > 0) {
+    results = results.filter(conv => {
+      // Only filter client conversations
+      if (conv.conversation_type !== 'client') return true;
+
+      const client = (conv.contact as any)?.client;
+      if (!client) return true; // Keep if no client linked
+
+      if (clientFilters?.businessUnit && client.business_unit !== clientFilters.businessUnit) {
+        return false;
+      }
+      if (clientFilters?.city && client.city !== clientFilters.city) {
+        return false;
+      }
+      if (clientFilters?.state && client.state !== clientFilters.state) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  return results;
 }
 
 export async function getConversationCounts(): Promise<ConversationCounts> {
