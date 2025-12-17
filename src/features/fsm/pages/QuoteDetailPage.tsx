@@ -24,8 +24,11 @@ import {
   History,
   Package,
   Clock,
+  ChevronDown,
+  Layers,
 } from 'lucide-react';
 import { useQuote, useUpdateQuoteStatus, useSendQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
+import QuoteToJobsModal from '../components/QuoteToJobsModal';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
@@ -79,6 +82,9 @@ export default function QuoteDetailPage({
   const [lostReason, setLostReason] = useState('');
   const [lostCompetitor, setLostCompetitor] = useState('');
   const [lostNotes, setLostNotes] = useState('');
+  // Multi-job conversion modal state
+  const [showMultiJobModal, setShowMultiJobModal] = useState(false);
+  const [showJobDropdown, setShowJobDropdown] = useState(false);
 
   const { data: quote, isLoading, error } = useQuote(quoteId);
   const updateStatusMutation = useUpdateQuoteStatus();
@@ -349,14 +355,48 @@ export default function QuoteDetailPage({
                 </button>
               )}
               {canConvertToJob && (
-                <button
-                  onClick={handleConvertToJob}
-                  disabled={convertToJobMutation.isPending}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                  <Briefcase className="w-4 h-4" />
-                  {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
-                </button>
+                <div className="relative">
+                  <div className="flex">
+                    <button
+                      onClick={handleConvertToJob}
+                      disabled={convertToJobMutation.isPending}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <Briefcase className="w-4 h-4" />
+                      {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
+                    </button>
+                    <button
+                      onClick={() => setShowJobDropdown(!showJobDropdown)}
+                      className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 border-l border-green-500"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {showJobDropdown && (
+                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border z-10">
+                      <button
+                        onClick={() => {
+                          setShowJobDropdown(false);
+                          handleConvertToJob();
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg"
+                      >
+                        <Briefcase className="w-4 h-4 text-gray-500" />
+                        Create Single Job
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowJobDropdown(false);
+                          setShowMultiJobModal(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-b-lg"
+                      >
+                        <Layers className="w-4 h-4 text-gray-500" />
+                        Create Multiple Jobs
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
               {quote.converted_to_job_id && onNavigateToJob && (
                 <button
@@ -1034,6 +1074,21 @@ export default function QuoteDetailPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Multi-Job Conversion Modal */}
+      {showMultiJobModal && quote && (
+        <QuoteToJobsModal
+          quote={quote}
+          onClose={() => setShowMultiJobModal(false)}
+          onSuccess={(result) => {
+            setShowMultiJobModal(false);
+            // Navigate to the first job or project
+            if (result.jobIds.length > 0 && onNavigateToJob) {
+              onNavigateToJob(result.jobIds[0]);
+            }
+          }}
+        />
       )}
     </div>
   );
