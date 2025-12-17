@@ -26,11 +26,13 @@ import {
   Trash2,
   Building2,
   Calendar,
+  Navigation,
 } from 'lucide-react';
 import { useProperty, useDeletePropertyContact, useCreatePropertyContact } from '../hooks/useProperties';
 import { useContactRoles } from '../hooks/useContacts';
 import { usePropertyRequests, usePropertyQuotes, usePropertyJobs, usePropertySummary } from '../hooks/usePropertyFSM';
 import { PROPERTY_STATUS_LABELS } from '../types';
+import { hasValidCoordinates, formatCoordinates } from '../../shared/types/location';
 import {
   REQUEST_STATUS_LABELS,
   REQUEST_STATUS_COLORS,
@@ -277,6 +279,25 @@ export default function PropertyDetailPage({
                       {property.block_number ? `, Block ${property.block_number}` : ''}
                     </p>
                   </div>
+                  {hasValidCoordinates(property.latitude, property.longitude) && (
+                    <div className="col-span-2">
+                      <span className="text-sm text-gray-500">GPS Coordinates</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Navigation className="w-4 h-4 text-green-600" />
+                        <span className="font-mono text-sm">
+                          {formatCoordinates(property.latitude!, property.longitude!, 6)}
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps?q=${property.latitude},${property.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          Open in Maps
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

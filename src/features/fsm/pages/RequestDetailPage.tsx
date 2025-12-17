@@ -24,6 +24,7 @@ import {
   PlusCircle,
   History,
   Clipboard,
+  Navigation,
 } from 'lucide-react';
 import { useRequest, useUpdateRequestStatus, useScheduleAssessment, useCompleteAssessment, useConvertRequestToJob } from '../hooks/useRequests';
 import {
@@ -35,6 +36,7 @@ import {
   REQUEST_TRANSITIONS,
   type RequestStatus,
 } from '../types';
+import { hasValidCoordinates, formatCoordinates } from '../../shared/types/location';
 
 type Tab = 'overview' | 'assessment' | 'activity';
 
@@ -337,6 +339,22 @@ export default function RequestDetailPage({
                       <p className="text-gray-600">
                         {[request.city, request.state, request.zip].filter(Boolean).join(', ')}
                       </p>
+                      {hasValidCoordinates(request.latitude, request.longitude) && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Navigation className="w-4 h-4 text-green-600" />
+                          <span className="font-mono text-sm text-gray-600">
+                            {formatCoordinates(request.latitude!, request.longitude!, 6)}
+                          </span>
+                          <a
+                            href={`https://www.google.com/maps?q=${request.latitude},${request.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            Open in Maps
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

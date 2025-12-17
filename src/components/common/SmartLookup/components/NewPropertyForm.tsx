@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import { showSuccess, showError } from '../../../../lib/toast';
+import { SmartAddressInput } from '../../../../features/shared/components/SmartAddressInput';
+import type { AddressFormData } from '../../../../features/shared/types/location';
 import type { Property, Community, Client } from '../../../../features/client_hub/types';
 
 interface NewPropertyFormProps {
@@ -36,7 +38,23 @@ export function NewPropertyForm({
     homeowner_name: '',
     homeowner_phone: '',
     homeowner_email: '',
+    // Geocoding fields
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
+
+  // Handler for SmartAddressInput
+  const handleAddressChange = (address: AddressFormData) => {
+    setForm((prev) => ({
+      ...prev,
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    }));
+  };
 
   // Fetch communities for this client
   useEffect(() => {
@@ -113,6 +131,8 @@ export function NewPropertyForm({
     setIsSubmitting(true);
 
     try {
+      const hasCoordinates = form.latitude != null && form.longitude != null;
+
       const { data, error } = await supabase
         .from('properties')
         .insert({
@@ -129,6 +149,10 @@ export function NewPropertyForm({
           homeowner_phone: form.homeowner_phone.trim() || null,
           homeowner_email: form.homeowner_email.trim() || null,
           status: 'available',
+          // Geocoding fields
+          latitude: form.latitude,
+          longitude: form.longitude,
+          geocoded_at: hasCoordinates ? new Date().toISOString() : null,
         })
         .select()
         .single();
@@ -212,59 +236,21 @@ export function NewPropertyForm({
       )}
 
       {/* Address */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Street Address <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={form.address_line1}
-          onChange={(e) => setForm((prev) => ({ ...prev, address_line1: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="123 Main St"
-          autoFocus={!isBuilder}
-        />
-      </div>
-
-      {/* City, State, Zip row */}
-      <div className="grid grid-cols-6 gap-3">
-        <div className="col-span-3">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            City
-          </label>
-          <input
-            type="text"
-            value={form.city}
-            onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Austin"
-          />
-        </div>
-        <div className="col-span-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            State
-          </label>
-          <input
-            type="text"
-            value={form.state}
-            onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            maxLength={2}
-          />
-        </div>
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ZIP
-          </label>
-          <input
-            type="text"
-            value={form.zip}
-            onChange={(e) => setForm((prev) => ({ ...prev, zip: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="78701"
-          />
-        </div>
-      </div>
+      <SmartAddressInput
+        value={{
+          address_line1: form.address_line1,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          latitude: form.latitude,
+          longitude: form.longitude,
+        }}
+        onChange={handleAddressChange}
+        label="Street Address"
+        required
+        restrictToTexas
+        placeholder="Start typing address..."
+      />
 
       {/* Site Access Section */}
       <div className="border-t border-gray-200 pt-4">

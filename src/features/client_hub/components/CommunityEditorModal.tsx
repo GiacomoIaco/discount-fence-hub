@@ -5,6 +5,8 @@ import { useClients, useGeographies, useUserProfiles } from '../hooks/useClients
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
 import { useCrews } from '../../fsm/hooks';
+import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
+import type { AddressFormData } from '../../shared/types/location';
 import type { Community, CommunityFormData, CommunityStatus } from '../types';
 import { COMMUNITY_STATUS_LABELS } from '../types';
 
@@ -52,6 +54,17 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
 
   const isEditing = !!community;
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  // Handler for SmartAddressInput
+  const handleAddressChange = (address: AddressFormData) => {
+    setFormData((prev) => ({
+      ...prev,
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,46 +341,20 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Location</h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <input
-                type="text"
-                value={formData.address_line1}
-                onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  maxLength={2}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
-                <input
-                  type="text"
-                  value={formData.zip}
-                  onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
+            <SmartAddressInput
+              value={{
+                address_line1: formData.address_line1,
+                city: formData.city,
+                state: formData.state,
+                zip: formData.zip,
+                latitude: null,
+                longitude: null,
+              }}
+              onChange={handleAddressChange}
+              label="Community Address"
+              restrictToTexas
+              placeholder="Start typing address..."
+            />
           </div>
 
           {/* SKU Restrictions */}
