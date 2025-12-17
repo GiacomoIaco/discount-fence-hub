@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns';
-import { MessageSquare, User, Building2, AlertCircle, Target, Search } from 'lucide-react';
+import { MessageSquare, User, Building2, AlertCircle, Target, Search, Users } from 'lucide-react';
 import { useState } from 'react';
 import type { ConversationWithContact } from '../types';
 
@@ -148,17 +148,37 @@ function ConversationCard({ conversation, isSelected, onClick }: ConversationCar
         <div className="flex-1 min-w-0">
           {/* Contact Name */}
           <div className="flex items-center gap-2">
-            {contact?.avatar_url ? (
-              <img src={contact.avatar_url} className="w-10 h-10 rounded-full object-cover" alt="" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <User className="w-5 h-5 text-blue-600" />
-              </div>
-            )}
+            {/* Avatar - show group icon or single user */}
+            <div className="relative">
+              {conversation.is_group ? (
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-purple-600" />
+                </div>
+              ) : contact?.avatar_url ? (
+                <img src={contact.avatar_url} className="w-10 h-10 rounded-full object-cover" alt="" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <User className="w-5 h-5 text-blue-600" />
+                </div>
+              )}
+              {/* Participant count badge for groups */}
+              {conversation.is_group && conversation.participant_count > 0 && (
+                <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-purple-600 rounded-full flex items-center justify-center border-2 border-white">
+                  {conversation.participant_count}
+                </span>
+              )}
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 truncate">
-                {contact?.display_name || 'Unknown'}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-medium text-gray-900 truncate">
+                  {conversation.title || contact?.display_name || 'Unknown'}
+                </p>
+                {conversation.is_group && (
+                  <span className="text-[10px] font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                    Group
+                  </span>
+                )}
+              </div>
               {(contact?.company_name || contact?.context_label) && (
                 <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
                   <Building2 className="w-3 h-3 flex-shrink-0" />

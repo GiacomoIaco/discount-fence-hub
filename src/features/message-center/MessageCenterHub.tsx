@@ -273,8 +273,12 @@ export function MessageCenterHub() {
                     <ArrowLeft className="w-5 h-5" />
                   </button>
 
-                  {/* Contact Avatar */}
-                  {selectedConversation.contact?.avatar_url ? (
+                  {/* Contact/Group Avatar */}
+                  {selectedConversation.is_group ? (
+                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                      <Users className="w-5 h-5 text-purple-600" />
+                    </div>
+                  ) : selectedConversation.contact?.avatar_url ? (
                     <img
                       src={selectedConversation.contact.avatar_url}
                       className="w-10 h-10 rounded-full object-cover"
@@ -288,12 +292,24 @@ export function MessageCenterHub() {
                     </div>
                   )}
 
-                  {/* Contact Info */}
+                  {/* Contact/Group Info */}
                   <div>
-                    <h2 className="font-semibold text-gray-900">
-                      {selectedConversation.contact?.display_name || 'Unknown'}
-                    </h2>
-                    {(selectedConversation.contact?.company_name || selectedConversation.contact?.context_label) && (
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-semibold text-gray-900">
+                        {selectedConversation.title || selectedConversation.contact?.display_name || 'Unknown'}
+                      </h2>
+                      {selectedConversation.is_group && (
+                        <span className="text-xs font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                          Group
+                        </span>
+                      )}
+                    </div>
+                    {selectedConversation.is_group && participants.length > 0 ? (
+                      <p className="text-sm text-gray-500 truncate max-w-[200px]">
+                        {participants.slice(0, 3).map(p => p.contact?.display_name || 'Unknown').join(', ')}
+                        {participants.length > 3 && ` +${participants.length - 3} more`}
+                      </p>
+                    ) : (selectedConversation.contact?.company_name || selectedConversation.contact?.context_label) && (
                       <p className="text-sm text-gray-500">
                         {selectedConversation.contact.company_name}
                         {selectedConversation.contact.company_name && selectedConversation.contact.context_label && ' · '}
