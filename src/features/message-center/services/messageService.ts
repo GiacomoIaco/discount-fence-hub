@@ -33,13 +33,13 @@ export async function getConversations(
   // Apply filter
   switch (filter) {
     case 'team':
-      query = query.in('conversation_type', ['team_direct', 'team_group']);
+      query = query.in('conversation_type', ['team_direct', 'team_group']).eq('status', 'active');
       break;
     case 'clients':
-      query = query.eq('conversation_type', 'client');
+      query = query.eq('conversation_type', 'client').eq('status', 'active');
       break;
     case 'requests':
-      query = query.eq('has_project_signal', true);
+      query = query.eq('has_project_signal', true).eq('status', 'active');
       break;
     case 'archived':
       query = query.eq('status', 'archived');
