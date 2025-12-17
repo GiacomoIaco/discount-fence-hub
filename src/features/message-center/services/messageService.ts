@@ -277,6 +277,13 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 }
 
 export async function sendMessage(message: NewMessage): Promise<Message> {
+  console.log('[MC sendMessage] Called with:', {
+    conversation_id: message.conversation_id,
+    channel: message.channel,
+    to_phone: message.to_phone,
+    bodyLength: message.body?.length
+  });
+
   // 1. Insert message with 'sending' status
   const { data, error } = await supabase
     .from('mc_messages')

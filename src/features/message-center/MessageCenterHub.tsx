@@ -102,6 +102,13 @@ export function MessageCenterHub() {
   const handleSendMessage = (body: string) => {
     if (!selectedConversation) return;
 
+    console.log('[MC Hub] Sending message, contact data:', {
+      contact_id: selectedConversation.contact?.id,
+      display_name: selectedConversation.contact?.display_name,
+      phone_primary: selectedConversation.contact?.phone_primary,
+      has_contact: !!selectedConversation.contact
+    });
+
     sendMessage.mutate({
       conversation_id: selectedConversation.id,
       channel: 'sms',
