@@ -12,6 +12,7 @@ interface TeamMember {
   full_name: string | null;
   role: string;
   avatar_url: string | null;
+  phone: string | null;
 }
 
 interface ClientContactItem {
@@ -51,7 +52,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       // Load team members
       const { data: teamData, error: teamError } = await supabase
         .from('user_profiles')
-        .select('id, email, full_name, role, avatar_url')
+        .select('id, email, full_name, role, avatar_url, phone')
         .order('full_name');
 
       if (teamError) {
@@ -193,6 +194,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       contact_type: 'employee',
       display_name: member.full_name || member.email,
       email_primary: member.email,
+      phone_primary: member.phone || undefined,
       employee_id: member.id,
       avatar_url: member.avatar_url || undefined,
     });
@@ -235,6 +237,25 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
       const { data: existing } = await query.limit(1).single();
 
       if (existing) {
+        // Update existing contact if missing phone number but we have one now
+        if (!existing.phone_primary && data.phone_primary) {
+          const { data: updated, error: updateError } = await supabase
+            .from('mc_contacts')
+            .update({
+              phone_primary: data.phone_primary,
+              // Also update other fields that might be missing
+              company_name: existing.company_name || data.company_name,
+              context_label: existing.context_label || data.context_label,
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+          if (!updateError && updated) {
+            console.log('[MC] Updated existing contact with phone:', updated.phone_primary);
+            return updated as Contact;
+          }
+        }
         return existing as Contact;
       }
 
@@ -261,6 +282,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectContact }: NewCo
         return null;
       }
 
+      console.log('[MC] Created new contact:', newContact.display_name, newContact.phone_primary);
       return newContact as Contact;
     } catch (error) {
       console.error('Error in getOrCreateMcContact:', error);
