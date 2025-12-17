@@ -297,6 +297,7 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
 
   // 2. Call Netlify function to send via Twilio (for SMS)
   if (message.channel === 'sms' && message.to_phone) {
+    console.log('[MC SMS] Sending to:', message.to_phone, 'message_id:', data.id);
     try {
       const response = await fetch('/.netlify/functions/send-mc-sms', {
         method: 'POST',
@@ -308,14 +309,18 @@ export async function sendMessage(message: NewMessage): Promise<Message> {
         }),
       });
 
+      const responseData = await response.json();
+      console.log('[MC SMS] Response:', response.status, responseData);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Failed to send SMS:', errorData);
-        // Message status will be updated by the function
+        console.error('[MC SMS] Failed:', responseData);
+        // Update the message in the UI to show failure
+        throw new Error(responseData.error || 'Failed to send SMS');
       }
     } catch (err) {
-      console.error('Error calling send-mc-sms:', err);
-      // Don't throw - the message was created, status will show as 'sending'
+      console.error('[MC SMS] Error:', err);
+      // Re-throw so user sees the error
+      throw err;
     }
   }
 

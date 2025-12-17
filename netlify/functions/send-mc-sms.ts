@@ -33,16 +33,29 @@ export const handler: Handler = async (event) => {
   }
 
   try {
+    console.log('[send-mc-sms] Received request body:', event.body);
+
     const { message_id, to, body }: SendMCSmsRequest = JSON.parse(event.body || '{}');
 
+    console.log('[send-mc-sms] Parsed:', { message_id, to: to?.substring(0, 6) + '...', bodyLength: body?.length });
+
     if (!message_id || !to || !body) {
+      console.error('[send-mc-sms] Missing fields:', { message_id: !!message_id, to: !!to, body: !!body });
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'Missing required fields: message_id, to, body' }),
       };
     }
 
-    console.log(`Sending MC SMS to ${to} for message ${message_id}`);
+    // Log Twilio configuration status
+    console.log('[send-mc-sms] Twilio config:', {
+      hasSid: !!twilioAccountSid,
+      hasToken: !!twilioAuthToken,
+      hasPhone: !!twilioPhoneNumber,
+      fromPhone: twilioPhoneNumber?.substring(0, 6) + '...',
+    });
+
+    console.log(`[send-mc-sms] Sending to ${to} for message ${message_id}`);
 
     // Check if contact is opted out
     const { data: message } = await supabase
@@ -106,9 +119,10 @@ export const handler: Handler = async (event) => {
     );
 
     const twilioResult = await response.json();
+    console.log('[send-mc-sms] Twilio response:', { status: response.status, ok: response.ok, result: twilioResult });
 
     if (!response.ok) {
-      console.error('Twilio error:', twilioResult);
+      console.error('[send-mc-sms] Twilio error:', twilioResult);
 
       // Update message as failed
       await supabase
