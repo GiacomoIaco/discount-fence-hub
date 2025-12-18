@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { X, FileSpreadsheet, BookOpen, Calendar, User, Users, GripVertical } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
-import { useClients, useGeographies, useUserProfiles } from '../hooks/useClients';
+import { useClients, useGeographies } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
-import { useCrews } from '../../fsm/hooks';
+import { useCrews, useFsmTeamFull } from '../../fsm/hooks';
 import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import type { AddressFormData } from '../../shared/types/location';
 import type { Community, CommunityFormData, CommunityStatus } from '../types';
@@ -24,8 +24,13 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
   const { data: geographies } = useGeographies();
   const { data: rateSheets } = useRateSheets({ is_active: true });
   const { data: qboClasses } = useQboClasses(true); // Only selectable classes
-  const { data: userProfiles } = useUserProfiles();
+  const { data: fsmTeamMembers } = useFsmTeamFull();
   const { data: crews } = useCrews();
+
+  // Filter FSM team members to only show reps
+  const availableReps = fsmTeamMembers?.filter(m =>
+    m.fsm_roles.includes('rep') && m.is_active
+  ) || [];
 
   const [formData, setFormData] = useState<CommunityFormData>({
     client_id: community?.client_id || defaultClientId || '',
@@ -246,18 +251,18 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-gray-400" />
-                  Default Sales Rep
+                  Assigned Rep
                 </div>
               </label>
               <select
-                value={formData.default_rep_id || ''}
-                onChange={(e) => setFormData({ ...formData, default_rep_id: e.target.value || null })}
+                value={formData.assigned_rep_id || ''}
+                onChange={(e) => setFormData({ ...formData, assigned_rep_id: e.target.value || null })}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Not assigned</option>
-                {userProfiles?.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.display_name || user.email}
+                {availableReps.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.name || member.email}
                   </option>
                 ))}
               </select>
