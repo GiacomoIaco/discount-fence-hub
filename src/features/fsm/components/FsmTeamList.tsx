@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Plus, Edit2, Trash2, User, MapPin, Wrench, Clock, Building2, Users, Check, X, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, User, MapPin, Wrench, Clock, Users, Check, X, ChevronDown } from 'lucide-react';
 import { useFsmTeamFull, useDeleteFsmTeamProfile, useUpdateAssignedBUs } from '../hooks';
 import { useCrews, useAllRepCrewAlignments, useSetRepCrewAlignments } from '../hooks';
 import type { FsmTeamMember, FsmRole, Crew } from '../types';
-import { FSM_ROLE_LABELS, DAY_SHORT_LABELS, PROFICIENCY_COLORS } from '../types';
+import { FSM_ROLE_LABELS, DAY_SHORT_LABELS } from '../types';
 import FsmTeamEditorModal from './FsmTeamEditorModal';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
 
@@ -33,9 +33,14 @@ export default function FsmTeamList() {
   const getAlignedCrews = useCallback((userId: string): Crew[] => {
     if (!allAlignments || !crews) return [];
     const alignments = allAlignments.filter(a => a.rep_user_id === userId);
-    return alignments
-      .map(a => crews.find(c => c.id === a.crew_id))
-      .filter((c): c is Crew => c !== undefined);
+    const result: Crew[] = [];
+    for (const alignment of alignments) {
+      const crew = crews.find(c => c.id === alignment.crew_id);
+      if (crew) {
+        result.push(crew);
+      }
+    }
+    return result;
   }, [allAlignments, crews]);
 
   const handleEdit = (member: FsmTeamMember) => {

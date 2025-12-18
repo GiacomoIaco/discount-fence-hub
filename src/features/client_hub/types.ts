@@ -55,6 +55,7 @@ export interface Client {
   id: string;
   name: string;
   code: string | null;
+  company_name: string | null;  // S-006: If set, name becomes contact person
   business_unit: BusinessUnit;
   client_type: ClientType;
 
@@ -333,6 +334,7 @@ export interface ClientDocument {
 export interface ClientFormData {
   name: string;
   code: string;
+  company_name: string;  // S-006: If set, name becomes contact person
   business_unit: BusinessUnit;
   client_type: ClientType;
   primary_contact_name: string;

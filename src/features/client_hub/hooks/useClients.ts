@@ -282,6 +282,86 @@ export function useUpdateGeography() {
 }
 
 // ============================================
+// CLIENT CREW PREFERENCES (S-006)
+// ============================================
+
+export interface ClientCrewPreference {
+  id: string;
+  client_id: string;
+  crew_id: string;
+  skill_categories: string[];
+  priority: number;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  crew?: {
+    id: string;
+    name: string;
+    code: string;
+    is_subcontractor: boolean;
+  };
+}
+
+export function useClientCrewPreferences(clientId: string | null) {
+  return useQuery({
+    queryKey: ['client_crew_preferences', clientId],
+    queryFn: async () => {
+      if (!clientId) return [];
+      const { data, error } = await supabase
+        .from('client_crew_preferences')
+        .select(`
+          *,
+          crew:crews(id, name, code, is_subcontractor)
+        `)
+        .eq('client_id', clientId)
+        .eq('is_active', true)
+        .order('priority');
+
+      if (error) throw error;
+      return data as ClientCrewPreference[];
+    },
+    enabled: !!clientId,
+  });
+}
+
+export function useSetClientCrewPreferences() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ clientId, crewIds }: { clientId: string; crewIds: string[] }) => {
+      // Delete existing preferences
+      await supabase
+        .from('client_crew_preferences')
+        .delete()
+        .eq('client_id', clientId);
+
+      // Insert new preferences with priority order
+      if (crewIds.length > 0) {
+        const inserts = crewIds.map((crewId, index) => ({
+          client_id: clientId,
+          crew_id: crewId,
+          priority: index + 1,
+          is_active: true,
+        }));
+
+        const { error } = await supabase
+          .from('client_crew_preferences')
+          .insert(inserts);
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['client_crew_preferences', variables.clientId] });
+      queryClient.invalidateQueries({ queryKey: ['client', variables.clientId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update crew preferences');
+    },
+  });
+}
+
+// ============================================
 // USER PROFILES (for rep assignments)
 // ============================================
 

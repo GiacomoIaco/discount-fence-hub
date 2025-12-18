@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen, User, Truck } from 'lucide-react';
-import { useCreateClient, useUpdateClient } from '../hooks/useClients';
+import { useState, useEffect, useMemo } from 'react';
+import { X, FileSpreadsheet, BookOpen, User, Truck, Building2, Plus } from 'lucide-react';
+import { useCreateClient, useUpdateClient, useClientCrewPreferences, useSetClientCrewPreferences } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
-import { useTeamMembers } from '../../settings/hooks';
+import { useFsmTeamFull } from '../../fsm/hooks';
 import { useCrews } from '../../fsm/hooks';
 import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import type { AddressFormData } from '../../shared/types/location';
@@ -24,14 +24,17 @@ interface Props {
 export default function ClientEditorModal({ client, onClose }: Props) {
   const createMutation = useCreateClient();
   const updateMutation = useUpdateClient();
+  const setCrewPreferencesMutation = useSetClientCrewPreferences();
   const { data: rateSheets } = useRateSheets({ is_active: true });
   const { data: qboClasses } = useQboClasses(true); // Only selectable classes
-  const { data: teamMembers } = useTeamMembers();
+  const { data: fsmTeamMembers } = useFsmTeamFull();
   const { data: crews } = useCrews();
+  const { data: existingCrewPrefs } = useClientCrewPreferences(client?.id || null);
 
   const [formData, setFormData] = useState<ClientFormData>({
     name: client?.name || '',
     code: client?.code || '',
+    company_name: client?.company_name || '',
     business_unit: client?.business_unit || 'builders',
     client_type: client?.client_type || 'custom_builder',
     primary_contact_name: client?.primary_contact_name || '',
@@ -53,8 +56,45 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     notes: client?.notes || '',
   });
 
+  // Multi-crew preferences (local state, saved separately)
+  const [selectedCrewIds, setSelectedCrewIds] = useState<string[]>([]);
+
+  // Load existing crew preferences when editing
+  useEffect(() => {
+    if (existingCrewPrefs && existingCrewPrefs.length > 0) {
+      setSelectedCrewIds(existingCrewPrefs.map(p => p.crew_id));
+    }
+  }, [existingCrewPrefs]);
+
   const isEditing = !!client;
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending || setCrewPreferencesMutation.isPending;
+
+  // Filter reps by selected QBO Class (BU assignment)
+  const filteredReps = useMemo(() => {
+    if (!fsmTeamMembers) return [];
+
+    // Get reps only (those with 'rep' in fsm_roles)
+    const reps = fsmTeamMembers.filter(m =>
+      m.is_active && m.fsm_roles?.includes('rep')
+    );
+
+    // If a QBO Class is selected, filter reps who are assigned to that class
+    if (formData.default_qbo_class_id) {
+      return reps.filter(rep => {
+        const assignedClasses = rep.assigned_qbo_class_ids || [];
+        // Show reps who either have no class restrictions OR are assigned to this class
+        return assignedClasses.length === 0 || assignedClasses.includes(formData.default_qbo_class_id!);
+      });
+    }
+
+    return reps;
+  }, [fsmTeamMembers, formData.default_qbo_class_id]);
+
+  // Available crews for selection (not already selected)
+  const availableCrews = useMemo(() => {
+    if (!crews) return [];
+    return crews.filter(c => c.is_active && !selectedCrewIds.includes(c.id));
+  }, [crews, selectedCrewIds]);
 
   // Handler for SmartAddressInput
   const handleAddressChange = (address: AddressFormData) => {
@@ -67,6 +107,16 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     }));
   };
 
+  // Add crew to preferences
+  const handleAddCrew = (crewId: string) => {
+    setSelectedCrewIds(prev => [...prev, crewId]);
+  };
+
+  // Remove crew from preferences
+  const handleRemoveCrew = (crewId: string) => {
+    setSelectedCrewIds(prev => prev.filter(id => id !== crewId));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -75,15 +125,32 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     }
 
     try {
+      let clientId = client?.id;
+
       if (isEditing) {
         await updateMutation.mutateAsync({ id: client.id, data: formData });
       } else {
-        await createMutation.mutateAsync(formData);
+        const newClient = await createMutation.mutateAsync(formData);
+        clientId = newClient.id;
       }
+
+      // Save crew preferences
+      if (clientId) {
+        await setCrewPreferencesMutation.mutateAsync({
+          clientId,
+          crewIds: selectedCrewIds,
+        });
+      }
+
       onClose();
     } catch {
       // Error handled by mutation
     }
+  };
+
+  // Get crew info by ID
+  const getCrewById = (crewId: string) => {
+    return crews?.find(c => c.id === crewId);
   };
 
   return (
@@ -105,10 +172,30 @@ export default function ClientEditorModal({ client, onClose }: Props) {
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Basic Information</h3>
 
+            {/* Company Name (S-006) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-gray-400" />
+                  Company Name
+                </div>
+              </label>
+              <input
+                type="text"
+                value={formData.company_name}
+                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                placeholder="e.g., Perry Homes, Highland Homes"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                If set, the "Client Name" below becomes the primary contact person for this company
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Client Name <span className="text-red-500">*</span>
+                  {formData.company_name ? 'Primary Contact Name' : 'Client Name'} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -166,18 +253,9 @@ export default function ClientEditorModal({ client, onClose }: Props) {
 
           {/* Primary Contact */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Primary Contact</h3>
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Contact Details</h3>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={formData.primary_contact_name}
-                  onChange={(e) => setFormData({ ...formData, primary_contact_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
@@ -187,9 +265,6 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                 <input
@@ -199,15 +274,17 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Billing Email</label>
-                <input
-                  type="email"
-                  value={formData.billing_email}
-                  onChange={(e) => setFormData({ ...formData, billing_email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Billing Email</label>
+              <input
+                type="email"
+                value={formData.billing_email}
+                onChange={(e) => setFormData({ ...formData, billing_email: e.target.value })}
+                placeholder="Separate billing email if different"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
           </div>
 
@@ -277,7 +354,15 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                 </label>
                 <select
                   value={formData.default_qbo_class_id || ''}
-                  onChange={(e) => setFormData({ ...formData, default_qbo_class_id: e.target.value || null })}
+                  onChange={(e) => {
+                    const newClassId = e.target.value || null;
+                    setFormData({
+                      ...formData,
+                      default_qbo_class_id: newClassId,
+                      // Clear rep if they're not assigned to the new class
+                      assigned_rep_id: formData.assigned_rep_id,
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">None</option>
@@ -340,48 +425,113 @@ export default function ClientEditorModal({ client, onClose }: Props) {
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Assignment Preferences</h3>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-gray-400" />
-                    Assigned Sales Rep
-                  </div>
-                </label>
-                <select
-                  value={formData.assigned_rep_id || ''}
-                  onChange={(e) => setFormData({ ...formData, assigned_rep_id: e.target.value || null })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Not assigned</option>
-                  {teamMembers?.map((member) => (
-                    <option key={member.user_id} value={member.user_id}>
-                      {member.full_name || member.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-gray-400" />
-                    Preferred Crew
-                  </div>
-                </label>
-                <select
-                  value={formData.preferred_crew_id || ''}
-                  onChange={(e) => setFormData({ ...formData, preferred_crew_id: e.target.value || null })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">No preference</option>
-                  {crews?.filter(c => c.is_active).map((crew) => (
-                    <option key={crew.id} value={crew.id}>
-                      {crew.name} ({crew.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  Assigned Sales Rep
+                </div>
+              </label>
+              <select
+                value={formData.assigned_rep_id || ''}
+                onChange={(e) => setFormData({ ...formData, assigned_rep_id: e.target.value || null })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Not assigned</option>
+                {filteredReps.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.name || member.email}
+                  </option>
+                ))}
+              </select>
+              {formData.default_qbo_class_id && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Showing reps assigned to the selected QBO Class
+                </p>
+              )}
             </div>
+
+            {/* Multi-select Preferred Crews */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-gray-400" />
+                  Preferred Crews
+                </div>
+              </label>
+
+              {/* Selected crews as chips */}
+              {selectedCrewIds.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {selectedCrewIds.map((crewId, index) => {
+                    const crew = getCrewById(crewId);
+                    if (!crew) return null;
+                    return (
+                      <span
+                        key={crewId}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
+                          crew.is_subcontractor
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {index === 0 && <span className="text-xs font-medium">#1</span>}
+                        {crew.name}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCrew(crewId)}
+                          className="ml-1 hover:text-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add crew dropdown */}
+              {availableCrews.length > 0 && (
+                <div className="flex gap-2">
+                  <select
+                    id="add-crew-select"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddCrew(e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                  >
+                    <option value="">Add a crew...</option>
+                    {availableCrews.map((crew) => (
+                      <option key={crew.id} value={crew.id}>
+                        {crew.name} ({crew.code}) {crew.is_subcontractor ? '- Sub' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const select = document.getElementById('add-crew-select') as HTMLSelectElement;
+                      if (select?.value) {
+                        handleAddCrew(select.value);
+                        select.value = '';
+                      }
+                    }}
+                    className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <p className="mt-1 text-xs text-gray-500">
+                First crew is primary. Order indicates preference priority.
+              </p>
+            </div>
+
             <p className="text-xs text-gray-500">
               Default assignments for new requests and jobs from this client
             </p>
