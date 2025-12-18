@@ -14,7 +14,7 @@ export function useCrews() {
           territory:territories(id, name, code),
           business_unit:business_units(id, name, code),
           members:crew_members(*),
-          lead_user:auth_users_view(id, email, full_name)
+          lead_user:user_profiles(id, email, full_name)
         `)
         .order('name');
 
