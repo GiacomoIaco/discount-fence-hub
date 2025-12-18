@@ -394,7 +394,43 @@ export async function addParticipantToConversation(
     .single();
 
   if (error) throw error;
+
+  // Send SMS notification to the participant (async, don't wait)
+  notifyParticipantViaSms(contactId, conversationId, addedBy).catch(err => {
+    console.error('[MC] Failed to send participant notification:', err);
+  });
+
   return data;
+}
+
+/**
+ * Send SMS notification to a participant when they're added to a conversation
+ */
+async function notifyParticipantViaSms(
+  participantContactId: string,
+  conversationId: string,
+  addedByUserId?: string
+): Promise<void> {
+  try {
+    const response = await fetch('/.netlify/functions/send-participant-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        participant_contact_id: participantContactId,
+        conversation_id: conversationId,
+        added_by_user_id: addedByUserId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[MC] Participant notification failed:', error);
+    } else {
+      console.log('[MC] Participant notification sent');
+    }
+  } catch (err) {
+    console.error('[MC] Error sending participant notification:', err);
+  }
 }
 
 export async function removeParticipantFromConversation(
