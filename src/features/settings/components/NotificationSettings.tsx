@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
-import { Mail, Smartphone, Lock } from 'lucide-react';
+import { Mail, Smartphone, Lock, Bell, BellOff, AlertCircle } from 'lucide-react';
+import { usePushNotifications } from '../../../hooks/usePushNotifications';
 
 interface NotificationPreference {
   id?: string;
@@ -71,9 +72,41 @@ export default function NotificationSettings() {
   const [saving, setSaving] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Push notification state
+  const {
+    isSupported: pushSupported,
+    permissionState,
+    isSubscribed: pushEnabled,
+    isLoading: pushLoading,
+    enable: enablePush,
+    disable: disablePush,
+  } = usePushNotifications();
+
   useEffect(() => {
     loadPreferences();
   }, []);
+
+  const handleTogglePush = async () => {
+    if (pushEnabled) {
+      const success = await disablePush();
+      if (success) {
+        showSuccess('Push notifications disabled');
+      } else {
+        showError('Failed to disable push notifications');
+      }
+    } else {
+      const success = await enablePush();
+      if (success) {
+        showSuccess('Push notifications enabled!');
+      } else {
+        if (permissionState === 'denied') {
+          showError('Notifications blocked. Please enable in browser settings.');
+        } else {
+          showError('Failed to enable push notifications');
+        }
+      }
+    }
+  };
 
   const loadPreferences = async () => {
     try {
@@ -189,9 +222,91 @@ export default function NotificationSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Push Notifications Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Push Notifications</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Get alerts on your phone even when the app is closed.
+          </p>
+        </div>
+
+        {!pushSupported ? (
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <AlertCircle className="w-5 h-5 text-gray-400" />
+            <div>
+              <p className="text-sm text-gray-600">
+                Push notifications are not supported in this browser.
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Try using Chrome, Edge, or Safari on a supported device.
+              </p>
+            </div>
+          </div>
+        ) : permissionState === 'denied' ? (
+          <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200">
+            <BellOff className="w-5 h-5 text-amber-500" />
+            <div>
+              <p className="text-sm text-amber-800 font-medium">
+                Notifications are blocked
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                To enable, click the lock icon in your browser's address bar and allow notifications.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-3">
+              {pushEnabled ? (
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-green-600" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                  <BellOff className="w-5 h-5 text-gray-500" />
+                </div>
+              )}
+              <div>
+                <p className="font-medium text-gray-900">
+                  {pushEnabled ? 'Push notifications enabled' : 'Push notifications disabled'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {pushEnabled
+                    ? 'You\'ll receive alerts for new messages'
+                    : 'Enable to get alerts on your device'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleTogglePush}
+              disabled={pushLoading}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                pushEnabled
+                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {pushLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  {pushEnabled ? 'Disabling...' : 'Enabling...'}
+                </span>
+              ) : pushEnabled ? (
+                'Disable'
+              ) : (
+                'Enable'
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Email & SMS Preferences Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
+          <h2 className="text-xl font-bold text-gray-900">Email & SMS Preferences</h2>
           <p className="text-sm text-gray-600 mt-1">
             Choose how you want to be notified for different events. By default, all notifications are enabled.
           </p>

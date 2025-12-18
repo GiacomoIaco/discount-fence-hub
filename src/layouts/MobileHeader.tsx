@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, Settings, Monitor, LayoutGrid, LayoutList, X } from 'lucide-react';
+import { User, Settings, Monitor, LayoutGrid, LayoutList, X, Bell, BellOff } from 'lucide-react';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { showSuccess, showError } from '../lib/toast';
 
 interface MobileHeaderProps {
   profileAvatarUrl: string | undefined;
@@ -20,6 +22,38 @@ export default function MobileHeader({
 }: MobileHeaderProps) {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Push notifications
+  const {
+    isSupported: pushSupported,
+    permissionState,
+    isSubscribed: pushEnabled,
+    isLoading: pushLoading,
+    enable: enablePush,
+    disable: disablePush,
+  } = usePushNotifications();
+
+  const handleTogglePush = async () => {
+    if (pushEnabled) {
+      const success = await disablePush();
+      if (success) {
+        showSuccess('Push notifications disabled');
+      } else {
+        showError('Failed to disable notifications');
+      }
+    } else {
+      const success = await enablePush();
+      if (success) {
+        showSuccess('Push notifications enabled!');
+      } else {
+        if (permissionState === 'denied') {
+          showError('Blocked. Enable in browser settings.');
+        } else {
+          showError('Failed to enable notifications');
+        }
+      }
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -115,6 +149,41 @@ export default function MobileHeader({
                       </button>
                     </div>
                   </div>
+
+                  {/* Push Notifications Toggle */}
+                  {pushSupported && permissionState !== 'denied' && (
+                    <>
+                      <div className="my-3 border-t border-gray-100" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-2">Push Notifications</p>
+                        <button
+                          onClick={handleTogglePush}
+                          disabled={pushLoading}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                            pushEnabled
+                              ? 'bg-green-50 text-green-700'
+                              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {pushEnabled ? (
+                              <Bell className="w-4 h-4" />
+                            ) : (
+                              <BellOff className="w-4 h-4" />
+                            )}
+                            <span>{pushEnabled ? 'Enabled' : 'Disabled'}</span>
+                          </div>
+                          {pushLoading ? (
+                            <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded bg-white border">
+                              {pushEnabled ? 'Tap to disable' : 'Tap to enable'}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
 
                   {/* Desktop View - Only show on tablets */}
                   {isTablet && (
