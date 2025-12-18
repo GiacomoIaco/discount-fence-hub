@@ -9,22 +9,11 @@ export function useCrews() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('crews')
-        .select(`
-          *,
-          territory:territories(id, name, code),
-          business_unit:business_units(id, name, code),
-          members:crew_members(*),
-          lead_user:user_profiles(id, email, full_name)
-        `)
+        .select('*')
         .order('name');
 
       if (error) throw error;
-      return data as (Crew & {
-        territory: { id: string; name: string; code: string } | null;
-        business_unit: { id: string; name: string; code: string } | null;
-        members: CrewMember[];
-        lead_user: { id: string; email: string; full_name: string | null } | null;
-      })[];
+      return data as Crew[];
     },
   });
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, FileSpreadsheet, BookOpen, User, Truck, Building2, Plus } from 'lucide-react';
+import { X, FileSpreadsheet, User, Truck, Building2, Plus } from 'lucide-react';
 import { useCreateClient, useUpdateClient, useClientCrewPreferences, useSetClientCrewPreferences } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
@@ -8,11 +8,9 @@ import { useCrews } from '../../fsm/hooks';
 import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import type { AddressFormData } from '../../shared/types/location';
 import {
-  BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
   type Client,
   type ClientFormData,
-  type BusinessUnit,
   type ClientType,
 } from '../types';
 
@@ -31,12 +29,19 @@ export default function ClientEditorModal({ client, onClose }: Props) {
   const { data: crews } = useCrews();
   const { data: existingCrewPrefs } = useClientCrewPreferences(client?.id || null);
 
+  // Determine initial client_type based on whether company_name exists
+  const getInitialClientType = (): ClientType => {
+    if (client?.client_type) return client.client_type;
+    // Default: homeowner for individuals, empty for companies (user must choose)
+    return client?.company_name ? 'other' : 'homeowner';
+  };
+
   const [formData, setFormData] = useState<ClientFormData>({
     name: client?.name || '',
     code: client?.code || '',
     company_name: client?.company_name || '',
-    business_unit: client?.business_unit || 'builders',
-    client_type: client?.client_type || 'custom_builder',
+    business_unit: client?.business_unit || 'residential', // Keep for DB compatibility
+    client_type: getInitialClientType(),
     primary_contact_name: client?.primary_contact_name || '',
     primary_contact_email: client?.primary_contact_email || '',
     primary_contact_phone: client?.primary_contact_phone || '',
@@ -66,8 +71,42 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     }
   }, [existingCrewPrefs]);
 
+  // Update business_unit based on QBO Class selection (derive from QBO class name)
+  useEffect(() => {
+    if (formData.default_qbo_class_id && qboClasses) {
+      const selectedClass = qboClasses.find(c => c.id === formData.default_qbo_class_id);
+      if (selectedClass) {
+        const name = selectedClass.name.toLowerCase();
+        if (name.includes('builder')) {
+          setFormData(prev => ({ ...prev, business_unit: 'builders' }));
+        } else if (name.includes('commercial')) {
+          setFormData(prev => ({ ...prev, business_unit: 'commercial' }));
+        } else {
+          setFormData(prev => ({ ...prev, business_unit: 'residential' }));
+        }
+      }
+    }
+  }, [formData.default_qbo_class_id, qboClasses]);
+
+  // When company_name changes, adjust client_type if needed
+  const handleCompanyNameChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, company_name: value };
+      // If adding company name and current type is homeowner, clear it to force selection
+      if (value && prev.client_type === 'homeowner') {
+        newData.client_type = 'other';
+      }
+      // If removing company name, default back to homeowner
+      if (!value && !client?.company_name) {
+        newData.client_type = 'homeowner';
+      }
+      return newData;
+    });
+  };
+
   const isEditing = !!client;
   const isPending = createMutation.isPending || updateMutation.isPending || setCrewPreferencesMutation.isPending;
+  const hasCompany = !!formData.company_name.trim();
 
   // Filter reps by selected QBO Class (BU assignment)
   const filteredReps = useMemo(() => {
@@ -153,6 +192,11 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     return crews?.find(c => c.id === crewId);
   };
 
+  // Client type options based on whether it's a company or individual
+  const clientTypeOptions = hasCompany
+    ? Object.entries(CLIENT_TYPE_LABELS).filter(([key]) => key !== 'homeowner')
+    : Object.entries(CLIENT_TYPE_LABELS);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -170,37 +214,36 @@ export default function ClientEditorModal({ client, onClose }: Props) {
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Basic Info */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Basic Information</h3>
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Client Information</h3>
 
-            {/* Company Name (S-006) */}
+            {/* Company Name (optional) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-gray-400" />
-                  Company Name
+                  Company Name <span className="text-gray-400 font-normal">(optional)</span>
                 </div>
               </label>
               <input
                 type="text"
                 value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                placeholder="e.g., Perry Homes, Highland Homes"
+                onChange={(e) => handleCompanyNameChange(e.target.value)}
+                placeholder="Leave blank for individual clients"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                If set, the "Client Name" below becomes the primary contact person for this company
-              </p>
             </div>
 
+            {/* Contact Name */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {formData.company_name ? 'Primary Contact Name' : 'Client Name'} <span className="text-red-500">*</span>
+                  {hasCompany ? 'Contact Name' : 'Client Name'} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder={hasCompany ? "Primary contact person" : "Client's full name"}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -213,45 +256,32 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                   type="text"
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  placeholder="PERRY, HIGHLAND, etc."
+                  placeholder="PERRY, SMITH, etc."
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Unit <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.business_unit}
-                  onChange={(e) => setFormData({ ...formData, business_unit: e.target.value as BusinessUnit })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {Object.entries(BUSINESS_UNIT_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Client Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.client_type}
-                  onChange={(e) => setFormData({ ...formData, client_type: e.target.value as ClientType })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {Object.entries(CLIENT_TYPE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Client Type - required for companies, defaults to homeowner for individuals */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Client Type {hasCompany && <span className="text-red-500">*</span>}
+              </label>
+              <select
+                value={formData.client_type}
+                onChange={(e) => setFormData({ ...formData, client_type: e.target.value as ClientType })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required={hasCompany}
+              >
+                {hasCompany && <option value="">Select type...</option>}
+                {clientTypeOptions.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          {/* Primary Contact */}
+          {/* Contact Details */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Contact Details</h3>
 
@@ -282,7 +312,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                 type="email"
                 value={formData.billing_email}
                 onChange={(e) => setFormData({ ...formData, billing_email: e.target.value })}
-                placeholder="Separate billing email if different"
+                placeholder="If different from contact email"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -302,7 +332,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                 longitude: null,
               }}
               onChange={handleAddressChange}
-              label="Office/Business Address"
+              label={hasCompany ? "Office Address" : "Address"}
               restrictToTexas
               placeholder="Start typing address..."
             />
@@ -319,16 +349,35 @@ export default function ClientEditorModal({ client, onClose }: Props) {
             </div>
           </div>
 
-          {/* Pricing & QBO */}
+          {/* Business & Pricing */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Pricing & QuickBooks</h3>
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Business & Pricing</h3>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  BU (Business Unit)
+                </label>
+                <select
+                  value={formData.default_qbo_class_id || ''}
+                  onChange={(e) => setFormData({ ...formData, default_qbo_class_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select BU...</option>
+                  {qboClasses?.map((qboClass) => (
+                    <option key={qboClass.id} value={qboClass.id}>
+                      {qboClass.fully_qualified_name || qboClass.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Used for P&L tracking</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 text-gray-400" />
-                    Default Rate Sheet
+                    Rate Sheet
                   </div>
                 </label>
                 <select
@@ -336,7 +385,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                   onChange={(e) => setFormData({ ...formData, default_rate_sheet_id: e.target.value || null })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">None (use catalog prices)</option>
+                  <option value="">Default pricing</option>
                   {rateSheets?.map((sheet) => (
                     <option key={sheet.id} value={sheet.id}>
                       {sheet.name} {sheet.code ? `(${sheet.code})` : ''}
@@ -344,40 +393,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                   ))}
                 </select>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-gray-400" />
-                    QBO Class (P&L)
-                  </div>
-                </label>
-                <select
-                  value={formData.default_qbo_class_id || ''}
-                  onChange={(e) => {
-                    const newClassId = e.target.value || null;
-                    setFormData({
-                      ...formData,
-                      default_qbo_class_id: newClassId,
-                      // Clear rep if they're not assigned to the new class
-                      assigned_rep_id: formData.assigned_rep_id,
-                    });
-                  }}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">None</option>
-                  {qboClasses?.map((qboClass) => (
-                    <option key={qboClass.id} value={qboClass.id}>
-                      {qboClass.fully_qualified_name || qboClass.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
-
-            <p className="text-xs text-gray-500">
-              Rate sheet is used for pricing. QBO Class is used for P&L tracking in QuickBooks.
-            </p>
           </div>
 
           {/* Invoicing */}
@@ -398,7 +414,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms (days)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
                 <input
                   type="number"
                   value={formData.payment_terms}
@@ -429,7 +445,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-gray-400" />
-                  Assigned Sales Rep
+                  Assigned Rep
                 </div>
               </label>
               <select
@@ -446,7 +462,7 @@ export default function ClientEditorModal({ client, onClose }: Props) {
               </select>
               {formData.default_qbo_class_id && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Showing reps assigned to the selected QBO Class
+                  Filtered by selected BU
                 </p>
               )}
             </div>
@@ -528,13 +544,9 @@ export default function ClientEditorModal({ client, onClose }: Props) {
               )}
 
               <p className="mt-1 text-xs text-gray-500">
-                First crew is primary. Order indicates preference priority.
+                First crew is primary preference
               </p>
             </div>
-
-            <p className="text-xs text-gray-500">
-              Default assignments for new requests and jobs from this client
-            </p>
           </div>
 
           {/* Notes */}
