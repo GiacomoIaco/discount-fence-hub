@@ -76,7 +76,7 @@ export default function ClientsList({
   };
 
   // Get display name for client (handles company vs individual)
-  const getDisplayName = (client: Client & { qbo_class_name?: string | null }) => {
+  const getDisplayName = (client: Client) => {
     // If company_name exists, that's the display name
     if (client.company_name) return client.company_name;
     // Otherwise use the name field
@@ -84,11 +84,18 @@ export default function ClientsList({
   };
 
   // Get contact name (for companies it's the name field, for individuals it's primary_contact_name)
-  const getContactName = (client: Client & { qbo_class_name?: string | null }) => {
+  const getContactName = (client: Client) => {
     // If company_name exists, name field is the contact person
     if (client.company_name) return client.name || client.primary_contact_name;
     // Otherwise use primary_contact_name
     return client.primary_contact_name;
+  };
+
+  // Get QBO class name for display
+  const getQboClassName = (client: Client) => {
+    if (!client.default_qbo_class_id || !qboClasses) return null;
+    const qboClass = qboClasses.find(c => c.id === client.default_qbo_class_id);
+    return qboClass?.name || null;
   };
 
   return (
@@ -251,7 +258,7 @@ export default function ClientsList({
                     <div className="space-y-1">
                       {/* Show QBO class name if set, otherwise fallback to old business_unit */}
                       <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
-                        {client.qbo_class_name || BUSINESS_UNIT_LABELS[client.business_unit] || 'No BU'}
+                        {getQboClassName(client) || BUSINESS_UNIT_LABELS[client.business_unit] || 'No BU'}
                       </span>
                       <div className="text-sm text-gray-500">
                         {CLIENT_TYPE_LABELS[client.client_type]}

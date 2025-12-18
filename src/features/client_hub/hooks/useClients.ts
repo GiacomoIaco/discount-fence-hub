@@ -20,8 +20,7 @@ export function useClients(filters?: {
         .from('clients')
         .select(`
           *,
-          communities:communities(count),
-          qbo_class:qbo_classes(id, name)
+          communities:communities(count)
         `)
         .order('name');
 
@@ -41,12 +40,11 @@ export function useClients(filters?: {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Transform communities count and add QBO class info
+      // Transform communities count
       return (data || []).map((client: any) => ({
         ...client,
         communities_count: client.communities?.[0]?.count || 0,
-        qbo_class_name: client.qbo_class?.name || null,
-      })) as (Client & { qbo_class_name: string | null })[];
+      })) as Client[];
     },
   });
 }
