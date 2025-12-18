@@ -14,12 +14,12 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useClients, useDeleteClient } from '../hooks/useClients';
+import { useQboClasses } from '../hooks/useQboClasses';
 import {
   BUSINESS_UNIT_LABELS,
   CLIENT_TYPE_LABELS,
   CLIENT_STATUS_LABELS,
   type Client,
-  type BusinessUnit,
   type ClientStatus,
 } from '../types';
 import ClientEditorModal from './ClientEditorModal';
@@ -33,7 +33,7 @@ export default function ClientsList({
   onSelectClient,
 }: ClientsListProps) {
   const [search, setSearch] = useState('');
-  const [businessUnitFilter, setBusinessUnitFilter] = useState<string>('');
+  const [qboClassFilter, setQboClassFilter] = useState<string>('');
   const [clientTypeFilter, setClientTypeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
@@ -44,11 +44,12 @@ export default function ClientsList({
 
   const { data: clients, isLoading } = useClients({
     search,
-    business_unit: businessUnitFilter || undefined,
+    qbo_class_id: qboClassFilter || undefined,
     client_type: clientTypeFilter || undefined,
     status: statusFilter || undefined,
   });
 
+  const { data: qboClasses } = useQboClasses(true); // Only selectable classes
   const deleteMutation = useDeleteClient();
 
   const handleEdit = (client: Client) => {
@@ -74,13 +75,20 @@ export default function ClientsList({
     return styles[status];
   };
 
-  const getBusinessUnitBadge = (bu: BusinessUnit) => {
-    const styles: Record<BusinessUnit, string> = {
-      residential: 'bg-purple-100 text-purple-700',
-      commercial: 'bg-orange-100 text-orange-700',
-      builders: 'bg-blue-100 text-blue-700',
-    };
-    return styles[bu];
+  // Get display name for client (handles company vs individual)
+  const getDisplayName = (client: Client & { qbo_class_name?: string | null }) => {
+    // If company_name exists, that's the display name
+    if (client.company_name) return client.company_name;
+    // Otherwise use the name field
+    return client.name;
+  };
+
+  // Get contact name (for companies it's the name field, for individuals it's primary_contact_name)
+  const getContactName = (client: Client & { qbo_class_name?: string | null }) => {
+    // If company_name exists, name field is the contact person
+    if (client.company_name) return client.name || client.primary_contact_name;
+    // Otherwise use primary_contact_name
+    return client.primary_contact_name;
   };
 
   return (
@@ -104,7 +112,7 @@ export default function ClientsList({
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors ${
-              showFilters || businessUnitFilter || clientTypeFilter || statusFilter
+              showFilters || qboClassFilter || clientTypeFilter || statusFilter
                 ? 'border-blue-500 bg-blue-50 text-blue-700'
                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
@@ -130,13 +138,13 @@ export default function ClientsList({
       {showFilters && (
         <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
           <select
-            value={businessUnitFilter}
-            onChange={(e) => setBusinessUnitFilter(e.target.value)}
+            value={qboClassFilter}
+            onChange={(e) => setQboClassFilter(e.target.value)}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
           >
             <option value="">All Business Units</option>
-            {Object.entries(BUSINESS_UNIT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
+            {qboClasses?.map((qc) => (
+              <option key={qc.id} value={qc.id}>{qc.name}</option>
             ))}
           </select>
 
@@ -162,10 +170,10 @@ export default function ClientsList({
             ))}
           </select>
 
-          {(businessUnitFilter || clientTypeFilter || statusFilter) && (
+          {(qboClassFilter || clientTypeFilter || statusFilter) && (
             <button
               onClick={() => {
-                setBusinessUnitFilter('');
+                setQboClassFilter('');
                 setClientTypeFilter('');
                 setStatusFilter('');
               }}
@@ -200,7 +208,7 @@ export default function ClientsList({
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Client</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Type</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">BU / Type</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Contact</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Communities</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Status</th>
@@ -226,7 +234,7 @@ export default function ClientsList({
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{client.name}</span>
+                          <span className="font-medium text-gray-900">{getDisplayName(client)}</span>
                           {client.quickbooks_id ? (
                             <span title="Synced with QBO"><CheckCircle2 className="w-4 h-4 text-green-500" /></span>
                           ) : (
@@ -241,8 +249,9 @@ export default function ClientsList({
                   </td>
                   <td className="px-4 py-3">
                     <div className="space-y-1">
-                      <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${getBusinessUnitBadge(client.business_unit)}`}>
-                        {BUSINESS_UNIT_LABELS[client.business_unit]}
+                      {/* Show QBO class name if set, otherwise fallback to old business_unit */}
+                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                        {client.qbo_class_name || BUSINESS_UNIT_LABELS[client.business_unit] || 'No BU'}
                       </span>
                       <div className="text-sm text-gray-500">
                         {CLIENT_TYPE_LABELS[client.client_type]}
@@ -250,27 +259,30 @@ export default function ClientsList({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {client.primary_contact_name ? (
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium text-gray-900">
-                          {client.primary_contact_name}
+                    {(() => {
+                      const contactName = getContactName(client);
+                      return contactName ? (
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium text-gray-900">
+                            {contactName}
+                          </div>
+                          {client.primary_contact_email && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Mail className="w-3 h-3" />
+                              {client.primary_contact_email}
+                            </div>
+                          )}
+                          {client.primary_contact_phone && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Phone className="w-3 h-3" />
+                              {client.primary_contact_phone}
+                            </div>
+                          )}
                         </div>
-                        {client.primary_contact_email && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Mail className="w-3 h-3" />
-                            {client.primary_contact_email}
-                          </div>
-                        )}
-                        {client.primary_contact_phone && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Phone className="w-3 h-3" />
-                            {client.primary_contact_phone}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">No contact</span>
-                    )}
+                      ) : (
+                        <span className="text-sm text-gray-400">No contact</span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

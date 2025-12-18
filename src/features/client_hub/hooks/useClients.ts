@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 
 export function useClients(filters?: {
   search?: string;
-  business_unit?: string;
+  qbo_class_id?: string;
   client_type?: string;
   status?: string;
 }) {
@@ -20,15 +20,16 @@ export function useClients(filters?: {
         .from('clients')
         .select(`
           *,
-          communities:communities(count)
+          communities:communities(count),
+          qbo_class:qbo_classes(id, name)
         `)
         .order('name');
 
       if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,code.ilike.%${filters.search}%`);
+        query = query.or(`name.ilike.%${filters.search}%,code.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`);
       }
-      if (filters?.business_unit) {
-        query = query.eq('business_unit', filters.business_unit);
+      if (filters?.qbo_class_id) {
+        query = query.eq('default_qbo_class_id', filters.qbo_class_id);
       }
       if (filters?.client_type) {
         query = query.eq('client_type', filters.client_type);
@@ -40,11 +41,12 @@ export function useClients(filters?: {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Transform communities count
+      // Transform communities count and add QBO class info
       return (data || []).map((client: any) => ({
         ...client,
         communities_count: client.communities?.[0]?.count || 0,
-      })) as Client[];
+        qbo_class_name: client.qbo_class?.name || null,
+      })) as (Client & { qbo_class_name: string | null })[];
     },
   });
 }
@@ -384,3 +386,4 @@ export function useUserProfiles(filters?: { role?: string }) {
     },
   });
 }
+
