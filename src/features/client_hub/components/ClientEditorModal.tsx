@@ -88,18 +88,38 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     }
   }, [formData.default_qbo_class_id, qboClasses]);
 
-  // When company_name changes, adjust client_type if needed
+  // Check if a name looks like a company name (not a person)
+  const looksLikeCompanyName = (name: string): boolean => {
+    if (!name) return false;
+    const companyPatterns = [
+      /\b(inc|llc|corp|ltd|co|company|homes|builders|construction|enterprises|services|group|properties|development|contractors|associates)\b/i,
+      /\b(roofing|plumbing|electric|hvac|landscaping|fencing|pools?)\b/i,
+    ];
+    return companyPatterns.some(pattern => pattern.test(name));
+  };
+
+  // When company_name changes, adjust client_type and potentially clear name field
   const handleCompanyNameChange = (value: string) => {
     setFormData(prev => {
       const newData = { ...prev, company_name: value };
-      // If adding company name and current type is homeowner, clear it to force selection
-      if (value && prev.client_type === 'homeowner') {
-        newData.client_type = 'other';
+
+      // If adding company name for the first time
+      if (value && !prev.company_name) {
+        // If current name looks like a company name, clear it so user enters contact name
+        if (looksLikeCompanyName(prev.name)) {
+          newData.name = '';
+        }
+        // Force client type selection for companies
+        if (prev.client_type === 'homeowner') {
+          newData.client_type = 'other';
+        }
       }
+
       // If removing company name, default back to homeowner
       if (!value && !client?.company_name) {
         newData.client_type = 'homeowner';
       }
+
       return newData;
     });
   };

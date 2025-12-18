@@ -12,7 +12,15 @@ export function useNotifications(options?: {
 
   const query = useQuery({
     queryKey: ['mc_notifications', options],
-    queryFn: () => notificationService.getNotifications(options),
+    queryFn: async () => {
+      try {
+        return await notificationService.getNotifications(options);
+      } catch {
+        // Table may not exist yet - return empty array silently
+        return [];
+      }
+    },
+    retry: false,
   });
 
   // Subscribe to realtime updates
@@ -33,8 +41,16 @@ export function useNotifications(options?: {
 export function useUnreadNotificationCount() {
   return useQuery({
     queryKey: ['mc_notification_count'],
-    queryFn: notificationService.getUnreadCount,
+    queryFn: async () => {
+      try {
+        return await notificationService.getUnreadCount();
+      } catch {
+        // Table may not exist yet - return 0 silently
+        return 0;
+      }
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
+    retry: false, // Don't retry if table doesn't exist
   });
 }
 
