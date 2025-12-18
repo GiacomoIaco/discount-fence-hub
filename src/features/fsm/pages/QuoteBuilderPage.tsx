@@ -51,8 +51,11 @@ import { useSalesReps } from '../hooks/useSalesReps';
 import { useClients } from '../../client_hub/hooks/useClients';
 import { useCommunities } from '../../client_hub/hooks/useCommunities';
 import { useProperties } from '../../client_hub/hooks/useProperties';
+import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../client_hub/hooks/usePricingResolution';
 import { ClientLookup } from '../../../components/common/SmartLookup';
 import type { SelectedEntity } from '../../../components/common/SmartLookup';
+import SkuSearchCombobox from '../components/SkuSearchCombobox';
+import type { SkuSearchResult } from '../hooks/useSkuSearch';
 
 interface QuoteBuilderPageProps {
   /** Quote ID for editing, undefined for new quote */
@@ -110,16 +113,23 @@ interface LineItemForm {
   unit_price: number;
   unit_cost: number;
   isNew?: boolean;
+  // SKU-based pricing (O-036)
+  sku_id?: string | null;
+  sku?: SkuSearchResult | null;
+  pricing_source?: string | null;
 }
 
 const DEFAULT_LINE_ITEM: LineItemForm = {
   line_type: 'material',
   description: '',
   quantity: 1,
-  unit_type: 'EA',
+  unit_type: 'LF',
   unit_price: 0,
   unit_cost: 0,
   isNew: true,
+  sku_id: null,
+  sku: null,
+  pricing_source: null,
 };
 
 // Collapsible Section Component
@@ -215,6 +225,14 @@ export default function QuoteBuilderPage({
   const { data: communities } = useCommunities(selectedClientId ? { client_id: selectedClientId } : undefined);
   const { data: properties } = useProperties(selectedCommunityId || null);
   const { data: salesReps } = useSalesReps();
+
+  // Rate sheet pricing (O-036)
+  const pricingContext = {
+    communityId: selectedCommunityId || null,
+    clientId: selectedClientId || null,
+  };
+  useEffectiveRateSheet(pricingContext); // Prefetch for caching
+  const { data: rateSheetPrices } = useRateSheetPrices(pricingContext);
 
   // Derived data
   const selectedClient = clients?.find(c => c.id === selectedClientId);
@@ -326,6 +344,51 @@ export default function QuoteBuilderPage({
     ));
   };
 
+  // Handle SKU selection - auto-populate pricing from rate sheet (O-036)
+  const handleSkuSelect = (index: number, sku: SkuSearchResult | null) => {
+    if (!sku) {
+      // Clear SKU selection
+      handleUpdateLineItem(index, {
+        sku_id: null,
+        sku: null,
+        description: '',
+        unit_price: 0,
+        unit_cost: 0,
+        pricing_source: null,
+      });
+      return;
+    }
+
+    // Resolve price from rate sheet
+    let unitPrice = sku.standard_cost_per_foot || 0;
+    let unitCost = sku.standard_material_cost || 0;
+    let pricingSource = 'Catalog';
+
+    if (rateSheetPrices?.items && rateSheetPrices.rateSheet) {
+      const resolved = resolvePrice(
+        sku.id,
+        sku.standard_cost_per_foot || 0,
+        rateSheetPrices.items,
+        rateSheetPrices.rateSheet
+      );
+      unitPrice = resolved.price;
+      if (resolved.rateSheetName) {
+        pricingSource = `Rate Sheet: ${resolved.rateSheetName}`;
+      }
+    }
+
+    handleUpdateLineItem(index, {
+      sku_id: sku.id,
+      sku: sku,
+      description: sku.sku_name,
+      unit_type: 'LF',
+      unit_price: unitPrice,
+      unit_cost: unitCost,
+      pricing_source: pricingSource,
+      line_type: 'material', // SKU-based items are materials
+    });
+  };
+
   const handleRemoveLineItem = async (index: number) => {
     const item = lineItems[index];
     if (item.id) {
@@ -394,6 +457,7 @@ export default function QuoteBuilderPage({
                 unit_cost: item.unit_cost,
                 total_price: item.quantity * item.unit_price,
                 sort_order: i,
+                sku_id: item.sku_id || null, // O-036: SKU-based pricing
               },
             });
           } else {
@@ -411,7 +475,7 @@ export default function QuoteBuilderPage({
               group_name: null,
               material_id: null,
               labor_code_id: null,
-              sku_id: null,
+              sku_id: item.sku_id || null, // O-036: SKU-based pricing
               bom_line_item_id: null,
             });
           }
@@ -453,7 +517,7 @@ export default function QuoteBuilderPage({
             group_name: null,
             material_id: null,
             labor_code_id: null,
-            sku_id: null,
+            sku_id: item.sku_id || null, // O-036: SKU-based pricing
             bom_line_item_id: null,
           });
         }
@@ -685,6 +749,7 @@ export default function QuoteBuilderPage({
                         value={item.line_type}
                         onChange={(e) => handleUpdateLineItem(index, { line_type: e.target.value as LineItemForm['line_type'] })}
                         className="w-full px-1.5 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
+                        disabled={!!item.sku_id} // Locked when SKU is set
                       >
                         {LINE_TYPE_OPTIONS.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -692,13 +757,29 @@ export default function QuoteBuilderPage({
                       </select>
                     </div>
                     <div className="col-span-3">
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => handleUpdateLineItem(index, { description: e.target.value })}
-                        placeholder="Description"
-                        className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
-                      />
+                      {/* SKU Search for material/labor, text input for service/adjustment (O-036) */}
+                      {item.line_type === 'material' || item.line_type === 'labor' ? (
+                        <div>
+                          <SkuSearchCombobox
+                            value={item.sku || null}
+                            onChange={(sku) => handleSkuSelect(index, sku)}
+                            placeholder="Search SKU..."
+                          />
+                          {item.pricing_source && (
+                            <div className="text-xs text-gray-400 mt-1 truncate" title={item.pricing_source}>
+                              {item.pricing_source}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => handleUpdateLineItem(index, { description: e.target.value })}
+                          placeholder="Description"
+                          className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
+                        />
+                      )}
                     </div>
                     <div className="col-span-1">
                       <input
@@ -713,6 +794,7 @@ export default function QuoteBuilderPage({
                         value={item.unit_type}
                         onChange={(e) => handleUpdateLineItem(index, { unit_type: e.target.value })}
                         className="w-full px-1 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
+                        disabled={!!item.sku_id} // Locked when SKU is set
                       >
                         <option value="EA">EA</option>
                         <option value="LF">LF</option>
@@ -722,23 +804,29 @@ export default function QuoteBuilderPage({
                       </select>
                     </div>
                     <div className="col-span-2">
+                      {/* Price is read-only when SKU is set (O-036) */}
                       <input
                         type="number"
                         value={item.unit_price}
-                        onChange={(e) => handleUpdateLineItem(index, { unit_price: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                        onChange={(e) => !item.sku_id && handleUpdateLineItem(index, { unit_price: parseFloat(e.target.value) || 0 })}
+                        className={`w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500 ${item.sku_id ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                         step="0.01"
                         placeholder="Price"
+                        readOnly={!!item.sku_id}
+                        title={item.sku_id ? 'Price from rate sheet' : ''}
                       />
                     </div>
                     <div className="col-span-2">
+                      {/* Cost is read-only when SKU is set (O-036) */}
                       <input
                         type="number"
                         value={item.unit_cost}
-                        onChange={(e) => handleUpdateLineItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                        onChange={(e) => !item.sku_id && handleUpdateLineItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
+                        className={`w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500 ${item.sku_id ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                         step="0.01"
                         placeholder="Cost"
+                        readOnly={!!item.sku_id}
+                        title={item.sku_id ? 'Cost from SKU catalog' : ''}
                       />
                     </div>
                     <div className="col-span-1 text-right font-medium text-sm">
