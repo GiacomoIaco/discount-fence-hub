@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
-import { Plus, Edit2, Trash2, User, MapPin, Wrench, Clock, Users, Check, X, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, User, MapPin, Wrench, Clock, Users, Check, X, ChevronDown, Upload } from 'lucide-react';
 import { useFsmTeamFull, useDeleteFsmTeamProfile, useUpdateAssignedBUs } from '../hooks';
 import { useCrews, useAllRepCrewAlignments, useSetRepCrewAlignments } from '../hooks';
 import type { FsmTeamMember, FsmRole, Crew } from '../types';
 import { FSM_ROLE_LABELS, DAY_SHORT_LABELS } from '../types';
 import FsmTeamEditorModal from './FsmTeamEditorModal';
+import FsmTeamImportModal from './FsmTeamImportModal';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
 
 interface EditingState {
@@ -23,6 +24,7 @@ export default function FsmTeamList() {
   const setCrewAlignmentsMutation = useSetRepCrewAlignments();
 
   const [showEditor, setShowEditor] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingMember, setEditingMember] = useState<FsmTeamMember | null>(null);
   const [filterRole, setFilterRole] = useState<FsmRole | ''>('');
   const [filterBU, setFilterBU] = useState<string>('');
@@ -168,6 +170,14 @@ export default function FsmTeamList() {
               ))}
             </select>
           )}
+
+          <button
+            onClick={() => setShowImport(true)}
+            className="px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 flex items-center gap-2 text-sm font-medium"
+          >
+            <Upload className="w-4 h-4" />
+            Import
+          </button>
 
           <button
             onClick={() => setShowEditor(true)}
@@ -536,6 +546,13 @@ export default function FsmTeamList() {
         <FsmTeamEditorModal
           member={editingMember}
           onClose={handleClose}
+        />
+      )}
+
+      {/* Import Modal */}
+      {showImport && (
+        <FsmTeamImportModal
+          onClose={() => setShowImport(false)}
         />
       )}
     </div>

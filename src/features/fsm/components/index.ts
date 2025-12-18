@@ -15,3 +15,4 @@ export { default as ProjectTypeEditorModal } from './ProjectTypeEditorModal';
 export { default as AttributesTab } from './AttributesTab';
 export { default as FsmTeamList } from './FsmTeamList';
 export { default as FsmTeamEditorModal } from './FsmTeamEditorModal';
+export { default as FsmTeamImportModal } from './FsmTeamImportModal';
