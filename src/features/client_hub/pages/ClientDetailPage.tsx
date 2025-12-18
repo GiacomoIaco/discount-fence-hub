@@ -135,7 +135,7 @@ export default function ClientDetailPage({
           </button>
           <ChevronRight className="w-4 h-4 text-gray-400" />
           <span className="text-gray-700 font-medium truncate max-w-xs">
-            {client?.name || 'Loading...'}
+            {client?.company_name || client?.name || 'Loading...'}
           </span>
         </div>
       </div>
@@ -157,7 +157,9 @@ export default function ClientDetailPage({
               </div>
               <div>
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900">{client.name}</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {client.company_name || client.name}
+                  </h1>
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                     client.status === 'active' ? 'bg-green-100 text-green-700' :
                     client.status === 'onboarding' ? 'bg-blue-100 text-blue-700' :
