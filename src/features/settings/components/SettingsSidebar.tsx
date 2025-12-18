@@ -13,6 +13,7 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
+  MapPin,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { SidebarTooltip } from '../../../components/sidebar';
@@ -25,7 +26,8 @@ export type SettingsPage =
   | 'menu-visibility'
   | 'qbo-classes'
   | 'fsm'
-  | 'custom-fields';
+  | 'custom-fields'
+  | 'territories';
 
 interface NavItem {
   id: SettingsPage;
@@ -48,6 +50,7 @@ const CONFIG_NAV_ITEMS: NavItem[] = [
   { id: 'qbo-classes', label: 'QBO Classes', icon: BookOpen },
   { id: 'fsm', label: 'FSM', icon: Truck },
   { id: 'custom-fields', label: 'Custom Fields', icon: SlidersHorizontal },
+  { id: 'territories', label: 'Territories', icon: MapPin },
 ];
 
 const STORAGE_KEY = 'sidebar-collapsed-settings';

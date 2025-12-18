@@ -43,7 +43,8 @@ export type Section =
   | 'photo-gallery'
   | 'sales-resources'
   | 'manager-dashboard'
-  | 'assignment-rules';
+  | 'assignment-rules'
+  | 'territories';
 
 /**
  * Route definitions mapping Section to URL path
@@ -104,6 +105,7 @@ export const ROUTE_CONFIG: Record<Section, string> = {
   // Legacy/Internal
   'manager-dashboard': 'manager',
   'assignment-rules': 'settings/assignment-rules',
+  'territories': 'settings/territories',
 };
 
 /**

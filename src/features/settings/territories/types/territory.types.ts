@@ -1,0 +1,111 @@
+import type { Geometry } from 'geojson';
+
+export interface Territory {
+  id: string;
+  name: string;
+  code: string;
+  business_unit_id: string | null;
+  zip_codes: string[];
+  geometry: Geometry | null;
+  color: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TerritoryWithReps extends Territory {
+  business_unit_name: string | null;
+  business_unit_code: string | null;
+  metro: string | null;
+  assigned_reps: AssignedRep[];
+  zip_count: number | null;
+}
+
+export interface AssignedRep {
+  id: string;
+  name: string;
+  is_primary: boolean;
+}
+
+export interface TerritoryAssignment {
+  id: string;
+  territory_id: string;
+  sales_rep_id: string;
+  is_primary: boolean;
+  assigned_at: string;
+  assigned_by: string | null;
+}
+
+export interface MetroZipCentroid {
+  zip_code: string;
+  metro: 'austin' | 'san_antonio' | 'houston';
+  city: string | null;
+  county: string | null;
+  lat: number;
+  lng: number;
+  population: number | null;
+}
+
+export interface BusinessUnit {
+  id: string;
+  code: string;
+  name: string;
+  location: string;
+  business_type: string;
+  is_active: boolean;
+}
+
+export interface SalesRep {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  territory_ids: string[];
+  product_skills: string[];
+  max_daily_assessments: number;
+  is_active: boolean;
+}
+
+// Map drawing types
+export type DrawingMode = 'circle' | 'rectangle' | 'polygon' | null;
+
+export interface DrawnShape {
+  type: 'circle' | 'rectangle' | 'polygon';
+  geometry: Geometry;
+  properties: {
+    radius?: number; // For circles, in meters
+  };
+}
+
+export interface TerritoryFormData {
+  name: string;
+  code: string;
+  business_unit_id: string | null;
+  color: string;
+  description: string;
+  geometry: Geometry | null;
+  zip_codes: string[];
+}
+
+// Metro quick-jump options
+export const METRO_OPTIONS = [
+  { value: 'austin', label: 'Austin', center: [30.2672, -97.7431] as [number, number] },
+  { value: 'san_antonio', label: 'San Antonio', center: [29.4241, -98.4936] as [number, number] },
+  { value: 'houston', label: 'Houston', center: [29.7604, -95.3698] as [number, number] },
+] as const;
+
+// Default colors for territories
+export const TERRITORY_COLORS = [
+  '#3B82F6', // blue
+  '#10B981', // green
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#8B5CF6', // violet
+  '#EC4899', // pink
+  '#06B6D4', // cyan
+  '#F97316', // orange
+  '#84CC16', // lime
+  '#6366F1', // indigo
+];

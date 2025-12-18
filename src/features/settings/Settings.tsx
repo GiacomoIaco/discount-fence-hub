@@ -9,6 +9,7 @@ import NotificationSettings from './components/NotificationSettings';
 import QboClassesSettings from './components/QboClassesSettings';
 import FSMSettings from './components/FSMSettings';
 import CustomFieldsSettings from './components/CustomFieldsSettings';
+import { TerritoriesPage } from './territories';
 import type { UserRole } from '../../types';
 
 // Declare build time from vite config
@@ -132,6 +133,9 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
             <CustomFieldsSettings />
           </div>
         );
+
+      case 'territories':
+        return <TerritoriesPage />;
 
       default:
         return null;
