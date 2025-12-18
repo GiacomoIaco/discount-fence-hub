@@ -97,6 +97,10 @@ export interface Crew {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Subcontractor support (from migration 182)
+  is_subcontractor: boolean;
+  lead_name: string | null;
+  lead_phone: string | null;
   // Geocoding (from migration 178)
   home_latitude?: number | null;
   home_longitude?: number | null;
@@ -105,6 +109,11 @@ export interface Crew {
   members?: CrewMember[];
   territory?: Territory;
   lead_user?: { id: string; email: string; full_name: string | null };
+  // Assignment summary (from view)
+  aligned_reps_count?: number;
+  preferred_by_clients?: number;
+  preferred_by_communities?: number;
+  total_assignments?: number;
 }
 
 export interface CrewMember {
@@ -533,6 +542,69 @@ export interface CrewFormData {
   crew_type: CrewType;
   lead_user_id: string;
   is_active: boolean;
+  // Subcontractor support
+  is_subcontractor: boolean;
+  lead_name: string;
+  lead_phone: string;
+}
+
+// ============================================
+// REP-CREW ALIGNMENT TYPES
+// ============================================
+
+export interface RepCrewAlignment {
+  id: string;
+  rep_user_id: string;
+  crew_id: string;
+  skill_categories: string[];
+  priority: number;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  crew?: Crew;
+  rep_user?: { id: string; email: string; full_name?: string };
+}
+
+export interface RepCrewAlignmentFormData {
+  crew_id: string;
+  skill_categories: string[];
+  priority: number;
+  notes: string;
+}
+
+// ============================================
+// COMMUNITY CREW PREFERENCE TYPES
+// ============================================
+
+export interface CommunityCrewPreference {
+  id: string;
+  community_id: string;
+  crew_id: string;
+  skill_categories: string[];
+  priority: number;
+  inherited_from_rep_id: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  crew?: Crew;
+}
+
+export interface ClientCrewPreference {
+  id: string;
+  client_id: string;
+  crew_id: string;
+  skill_categories: string[];
+  priority: number;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  crew?: Crew;
 }
 
 export interface RequestFormData {
@@ -850,6 +922,8 @@ export interface FsmTeamProfile {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // BU assignments for rep filtering (from migration 182)
+  assigned_qbo_class_ids: string[];
   // Joined from auth.users
   user?: {
     id: string;
@@ -860,6 +934,8 @@ export interface FsmTeamProfile {
   };
   // Joined crew
   crew?: Crew;
+  // Joined crew alignments
+  crew_alignments?: RepCrewAlignment[];
 }
 
 // ============================================
@@ -927,6 +1003,8 @@ export interface FsmTeamMember {
   crew_id: string | null;
   crew_name: string | null;
   is_active: boolean;
+  // BU assignments for rep filtering (from migration 182)
+  assigned_qbo_class_ids?: string[];
   // Aggregated data
   territories: {
     territory_id: string;

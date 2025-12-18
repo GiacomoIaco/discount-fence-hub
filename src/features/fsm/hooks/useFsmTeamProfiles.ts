@@ -583,3 +583,39 @@ export function useCrewsWithLeads() {
     },
   });
 }
+
+// ============================================
+// INLINE UPDATE HELPERS (for Team List)
+// ============================================
+
+export function useUpdateAssignedBUs() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      assignedQboClassIds,
+    }: {
+      userId: string;
+      assignedQboClassIds: string[];
+    }) => {
+      const { error } = await supabase
+        .from('fsm_team_profiles')
+        .update({
+          assigned_qbo_class_ids: assignedQboClassIds,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fsm_team_profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['fsm_team_full'] });
+      showSuccess('BU assignments updated');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to update BU assignments');
+    },
+  });
+}

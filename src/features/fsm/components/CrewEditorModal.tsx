@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2, Users, Wrench } from 'lucide-react';
 import { useCreateCrew, useUpdateCrew, useTerritories } from '../hooks';
 import type { Crew, CrewFormData, CrewType } from '../types';
 import { PRODUCT_TYPES, CREW_TYPE_LABELS } from '../types';
@@ -43,6 +43,10 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
     crew_type: 'standard',
     lead_user_id: '',
     is_active: true,
+    // Subcontractor fields
+    is_subcontractor: false,
+    lead_name: '',
+    lead_phone: '',
   });
 
   useEffect(() => {
@@ -58,6 +62,10 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
         crew_type: crew.crew_type || 'standard',
         lead_user_id: crew.lead_user_id || '',
         is_active: crew.is_active,
+        // Subcontractor fields
+        is_subcontractor: crew.is_subcontractor || false,
+        lead_name: crew.lead_name || '',
+        lead_phone: crew.lead_phone || '',
       });
     }
   }, [crew]);
@@ -74,14 +82,32 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim() || !formData.code.trim()) {
-      return;
+    // Validation based on mode
+    if (formData.is_subcontractor) {
+      // Subcontractor: Name + Phone required
+      if (!formData.name.trim() || !formData.lead_phone.trim()) {
+        return;
+      }
+    } else {
+      // Internal crew: Name + Code required
+      if (!formData.name.trim() || !formData.code.trim()) {
+        return;
+      }
+    }
+
+    // Auto-generate code for subs if empty
+    const dataToSubmit = { ...formData };
+    if (formData.is_subcontractor && !formData.code.trim()) {
+      dataToSubmit.code = formData.name
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .substring(0, 6)
+        .toUpperCase();
     }
 
     if (isNew) {
-      await createMutation.mutateAsync(formData);
+      await createMutation.mutateAsync(dataToSubmit);
     } else {
-      await updateMutation.mutateAsync({ id: crew.id, data: formData });
+      await updateMutation.mutateAsync({ id: crew.id, data: dataToSubmit });
     }
 
     onClose();
@@ -95,7 +121,7 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-900">
-            {isNew ? 'New Crew' : 'Edit Crew'}
+            {isNew ? 'New Crew / Subcontractor' : 'Edit Crew'}
           </h2>
           <button
             onClick={onClose}
@@ -107,171 +133,331 @@ export default function CrewEditorModal({ crew, onClose }: Props) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* Name & Code */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Crew Alpha"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Code <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                placeholder="e.g., CRW-A"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 uppercase font-mono"
-                required
-              />
-            </div>
+          {/* Crew Type Toggle */}
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, is_subcontractor: false })}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                !formData.is_subcontractor
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Internal Crew
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, is_subcontractor: true })}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                formData.is_subcontractor
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Wrench className="w-4 h-4" />
+              Subcontractor
+            </button>
           </div>
 
-          {/* Capacity */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Crew Size
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={formData.crew_size}
-                onChange={(e) => setFormData({ ...formData, crew_size: parseInt(e.target.value) || 2 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max Daily LF
-              </label>
-              <input
-                type="number"
-                min="50"
-                step="25"
-                value={formData.max_daily_lf}
-                onChange={(e) => setFormData({ ...formData, max_daily_lf: parseInt(e.target.value) || 200 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-              <p className="mt-1 text-xs text-gray-500">Linear feet capacity per day</p>
-            </div>
-          </div>
+          {formData.is_subcontractor ? (
+            /* ========== SUBCONTRACTOR MODE ========== */
+            <>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                Subcontractors are external crews. Only name and phone are required.
+              </div>
 
-          {/* Business Unit & Territory */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Business Unit
-              </label>
-              <select
-                value={formData.business_unit_id}
-                onChange={(e) => setFormData({ ...formData, business_unit_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="">-- Select --</option>
-                {businessUnits?.map((bu) => (
-                  <option key={bu.id} value={bu.id}>
-                    {bu.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Home Territory
-              </label>
-              <select
-                value={formData.home_territory_id}
-                onChange={(e) => setFormData({ ...formData, home_territory_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="">-- Select --</option>
-                {territories?.filter(t => t.is_active).map((territory) => (
-                  <option key={territory.id} value={territory.id}>
-                    {territory.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+              {/* Name & Phone (required) */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crew/Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g., ABC Fence Co"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.lead_phone}
+                    onChange={(e) => setFormData({ ...formData, lead_phone: e.target.value })}
+                    placeholder="(512) 555-1234"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                </div>
+              </div>
 
-          {/* Crew Type & Lead */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Crew Type
-              </label>
-              <select
-                value={formData.crew_type}
-                onChange={(e) => setFormData({ ...formData, crew_type: e.target.value as CrewType })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                {(Object.keys(CREW_TYPE_LABELS) as CrewType[]).map((type) => (
-                  <option key={type} value={type}>
-                    {CREW_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Internal = in-house, Small Jobs = quick turnaround
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Crew Lead
-              </label>
-              <select
-                value={formData.lead_user_id}
-                onChange={(e) => setFormData({ ...formData, lead_user_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="">-- No Lead --</option>
-                {teamMembers?.map((member) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {member.full_name || member.email}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Point of contact for this crew
-              </p>
-            </div>
-          </div>
+              {/* Lead Name & Code (optional) */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Lead Contact Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lead_name}
+                    onChange={(e) => setFormData({ ...formData, lead_name: e.target.value })}
+                    placeholder="e.g., Roberto Garcia"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Code
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    placeholder="Auto-generated"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 uppercase font-mono"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">For import/export</p>
+                </div>
+              </div>
 
-          {/* Product Skills */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Product Skills
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {PRODUCT_TYPES.map((skill) => (
-                <button
-                  key={skill}
-                  type="button"
-                  onClick={() => handleSkillToggle(skill)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                    formData.product_skills.includes(skill)
-                      ? 'bg-green-100 border-green-300 text-green-800'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  {skill}
-                </button>
-              ))}
-            </div>
-          </div>
+              {/* Optional: BU & Territory */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Business Unit
+                  </label>
+                  <select
+                    value={formData.business_unit_id}
+                    onChange={(e) => setFormData({ ...formData, business_unit_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">-- Select --</option>
+                    {businessUnits?.map((bu) => (
+                      <option key={bu.id} value={bu.id}>
+                        {bu.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Home Territory
+                  </label>
+                  <select
+                    value={formData.home_territory_id}
+                    onChange={(e) => setFormData({ ...formData, home_territory_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">-- Select --</option>
+                    {territories?.filter(t => t.is_active).map((territory) => (
+                      <option key={territory.id} value={territory.id}>
+                        {territory.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* Active */}
+              {/* Product Skills */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Skills
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PRODUCT_TYPES.map((skill) => (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={() => handleSkillToggle(skill)}
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        formData.product_skills.includes(skill)
+                          ? 'bg-green-100 border-green-300 text-green-800'
+                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {skill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            /* ========== INTERNAL CREW MODE ========== */
+            <>
+              {/* Name & Code */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g., Crew Alpha"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    placeholder="e.g., CRW-A"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 uppercase font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Capacity */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crew Size
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.crew_size}
+                    onChange={(e) => setFormData({ ...formData, crew_size: parseInt(e.target.value) || 2 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Max Daily LF
+                  </label>
+                  <input
+                    type="number"
+                    min="50"
+                    step="25"
+                    value={formData.max_daily_lf}
+                    onChange={(e) => setFormData({ ...formData, max_daily_lf: parseInt(e.target.value) || 200 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Linear feet capacity per day</p>
+                </div>
+              </div>
+
+              {/* Business Unit & Territory */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Business Unit
+                  </label>
+                  <select
+                    value={formData.business_unit_id}
+                    onChange={(e) => setFormData({ ...formData, business_unit_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">-- Select --</option>
+                    {businessUnits?.map((bu) => (
+                      <option key={bu.id} value={bu.id}>
+                        {bu.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Home Territory
+                  </label>
+                  <select
+                    value={formData.home_territory_id}
+                    onChange={(e) => setFormData({ ...formData, home_territory_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">-- Select --</option>
+                    {territories?.filter(t => t.is_active).map((territory) => (
+                      <option key={territory.id} value={territory.id}>
+                        {territory.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Crew Type & Lead */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crew Type
+                  </label>
+                  <select
+                    value={formData.crew_type}
+                    onChange={(e) => setFormData({ ...formData, crew_type: e.target.value as CrewType })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    {(Object.keys(CREW_TYPE_LABELS) as CrewType[]).map((type) => (
+                      <option key={type} value={type}>
+                        {CREW_TYPE_LABELS[type]}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Internal = in-house, Small Jobs = quick turnaround
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crew Lead
+                  </label>
+                  <select
+                    value={formData.lead_user_id}
+                    onChange={(e) => setFormData({ ...formData, lead_user_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">-- No Lead --</option>
+                    {teamMembers?.map((member) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.full_name || member.email}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Point of contact for this crew
+                  </p>
+                </div>
+              </div>
+
+              {/* Product Skills */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Skills
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PRODUCT_TYPES.map((skill) => (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={() => handleSkillToggle(skill)}
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        formData.product_skills.includes(skill)
+                          ? 'bg-green-100 border-green-300 text-green-800'
+                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {skill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Active (both modes) */}
           <div className="flex items-center gap-2">
             <input
               type="checkbox"

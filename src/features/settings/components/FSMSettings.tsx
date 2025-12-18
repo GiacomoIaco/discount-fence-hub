@@ -1,25 +1,21 @@
 import { useState } from 'react';
-import { Sliders, Users, Truck, ClipboardList, UserCheck } from 'lucide-react';
+import { Sliders, Truck, UserCheck } from 'lucide-react';
 import {
-  RequestsList,
   AttributesTab,
   FsmTeamList,
   CrewsList,
-  SalesRepsList,
 } from '../../fsm/components';
 
-type TabId = 'requests' | 'attributes' | 'team' | 'crews' | 'sales_reps';
+type TabId = 'attributes' | 'team' | 'crews';
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }>; description?: string }[] = [
-  { id: 'requests', label: 'Service Requests', icon: ClipboardList },
   { id: 'attributes', label: 'Attributes', icon: Sliders, description: 'Territories & Project Types' },
-  { id: 'team', label: 'Team', icon: UserCheck, description: 'FSM roles & skills' },
-  { id: 'crews', label: 'Crews', icon: Truck },
-  { id: 'sales_reps', label: 'Sales Reps', icon: Users, description: 'Legacy' },
+  { id: 'team', label: 'Team', icon: UserCheck, description: 'Reps, BU assignments & crew alignments' },
+  { id: 'crews', label: 'Crews & Subs', icon: Truck, description: 'Internal crews & subcontractors' },
 ];
 
 export default function FSMSettings() {
-  const [activeTab, setActiveTab] = useState<TabId>('requests');
+  const [activeTab, setActiveTab] = useState<TabId>('attributes');
 
   return (
     <div className="space-y-6">
@@ -56,11 +52,9 @@ export default function FSMSettings() {
 
       {/* Content */}
       <div>
-        {activeTab === 'requests' && <RequestsList />}
         {activeTab === 'attributes' && <AttributesTab />}
         {activeTab === 'team' && <FsmTeamList />}
         {activeTab === 'crews' && <CrewsList />}
-        {activeTab === 'sales_reps' && <SalesRepsList />}
       </div>
     </div>
   );
