@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, FileSpreadsheet, User, Truck, Building2, Plus } from 'lucide-react';
 import { useCreateClient, useUpdateClient, useClientCrewPreferences, useSetClientCrewPreferences } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
@@ -88,6 +88,37 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     }
   }, [formData.default_qbo_class_id, qboClasses]);
 
+  // Track previous company_name to detect when it's first added
+  const prevCompanyNameRef = useRef<string>(client?.company_name || '');
+
+  // When company_name changes from empty to non-empty, auto-clear name if it looks like a company
+  useEffect(() => {
+    const prevCompanyName = prevCompanyNameRef.current;
+    const currentCompanyName = formData.company_name;
+
+    // Detect transition from empty to non-empty company_name
+    if (currentCompanyName && !prevCompanyName) {
+      setFormData(prev => {
+        const updates: Partial<ClientFormData> = {};
+
+        // If current name looks like a company name, clear it
+        if (looksLikeCompanyName(prev.name)) {
+          updates.name = '';
+        }
+
+        // Ensure client_type is not homeowner for companies
+        if (prev.client_type === 'homeowner') {
+          updates.client_type = 'other';
+        }
+
+        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+      });
+    }
+
+    // Update ref for next comparison
+    prevCompanyNameRef.current = currentCompanyName;
+  }, [formData.company_name]);
+
   // Check if a name looks like a company name (not a person)
   const looksLikeCompanyName = (name: string): boolean => {
     if (!name) return false;
@@ -98,24 +129,13 @@ export default function ClientEditorModal({ client, onClose }: Props) {
     return companyPatterns.some(pattern => pattern.test(name));
   };
 
-  // When company_name changes, adjust client_type and potentially clear name field
+  // When company_name changes, update the form data
+  // The useEffect above handles auto-clearing name and adjusting client_type
   const handleCompanyNameChange = (value: string) => {
     setFormData(prev => {
       const newData = { ...prev, company_name: value };
 
-      // If adding company name for the first time
-      if (value && !prev.company_name) {
-        // If current name looks like a company name, clear it so user enters contact name
-        if (looksLikeCompanyName(prev.name)) {
-          newData.name = '';
-        }
-        // Force client type selection for companies
-        if (prev.client_type === 'homeowner') {
-          newData.client_type = 'other';
-        }
-      }
-
-      // If removing company name, default back to homeowner
+      // If removing company name, default back to homeowner (for new clients)
       if (!value && !client?.company_name) {
         newData.client_type = 'homeowner';
       }
