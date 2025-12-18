@@ -42,7 +42,6 @@ export function useScheduleEntries(filter: ScheduleEntriesFilter) {
             id,
             job_number,
             name,
-            material_status,
             project_id,
             invoice_group_id,
             client:clients(name),
@@ -137,7 +136,7 @@ export function useScheduleEntry(id: string | undefined) {
         .from('schedule_entries')
         .select(`
           *,
-          job:jobs(id, job_number, client:clients(name), material_status),
+          job:jobs(id, job_number, client:clients(name)),
           service_request:service_requests(id, request_number, contact_name),
           crew:crews(id, name, code)
         `)
