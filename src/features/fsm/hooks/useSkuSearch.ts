@@ -84,8 +84,8 @@ export function useSkuSearch(query: string, options: UseSkuSearchOptions = {}) {
           standard_material_cost,
           standard_labor_cost,
           standard_cost_per_foot,
-          product_type:product_types(id, code, name),
-          product_style:product_styles(id, code, name)
+          product_type:product_types_v2(id, code, name),
+          product_style:product_styles_v2(id, code, name)
         `)
         .eq('is_active', true)
         .order('sku_code')
@@ -162,8 +162,8 @@ export function useRecentSkus(options: UseSkuSearchOptions = {}) {
           standard_material_cost,
           standard_labor_cost,
           standard_cost_per_foot,
-          product_type:product_types(id, code, name),
-          product_style:product_styles(id, code, name)
+          product_type:product_types_v2(id, code, name),
+          product_style:product_styles_v2(id, code, name)
         `)
         .in('id', recentIds)
         .eq('is_active', true);
@@ -263,8 +263,8 @@ export function useSkuById(skuId: string | null) {
           standard_labor_cost,
           standard_cost_per_foot,
           product_description,
-          product_type:product_types(id, code, name),
-          product_style:product_styles(id, code, name)
+          product_type:product_types_v2(id, code, name),
+          product_style:product_styles_v2(id, code, name)
         `)
         .eq('id', skuId)
         .single();
