@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen, Calendar, User, Truck } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen, Calendar, User, Users, GripVertical } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
 import { useClients, useGeographies, useUserProfiles } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
@@ -242,48 +242,98 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-gray-400" />
-                    Default Sales Rep
-                  </div>
-                </label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  Default Sales Rep
+                </div>
+              </label>
+              <select
+                value={formData.default_rep_id || ''}
+                onChange={(e) => setFormData({ ...formData, default_rep_id: e.target.value || null })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Not assigned</option>
+                {userProfiles?.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.display_name || user.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Priority Crews - Multi-select with ordering */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                  Priority Crews
+                </div>
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Crews will be assigned in priority order when scheduling jobs
+              </p>
+
+              {/* Selected crews list */}
+              {formData.priority_crew_ids.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {formData.priority_crew_ids.map((crewId, index) => {
+                    const crew = crews?.find(c => c.id === crewId);
+                    if (!crew) return null;
+                    return (
+                      <div
+                        key={crewId}
+                        className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg group"
+                      >
+                        <GripVertical className="w-4 h-4 text-gray-400" />
+                        <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
+                        <span className={`flex-1 text-sm ${crew.is_subcontractor ? 'text-blue-700' : 'text-amber-700'}`}>
+                          {crew.name}
+                        </span>
+                        <span className="text-xs text-gray-400">{crew.code}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              priority_crew_ids: formData.priority_crew_ids.filter(id => id !== crewId),
+                            });
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add crew dropdown */}
+              <div className="flex items-center gap-2">
                 <select
-                  value={formData.default_rep_id || ''}
-                  onChange={(e) => setFormData({ ...formData, default_rep_id: e.target.value || null })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value && !formData.priority_crew_ids.includes(e.target.value)) {
+                      setFormData({
+                        ...formData,
+                        priority_crew_ids: [...formData.priority_crew_ids, e.target.value],
+                      });
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 >
-                  <option value="">Not assigned</option>
-                  {userProfiles?.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.display_name || user.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-gray-400" />
-                    Preferred Crew
-                  </div>
-                </label>
-                <select
-                  value={formData.preferred_crew_id || ''}
-                  onChange={(e) => setFormData({ ...formData, preferred_crew_id: e.target.value || null })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">No preference</option>
-                  {crews?.filter(c => c.is_active).map((crew) => (
+                  <option value="">Add priority crew...</option>
+                  {crews?.filter(c => c.is_active && !formData.priority_crew_ids.includes(c.id)).map((crew) => (
                     <option key={crew.id} value={crew.id}>
-                      {crew.name} ({crew.code})
+                      {crew.name} ({crew.code}) {crew.is_subcontractor ? '• Sub' : '• In-house'}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
+
             <p className="text-xs text-gray-500">
               Default assignments for new requests and jobs in this community
             </p>
