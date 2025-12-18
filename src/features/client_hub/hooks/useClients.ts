@@ -87,12 +87,17 @@ export function useCreateClient() {
 
   return useMutation({
     mutationFn: async (data: ClientFormData) => {
+      // Convert empty strings to null for fields with unique constraints
+      const sanitizedData = {
+        ...data,
+        code: data.code?.trim() || null,
+        company_name: data.company_name?.trim() || null,
+        status: 'active' as const,
+      };
+
       const { data: client, error } = await supabase
         .from('clients')
-        .insert({
-          ...data,
-          status: 'active',
-        })
+        .insert(sanitizedData)
         .select()
         .single();
 
@@ -114,12 +119,17 @@ export function useUpdateClient() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<ClientFormData> }) => {
+      // Convert empty strings to null for fields with unique constraints
+      const sanitizedData = {
+        ...data,
+        ...(data.code !== undefined && { code: data.code?.trim() || null }),
+        ...(data.company_name !== undefined && { company_name: data.company_name?.trim() || null }),
+        updated_at: new Date().toISOString(),
+      };
+
       const { data: client, error } = await supabase
         .from('clients')
-        .update({
-          ...data,
-          updated_at: new Date().toISOString(),
-        })
+        .update(sanitizedData)
         .eq('id', id)
         .select()
         .single();
