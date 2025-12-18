@@ -138,13 +138,24 @@ export default function ClientDetailModal({ clientId, onClose, onEdit }: Props) 
           </div>
 
           {/* Primary Contact */}
-          {(client.primary_contact_name || client.primary_contact_email || client.primary_contact_phone) && (
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Primary Contact</h3>
-              <div className="space-y-2">
-                {client.primary_contact_name && (
-                  <div className="font-medium text-gray-900">{client.primary_contact_name}</div>
-                )}
+          {(() => {
+            // For companies: `name` is the contact (new model), fallback to primary_contact_name
+            // For individuals: primary_contact_name OR name (both work as client/contact name)
+            const contactName = client.company_name
+              ? (client.name || client.primary_contact_name)
+              : (client.primary_contact_name || client.name);
+
+            if (!contactName && !client.primary_contact_email && !client.primary_contact_phone) {
+              return null;
+            }
+
+            return (
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Primary Contact</h3>
+                <div className="space-y-2">
+                  {contactName && (
+                    <div className="font-medium text-gray-900">{contactName}</div>
+                  )}
                 {client.primary_contact_email && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Mail className="w-4 h-4" />
@@ -163,7 +174,8 @@ export default function ClientDetailModal({ clientId, onClose, onEdit }: Props) 
                 )}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Address */}
           {(client.address_line1 || client.city) && (

@@ -273,33 +273,45 @@ export default function ClientDetailPage({
                 {/* Primary Contact */}
                 <div className="bg-white rounded-xl border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Primary Contact</h3>
-                  {client.primary_contact_name ? (
-                    <div className="space-y-3">
-                      <div className="font-medium text-gray-900 text-lg">
-                        {client.primary_contact_name}
+                  {(() => {
+                    // For companies: `name` is the contact (new model), fallback to primary_contact_name (old data)
+                    // For individuals: primary_contact_name OR name (both work as client/contact name)
+                    const contactName = client.company_name
+                      ? (client.name || client.primary_contact_name)
+                      : (client.primary_contact_name || client.name);
+
+                    if (!contactName && !client.primary_contact_email && !client.primary_contact_phone) {
+                      return <p className="text-gray-500">No primary contact set</p>;
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {contactName && (
+                          <div className="font-medium text-gray-900 text-lg">
+                            {contactName}
+                          </div>
+                        )}
+                        {client.primary_contact_email && (
+                          <a
+                            href={`mailto:${client.primary_contact_email}`}
+                            className="flex items-center gap-2 text-gray-600 hover:text-blue-600"
+                          >
+                            <Mail className="w-4 h-4" />
+                            {client.primary_contact_email}
+                          </a>
+                        )}
+                        {client.primary_contact_phone && (
+                          <a
+                            href={`tel:${client.primary_contact_phone}`}
+                            className="flex items-center gap-2 text-gray-600 hover:text-blue-600"
+                          >
+                            <Phone className="w-4 h-4" />
+                            {client.primary_contact_phone}
+                          </a>
+                        )}
                       </div>
-                      {client.primary_contact_email && (
-                        <a
-                          href={`mailto:${client.primary_contact_email}`}
-                          className="flex items-center gap-2 text-gray-600 hover:text-blue-600"
-                        >
-                          <Mail className="w-4 h-4" />
-                          {client.primary_contact_email}
-                        </a>
-                      )}
-                      {client.primary_contact_phone && (
-                        <a
-                          href={`tel:${client.primary_contact_phone}`}
-                          className="flex items-center gap-2 text-gray-600 hover:text-blue-600"
-                        >
-                          <Phone className="w-4 h-4" />
-                          {client.primary_contact_phone}
-                        </a>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">No primary contact set</p>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Address */}

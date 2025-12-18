@@ -203,13 +203,21 @@ export default function ClientEditorModal({ client, onClose }: Props) {
       return;
     }
 
+    // Sync primary_contact_name with name field for backward compatibility
+    // For companies: name is the contact person
+    // For individuals: name is the client/contact name
+    const dataToSave = {
+      ...formData,
+      primary_contact_name: formData.company_name ? formData.name : (formData.name || formData.primary_contact_name),
+    };
+
     try {
       let clientId = client?.id;
 
       if (isEditing) {
-        await updateMutation.mutateAsync({ id: client.id, data: formData });
+        await updateMutation.mutateAsync({ id: client.id, data: dataToSave });
       } else {
-        const newClient = await createMutation.mutateAsync(formData);
+        const newClient = await createMutation.mutateAsync(dataToSave);
         clientId = newClient.id;
       }
 
