@@ -96,6 +96,9 @@ export const METRO_OPTIONS = [
   { value: 'houston', label: 'Houston', center: [29.7604, -95.3698] as [number, number] },
 ] as const;
 
+// Texas ZIP code GeoJSON boundaries (polygon data)
+export const TEXAS_GEOJSON_URL = 'https://raw.githubusercontent.com/OpenDataDE/State-zip-code-GeoJSON/master/tx_texas_zip_codes_geo.min.json';
+
 // Default colors for territories
 export const TERRITORY_COLORS = [
   '#3B82F6', // blue

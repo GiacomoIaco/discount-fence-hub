@@ -1,28 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Polygon, useMap, Tooltip } from 'react-leaflet';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Polygon as GeoPolygon } from 'geojson';
-import type { MetroZipCentroid, TerritoryWithReps } from '../types/territory.types';
-import { METRO_OPTIONS } from '../types/territory.types';
-
-// Fix Leaflet default marker icon issue
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
-
-interface TerritoryMapProps {
-  zipCentroids: MetroZipCentroid[];
-  territories: TerritoryWithReps[];
-  selectedTerritoryId?: string;
-  onZipClick?: (zipCode: string) => void;
-  onTerritoryClick?: (territory: TerritoryWithReps) => void;
-  isSelectionEnabled?: boolean;
-  selectedZips?: string[];
-}
+import type { TerritoryWithReps } from '../types/territory.types';
+import { METRO_OPTIONS, TEXAS_GEOJSON_URL } from '../types/territory.types';
 
 // Component to handle map view changes
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -35,41 +16,50 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
-// Custom zip marker - larger and more clickable
-function createZipMarkerIcon(isSelected: boolean, isSelectionEnabled: boolean) {
-  const color = isSelected ? '#10B981' : '#9CA3AF';
-  const size = isSelected ? 14 : (isSelectionEnabled ? 10 : 6);
-  const cursor = isSelectionEnabled ? 'pointer' : 'default';
+interface TerritoryMapProps {
+  territories: TerritoryWithReps[];
+  selectedTerritoryId?: string;
+  onZipClick?: (zipCode: string) => void;
+  isSelectionEnabled?: boolean;
+  selectedZips?: string[];
+}
 
-  return L.divIcon({
-    className: 'zip-marker',
-    html: `<div style="
-      width: ${size}px;
-      height: ${size}px;
-      background: ${color};
-      border-radius: 50%;
-      border: 2px solid ${isSelected ? '#059669' : 'white'};
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-      cursor: ${cursor};
-      transition: all 0.15s ease;
-    "></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
+// Extract ZIP code from GeoJSON feature properties
+function getZipFromFeature(feature: any): string {
+  const p = feature.properties;
+  return String(p.ZCTA5CE10 || p.zipcode || p.ZCTA5 || p.name || '').trim();
 }
 
 export function TerritoryMap({
-  zipCentroids,
   territories,
   selectedTerritoryId,
   onZipClick,
-  onTerritoryClick,
   isSelectionEnabled = false,
   selectedZips = [],
 }: TerritoryMapProps) {
   const [activeMetro, setActiveMetro] = useState<string>('austin');
   const [mapCenter, setMapCenter] = useState<[number, number]>([30.2672, -97.7431]);
   const [mapZoom, setMapZoom] = useState(10);
+  const [rawGeoData, setRawGeoData] = useState<any>(null);
+  const [filteredGeoData, setFilteredGeoData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [hoveredZip, setHoveredZip] = useState<string | null>(null);
+
+  // Selected zips as a Set for quick lookup
+  const selectedZipSet = useMemo(() => new Set(selectedZips), [selectedZips]);
+
+  // Get zips assigned to visible territories
+  const territoryZipMap = useMemo(() => {
+    const map = new Map<string, TerritoryWithReps[]>();
+    territories.forEach(t => {
+      t.zip_codes.forEach(zip => {
+        const existing = map.get(zip) || [];
+        existing.push(t);
+        map.set(zip, existing);
+      });
+    });
+    return map;
+  }, [territories]);
 
   // Handle metro quick-jump
   const handleMetroChange = useCallback((metro: string) => {
@@ -81,14 +71,145 @@ export function TerritoryMap({
     }
   }, []);
 
-  // Filter zips by current metro
-  const visibleZips = zipCentroids.filter(z => z.metro === activeMetro);
+  // Fetch Texas GeoJSON data
+  useEffect(() => {
+    const fetchGeoData = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(TEXAS_GEOJSON_URL);
+        const data = await response.json();
+        setRawGeoData(data);
+      } catch (err) {
+        console.error('Failed to fetch GeoJSON:', err);
+      }
+      setLoading(false);
+    };
+    fetchGeoData();
+  }, []);
 
-  // Get selected set for quick lookup
-  const selectedSet = new Set(selectedZips);
+  // Filter GeoJSON to ~70 miles of selected metro
+  useEffect(() => {
+    if (!rawGeoData) return;
 
-  // Count selected in current metro
-  const selectedInMetro = visibleZips.filter(z => selectedSet.has(z.zip_code)).length;
+    const activeCity = METRO_OPTIONS.find(m => m.value === activeMetro) || METRO_OPTIONS[0];
+    const [cLat, cLon] = activeCity.center;
+    const radius = 1.1; // ~70 miles in degrees
+
+    const filtered = {
+      ...rawGeoData,
+      features: rawGeoData.features.filter((f: any) => {
+        // Get first coordinate of polygon
+        const coords = f.geometry.type === 'Polygon'
+          ? f.geometry.coordinates[0][0]
+          : f.geometry.coordinates[0][0][0];
+
+        const fLon = coords[0];
+        const fLat = coords[1];
+
+        return (
+          Math.abs(fLat - cLat) < radius &&
+          Math.abs(fLon - cLon) < radius
+        );
+      })
+    };
+    setFilteredGeoData(filtered);
+  }, [rawGeoData, activeMetro]);
+
+  // Style function for ZIP polygons
+  const getZipStyle = useCallback((feature: any) => {
+    const zip = getZipFromFeature(feature);
+    const isHovered = hoveredZip === zip;
+    const isSelected = selectedZipSet.has(zip);
+    const assignedTerritories = territoryZipMap.get(zip) || [];
+    const selectedTerritory = territories.find(t => t.id === selectedTerritoryId);
+    const inSelectedTerritory = selectedTerritory?.zip_codes.includes(zip);
+
+    // Selection mode (editing) - show green for selected
+    if (isSelectionEnabled) {
+      if (isSelected) {
+        return {
+          fillColor: '#10B981', // green
+          weight: isHovered ? 3 : 2,
+          color: isHovered ? '#059669' : '#059669',
+          fillOpacity: 0.6,
+        };
+      }
+      return {
+        fillColor: isHovered ? '#e2e8f0' : '#ffffff',
+        weight: isHovered ? 2 : 1,
+        color: '#cbd5e1',
+        fillOpacity: isHovered ? 0.4 : 0.15,
+      };
+    }
+
+    // View mode - show territory colors
+    if (assignedTerritories.length === 0) {
+      return {
+        fillColor: isHovered ? '#e2e8f0' : '#ffffff',
+        weight: isHovered ? 2 : 1,
+        color: '#cbd5e1',
+        fillOpacity: isHovered ? 0.3 : 0.1,
+      };
+    }
+
+    // Use the color of the selected territory if viewing it, otherwise last assigned
+    const displayTerritory = inSelectedTerritory && selectedTerritory
+      ? selectedTerritory
+      : assignedTerritories[assignedTerritories.length - 1];
+
+    return {
+      fillColor: displayTerritory.color,
+      weight: isHovered ? 3 : (inSelectedTerritory ? 2 : 1),
+      color: isHovered ? '#334155' : (inSelectedTerritory ? '#000' : '#fff'),
+      fillOpacity: assignedTerritories.length > 1 ? 0.7 : 0.5,
+    };
+  }, [hoveredZip, selectedZipSet, territoryZipMap, territories, selectedTerritoryId, isSelectionEnabled]);
+
+  // Event handlers for each feature
+  const onEachFeature = useCallback((feature: any, layer: any) => {
+    const zip = getZipFromFeature(feature);
+    const assignedTerritories = territoryZipMap.get(zip) || [];
+    const isSelected = selectedZipSet.has(zip);
+
+    // Build tooltip content
+    let tooltipContent = `<div class="p-1"><div class="font-bold text-sm">ZIP: ${zip}</div>`;
+    if (isSelected) {
+      tooltipContent += '<div class="text-xs text-green-600 font-semibold">✓ Selected</div>';
+    }
+    if (assignedTerritories.length > 0) {
+      tooltipContent += `<div class="text-xs text-blue-600 pt-1">${assignedTerritories.map(t => t.name).join(', ')}</div>`;
+    }
+    tooltipContent += '</div>';
+
+    layer.bindTooltip(tooltipContent, { sticky: true });
+
+    layer.on({
+      click: (e: any) => {
+        L.DomEvent.stopPropagation(e);
+        if (isSelectionEnabled && onZipClick) {
+          onZipClick(zip);
+        }
+      },
+      mouseover: () => setHoveredZip(zip),
+      mouseout: () => setHoveredZip(null),
+    });
+  }, [isSelectionEnabled, onZipClick, territoryZipMap, selectedZipSet]);
+
+  // Key for forcing GeoJSON re-render when state changes
+  const geojsonKey = useMemo(() => {
+    return `geo-${activeMetro}-${selectedTerritoryId}-${territories.length}-${hoveredZip}-${selectedZips.length}`;
+  }, [activeMetro, selectedTerritoryId, territories.length, hoveredZip, selectedZips.length]);
+
+  // Count selected in current view
+  const selectedInView = useMemo(() => {
+    if (!filteredGeoData) return 0;
+    return filteredGeoData.features.filter((f: any) =>
+      selectedZipSet.has(getZipFromFeature(f))
+    ).length;
+  }, [filteredGeoData, selectedZipSet]);
+
+  // Total zips in view
+  const totalInView = filteredGeoData?.features?.length || 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -109,8 +230,8 @@ export function TerritoryMap({
         ))}
         <div className="flex-1" />
         <div className="text-sm text-gray-500 self-center">
-          {visibleZips.length} zip codes
-          {selectedZips.length > 0 && ` • ${selectedInMetro} selected in view`}
+          {totalInView} zip codes
+          {selectedZips.length > 0 && ` • ${selectedInView} selected in view`}
         </div>
       </div>
 
@@ -130,62 +251,22 @@ export function TerritoryMap({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* Existing territories */}
-          {territories.map(territory => {
-            if (!territory.geometry) return null;
+          {/* Loading indicator */}
+          {loading && (
+            <div className="absolute inset-0 z-[2000] bg-white/60 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
 
-            const isSelected = territory.id === selectedTerritoryId;
-            const opacity = isSelected ? 0.4 : 0.2;
-
-            // Render polygon based on geometry type
-            if (territory.geometry.type === 'Polygon') {
-              const coords = (territory.geometry as GeoPolygon).coordinates[0].map(
-                ([lng, lat]) => [lat, lng] as [number, number]
-              );
-
-              return (
-                <Polygon
-                  key={territory.id}
-                  positions={coords}
-                  pathOptions={{
-                    color: territory.color,
-                    fillColor: territory.color,
-                    fillOpacity: opacity,
-                    weight: isSelected ? 3 : 1,
-                  }}
-                  eventHandlers={{
-                    click: () => onTerritoryClick?.(territory),
-                  }}
-                />
-              );
-            }
-
-            return null;
-          })}
-
-          {/* Zip code markers - clickable when selection is enabled */}
-          {visibleZips.map(zip => {
-            const isZipSelected = selectedSet.has(zip.zip_code);
-
-            return (
-              <Marker
-                key={zip.zip_code}
-                position={[zip.lat, zip.lng]}
-                icon={createZipMarkerIcon(isZipSelected, isSelectionEnabled)}
-                eventHandlers={isSelectionEnabled ? {
-                  click: () => onZipClick?.(zip.zip_code),
-                } : {}}
-              >
-                {isSelectionEnabled && (
-                  <Tooltip direction="top" offset={[0, -5]}>
-                    <span className="font-mono text-sm">{zip.zip_code}</span>
-                    {zip.city && <span className="text-gray-500 ml-1">({zip.city})</span>}
-                    {isZipSelected && <span className="text-green-600 ml-1">✓</span>}
-                  </Tooltip>
-                )}
-              </Marker>
-            );
-          })}
+          {/* ZIP code polygons */}
+          {filteredGeoData && !loading && (
+            <GeoJSON
+              key={geojsonKey}
+              data={filteredGeoData}
+              style={getZipStyle}
+              onEachFeature={onEachFeature}
+            />
+          )}
         </MapContainer>
 
         {/* Selection mode indicator */}
@@ -196,7 +277,7 @@ export function TerritoryMap({
               <span className="font-medium text-green-700">Click to Select</span>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Click zip codes on the map or paste below
+              Click ZIP areas on the map to toggle selection
             </p>
           </div>
         )}

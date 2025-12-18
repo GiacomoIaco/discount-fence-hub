@@ -13,7 +13,6 @@ import {
   useAssignRep,
   useUnassignRep,
 } from '../hooks/useTerritories';
-import { useAllZipCentroids } from '../hooks/useZipCentroids';
 import type { TerritoryWithReps, TerritoryFormData } from '../types/territory.types';
 
 export function TerritoriesPage() {
@@ -28,7 +27,6 @@ export function TerritoriesPage() {
   );
   const { data: businessUnits = [], isLoading: loadingBUs } = useBusinessUnits();
   const { data: salesReps = [], isLoading: loadingReps } = useSalesReps();
-  const { data: zipCentroids = [], isLoading: loadingZips } = useAllZipCentroids();
 
   // Mutations
   const createTerritory = useCreateTerritory();
@@ -38,7 +36,7 @@ export function TerritoriesPage() {
   const unassignRep = useUnassignRep();
 
   // Loading state
-  const isLoading = loadingTerritories || loadingBUs || loadingReps || loadingZips;
+  const isLoading = loadingTerritories || loadingBUs || loadingReps;
 
   // Get selected territory's zip codes for highlighting
   const selectedTerritory = territories.find(t => t.id === selectedTerritoryId);
@@ -191,10 +189,8 @@ export function TerritoriesPage() {
             </div>
           ) : (
             <TerritoryMap
-              zipCentroids={zipCentroids}
               territories={territories}
               selectedTerritoryId={selectedTerritoryId}
-              onTerritoryClick={(territory) => setSelectedTerritoryId(territory.id)}
               selectedZips={highlightedZips}
             />
           )}
@@ -220,7 +216,6 @@ export function TerritoriesPage() {
           zip_codes: editingTerritory.zip_codes,
         } : undefined}
         businessUnits={businessUnits}
-        zipCentroids={zipCentroids}
         isLoading={createTerritory.isPending || updateTerritory.isPending}
       />
     </div>

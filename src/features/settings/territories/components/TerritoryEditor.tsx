@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Save, Palette, Clipboard, Trash2 } from 'lucide-react';
-import type { TerritoryFormData, BusinessUnit, MetroZipCentroid } from '../types/territory.types';
+import type { TerritoryFormData, BusinessUnit } from '../types/territory.types';
 import { TERRITORY_COLORS } from '../types/territory.types';
 import { TerritoryMap } from './TerritoryMap';
 
@@ -10,7 +10,6 @@ interface TerritoryEditorProps {
   onSave: (data: TerritoryFormData) => void;
   initialData?: Partial<TerritoryFormData> & { id?: string };
   businessUnits: BusinessUnit[];
-  zipCentroids: MetroZipCentroid[];
   isLoading?: boolean;
 }
 
@@ -20,7 +19,6 @@ export function TerritoryEditor({
   onSave,
   initialData,
   businessUnits,
-  zipCentroids,
   isLoading = false,
 }: TerritoryEditorProps) {
   const [formData, setFormData] = useState<TerritoryFormData>({
@@ -35,11 +33,6 @@ export function TerritoryEditor({
 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [zipInput, setZipInput] = useState('');
-
-  // Valid zip codes set for quick lookup
-  const validZipSet = useMemo(() => {
-    return new Set(zipCentroids.map(z => z.zip_code));
-  }, [zipCentroids]);
 
   // Initialize form with existing data
   useEffect(() => {
@@ -92,14 +85,11 @@ export function TerritoryEditor({
       .map(z => z.trim())
       .filter(z => z.length === 5 && /^\d{5}$/.test(z)); // Only valid 5-digit zips
 
-    // Filter to only valid zips in our system
-    const validZips = zips.filter(z => validZipSet.has(z));
-
     // Merge with existing (avoid duplicates)
     const existingSet = new Set(formData.zip_codes);
     const newZips = [...formData.zip_codes];
 
-    for (const zip of validZips) {
+    for (const zip of zips) {
       if (!existingSet.has(zip)) {
         newZips.push(zip);
         existingSet.add(zip);
@@ -109,21 +99,14 @@ export function TerritoryEditor({
     setFormData(prev => ({ ...prev, zip_codes: newZips }));
     setZipInput(newZips.join(', '));
 
-    // Return count of added vs invalid for feedback
-    return {
-      added: validZips.length,
-      invalid: zips.length - validZips.length,
-    };
+    return { added: zips.length };
   };
 
   // Handle paste from clipboard
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      const result = parseAndAddZips(text);
-      if (result.invalid > 0) {
-        alert(`Added ${result.added} zip codes. ${result.invalid} were invalid or not in our coverage area.`);
-      }
+      parseAndAddZips(text);
     } catch (err) {
       console.error('Failed to read clipboard:', err);
       alert('Unable to access clipboard. Please paste directly into the text field.');
@@ -134,11 +117,11 @@ export function TerritoryEditor({
   const handleZipInputChange = (value: string) => {
     setZipInput(value);
 
-    // Parse zips from input
+    // Parse zips from input (any valid 5-digit format)
     const zips = value
       .split(/[,\s\n\t]+/)
       .map(z => z.trim())
-      .filter(z => z.length === 5 && /^\d{5}$/.test(z) && validZipSet.has(z));
+      .filter(z => z.length === 5 && /^\d{5}$/.test(z));
 
     // Remove duplicates
     const uniqueZips = [...new Set(zips)];
@@ -422,7 +405,6 @@ export function TerritoryEditor({
             </div>
             <div className="flex-1">
               <TerritoryMap
-                zipCentroids={zipCentroids}
                 territories={[]}
                 isSelectionEnabled={true}
                 selectedZips={formData.zip_codes}
