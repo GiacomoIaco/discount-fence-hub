@@ -16,3 +16,8 @@ export {
 } from './useCrewCapacity';
 
 export { useUnscheduledJobs } from './useUnscheduledJobs';
+
+export {
+  useAssignmentSuggestions,
+  useJobAssignmentSuggestions,
+} from './useAssignmentSuggestions';

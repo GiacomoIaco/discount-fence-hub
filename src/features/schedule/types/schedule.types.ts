@@ -85,6 +85,8 @@ export interface CreateScheduleEntryInput {
   start_time?: string | null;
   end_time?: string | null;
   is_all_day?: boolean;
+  // Multi-day support
+  total_days?: number;  // If > 1, creates linked multi-day entries
   estimated_footage?: number | null;
   estimated_hours?: number | null;
   title?: string | null;

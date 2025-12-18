@@ -1,5 +1,5 @@
 import type { EventApi } from '@fullcalendar/core';
-import { Truck, Clipboard, Ban, Users, Layers } from 'lucide-react';
+import { Truck, Clipboard, Ban, Users, Layers, CalendarDays } from 'lucide-react';
 import type { ScheduleEntryType } from '../types/schedule.types';
 
 // ============================================
@@ -18,6 +18,10 @@ export function EventCard({ event, timeText }: EventCardProps) {
   const materialStatus = event.extendedProps.materialStatus as string | undefined;
   const isMultiJobProject = event.extendedProps.isMultiJobProject as boolean | undefined;
   const projectNumber = event.extendedProps.projectNumber as string | undefined;
+  const entry = event.extendedProps.entry as { is_multi_day?: boolean; multi_day_sequence?: number; total_days?: number } | undefined;
+  const isMultiDay = entry?.is_multi_day;
+  const multiDaySequence = entry?.multi_day_sequence;
+  const totalDays = entry?.total_days;
 
   const Icon = getEntryIcon(entryType);
   const statusBadge = materialStatus ? getMaterialStatusBadge(materialStatus) : null;
@@ -45,6 +49,14 @@ export function EventCard({ event, timeText }: EventCardProps) {
 
         {/* Metadata row */}
         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+          {/* Multi-day badge */}
+          {isMultiDay && multiDaySequence && totalDays && (
+            <span className="text-[10px] bg-indigo-500/40 text-white px-1 rounded flex items-center gap-0.5">
+              <CalendarDays className="w-2.5 h-2.5" />
+              {multiDaySequence}/{totalDays}
+            </span>
+          )}
+
           {/* Multi-job project badge */}
           {isMultiJobProject && (
             <span className="text-[10px] bg-purple-500/40 text-white px-1 rounded flex items-center gap-0.5">
@@ -119,9 +131,18 @@ function getMaterialStatusBadge(status: string): { label: string; className: str
 export function CompactEventCard({ event }: { event: EventApi }) {
   const footage = event.extendedProps.footage as number | undefined;
   const isMultiJobProject = event.extendedProps.isMultiJobProject as boolean | undefined;
+  const entry = event.extendedProps.entry as { is_multi_day?: boolean; multi_day_sequence?: number; total_days?: number } | undefined;
+  const isMultiDay = entry?.is_multi_day;
+  const multiDaySequence = entry?.multi_day_sequence;
+  const totalDays = entry?.total_days;
 
   return (
     <div className="flex items-center gap-1 px-1 py-0.5 text-xs truncate">
+      {isMultiDay && multiDaySequence && totalDays && (
+        <span className="text-[10px] opacity-80 flex-shrink-0">
+          {multiDaySequence}/{totalDays}
+        </span>
+      )}
       {isMultiJobProject && (
         <Layers className="w-2.5 h-2.5 flex-shrink-0 opacity-80" />
       )}

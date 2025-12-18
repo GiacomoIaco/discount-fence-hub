@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Calendar, Clock, User, Truck, Save, Trash2, Clipboard, Ban, Users, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { X, Calendar, Clock, User, Truck, Save, Trash2, Clipboard, Ban, Users, AlertTriangle, AlertCircle, Info, CalendarDays } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -9,6 +9,8 @@ import {
   useDeleteScheduleEntry,
 } from '../hooks/useScheduleEntries';
 import { useConflictDetection } from '../hooks/useConflictDetection';
+import { useAssignmentSuggestions } from '../hooks/useAssignmentSuggestions';
+import { AssignmentSuggestions } from './AssignmentSuggestions';
 import type { ScheduleConflict } from '../utils/conflictDetector';
 import type {
   ScheduleEntryType,
@@ -59,6 +61,7 @@ export function ScheduleEntryModal({
   const [status, setStatus] = useState<ScheduleEntryStatus>('scheduled');
   const [estimatedFootage, setEstimatedFootage] = useState<number | ''>('');
   const [estimatedHours, setEstimatedHours] = useState<number | ''>('');
+  const [totalDays, setTotalDays] = useState<number>(1);
 
   // Fetch existing entry for edit mode
   const { data: existingEntry } = useScheduleEntry(mode === 'edit' ? entryId : undefined);
@@ -95,6 +98,25 @@ export function ScheduleEntryModal({
     enabled: isOpen && entryType === 'assessment',
   });
 
+  // Fetch selected job details for suggestions
+  const { data: selectedJobData } = useQuery({
+    queryKey: ['job_for_suggestions', jobId],
+    queryFn: async () => {
+      if (!jobId) return null;
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(`
+          id, product_type, linear_feet, territory_id, client_id, community_id,
+          site_latitude, site_longitude, skill_tag_ids
+        `)
+        .eq('id', jobId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isOpen && entryType === 'job_visit' && !!jobId,
+  });
+
   // Mutations
   const createEntry = useCreateScheduleEntry();
   const updateEntry = useUpdateScheduleEntry();
@@ -102,6 +124,27 @@ export function ScheduleEntryModal({
 
   // Get crew max footage for conflict detection
   const selectedCrew = crews.find((c) => c.id === crewId);
+
+  // Assignment suggestions for job_visit entries
+  const showSuggestions = entryType === 'job_visit' && !!scheduledDate;
+  const {
+    suggestions,
+    quickPicks,
+    bestMatch,
+    isLoading: suggestionsLoading,
+  } = useAssignmentSuggestions({
+    jobId: jobId || undefined,
+    scheduledDate,
+    estimatedFootage: estimatedFootage !== '' ? Number(estimatedFootage) : (selectedJobData?.linear_feet || null),
+    productType: selectedJobData?.product_type || null,
+    skillTagIds: selectedJobData?.skill_tag_ids || [],
+    territoryId: selectedJobData?.territory_id || null,
+    jobLatitude: selectedJobData?.site_latitude || null,
+    jobLongitude: selectedJobData?.site_longitude || null,
+    clientId: selectedJobData?.client_id || null,
+    communityId: selectedJobData?.community_id || null,
+    enabled: showSuggestions,
+  });
 
   // Conflict detection
   const { conflicts, hasBlockingConflicts: hasErrors } = useConflictDetection({
@@ -143,6 +186,7 @@ export function ScheduleEntryModal({
       setStatus(existingEntry.status);
       setEstimatedFootage(existingEntry.estimated_footage || '');
       setEstimatedHours(existingEntry.estimated_hours || '');
+      setTotalDays(existingEntry.total_days || 1);
     }
   }, [mode, prefillData, existingEntry]);
 
@@ -162,6 +206,7 @@ export function ScheduleEntryModal({
     setStatus('scheduled');
     setEstimatedFootage('');
     setEstimatedHours('');
+    setTotalDays(1);
   };
 
   // Handle submit
@@ -182,6 +227,8 @@ export function ScheduleEntryModal({
       notes: notes || null,
       estimated_footage: estimatedFootage !== '' ? Number(estimatedFootage) : null,
       estimated_hours: estimatedHours !== '' ? Number(estimatedHours) : null,
+      // Multi-day support (only for create mode job_visit)
+      total_days: mode === 'create' && entryType === 'job_visit' ? totalDays : undefined,
     };
 
     try {
@@ -402,38 +449,95 @@ export function ScheduleEntryModal({
             </div>
           </div>
 
+          {/* Crew Suggestions for job_visit entries */}
+          {showSuggestions && (suggestions.length > 0 || suggestionsLoading) && (
+            <AssignmentSuggestions
+              suggestions={suggestions}
+              quickPicks={quickPicks}
+              bestMatch={bestMatch}
+              isLoading={suggestionsLoading}
+              selectedCrewId={crewId || null}
+              onSelectCrew={(id) => setCrewId(id)}
+            />
+          )}
+
           {/* Estimates (for jobs) */}
           {entryType === 'job_visit' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Est. Footage (LF)
-                </label>
-                <input
-                  type="number"
-                  value={estimatedFootage}
-                  onChange={(e) =>
-                    setEstimatedFootage(e.target.value ? Number(e.target.value) : '')
-                  }
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Est. Footage (LF)
+                  </label>
+                  <input
+                    type="number"
+                    value={estimatedFootage}
+                    onChange={(e) =>
+                      setEstimatedFootage(e.target.value ? Number(e.target.value) : '')
+                    }
+                    min="0"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Est. Hours
+                  </label>
+                  <input
+                    type="number"
+                    value={estimatedHours}
+                    onChange={(e) =>
+                      setEstimatedHours(e.target.value ? Number(e.target.value) : '')
+                    }
+                    min="0"
+                    step="0.5"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Est. Hours
-                </label>
-                <input
-                  type="number"
-                  value={estimatedHours}
-                  onChange={(e) =>
-                    setEstimatedHours(e.target.value ? Number(e.target.value) : '')
-                  }
-                  min="0"
-                  step="0.5"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+
+              {/* Multi-day scheduling (create mode only) */}
+              {mode === 'create' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <CalendarDays className="w-4 h-4 inline mr-1" />
+                    Number of Days
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={totalDays}
+                      onChange={(e) => setTotalDays(Number(e.target.value))}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? 'day' : 'days'}
+                        </option>
+                      ))}
+                    </select>
+                    {totalDays > 1 && (
+                      <span className="text-sm text-gray-500">
+                        Will create {totalDays} linked entries starting from {scheduledDate || 'selected date'}
+                      </span>
+                    )}
+                  </div>
+                  {totalDays > 1 && estimatedFootage && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      ~{Math.ceil(Number(estimatedFootage) / totalDays)} LF per day
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Show multi-day info in edit mode */}
+              {mode === 'edit' && existingEntry?.is_multi_day && (
+                <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <CalendarDays className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm text-blue-800">
+                    Day {existingEntry.multi_day_sequence} of {existingEntry.total_days}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

@@ -6,7 +6,7 @@ import type {
   UpdateScheduleEntryInput,
   ScheduleEntriesFilter,
 } from '../types/schedule.types';
-import { format } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 
 // ============================================
 // QUERY KEYS
@@ -49,8 +49,7 @@ export function useScheduleEntries(filter: ScheduleEntriesFilter) {
             project:projects(id, project_number)
           ),
           service_request:service_requests(id, request_number, contact_name),
-          crew:crews(id, name, code),
-          sales_rep:sales_reps(id, name)
+          crew:crews(id, name, code)
         `)
         .gte('scheduled_date', startDateStr)
         .lte('scheduled_date', endDateStr)
@@ -140,8 +139,7 @@ export function useScheduleEntry(id: string | undefined) {
           *,
           job:jobs(id, job_number, client:clients(name), material_status),
           service_request:service_requests(id, request_number, contact_name),
-          crew:crews(id, name, code),
-          sales_rep:sales_reps(id, name)
+          crew:crews(id, name, code)
         `)
         .eq('id', id)
         .single();
@@ -167,28 +165,101 @@ export function useCreateScheduleEntry() {
   return useMutation({
     mutationFn: async (input: CreateScheduleEntryInput): Promise<ScheduleEntry> => {
       const { data: user } = await supabase.auth.getUser();
+      const { total_days = 1, ...baseInput } = input;
 
-      const { data, error } = await supabase
+      // Single day entry (original behavior)
+      if (total_days <= 1) {
+        const { data, error } = await supabase
+          .from('schedule_entries')
+          .insert({
+            ...baseInput,
+            is_multi_day: false,
+            total_days: 1,
+            multi_day_sequence: null,
+            parent_entry_id: null,
+            created_by: user?.user?.id,
+          })
+          .select(`
+            *,
+            job:jobs(id, job_number, client:clients(name)),
+            service_request:service_requests(id, request_number, contact_name),
+            crew:crews(id, name, code)
+          `)
+          .single();
+
+        if (error) {
+          console.error('Error creating schedule entry:', error);
+          throw error;
+        }
+
+        return data;
+      }
+
+      // Multi-day entry: create parent (day 1) first
+      const startDate = parseISO(baseInput.scheduled_date);
+      const footagePerDay = baseInput.estimated_footage
+        ? Math.ceil(baseInput.estimated_footage / total_days)
+        : null;
+      const hoursPerDay = baseInput.estimated_hours
+        ? Math.round((baseInput.estimated_hours / total_days) * 10) / 10
+        : null;
+
+      // Create first day (parent)
+      const { data: parentEntry, error: parentError } = await supabase
         .from('schedule_entries')
         .insert({
-          ...input,
+          ...baseInput,
+          is_multi_day: true,
+          total_days,
+          multi_day_sequence: 1,
+          parent_entry_id: null,
+          estimated_footage: footagePerDay,
+          estimated_hours: hoursPerDay,
           created_by: user?.user?.id,
         })
         .select(`
           *,
           job:jobs(id, job_number, client:clients(name)),
           service_request:service_requests(id, request_number, contact_name),
-          crew:crews(id, name, code),
-          sales_rep:sales_reps(id, name)
+          crew:crews(id, name, code)
         `)
         .single();
 
-      if (error) {
-        console.error('Error creating schedule entry:', error);
-        throw error;
+      if (parentError) {
+        console.error('Error creating parent schedule entry:', parentError);
+        throw parentError;
       }
 
-      return data;
+      // Create subsequent days (children)
+      const childEntries = [];
+      for (let day = 2; day <= total_days; day++) {
+        const childDate = addDays(startDate, day - 1);
+        childEntries.push({
+          ...baseInput,
+          scheduled_date: format(childDate, 'yyyy-MM-dd'),
+          is_multi_day: true,
+          total_days,
+          multi_day_sequence: day,
+          parent_entry_id: parentEntry.id,
+          estimated_footage: footagePerDay,
+          estimated_hours: hoursPerDay,
+          created_by: user?.user?.id,
+        });
+      }
+
+      if (childEntries.length > 0) {
+        const { error: childError } = await supabase
+          .from('schedule_entries')
+          .insert(childEntries);
+
+        if (childError) {
+          console.error('Error creating child schedule entries:', childError);
+          // Note: Parent entry was already created, so we have partial data
+          throw childError;
+        }
+      }
+
+      return parentEntry;
     },
     onSuccess: () => {
       // Invalidate all schedule queries to refresh data
@@ -217,8 +288,7 @@ export function useUpdateScheduleEntry() {
           *,
           job:jobs(id, job_number, client:clients(name)),
           service_request:service_requests(id, request_number, contact_name),
-          crew:crews(id, name, code),
-          sales_rep:sales_reps(id, name)
+          crew:crews(id, name, code)
         `)
         .single();
 
@@ -290,6 +360,94 @@ export function useQuickUpdateEntry() {
       if (error) {
         console.error('Error quick updating entry:', error);
         throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.entries() });
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.capacity() });
+    },
+  });
+}
+
+// ============================================
+// MOVE MULTI-DAY ENTRIES (for drag-drop)
+// ============================================
+
+export function useMoveMultiDayEntries() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      entryId: string;
+      newDate: string;
+      newCrewId?: string | null;
+      newSalesRepId?: string | null;
+    }): Promise<void> => {
+      const { entryId, newDate, newCrewId, newSalesRepId } = params;
+
+      // First, get the entry to check if it's part of a multi-day job
+      const { data: entry, error: fetchError } = await supabase
+        .from('schedule_entries')
+        .select('id, scheduled_date, is_multi_day, multi_day_sequence, parent_entry_id, total_days, crew_id, sales_rep_id')
+        .eq('id', entryId)
+        .single();
+
+      if (fetchError || !entry) {
+        console.error('Error fetching entry for multi-day move:', fetchError);
+        throw fetchError || new Error('Entry not found');
+      }
+
+      // If not multi-day, just update this entry
+      if (!entry.is_multi_day) {
+        const { error } = await supabase
+          .from('schedule_entries')
+          .update({
+            scheduled_date: newDate,
+            ...(newCrewId !== undefined && { crew_id: newCrewId }),
+            ...(newSalesRepId !== undefined && { sales_rep_id: newSalesRepId }),
+          })
+          .eq('id', entryId);
+
+        if (error) throw error;
+        return;
+      }
+
+      // For multi-day entries, calculate the day offset and move all related entries
+      const oldDate = parseISO(entry.scheduled_date);
+      const targetDate = parseISO(newDate);
+      const dayOffset = Math.round((targetDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Find all related entries (parent + children)
+      const parentId = entry.parent_entry_id || entry.id;
+
+      const { data: relatedEntries, error: relatedError } = await supabase
+        .from('schedule_entries')
+        .select('id, scheduled_date')
+        .or(`id.eq.${parentId},parent_entry_id.eq.${parentId}`);
+
+      if (relatedError) {
+        console.error('Error fetching related entries:', relatedError);
+        throw relatedError;
+      }
+
+      // Update all related entries with the same offset
+      for (const relEntry of relatedEntries || []) {
+        const relOldDate = parseISO(relEntry.scheduled_date);
+        const relNewDate = addDays(relOldDate, dayOffset);
+
+        const { error: updateError } = await supabase
+          .from('schedule_entries')
+          .update({
+            scheduled_date: format(relNewDate, 'yyyy-MM-dd'),
+            ...(newCrewId !== undefined && { crew_id: newCrewId }),
+            ...(newSalesRepId !== undefined && { sales_rep_id: newSalesRepId }),
+          })
+          .eq('id', relEntry.id);
+
+        if (updateError) {
+          console.error('Error updating related entry:', updateError);
+          // Continue with others even if one fails
+        }
       }
     },
     onSuccess: () => {

@@ -15,7 +15,7 @@ import type {
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { ChevronLeft } from 'lucide-react';
 
-import { useScheduleEntries, useQuickUpdateEntry, useCreateScheduleEntry } from '../hooks/useScheduleEntries';
+import { useScheduleEntries, useQuickUpdateEntry, useCreateScheduleEntry, useMoveMultiDayEntries } from '../hooks/useScheduleEntries';
 import { useCrewCapacity } from '../hooks/useCrewCapacity';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
@@ -185,6 +185,9 @@ export function ScheduleCalendar({
   // Mutation for drag-drop updates
   const quickUpdate = useQuickUpdateEntry();
 
+  // Mutation for multi-day entry moves
+  const moveMultiDay = useMoveMultiDayEntries();
+
   // Mutation for creating new entries (from sidebar drag)
   const createEntry = useCreateScheduleEntry();
 
@@ -330,6 +333,7 @@ export function ScheduleCalendar({
     async (info: EventDropArg) => {
       const { event, newResource } = info;
       const entryId = event.id;
+      const entry = event.extendedProps.entry as ScheduleEntry;
 
       // Parse new assignment from resource
       let crewId: string | null = null;
@@ -344,26 +348,36 @@ export function ScheduleCalendar({
         }
       } else {
         // Keep existing assignment if just moving date
-        const entry = event.extendedProps.entry as ScheduleEntry;
         crewId = entry.crew_id;
         salesRepId = entry.sales_rep_id;
       }
 
       try {
-        await quickUpdate.mutateAsync({
-          id: entryId,
-          scheduled_date: format(event.start!, 'yyyy-MM-dd'),
-          start_time: event.allDay ? null : format(event.start!, 'HH:mm'),
-          end_time: event.end && !event.allDay ? format(event.end, 'HH:mm') : null,
-          crew_id: crewId,
-          sales_rep_id: salesRepId,
-        });
+        // Use multi-day move for multi-day entries (moves all related days together)
+        if (entry.is_multi_day) {
+          await moveMultiDay.mutateAsync({
+            entryId,
+            newDate: format(event.start!, 'yyyy-MM-dd'),
+            newCrewId: crewId,
+            newSalesRepId: salesRepId,
+          });
+        } else {
+          // Single entry update
+          await quickUpdate.mutateAsync({
+            id: entryId,
+            scheduled_date: format(event.start!, 'yyyy-MM-dd'),
+            start_time: event.allDay ? null : format(event.start!, 'HH:mm'),
+            end_time: event.end && !event.allDay ? format(event.end, 'HH:mm') : null,
+            crew_id: crewId,
+            sales_rep_id: salesRepId,
+          });
+        }
       } catch (error) {
         // Revert on error
         info.revert();
       }
     },
-    [quickUpdate]
+    [quickUpdate, moveMultiDay]
   );
 
   const handleDateSelect = useCallback((info: DateSelectArg) => {
