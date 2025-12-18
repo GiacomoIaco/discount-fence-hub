@@ -2,7 +2,7 @@
  * SKU Search Hook for Quote Line Items (O-036)
  *
  * Features:
- * - Type-ahead search against product_skus table
+ * - Type-ahead search against sku_catalog_v2 table
  * - Recent items tracking (localStorage)
  * - Product type filtering
  * - Auto-populated pricing via rate sheet resolution
@@ -72,7 +72,7 @@ export function useSkuSearch(query: string, options: UseSkuSearchOptions = {}) {
     queryKey: ['sku-search', trimmedQuery, productTypeCode],
     queryFn: async () => {
       let dbQuery = supabase
-        .from('product_skus')
+        .from('sku_catalog_v2')
         .select(`
           id,
           sku_code,
@@ -88,7 +88,6 @@ export function useSkuSearch(query: string, options: UseSkuSearchOptions = {}) {
           product_style:product_styles(id, code, name)
         `)
         .eq('is_active', true)
-        .is('archived_at', null)
         .order('sku_code')
         .limit(20);
 
@@ -151,7 +150,7 @@ export function useRecentSkus(options: UseSkuSearchOptions = {}) {
       if (recentIds.length === 0) return [];
 
       const { data, error } = await supabase
-        .from('product_skus')
+        .from('sku_catalog_v2')
         .select(`
           id,
           sku_code,
@@ -251,7 +250,7 @@ export function useSkuById(skuId: string | null) {
       if (!skuId) return null;
 
       const { data, error } = await supabase
-        .from('product_skus')
+        .from('sku_catalog_v2')
         .select(`
           id,
           sku_code,
