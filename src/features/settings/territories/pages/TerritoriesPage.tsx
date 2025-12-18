@@ -195,7 +195,7 @@ export function TerritoriesPage() {
               territories={territories}
               selectedTerritoryId={selectedTerritoryId}
               onTerritoryClick={(territory) => setSelectedTerritoryId(territory.id)}
-              highlightedZips={highlightedZips}
+              selectedZips={highlightedZips}
             />
           )}
         </div>

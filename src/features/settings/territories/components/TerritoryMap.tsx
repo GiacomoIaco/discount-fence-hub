@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Polygon, useMap, FeatureGroup } from 'react-leaflet';
-import { EditControl } from 'react-leaflet-draw';
+import { useEffect, useState, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Polygon, useMap, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet-draw/dist/leaflet.draw.css';
-import type { Geometry, Polygon as GeoPolygon } from 'geojson';
+import type { Polygon as GeoPolygon } from 'geojson';
 import type { MetroZipCentroid, TerritoryWithReps } from '../types/territory.types';
 import { METRO_OPTIONS } from '../types/territory.types';
-import { calculateZipsInShape, createCirclePolygon } from '../utils/zipCalculator';
 
 // Fix Leaflet default marker icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -21,10 +18,10 @@ interface TerritoryMapProps {
   zipCentroids: MetroZipCentroid[];
   territories: TerritoryWithReps[];
   selectedTerritoryId?: string;
-  onShapeDrawn?: (geometry: Geometry, selectedZips: string[]) => void;
+  onZipClick?: (zipCode: string) => void;
   onTerritoryClick?: (territory: TerritoryWithReps) => void;
-  isDrawingEnabled?: boolean;
-  highlightedZips?: string[];
+  isSelectionEnabled?: boolean;
+  selectedZips?: string[];
 }
 
 // Component to handle map view changes
@@ -38,10 +35,11 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
-// Custom zip marker
-function createZipMarkerIcon(isSelected: boolean, isHighlighted: boolean) {
-  const color = isHighlighted ? '#10B981' : (isSelected ? '#3B82F6' : '#9CA3AF');
-  const size = isHighlighted ? 10 : 6;
+// Custom zip marker - larger and more clickable
+function createZipMarkerIcon(isSelected: boolean, isSelectionEnabled: boolean) {
+  const color = isSelected ? '#10B981' : '#9CA3AF';
+  const size = isSelected ? 14 : (isSelectionEnabled ? 10 : 6);
+  const cursor = isSelectionEnabled ? 'pointer' : 'default';
 
   return L.divIcon({
     className: 'zip-marker',
@@ -50,8 +48,10 @@ function createZipMarkerIcon(isSelected: boolean, isHighlighted: boolean) {
       height: ${size}px;
       background: ${color};
       border-radius: 50%;
-      border: 1px solid white;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      border: 2px solid ${isSelected ? '#059669' : 'white'};
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      cursor: ${cursor};
+      transition: all 0.15s ease;
     "></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -62,15 +62,14 @@ export function TerritoryMap({
   zipCentroids,
   territories,
   selectedTerritoryId,
-  onShapeDrawn,
+  onZipClick,
   onTerritoryClick,
-  isDrawingEnabled = false,
-  highlightedZips = [],
+  isSelectionEnabled = false,
+  selectedZips = [],
 }: TerritoryMapProps) {
   const [activeMetro, setActiveMetro] = useState<string>('austin');
   const [mapCenter, setMapCenter] = useState<[number, number]>([30.2672, -97.7431]);
   const [mapZoom, setMapZoom] = useState(10);
-  const featureGroupRef = useRef<L.FeatureGroup>(null);
 
   // Handle metro quick-jump
   const handleMetroChange = useCallback((metro: string) => {
@@ -82,43 +81,14 @@ export function TerritoryMap({
     }
   }, []);
 
-  // Handle shape creation
-  const handleCreated = useCallback((e: any) => {
-    const { layer, layerType } = e;
-
-    let geometry: Geometry;
-
-    if (layerType === 'circle') {
-      // Convert Leaflet circle to GeoJSON polygon
-      const center = layer.getLatLng();
-      const radius = layer.getRadius();
-      geometry = createCirclePolygon(
-        [center.lng, center.lat],
-        radius / 1000 // Convert meters to km
-      );
-    } else if (layerType === 'rectangle' || layerType === 'polygon') {
-      geometry = layer.toGeoJSON().geometry;
-    } else {
-      return;
-    }
-
-    // Calculate which zips fall inside the shape
-    const selectedZips = calculateZipsInShape(geometry, zipCentroids);
-
-    // Clear the drawn layer (we'll render our own)
-    if (featureGroupRef.current) {
-      featureGroupRef.current.clearLayers();
-    }
-
-    // Notify parent
-    onShapeDrawn?.(geometry, selectedZips);
-  }, [zipCentroids, onShapeDrawn]);
-
   // Filter zips by current metro
   const visibleZips = zipCentroids.filter(z => z.metro === activeMetro);
 
-  // Get highlighted set for quick lookup
-  const highlightedSet = new Set(highlightedZips);
+  // Get selected set for quick lookup
+  const selectedSet = new Set(selectedZips);
+
+  // Count selected in current metro
+  const selectedInMetro = visibleZips.filter(z => selectedSet.has(z.zip_code)).length;
 
   return (
     <div className="flex flex-col h-full">
@@ -140,7 +110,7 @@ export function TerritoryMap({
         <div className="flex-1" />
         <div className="text-sm text-gray-500 self-center">
           {visibleZips.length} zip codes
-          {highlightedZips.length > 0 && ` • ${highlightedZips.length} selected`}
+          {selectedZips.length > 0 && ` • ${selectedInMetro} selected in view`}
         </div>
       </div>
 
@@ -167,7 +137,7 @@ export function TerritoryMap({
             const isSelected = territory.id === selectedTerritoryId;
             const opacity = isSelected ? 0.4 : 0.2;
 
-            // Render polygon or circle based on geometry type
+            // Render polygon based on geometry type
             if (territory.geometry.type === 'Polygon') {
               const coords = (territory.geometry as GeoPolygon).coordinates[0].map(
                 ([lng, lat]) => [lat, lng] as [number, number]
@@ -193,51 +163,40 @@ export function TerritoryMap({
             return null;
           })}
 
-          {/* Zip code markers */}
-          {visibleZips.map(zip => (
-            <Marker
-              key={zip.zip_code}
-              position={[zip.lat, zip.lng]}
-              icon={createZipMarkerIcon(
-                false,
-                highlightedSet.has(zip.zip_code)
-              )}
-            >
-            </Marker>
-          ))}
+          {/* Zip code markers - clickable when selection is enabled */}
+          {visibleZips.map(zip => {
+            const isZipSelected = selectedSet.has(zip.zip_code);
 
-          {/* Drawing controls */}
-          {isDrawingEnabled && (
-            <FeatureGroup ref={featureGroupRef}>
-              <EditControl
-                position="topright"
-                onCreated={handleCreated}
-                draw={{
-                  rectangle: true,
-                  polygon: true,
-                  circle: true,
-                  polyline: false,
-                  marker: false,
-                  circlemarker: false,
-                }}
-                edit={{
-                  edit: false,
-                  remove: false,
-                }}
-              />
-            </FeatureGroup>
-          )}
+            return (
+              <Marker
+                key={zip.zip_code}
+                position={[zip.lat, zip.lng]}
+                icon={createZipMarkerIcon(isZipSelected, isSelectionEnabled)}
+                eventHandlers={isSelectionEnabled ? {
+                  click: () => onZipClick?.(zip.zip_code),
+                } : {}}
+              >
+                {isSelectionEnabled && (
+                  <Tooltip direction="top" offset={[0, -5]}>
+                    <span className="font-mono text-sm">{zip.zip_code}</span>
+                    {zip.city && <span className="text-gray-500 ml-1">({zip.city})</span>}
+                    {isZipSelected && <span className="text-green-600 ml-1">✓</span>}
+                  </Tooltip>
+                )}
+              </Marker>
+            );
+          })}
         </MapContainer>
 
-        {/* Drawing mode indicator */}
-        {isDrawingEnabled && (
-          <div className="absolute top-4 left-4 bg-white px-3 py-2 rounded-lg shadow-md border border-blue-200 z-[1000]">
+        {/* Selection mode indicator */}
+        {isSelectionEnabled && (
+          <div className="absolute top-4 left-4 bg-white px-3 py-2 rounded-lg shadow-md border border-green-200 z-[1000]">
             <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-              <span className="font-medium text-blue-700">Drawing Mode</span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="font-medium text-green-700">Click to Select</span>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Use the tools on the right to draw a shape
+              Click zip codes on the map or paste below
             </p>
           </div>
         )}
