@@ -14,6 +14,7 @@ import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
 import { useRouteSync } from './hooks/useRouteSync';
 import { RightPaneProvider } from './features/message-center/context/RightPaneContext';
 import { RightPaneMessaging, FloatingMessageButton } from './features/message-center/components';
+import { useMessageCenterUnread } from './features/message-center/hooks';
 import type { Section } from './lib/routes';
 import type { Request } from './features/requests/lib/requests';
 
@@ -200,6 +201,11 @@ function App() {
   // Track unread team communication messages (Announcements badge)
   const [teamCommunicationUnreadCount, setTeamCommunicationUnreadCount] = useState(0);
 
+  // Message Center unread count (sidebar badge)
+  const messageCenterUnreadCount = useMessageCenterUnread(
+    user ? { userId: user.id, userRole: userRole } : undefined
+  );
+
   // Refresh trigger for team communication (incremented when a new message is sent)
   const [teamCommunicationRefresh, setTeamCommunicationRefresh] = useState(0);
 
@@ -248,7 +254,7 @@ function App() {
       // Personal/Sales Section
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
       { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp },
-      { id: 'message-center' as Section, menuId: 'message-center', name: 'Messages', icon: Phone },
+      { id: 'message-center' as Section, menuId: 'message-center', name: 'Messages', icon: Phone, badge: messageCenterUnreadCount },
       { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
 
       // Admin/Management Section

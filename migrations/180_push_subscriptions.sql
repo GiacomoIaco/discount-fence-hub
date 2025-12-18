@@ -43,10 +43,8 @@ CREATE INDEX idx_push_subscriptions_endpoint ON push_subscriptions(endpoint);
 -- ============================================================================
 -- NOTIFICATION SETTINGS FOR PUSH
 -- ============================================================================
--- Add push notification toggle to notification preferences
-
-ALTER TABLE mc_notification_preferences
-ADD COLUMN IF NOT EXISTS push_enabled BOOLEAN DEFAULT true;
+-- Note: push_enabled column will be added to mc_notification_preferences
+-- when that table is created (migration 170_system_notifications.sql)
 
 -- ============================================================================
 -- ROW LEVEL SECURITY

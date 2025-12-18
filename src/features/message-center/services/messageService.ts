@@ -212,6 +212,63 @@ export async function getConversationCounts(userContext?: UserContext): Promise<
   };
 }
 
+/**
+ * Get total unread message count across all conversations
+ * Used for sidebar badge
+ */
+export async function getTotalUnreadCount(userContext?: UserContext): Promise<number> {
+  // Check if user needs filtered view
+  const needsParticipantFilter = userContext && !FULL_ACCESS_ROLES.includes(userContext.userRole);
+
+  let query = supabase
+    .from('mc_conversations')
+    .select('unread_count')
+    .eq('status', 'active')
+    .gt('unread_count', 0);
+
+  // For filtered users, only count their allowed conversations
+  if (needsParticipantFilter && userContext) {
+    const { data: userContact } = await supabase
+      .from('mc_contacts')
+      .select('id')
+      .eq('employee_id', userContext.userId)
+      .single();
+
+    if (!userContact) return 0;
+
+    const { data: participations } = await supabase
+      .from('mc_conversation_participants')
+      .select('conversation_id')
+      .eq('contact_id', userContact.id)
+      .is('left_at', null);
+
+    const allowedIds = (participations || []).map(p => p.conversation_id);
+
+    // Also include conversations where they are the primary contact
+    const { data: directConversations } = await supabase
+      .from('mc_conversations')
+      .select('id')
+      .eq('contact_id', userContact.id);
+
+    if (directConversations) {
+      allowedIds.push(...directConversations.map(c => c.id));
+    }
+
+    if (allowedIds.length === 0) return 0;
+
+    query = query.in('id', [...new Set(allowedIds)]);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[MC] Error getting unread count:', error);
+    return 0;
+  }
+
+  // Sum up all unread counts
+  return (data || []).reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+}
+
 export async function getConversation(id: string): Promise<ConversationWithContact | null> {
   const { data, error } = await supabase
     .from('mc_conversations')
