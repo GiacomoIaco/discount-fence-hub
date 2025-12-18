@@ -16,12 +16,12 @@ export function useClients(filters?: {
   return useQuery({
     queryKey: ['clients', filters],
     queryFn: async () => {
+      // Fetch clients (no FK to qbo_classes, so we can't join)
       let query = supabase
         .from('clients')
         .select(`
           *,
-          communities:communities(count),
-          qbo_class:qbo_classes(id, name, fully_qualified_name)
+          communities:communities(count)
         `)
         // Note: We sort client-side below to handle company_name || name logic
         .order('name');
@@ -42,13 +42,27 @@ export function useClients(filters?: {
       const { data, error } = await query;
       if (error) throw error;
 
+      // Fetch all QBO classes for lookup (no FK relationship exists)
+      const { data: qboClasses } = await supabase
+        .from('qbo_classes')
+        .select('id, name, fully_qualified_name');
+
+      const qboClassMap = new Map(
+        (qboClasses || []).map((qc: any) => [qc.id, qc])
+      );
+
       // Transform and sort by display name (company_name || name)
-      const transformed = (data || []).map((client: any) => ({
-        ...client,
-        communities_count: client.communities?.[0]?.count || 0,
-        qbo_class_name: client.qbo_class?.name || null,
-        qbo_class_full_name: client.qbo_class?.fully_qualified_name || null,
-      }));
+      const transformed = (data || []).map((client: any) => {
+        const qboClass = client.default_qbo_class_id
+          ? qboClassMap.get(client.default_qbo_class_id)
+          : null;
+        return {
+          ...client,
+          communities_count: client.communities?.[0]?.count || 0,
+          qbo_class_name: qboClass?.name || null,
+          qbo_class_full_name: qboClass?.fully_qualified_name || null,
+        };
+      });
 
       // Sort by display name (company_name takes precedence over name)
       transformed.sort((a: any, b: any) => {
@@ -68,6 +82,7 @@ export function useClient(id: string | null) {
     queryFn: async () => {
       if (!id) return null;
 
+      // Fetch client (no FK to qbo_classes, so we can't join)
       const { data, error } = await supabase
         .from('clients')
         .select(`
@@ -83,19 +98,34 @@ export function useClient(id: string | null) {
               *,
               contact_role:contact_roles(*)
             )
-          ),
-          qbo_class:qbo_classes(id, name, fully_qualified_name)
+          )
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
 
+      // Fetch QBO class separately if client has one assigned
+      let qboClassName = null;
+      let qboClassFullName = null;
+      if (data.default_qbo_class_id) {
+        const { data: qboClass } = await supabase
+          .from('qbo_classes')
+          .select('name, fully_qualified_name')
+          .eq('id', data.default_qbo_class_id)
+          .single();
+
+        if (qboClass) {
+          qboClassName = qboClass.name;
+          qboClassFullName = qboClass.fully_qualified_name;
+        }
+      }
+
       // Add QBO class name to the client object
       const clientWithQbo = {
         ...data,
-        qbo_class_name: data.qbo_class?.name || null,
-        qbo_class_full_name: data.qbo_class?.fully_qualified_name || null,
+        qbo_class_name: qboClassName,
+        qbo_class_full_name: qboClassFullName,
       };
 
       return clientWithQbo as Client & { communities: any[] };
