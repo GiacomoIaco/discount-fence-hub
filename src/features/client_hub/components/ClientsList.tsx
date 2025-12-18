@@ -91,8 +91,10 @@ export default function ClientsList({
     return client.primary_contact_name;
   };
 
-  // Get QBO class name for display
+  // Get QBO class name for display (now included directly from query)
   const getQboClassName = (client: Client) => {
+    // Use the joined qbo_class_name from the query, fallback to lookup
+    if (client.qbo_class_name) return client.qbo_class_name;
     if (!client.default_qbo_class_id || !qboClasses) return null;
     const qboClass = qboClasses.find(c => c.id === client.default_qbo_class_id);
     return qboClass?.name || null;

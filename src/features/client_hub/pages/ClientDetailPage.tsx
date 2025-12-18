@@ -173,7 +173,7 @@ export default function ClientDetailPage({
                   {client.code && <span className="font-mono">{client.code}</span>}
                   <span>•</span>
                   <span className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-700">
-                    {BUSINESS_UNIT_LABELS[client.business_unit]}
+                    {client.qbo_class_name || BUSINESS_UNIT_LABELS[client.business_unit] || 'No BU'}
                   </span>
                   <span>•</span>
                   <span>{CLIENT_TYPE_LABELS[client.client_type]}</span>

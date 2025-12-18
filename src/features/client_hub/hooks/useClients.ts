@@ -20,8 +20,10 @@ export function useClients(filters?: {
         .from('clients')
         .select(`
           *,
-          communities:communities(count)
+          communities:communities(count),
+          qbo_class:qbo_classes(id, name, fully_qualified_name)
         `)
+        // Note: We sort client-side below to handle company_name || name logic
         .order('name');
 
       if (filters?.search) {
@@ -40,11 +42,22 @@ export function useClients(filters?: {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Transform communities count
-      return (data || []).map((client: any) => ({
+      // Transform and sort by display name (company_name || name)
+      const transformed = (data || []).map((client: any) => ({
         ...client,
         communities_count: client.communities?.[0]?.count || 0,
-      })) as Client[];
+        qbo_class_name: client.qbo_class?.name || null,
+        qbo_class_full_name: client.qbo_class?.fully_qualified_name || null,
+      }));
+
+      // Sort by display name (company_name takes precedence over name)
+      transformed.sort((a: any, b: any) => {
+        const nameA = (a.company_name || a.name || '').toLowerCase();
+        const nameB = (b.company_name || b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      return transformed as Client[];
     },
   });
 }
@@ -70,13 +83,22 @@ export function useClient(id: string | null) {
               *,
               contact_role:contact_roles(*)
             )
-          )
+          ),
+          qbo_class:qbo_classes(id, name, fully_qualified_name)
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as Client & { communities: any[] };
+
+      // Add QBO class name to the client object
+      const clientWithQbo = {
+        ...data,
+        qbo_class_name: data.qbo_class?.name || null,
+        qbo_class_full_name: data.qbo_class?.fully_qualified_name || null,
+      };
+
+      return clientWithQbo as Client & { communities: any[] };
     },
     enabled: !!id,
   });

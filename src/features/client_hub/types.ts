@@ -107,6 +107,8 @@ export interface Client {
   contacts?: ClientContact[];
   assigned_rep?: { id: string; email: string; full_name: string | null };
   preferred_crew?: { id: string; name: string; code: string };
+  qbo_class_name?: string | null;
+  qbo_class_full_name?: string | null;
 }
 
 export interface ClientContact {
