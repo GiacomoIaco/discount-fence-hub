@@ -259,3 +259,78 @@ export function usePropertyCount(communityId: string | null) {
     enabled: !!communityId,
   });
 }
+
+export interface ClientPropertyResult {
+  id: string;
+  address_line1: string;
+  city: string | null;
+  state: string;
+  zip: string | null;
+  lot_number: string | null;
+  block_number: string | null;
+  status: string;
+  latitude: number | null;
+  longitude: number | null;
+  community_id: string;
+  community_name: string;
+}
+
+/**
+ * Get all properties for a client (via communities)
+ * Used by Request Editor to show available properties when client is selected
+ */
+export function useClientProperties(clientId: string | null) {
+  return useQuery({
+    queryKey: ['client-properties', clientId],
+    queryFn: async () => {
+      if (!clientId) return [] as ClientPropertyResult[];
+
+      // Properties are linked to communities, which are linked to clients
+      // Join through communities to get all properties for this client
+      const { data, error } = await supabase
+        .from('properties')
+        .select(`
+          id,
+          address_line1,
+          city,
+          state,
+          zip,
+          lot_number,
+          block_number,
+          status,
+          latitude,
+          longitude,
+          community:communities!inner(
+            id,
+            name,
+            client_id
+          )
+        `)
+        .eq('communities.client_id', clientId)
+        .order('address_line1');
+
+      if (error) throw error;
+
+      // Return as ClientPropertyResult objects
+      return (data || []).map((p): ClientPropertyResult => {
+        // Supabase !inner join returns a single object, not array
+        const comm = p.community as unknown as { id: string; name: string };
+        return {
+          id: p.id as string,
+          address_line1: p.address_line1 as string,
+          city: p.city as string | null,
+          state: p.state as string,
+          zip: p.zip as string | null,
+          lot_number: p.lot_number as string | null,
+          block_number: p.block_number as string | null,
+          status: p.status as string,
+          latitude: p.latitude as number | null,
+          longitude: p.longitude as number | null,
+          community_id: comm.id,
+          community_name: comm.name,
+        };
+      });
+    },
+    enabled: !!clientId,
+  });
+}
