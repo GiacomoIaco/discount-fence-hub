@@ -33,6 +33,8 @@ export default function TerritoryEditorModal({ territory, onClose }: Props) {
     code: '',
     zip_codes: '',
     business_unit_id: '',
+    location_code: null,
+    disabled_qbo_class_ids: [],
     is_active: true,
   });
 
@@ -43,6 +45,8 @@ export default function TerritoryEditorModal({ territory, onClose }: Props) {
         code: territory.code,
         zip_codes: territory.zip_codes.join(', '),
         business_unit_id: territory.business_unit_id || '',
+        location_code: territory.location_code || null,
+        disabled_qbo_class_ids: territory.disabled_qbo_class_ids || [],
         is_active: territory.is_active,
       });
     }

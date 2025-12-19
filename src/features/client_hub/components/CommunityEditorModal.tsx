@@ -35,6 +35,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
   const [formData, setFormData] = useState<CommunityFormData>({
     client_id: community?.client_id || defaultClientId || '',
     geography_id: community?.geography_id || '',
+    location_code: community?.location_code || null,
     name: community?.name || '',
     code: community?.code || '',
     address_line1: community?.address_line1 || '',
