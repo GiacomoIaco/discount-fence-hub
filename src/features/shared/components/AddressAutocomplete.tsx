@@ -12,6 +12,7 @@ interface AddressAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
   onAddressSelect: (address: AddressSuggestion) => void;
+  onUseAsTyped?: (typedAddress: string) => void;
   placeholder?: string;
   label?: string;
   required?: boolean;
@@ -26,6 +27,7 @@ export function AddressAutocomplete({
   value,
   onChange,
   onAddressSelect,
+  onUseAsTyped,
   placeholder = 'Start typing an address...',
   label,
   required = false,
@@ -310,8 +312,23 @@ export function AddressAutocomplete({
       )}
 
       {isOpen && suggestions.length === 0 && !isLoading && value.length >= MIN_QUERY_LENGTH && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
-          No addresses found. Try a different search.
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+          <p className="text-sm text-gray-500 text-center mb-3">
+            No addresses found. Try a different search.
+          </p>
+          {onUseAsTyped && (
+            <button
+              type="button"
+              onClick={() => {
+                onUseAsTyped(value);
+                setIsOpen(false);
+              }}
+              className="w-full px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <MapPin className="w-4 h-4" />
+              Use "{value}" as typed
+            </button>
+          )}
         </div>
       )}
     </div>
