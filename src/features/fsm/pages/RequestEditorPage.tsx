@@ -6,14 +6,12 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Save, AlertCircle, FileText, Wrench, Shield, Check, X, MapPin, Building2, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, FileText, Wrench, Shield, Check, X, MapPin, Building2, Calendar, Clock } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest, useRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
 import { useClientProperties } from '../../client_hub/hooks/useProperties';
-import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import { supabase } from '../../../lib/supabase';
-import type { AddressFormData } from '../../shared/types/location';
 import type { RequestFormData, RequestSource, RequestType, Priority } from '../types';
 import { PRODUCT_TYPES } from '../types';
 
@@ -82,6 +80,13 @@ export default function RequestEditorPage({
   const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(null);
   const [showClientPanel, setShowClientPanel] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+
+  // Schedule state (separate date/time like Jobber)
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [scheduleLater, setScheduleLater] = useState(true); // Schedule later checkbox
+  const [anytime, setAnytime] = useState(false); // Anytime checkbox (no specific time)
 
   const { data: existingRequest, isLoading: isLoadingRequest } = useRequest(requestId);
   const { data: territories } = useTerritories();
@@ -185,13 +190,25 @@ export default function RequestEditorPage({
     }
   }, [existingRequest]);
 
-  // Auto-detect territory from zip
+  // Auto-detect territory from zip + business unit
   useEffect(() => {
-    if (formData.zip && territories && !formData.territory_id) {
-      const match = territories.find(t => t.zip_codes.some(z => z.trim() === formData.zip.trim()));
-      if (match) setFormData(prev => ({ ...prev, territory_id: match.id }));
+    if (formData.zip && territories) {
+      // Filter territories by business unit if selected, then by zip code
+      const matchingTerritories = territories.filter(t => {
+        const hasZip = t.zip_codes?.some(z => z.trim() === formData.zip.trim());
+        const matchesBU = !formData.business_unit_id || t.business_unit_id === formData.business_unit_id;
+        return hasZip && matchesBU && t.is_active;
+      });
+
+      if (matchingTerritories.length > 0) {
+        // Set the first matching territory
+        setFormData(prev => ({ ...prev, territory_id: matchingTerritories[0].id }));
+      } else {
+        // Clear territory if no match
+        setFormData(prev => ({ ...prev, territory_id: '' }));
+      }
     }
-  }, [formData.zip, territories, formData.territory_id]);
+  }, [formData.zip, formData.business_unit_id, territories]);
 
   const handleSelectClient = (client: ClientSearchResult) => {
     setSelectedClient(client);
@@ -237,28 +254,26 @@ export default function RequestEditorPage({
     }));
   };
 
-  const handleAddressChange = (address: AddressFormData) => {
-    setSelectedPropertyId(null);
-    setFormData(prev => ({
-      ...prev,
-      property_id: '',
-      address_line1: address.address_line1,
-      city: address.city,
-      state: address.state,
-      zip: address.zip,
-      latitude: address.latitude,
-      longitude: address.longitude,
-    }));
-    if (showValidationErrors) setShowValidationErrors(false);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Build assessment_scheduled_at from date/time fields
+    let assessmentDateTime = '';
+    if (!scheduleLater && scheduleDate) {
+      if (anytime || !startTime) {
+        // Just the date, no specific time
+        assessmentDateTime = scheduleDate;
+      } else {
+        // Combine date + time
+        assessmentDateTime = `${scheduleDate}T${startTime}`;
+      }
+    }
 
     // Sync client name/company to contact_name
     const dataToSave = {
       ...formData,
       contact_name: companyName ? clientName : (clientName || formData.contact_name),
+      assessment_scheduled_at: assessmentDateTime,
     };
 
     if (!isFormValid) {
@@ -332,7 +347,7 @@ export default function RequestEditorPage({
 
       {/* Validation Errors */}
       {showValidationErrors && validationErrors.length > 0 && (
-        <div className="max-w-5xl mx-auto px-4 pt-3">
+        <div className="max-w-6xl mx-auto px-4 pt-3">
           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -348,7 +363,7 @@ export default function RequestEditorPage({
       {/* Main Content - Fixed width, slides left when sidebar opens */}
       <div className="flex justify-center">
         <div className={`transition-all duration-300 ${showClientPanel ? 'mr-80' : ''}`}>
-          <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 space-y-4">
+          <form onSubmit={handleSubmit} className="max-w-6xl mx-auto p-4 space-y-4">
             {/* Row 1: Client Details (left) + Service Location (right) - Workiz style */}
             <div className="grid grid-cols-2 gap-4">
               {/* Client Details Card */}
@@ -425,11 +440,11 @@ export default function RequestEditorPage({
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Company name"
+                    placeholder="Company name (optional)"
                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
 
-                  {/* Phone + Ext (like Workiz) */}
+                  {/* Phone + Email */}
                   <div className="flex gap-2">
                     <input
                       type="tel"
@@ -446,27 +461,63 @@ export default function RequestEditorPage({
                       className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+
+                  {/* Source dropdown - moved from Job Details */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Source</label>
+                    <select
+                      value={formData.source}
+                      onChange={(e) => updateField('source', e.target.value as RequestSource)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="phone">Phone</option>
+                      <option value="web">Web</option>
+                      <option value="referral">Referral</option>
+                      <option value="walk_in">Walk-in</option>
+                      <option value="builder_portal">Builder</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
               {/* Service Location Card */}
               <div className="bg-white rounded-xl border p-5">
                 <h2 className="text-base font-semibold text-gray-900 mb-4">Service Location</h2>
-                <SmartAddressInput
-                  value={{
-                    address_line1: formData.address_line1,
-                    city: formData.city,
-                    state: formData.state,
-                    zip: formData.zip,
-                    latitude: formData.latitude ?? null,
-                    longitude: formData.longitude ?? null,
-                  }}
-                  onChange={handleAddressChange}
-                  label=""
-                  required
-                  restrictToTexas
-                  placeholder="Address"
-                />
+                <div className="space-y-3">
+                  {/* Street Address */}
+                  <input
+                    type="text"
+                    value={formData.address_line1}
+                    onChange={(e) => updateField('address_line1', e.target.value)}
+                    placeholder="Street address"
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  {/* City, State, ZIP inline */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.city}
+                      onChange={(e) => updateField('city', e.target.value)}
+                      placeholder="City"
+                      className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                      value={formData.state}
+                      onChange={(e) => updateField('state', e.target.value)}
+                      className="w-20 px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="TX">TX</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={formData.zip}
+                      onChange={(e) => updateField('zip', e.target.value)}
+                      placeholder="ZIP"
+                      className="w-24 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -477,40 +528,24 @@ export default function RequestEditorPage({
                 <h2 className="text-base font-semibold text-gray-900 mb-4">Job Details</h2>
 
                 <div className="space-y-3">
-                  {/* Source + BU in row */}
-                  <div className="flex gap-3">
-                    <div className="w-32">
-                      <label className="block text-xs text-gray-500 mb-1">Source</label>
-                      <select
-                        value={formData.source}
-                        onChange={(e) => updateField('source', e.target.value as RequestSource)}
-                        className="w-full px-3 py-2 border rounded-lg text-sm"
-                      >
-                        <option value="phone">Phone</option>
-                        <option value="web">Web</option>
-                        <option value="referral">Referral</option>
-                        <option value="walk_in">Walk-in</option>
-                        <option value="builder_portal">Builder</option>
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">Business Unit</label>
-                      <div className="flex flex-wrap gap-1">
-                        {businessUnits?.map((bu) => (
-                          <button
-                            key={bu.id}
-                            type="button"
-                            onClick={() => updateField('business_unit_id', formData.business_unit_id === bu.id ? '' : bu.id)}
-                            className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
-                              formData.business_unit_id === bu.id
-                                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                : 'border-gray-200 text-gray-600'
-                            }`}
-                          >
-                            {bu.code || bu.name.substring(0, 8)}
-                          </button>
-                        ))}
-                      </div>
+                  {/* Business Unit */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Business Unit</label>
+                    <div className="flex flex-wrap gap-1">
+                      {businessUnits?.map((bu) => (
+                        <button
+                          key={bu.id}
+                          type="button"
+                          onClick={() => updateField('business_unit_id', formData.business_unit_id === bu.id ? '' : bu.id)}
+                          className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                            formData.business_unit_id === bu.id
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {bu.code || bu.name.substring(0, 8)}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -523,11 +558,11 @@ export default function RequestEditorPage({
                           key={value}
                           type="button"
                           onClick={() => updateField('request_type', value)}
-                          className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded border text-xs font-medium transition-colors ${
-                            formData.request_type === value ? color : 'border-gray-200 text-gray-600'
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${
+                            formData.request_type === value ? color : 'border-gray-200 text-gray-600 hover:border-gray-300'
                           }`}
                         >
-                          <Icon className="w-3 h-3" />
+                          <Icon className="w-4 h-4" />
                           {label}
                         </button>
                       ))}
@@ -537,7 +572,7 @@ export default function RequestEditorPage({
                   {/* Product Types */}
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Product Types</label>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {PRODUCT_TYPES.map((pt) => {
                         const isSelected = formData.product_types.includes(pt);
                         return (
@@ -545,8 +580,8 @@ export default function RequestEditorPage({
                             key={pt}
                             type="button"
                             onClick={() => toggleProductType(pt)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors ${
-                              isSelected ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs border transition-colors ${
+                              isSelected ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
                             }`}
                           >
                             {isSelected && <Check className="w-3 h-3" />}
@@ -573,35 +608,89 @@ export default function RequestEditorPage({
 
               {/* Scheduling Card */}
               <div className="bg-white rounded-xl border p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-semibold text-gray-900">Scheduled</h2>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.requires_assessment}
-                      onChange={(e) => updateField('requires_assessment', e.target.checked)}
-                      className="w-5 h-5 text-green-500 rounded-full"
-                    />
-                  </label>
-                </div>
+                <h2 className="text-base font-semibold text-gray-900 mb-4">Schedule</h2>
 
-                {formData.requires_assessment && (
-                  <div className="space-y-3">
-                    {/* Assessment Date/Time */}
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Assessment</label>
+                <div className="space-y-4">
+                  {/* Date + Time Row (like Jobber) */}
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1">Start Date</label>
                       <input
-                        type="datetime-local"
-                        value={formData.assessment_scheduled_at}
-                        onChange={(e) => updateField('assessment_scheduled_at', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        type="date"
+                        value={scheduleDate}
+                        onChange={(e) => {
+                          setScheduleDate(e.target.value);
+                          if (e.target.value) setScheduleLater(false);
+                        }}
+                        disabled={scheduleLater}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${scheduleLater ? 'bg-gray-50 text-gray-400' : ''}`}
                       />
                     </div>
+                    <div className="w-28">
+                      <label className="block text-xs text-gray-500 mb-1">Start time</label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          disabled={scheduleLater || anytime}
+                          className={`w-full px-3 py-2 border rounded-lg text-sm ${(scheduleLater || anytime) ? 'bg-gray-50 text-gray-400' : ''}`}
+                        />
+                        <Clock className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-xs text-gray-500 mb-1">End time</label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          disabled={scheduleLater || anytime}
+                          className={`w-full px-3 py-2 border rounded-lg text-sm ${(scheduleLater || anytime) ? 'bg-gray-50 text-gray-400' : ''}`}
+                        />
+                        <Clock className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
                   </div>
-                )}
 
-                {/* Territory + Rep */}
-                <div className="mt-4 space-y-3">
+                  {/* Schedule Later + Anytime checkboxes (like Jobber) */}
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={scheduleLater}
+                        onChange={(e) => {
+                          setScheduleLater(e.target.checked);
+                          if (e.target.checked) {
+                            setScheduleDate('');
+                            setStartTime('');
+                            setEndTime('');
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                      <span className="text-sm text-gray-600">Schedule later</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={anytime}
+                        onChange={(e) => {
+                          setAnytime(e.target.checked);
+                          if (e.target.checked) {
+                            setStartTime('');
+                            setEndTime('');
+                          }
+                        }}
+                        disabled={scheduleLater}
+                        className="w-4 h-4 text-blue-600 rounded disabled:opacity-50"
+                      />
+                      <span className={`text-sm ${scheduleLater ? 'text-gray-400' : 'text-gray-600'}`}>Anytime</span>
+                    </label>
+                  </div>
+
+                  {/* Territory */}
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Territory</label>
                     <select
@@ -610,14 +699,21 @@ export default function RequestEditorPage({
                       className="w-full px-3 py-2 border rounded-lg text-sm"
                     >
                       <option value="">Auto-detect from ZIP</option>
-                      {territories?.filter(t => t.is_active).map((t) => (
+                      {territories?.filter(t => {
+                        // Filter by BU if selected
+                        if (formData.business_unit_id && t.business_unit_id) {
+                          return t.is_active && t.business_unit_id === formData.business_unit_id;
+                        }
+                        return t.is_active;
+                      }).map((t) => (
                         <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
                       ))}
                     </select>
                   </div>
 
+                  {/* Assign Rep */}
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Assign team members</label>
+                    <label className="block text-xs text-gray-500 mb-1">Assign team member</label>
                     <select
                       value={formData.assigned_rep_id}
                       onChange={(e) => updateField('assigned_rep_id', e.target.value)}
@@ -639,7 +735,7 @@ export default function RequestEditorPage({
                           key={p}
                           type="button"
                           onClick={() => updateField('priority', p)}
-                          className={`flex-1 px-2 py-1.5 rounded text-xs font-medium ${
+                          className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                             formData.priority === p
                               ? p === 'urgent' ? 'bg-red-100 text-red-700'
                                 : p === 'high' ? 'bg-orange-100 text-orange-700'
@@ -654,7 +750,7 @@ export default function RequestEditorPage({
                     </div>
                   </div>
 
-                  {/* View Schedule button like Workiz */}
+                  {/* View Schedule button */}
                   <button
                     type="button"
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50"
