@@ -105,7 +105,7 @@ export function AddressAutocomplete({
               ? `${addr.number} ${addr.street}`.trim()
               : addr.formattedAddress?.split(',')[0] || ''),
           city: addr.city || '',
-          state: addr.state || addr.stateCode || 'TX',
+          state: addr.stateCode || (addr.state?.length <= 2 ? addr.state : '') || 'TX',
           zip: addr.postalCode || '',
           county: addr.county || '',
           latitude: addr.latitude,
