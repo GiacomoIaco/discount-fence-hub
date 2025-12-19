@@ -49,7 +49,7 @@ export type VisitStatus =
 
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
 export type RequestSource = 'phone' | 'web' | 'referral' | 'walk_in' | 'builder_portal';
-export type RequestType = 'new_business' | 'change_order' | 'warranty';
+export type RequestType = 'new_quote' | 'repair' | 'warranty';
 export type PaymentMethod = 'card' | 'check' | 'cash' | 'ach' | 'qbo_payment';
 export type VisitType = 'installation' | 'followup' | 'warranty' | 'inspection';
 export type ProjectStatus = 'active' | 'complete' | 'on_hold' | 'cancelled' | 'warranty';
@@ -193,7 +193,8 @@ export interface ServiceRequest {
   // Details
   source: RequestSource;
   request_type: RequestType;
-  product_type: string | null;
+  product_type: string | null;  // Deprecated: use product_types
+  product_types: string[];      // Multi-select product types
   linear_feet_estimate: number | null;
   description: string | null;
   notes: string | null;
@@ -209,6 +210,7 @@ export interface ServiceRequest {
   // Assignment
   assigned_rep_id: string | null;
   territory_id: string | null;
+  business_unit_id: string | null;  // BU for rep filtering
   // Priority
   priority: Priority;
   // Conversion
@@ -612,7 +614,7 @@ export interface RequestFormData {
   client_id: string;
   community_id: string;
   property_id: string;
-  // Contact (for non-clients)
+  // Contact (for non-clients / quick-add leads)
   contact_name: string;
   contact_email: string;
   contact_phone: string;
@@ -626,7 +628,8 @@ export interface RequestFormData {
   longitude?: number | null;
   // Details
   source: RequestSource;
-  product_type: string;
+  request_type: RequestType;
+  product_types: string[];  // Multi-select product types
   linear_feet_estimate: string;
   description: string;
   notes: string;
@@ -634,6 +637,7 @@ export interface RequestFormData {
   requires_assessment: boolean;
   assessment_scheduled_at: string;
   // Assignment
+  business_unit_id: string;  // BU for rep filtering
   assigned_rep_id: string;
   territory_id: string;
   priority: Priority;
@@ -745,6 +749,18 @@ export const SOURCE_LABELS: Record<RequestSource, string> = {
   referral: 'Referral',
   walk_in: 'Walk-in',
   builder_portal: 'Builder Portal',
+};
+
+export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
+  new_quote: 'New Quote',
+  repair: 'Repair',
+  warranty: 'Warranty',
+};
+
+export const REQUEST_TYPE_COLORS: Record<RequestType, string> = {
+  new_quote: 'bg-blue-100 text-blue-700',
+  repair: 'bg-orange-100 text-orange-700',
+  warranty: 'bg-purple-100 text-purple-700',
 };
 
 // ============================================
