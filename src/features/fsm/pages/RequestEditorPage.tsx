@@ -118,6 +118,16 @@ export default function RequestEditorPage({
     return salesReps.filter(r => r.is_active);
   }, [salesReps]);
 
+  // Auto-detect matching territories from ZIP (supports overlapping territories)
+  const matchingTerritories = useMemo(() => {
+    if (!formData.zip || !territories) return [];
+    return territories.filter(t => {
+      const hasZip = t.zip_codes?.some(z => z.trim() === formData.zip.trim());
+      const matchesBU = !formData.business_unit_id || t.business_unit_id === formData.business_unit_id;
+      return hasZip && matchesBU && t.is_active;
+    });
+  }, [formData.zip, formData.business_unit_id, territories]);
+
   // Validate required fields
   const validateForm = useMemo(() => {
     const errors: string[] = [];
@@ -222,25 +232,14 @@ export default function RequestEditorPage({
     }
   }, [existingRequest]);
 
-  // Auto-detect territory from zip + business unit
+  // Auto-set first matching territory for backwards compatibility
   useEffect(() => {
-    if (formData.zip && territories) {
-      // Filter territories by business unit if selected, then by zip code
-      const matchingTerritories = territories.filter(t => {
-        const hasZip = t.zip_codes?.some(z => z.trim() === formData.zip.trim());
-        const matchesBU = !formData.business_unit_id || t.business_unit_id === formData.business_unit_id;
-        return hasZip && matchesBU && t.is_active;
-      });
-
-      if (matchingTerritories.length > 0) {
-        // Set the first matching territory
-        setFormData(prev => ({ ...prev, territory_id: matchingTerritories[0].id }));
-      } else {
-        // Clear territory if no match
-        setFormData(prev => ({ ...prev, territory_id: '' }));
-      }
+    if (matchingTerritories.length > 0) {
+      setFormData(prev => ({ ...prev, territory_id: matchingTerritories[0].id }));
+    } else if (formData.zip) {
+      setFormData(prev => ({ ...prev, territory_id: '' }));
     }
-  }, [formData.zip, formData.business_unit_id, territories]);
+  }, [matchingTerritories]);
 
   const handleSelectClient = (client: ClientSearchResult) => {
     setSelectedClient(client);
@@ -594,25 +593,26 @@ export default function RequestEditorPage({
                     </div>
                   </div>
 
-                  {/* Territory - moved from Scheduled card */}
+                  {/* Territory - auto-detected from ZIP (supports overlapping) */}
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Territory</label>
-                    <select
-                      value={formData.territory_id}
-                      onChange={(e) => updateField('territory_id', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    >
-                      <option value="">Auto-detect from ZIP</option>
-                      {territories?.filter(t => {
-                        // Filter by BU if selected
-                        if (formData.business_unit_id && t.business_unit_id) {
-                          return t.is_active && t.business_unit_id === formData.business_unit_id;
-                        }
-                        return t.is_active;
-                      }).map((t) => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
-                      ))}
-                    </select>
+                    {matchingTerritories.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {matchingTerritories.map((t) => (
+                          <span
+                            key={t.id}
+                            className="inline-flex items-center px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
+                          >
+                            <MapPin className="w-3 h-3 mr-1" />
+                            {t.name} ({t.code})
+                          </span>
+                        ))}
+                      </div>
+                    ) : formData.zip ? (
+                      <span className="text-sm text-amber-600">No territory covers ZIP {formData.zip}</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">Enter ZIP to auto-detect</span>
+                    )}
                   </div>
                 </div>
               </div>

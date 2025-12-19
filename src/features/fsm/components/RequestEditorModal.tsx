@@ -94,6 +94,16 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
     return salesReps.filter(r => r.is_active);
   }, [salesReps]);
 
+  // Auto-detect matching territories from ZIP (supports overlapping)
+  const matchingTerritories = useMemo(() => {
+    if (!formData.zip || !territories) return [];
+    return territories.filter(t => {
+      const hasZip = t.zip_codes?.some(z => z.trim() === formData.zip.trim());
+      const matchesBU = !formData.business_unit_id || t.business_unit_id === formData.business_unit_id;
+      return hasZip && matchesBU && t.is_active;
+    });
+  }, [formData.zip, formData.business_unit_id, territories]);
+
   // Search clients
   useEffect(() => {
     if (clientSearch.length < 2) {
@@ -148,13 +158,14 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
     }
   }, [isOpen, request]);
 
-  // Auto-detect territory from zip
+  // Auto-set first matching territory for backwards compatibility
   useEffect(() => {
-    if (formData.zip && territories && !formData.territory_id) {
-      const match = territories.find(t => t.zip_codes.some(z => z.trim() === formData.zip.trim()));
-      if (match) setFormData(prev => ({ ...prev, territory_id: match.id }));
+    if (matchingTerritories.length > 0) {
+      setFormData(prev => ({ ...prev, territory_id: matchingTerritories[0].id }));
+    } else if (formData.zip) {
+      setFormData(prev => ({ ...prev, territory_id: '' }));
     }
-  }, [formData.zip, territories, formData.territory_id]);
+  }, [matchingTerritories]);
 
   const handleSelectClient = (client: ClientSearchResult) => {
     setSelectedClient(client);
@@ -420,16 +431,23 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Territory</label>
-                <select
-                  value={formData.territory_id}
-                  onChange={(e) => updateField('territory_id', e.target.value)}
-                  className="w-full px-2 py-1.5 border rounded text-sm"
-                >
-                  <option value="">Auto</option>
-                  {territories?.filter(t => t.is_active).map((t) => (
-                    <option key={t.id} value={t.id}>{t.code || t.name}</option>
-                  ))}
-                </select>
+                {matchingTerritories.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {matchingTerritories.map((t) => (
+                      <span
+                        key={t.id}
+                        className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
+                      >
+                        <MapPin className="w-3 h-3 mr-0.5" />
+                        {t.code || t.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : formData.zip ? (
+                  <span className="text-xs text-amber-600">No match</span>
+                ) : (
+                  <span className="text-xs text-gray-400">Auto from ZIP</span>
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Assign Rep</label>
