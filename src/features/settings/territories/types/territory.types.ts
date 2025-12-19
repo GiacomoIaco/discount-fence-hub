@@ -4,7 +4,9 @@ export interface Territory {
   id: string;
   name: string;
   code: string;
-  business_unit_id: string | null;
+  business_unit_id: string | null; // Legacy - use location_code instead
+  location_code: string | null; // 'ATX', 'SA', 'HOU'
+  disabled_qbo_class_ids: string[]; // QBO class IDs disabled for this territory
   zip_codes: string[];
   geometry: Geometry | null;
   color: string;
@@ -17,6 +19,7 @@ export interface Territory {
 export interface TerritoryWithReps extends Territory {
   business_unit_name: string | null;
   business_unit_code: string | null;
+  location_name: string | null; // 'Austin', 'San Antonio', 'Houston'
   metro: string | null;
   assigned_reps: AssignedRep[];
   zip_count: number | null;
@@ -82,7 +85,9 @@ export interface DrawnShape {
 export interface TerritoryFormData {
   name: string;
   code: string;
-  business_unit_id: string | null;
+  business_unit_id: string | null; // Legacy - use location_code instead
+  location_code: string | null; // 'ATX', 'SA', 'HOU'
+  disabled_qbo_class_ids: string[]; // QBO class IDs disabled for this territory
   color: string;
   description: string;
   geometry: Geometry | null;

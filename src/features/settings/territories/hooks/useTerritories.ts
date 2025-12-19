@@ -9,18 +9,44 @@ import type {
   SalesRep
 } from '../types/territory.types';
 
-// Fetch all territories with assigned reps
-export function useTerritories(businessUnitId?: string) {
+// Location type
+export interface Location {
+  id: string;
+  code: string;
+  name: string;
+  state: string;
+  is_active: boolean;
+}
+
+// Fetch all locations
+export function useLocations() {
   return useQuery({
-    queryKey: ['territories', businessUnitId],
+    queryKey: ['locations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      return data as Location[];
+    },
+  });
+}
+
+// Fetch all territories with assigned reps
+export function useTerritories(locationCode?: string) {
+  return useQuery({
+    queryKey: ['territories', locationCode],
     queryFn: async () => {
       let query = supabase
         .from('territories_with_reps')
         .select('*')
         .order('name');
 
-      if (businessUnitId) {
-        query = query.eq('business_unit_id', businessUnitId);
+      if (locationCode) {
+        query = query.eq('location_code', locationCode);
       }
 
       const { data, error } = await query;
@@ -95,6 +121,8 @@ export function useCreateTerritory() {
           name: territory.name,
           code: territory.code,
           business_unit_id: territory.business_unit_id,
+          location_code: territory.location_code,
+          disabled_qbo_class_ids: territory.disabled_qbo_class_ids || [],
           color: territory.color,
           description: territory.description || null,
           geometry: territory.geometry,
@@ -125,6 +153,8 @@ export function useUpdateTerritory() {
           name: territory.name,
           code: territory.code,
           business_unit_id: territory.business_unit_id,
+          location_code: territory.location_code,
+          disabled_qbo_class_ids: territory.disabled_qbo_class_ids || [],
           color: territory.color,
           description: territory.description || null,
           geometry: territory.geometry,

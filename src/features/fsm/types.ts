@@ -63,7 +63,9 @@ export interface Territory {
   name: string;
   code: string;
   zip_codes: string[];
-  business_unit_id: string | null;
+  business_unit_id: string | null; // Legacy - use location_code instead
+  location_code: string | null; // 'ATX', 'SA', 'HOU'
+  disabled_qbo_class_ids: string[]; // QBO class IDs disabled for this territory
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -518,7 +520,9 @@ export interface TerritoryFormData {
   name: string;
   code: string;
   zip_codes: string;  // Comma-separated for input
-  business_unit_id: string;
+  business_unit_id: string; // Legacy - use location_code instead
+  location_code: string; // 'ATX', 'SA', 'HOU'
+  disabled_qbo_class_ids: string[]; // QBO class IDs disabled for this territory
   is_active: boolean;
 }
 

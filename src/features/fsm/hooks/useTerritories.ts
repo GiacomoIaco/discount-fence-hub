@@ -9,11 +9,14 @@ export function useTerritories() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('territories')
-        .select('*, business_unit:business_units(id, name, code)')
+        .select('*, business_unit:business_units(id, name, code), location:locations(code, name)')
         .order('name');
 
       if (error) throw error;
-      return data as (Territory & { business_unit: { id: string; name: string; code: string } | null })[];
+      return data as (Territory & {
+        business_unit: { id: string; name: string; code: string } | null;
+        location: { code: string; name: string } | null;
+      })[];
     },
   });
 }
@@ -26,12 +29,15 @@ export function useTerritory(id: string | undefined) {
 
       const { data, error } = await supabase
         .from('territories')
-        .select('*, business_unit:business_units(id, name, code)')
+        .select('*, business_unit:business_units(id, name, code), location:locations(code, name)')
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as Territory & { business_unit: { id: string; name: string; code: string } | null };
+      return data as Territory & {
+        business_unit: { id: string; name: string; code: string } | null;
+        location: { code: string; name: string } | null;
+      };
     },
     enabled: !!id,
   });
@@ -54,6 +60,8 @@ export function useCreateTerritory() {
           code: data.code.trim().toUpperCase(),
           zip_codes: zipCodes,
           business_unit_id: data.business_unit_id || null,
+          location_code: data.location_code || null,
+          disabled_qbo_class_ids: data.disabled_qbo_class_ids || [],
           is_active: data.is_active,
         })
         .select()
@@ -89,6 +97,8 @@ export function useUpdateTerritory() {
           code: data.code.trim().toUpperCase(),
           zip_codes: zipCodes,
           business_unit_id: data.business_unit_id || null,
+          location_code: data.location_code || null,
+          disabled_qbo_class_ids: data.disabled_qbo_class_ids || [],
           is_active: data.is_active,
           updated_at: new Date().toISOString(),
         })
