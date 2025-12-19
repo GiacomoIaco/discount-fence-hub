@@ -115,7 +115,8 @@ export function useCreateRequest() {
           zip: data.zip?.trim() || null,
           // Details
           source: data.source,
-          product_type: data.product_type || null,
+          request_type: data.request_type || 'new_quote',
+          product_types: data.product_types || [],
           linear_feet_estimate: data.linear_feet_estimate ? parseFloat(data.linear_feet_estimate) : null,
           description: data.description?.trim() || null,
           notes: data.notes?.trim() || null,
@@ -123,6 +124,7 @@ export function useCreateRequest() {
           requires_assessment: data.requires_assessment,
           assessment_scheduled_at: data.assessment_scheduled_at || null,
           // Assignment
+          business_unit_id: data.business_unit_id || null,
           assigned_rep_id: data.assigned_rep_id || null,
           territory_id: data.territory_id || null,
           priority: data.priority,
@@ -168,7 +170,8 @@ export function useUpdateRequest() {
       if (data.state !== undefined) updates.state = data.state;
       if (data.zip !== undefined) updates.zip = data.zip?.trim() || null;
       if (data.source !== undefined) updates.source = data.source;
-      if (data.product_type !== undefined) updates.product_type = data.product_type || null;
+      if (data.request_type !== undefined) updates.request_type = data.request_type;
+      if (data.product_types !== undefined) updates.product_types = data.product_types || [];
       if (data.linear_feet_estimate !== undefined) {
         updates.linear_feet_estimate = data.linear_feet_estimate ? parseFloat(data.linear_feet_estimate) : null;
       }
@@ -176,6 +179,7 @@ export function useUpdateRequest() {
       if (data.notes !== undefined) updates.notes = data.notes?.trim() || null;
       if (data.requires_assessment !== undefined) updates.requires_assessment = data.requires_assessment;
       if (data.assessment_scheduled_at !== undefined) updates.assessment_scheduled_at = data.assessment_scheduled_at || null;
+      if (data.business_unit_id !== undefined) updates.business_unit_id = data.business_unit_id || null;
       if (data.assigned_rep_id !== undefined) updates.assigned_rep_id = data.assigned_rep_id || null;
       if (data.territory_id !== undefined) updates.territory_id = data.territory_id || null;
       if (data.priority !== undefined) updates.priority = data.priority;
