@@ -92,7 +92,8 @@ export interface Crew {
   crew_size: number;
   max_daily_lf: number;
   product_skills: string[];
-  business_unit_id: string | null;
+  business_unit_id: string | null; // Legacy - use location_code instead
+  location_code: string | null; // 'ATX', 'SA', 'HOU'
   home_territory_id: string | null;
   crew_type: CrewType;
   lead_user_id: string | null;
@@ -111,6 +112,7 @@ export interface Crew {
   members?: CrewMember[];
   territory?: Territory;
   lead_user?: { id: string; email: string; full_name: string | null };
+  location?: { code: string; name: string }; // Location info from locations table
   // Assignment summary (from view)
   aligned_reps_count?: number;
   preferred_by_clients?: number;
@@ -543,7 +545,8 @@ export interface CrewFormData {
   crew_size: number;
   max_daily_lf: number;
   product_skills: string[];
-  business_unit_id: string;
+  business_unit_id: string; // Legacy - use location_code instead
+  location_code: string; // 'ATX', 'SA', 'HOU'
   home_territory_id: string;
   crew_type: CrewType;
   lead_user_id: string;

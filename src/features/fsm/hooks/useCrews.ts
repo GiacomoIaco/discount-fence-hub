@@ -3,15 +3,20 @@ import { supabase } from '../../../lib/supabase';
 import type { Crew, CrewMember, CrewFormData, RepCrewAlignment } from '../types';
 import { showSuccess, showError } from '../../../lib/toast';
 
-export function useCrews() {
+export function useCrews(locationCode?: string) {
   return useQuery({
-    queryKey: ['crews'],
+    queryKey: ['crews', locationCode],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('crews')
-        .select('*')
+        .select('*, location:locations(code, name)')
         .order('name');
 
+      if (locationCode) {
+        query = query.eq('location_code', locationCode);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as Crew[];
     },
@@ -30,6 +35,7 @@ export function useCrew(id: string | undefined) {
           *,
           territory:territories(id, name, code),
           business_unit:business_units(id, name, code),
+          location:locations(code, name),
           members:crew_members(*)
         `)
         .eq('id', id)
@@ -39,6 +45,7 @@ export function useCrew(id: string | undefined) {
       return data as Crew & {
         territory: { id: string; name: string; code: string } | null;
         business_unit: { id: string; name: string; code: string } | null;
+        location: { code: string; name: string } | null;
         members: CrewMember[];
       };
     },
@@ -60,6 +67,7 @@ export function useCreateCrew() {
           max_daily_lf: data.max_daily_lf,
           product_skills: data.product_skills,
           business_unit_id: data.business_unit_id || null,
+          location_code: data.location_code || null,
           home_territory_id: data.home_territory_id || null,
           crew_type: data.crew_type || 'standard',
           lead_user_id: data.lead_user_id || null,
@@ -99,6 +107,7 @@ export function useUpdateCrew() {
           max_daily_lf: data.max_daily_lf,
           product_skills: data.product_skills,
           business_unit_id: data.business_unit_id || null,
+          location_code: data.location_code || null,
           home_territory_id: data.home_territory_id || null,
           crew_type: data.crew_type || 'standard',
           lead_user_id: data.lead_user_id || null,
