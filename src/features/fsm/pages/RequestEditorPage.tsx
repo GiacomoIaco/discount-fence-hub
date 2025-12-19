@@ -10,6 +10,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Phone, Globe, Users, Building, Save, AlertCircle } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest, useRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
+import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
 import { ClientLookup, PropertyLookup } from '../../../components/common/SmartLookup';
 import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import type { AddressFormData } from '../../shared/types/location';
@@ -81,6 +82,7 @@ export default function RequestEditorPage({
   const { data: existingRequest, isLoading: isLoadingRequest } = useRequest(requestId);
   const { data: territories } = useTerritories();
   const { data: salesReps } = useSalesReps();
+  const { data: businessUnits } = useBusinessUnits();
 
   const createMutation = useCreateRequest();
   const updateMutation = useUpdateRequest();
@@ -359,6 +361,27 @@ export default function RequestEditorPage({
                 >
                   <Icon className="w-4 h-4" />
                   {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Business Unit Selection */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Business Unit</h2>
+            <div className="flex flex-wrap gap-2">
+              {businessUnits?.map((bu) => (
+                <button
+                  key={bu.id}
+                  type="button"
+                  onClick={() => updateField('business_unit_id', formData.business_unit_id === bu.id ? '' : bu.id)}
+                  className={`px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    formData.business_unit_id === bu.id
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                  }`}
+                >
+                  {bu.name}
                 </button>
               ))}
             </div>
