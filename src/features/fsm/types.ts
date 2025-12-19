@@ -196,6 +196,7 @@ export interface ServiceRequest {
   contact_phone: string | null;
   // Address
   address_line1: string | null;
+  address_line2: string | null;  // Unit/Suite
   city: string | null;
   state: string;
   zip: string | null;
@@ -649,6 +650,7 @@ export interface RequestFormData {
   contact_phone: string;
   // Address
   address_line1: string;
+  address_line2: string;  // Unit/Suite
   city: string;
   state: string;
   zip: string;

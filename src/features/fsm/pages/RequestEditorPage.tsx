@@ -46,6 +46,7 @@ const INITIAL_FORM_DATA: RequestFormData = {
   contact_email: '',
   contact_phone: '',
   address_line1: '',
+  address_line2: '',
   city: '',
   state: 'TX',
   zip: '',
@@ -88,9 +89,6 @@ export default function RequestEditorPage({
   // Client panel and property selection
   const [showClientPanel, setShowClientPanel] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-
-  // Unit/Suite field
-  const [unit, setUnit] = useState('');
 
   // Schedule state (separate date/time like Jobber)
   const [scheduleDate, setScheduleDate] = useState('');
@@ -280,6 +278,7 @@ export default function RequestEditorPage({
       ...prev,
       property_id: '',
       address_line1: address.address_line1,
+      address_line2: address.address_line2 || '',
       city: address.city,
       state: address.state,
       zip: address.zip,
@@ -558,10 +557,11 @@ export default function RequestEditorPage({
               <div className="bg-white rounded-xl border p-5">
                 <h2 className="text-base font-semibold text-gray-900 mb-4">Service Location</h2>
                 <div className="space-y-3">
-                  {/* Street Address - Smart autocomplete */}
+                  {/* Street Address - Smart autocomplete with Unit/Suite + City/State/ZIP */}
                   <SmartAddressInput
                     value={{
                       address_line1: formData.address_line1,
+                      address_line2: formData.address_line2,
                       city: formData.city,
                       state: formData.state,
                       zip: formData.zip,
@@ -574,24 +574,6 @@ export default function RequestEditorPage({
                     restrictToTexas
                     placeholder="Street address"
                   />
-
-                  {/* Unit + City/State/ZIP reference row */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={unit}
-                      onChange={(e) => setUnit(e.target.value)}
-                      placeholder="Unit/Suite"
-                      className="w-24 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    />
-                    <div className="flex-1 px-3 py-2 bg-gray-50 border rounded-lg text-sm text-gray-600">
-                      {formData.city && formData.zip ? (
-                        <span>{formData.city}, {formData.state} {formData.zip}</span>
-                      ) : (
-                        <span className="text-gray-400">City, State ZIP (auto-filled)</span>
-                      )}
-                    </div>
-                  </div>
 
                   {/* Territory - auto-detected from ZIP (supports overlapping) */}
                   <div>

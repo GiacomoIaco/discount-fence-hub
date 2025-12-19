@@ -50,6 +50,7 @@ const INITIAL_FORM_DATA: RequestFormData = {
   contact_email: '',
   contact_phone: '',
   address_line1: '',
+  address_line2: '',
   city: '',
   state: 'TX',
   zip: '',
@@ -133,6 +134,7 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
         contact_email: request.contact_email || '',
         contact_phone: request.contact_phone || '',
         address_line1: request.address_line1 || '',
+        address_line2: request.address_line2 || '',
         city: request.city || '',
         state: request.state || 'TX',
         zip: request.zip || '',
@@ -201,6 +203,7 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
       ...prev,
       property_id: '',
       address_line1: address.address_line1,
+      address_line2: address.address_line2 || '',
       city: address.city,
       state: address.state,
       zip: address.zip,
@@ -367,6 +370,7 @@ export default function RequestEditorModal({ isOpen, onClose, request }: Request
               <SmartAddressInput
                 value={{
                   address_line1: formData.address_line1,
+                  address_line2: formData.address_line2,
                   city: formData.city,
                   state: formData.state,
                   zip: formData.zip,
