@@ -5,13 +5,15 @@
  * Fixed-width center content that slides left when sidebar opens
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, Save, AlertCircle, FileText, Wrench, Shield, Check, X, MapPin, Building2, Calendar, Clock } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest, useRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
 import { useClientProperties } from '../../client_hub/hooks/useProperties';
+import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import { supabase } from '../../../lib/supabase';
+import type { AddressFormData } from '../../shared/types/location';
 import type { RequestFormData, RequestSource, RequestType, Priority } from '../types';
 import { PRODUCT_TYPES } from '../types';
 
@@ -70,16 +72,25 @@ export default function RequestEditorPage({
 }: RequestEditorPageProps) {
   const [formData, setFormData] = useState<RequestFormData>(INITIAL_FORM_DATA);
 
-  // Client fields (like Client Hub pattern)
-  const [clientName, setClientName] = useState(''); // Contact name or individual client
-  const [companyName, setCompanyName] = useState(''); // Optional company name
-
-  // Client search state
-  const [clientSearch, setClientSearch] = useState('');
+  // Merged client name/search field - type to search, if no match it becomes new client
+  const [clientNameInput, setClientNameInput] = useState('');
   const [clientResults, setClientResults] = useState<ClientSearchResult[]>([]);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(null);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+
+  // Merged company name/search field - same pattern
+  const [companyNameInput, setCompanyNameInput] = useState('');
+  const [companyResults, setCompanyResults] = useState<ClientSearchResult[]>([]);
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const companyInputRef = useRef<HTMLInputElement>(null);
+
+  // Client panel and property selection
   const [showClientPanel, setShowClientPanel] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+
+  // Unit/Suite field
+  const [unit, setUnit] = useState('');
 
   // Schedule state (separate date/time like Jobber)
   const [scheduleDate, setScheduleDate] = useState('');
@@ -111,7 +122,7 @@ export default function RequestEditorPage({
   const validateForm = useMemo(() => {
     const errors: string[] = [];
     const hasClient = !!formData.client_id;
-    const hasContactName = !!clientName.trim();
+    const hasContactName = !!clientNameInput.trim();
     const hasContactMethod = !!formData.contact_phone.trim() || !!formData.contact_email.trim();
 
     if (!hasClient && !hasContactName) {
@@ -124,13 +135,13 @@ export default function RequestEditorPage({
       errors.push('Service location is required');
     }
     return errors;
-  }, [formData.client_id, clientName, formData.contact_phone, formData.contact_email, formData.address_line1]);
+  }, [formData.client_id, clientNameInput, formData.contact_phone, formData.contact_email, formData.address_line1]);
 
   const isFormValid = validateForm.length === 0;
 
-  // Search clients
+  // Search clients by name (merged search)
   useEffect(() => {
-    if (clientSearch.length < 2) {
+    if (selectedClient || clientNameInput.length < 2) {
       setClientResults([]);
       return;
     }
@@ -138,13 +149,34 @@ export default function RequestEditorPage({
       const { data } = await supabase
         .from('clients')
         .select('id, name, company_name, primary_contact_name, primary_contact_phone, primary_contact_email')
-        .or(`name.ilike.%${clientSearch}%,company_name.ilike.%${clientSearch}%,primary_contact_phone.ilike.%${clientSearch}%`)
+        .or(`name.ilike.%${clientNameInput}%,primary_contact_name.ilike.%${clientNameInput}%,primary_contact_phone.ilike.%${clientNameInput}%`)
         .limit(5);
       setClientResults(data || []);
+      setShowClientDropdown((data?.length || 0) > 0);
     };
     const timer = setTimeout(search, 300);
     return () => clearTimeout(timer);
-  }, [clientSearch]);
+  }, [clientNameInput, selectedClient]);
+
+  // Search companies (merged search)
+  useEffect(() => {
+    if (selectedClient || companyNameInput.length < 2) {
+      setCompanyResults([]);
+      return;
+    }
+    const search = async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name, company_name, primary_contact_name, primary_contact_phone, primary_contact_email')
+        .not('company_name', 'is', null)
+        .ilike('company_name', `%${companyNameInput}%`)
+        .limit(5);
+      setCompanyResults(data || []);
+      setShowCompanyDropdown((data?.length || 0) > 0);
+    };
+    const timer = setTimeout(search, 300);
+    return () => clearTimeout(timer);
+  }, [companyNameInput, selectedClient]);
 
   // Load existing request data
   useEffect(() => {
@@ -173,7 +205,7 @@ export default function RequestEditorPage({
         territory_id: existingRequest.territory_id || '',
         priority: existingRequest.priority,
       });
-      setClientName(existingRequest.contact_name || '');
+      setClientNameInput(existingRequest.contact_name || '');
       if (existingRequest.client) {
         const client = existingRequest.client as ClientSearchResult;
         setSelectedClient({
@@ -184,8 +216,8 @@ export default function RequestEditorPage({
           primary_contact_phone: client.primary_contact_phone || null,
           primary_contact_email: client.primary_contact_email || null,
         });
-        setCompanyName(client.company_name || '');
-        setClientName(client.primary_contact_name || client.name || '');
+        setCompanyNameInput(client.company_name || '');
+        setClientNameInput(client.primary_contact_name || client.name || '');
       }
     }
   }, [existingRequest]);
@@ -212,8 +244,8 @@ export default function RequestEditorPage({
 
   const handleSelectClient = (client: ClientSearchResult) => {
     setSelectedClient(client);
-    setCompanyName(client.company_name || '');
-    setClientName(client.primary_contact_name || client.name);
+    setCompanyNameInput(client.company_name || '');
+    setClientNameInput(client.primary_contact_name || client.name);
     setFormData(prev => ({
       ...prev,
       client_id: client.id,
@@ -221,15 +253,17 @@ export default function RequestEditorPage({
       contact_phone: client.primary_contact_phone || '',
       contact_email: client.primary_contact_email || '',
     }));
-    setClientSearch('');
     setClientResults([]);
+    setCompanyResults([]);
+    setShowClientDropdown(false);
+    setShowCompanyDropdown(false);
     setShowClientPanel(true);
   };
 
   const handleClearClient = () => {
     setSelectedClient(null);
-    setCompanyName('');
-    setClientName('');
+    setCompanyNameInput('');
+    setClientNameInput('');
     setFormData(prev => ({
       ...prev,
       client_id: '',
@@ -238,6 +272,22 @@ export default function RequestEditorPage({
       contact_email: '',
     }));
     setShowClientPanel(false);
+  };
+
+  // Handle address change from SmartAddressInput
+  const handleAddressChange = (address: AddressFormData) => {
+    setSelectedPropertyId(null);
+    setFormData(prev => ({
+      ...prev,
+      property_id: '',
+      address_line1: address.address_line1,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    }));
+    if (showValidationErrors) setShowValidationErrors(false);
   };
 
   const handleSelectProperty = (property: { id: string; address_line1: string; city: string | null; state: string; zip: string | null; latitude: number | null; longitude: number | null }) => {
@@ -272,7 +322,7 @@ export default function RequestEditorPage({
     // Sync client name/company to contact_name
     const dataToSave = {
       ...formData,
-      contact_name: companyName ? clientName : (clientName || formData.contact_name),
+      contact_name: companyNameInput ? clientNameInput : (clientNameInput || formData.contact_name),
       assessment_scheduled_at: assessmentDateTime,
     };
 
@@ -370,9 +420,9 @@ export default function RequestEditorPage({
               <div className="bg-white rounded-xl border p-5">
                 <h2 className="text-base font-semibold text-gray-900 mb-4">Client Details</h2>
 
-                {/* Client Name / Search */}
                 <div className="space-y-3">
-                  {selectedClient ? (
+                  {/* Selected Client Badge (when client is selected) */}
+                  {selectedClient && (
                     <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                       <Building2 className="w-4 h-4 text-blue-500" />
                       <span className="text-sm font-medium flex-1 truncate">
@@ -394,55 +444,80 @@ export default function RequestEditorPage({
                         View Properties
                       </button>
                     </div>
-                  ) : (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                        placeholder="Search existing client..."
-                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      {clientResults.length > 0 && (
-                        <div className="absolute z-30 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                          {clientResults.map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => handleSelectClient(c)}
-                              className="w-full px-3 py-2 text-left hover:bg-gray-50 text-sm border-b last:border-b-0"
-                            >
-                              <div className="font-medium">{c.company_name || c.name}</div>
-                              {c.primary_contact_phone && (
-                                <div className="text-xs text-gray-500">{c.primary_contact_phone}</div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   )}
 
-                  {/* Client Name (contact person) */}
-                  <input
-                    type="text"
-                    value={clientName}
-                    onChange={(e) => {
-                      setClientName(e.target.value);
-                      setFormData(prev => ({ ...prev, contact_name: e.target.value }));
-                    }}
-                    placeholder="Client name"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  />
+                  {/* Client Name - Merged search/input field */}
+                  <div className="relative">
+                    <input
+                      ref={clientInputRef}
+                      type="text"
+                      value={clientNameInput}
+                      onChange={(e) => {
+                        setClientNameInput(e.target.value);
+                        setFormData(prev => ({ ...prev, contact_name: e.target.value }));
+                        if (selectedClient) {
+                          handleClearClient(); // Clear selection if user types
+                        }
+                      }}
+                      onFocus={() => clientResults.length > 0 && setShowClientDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
+                      placeholder="Client name (type to search existing)"
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      disabled={!!selectedClient}
+                    />
+                    {showClientDropdown && clientResults.length > 0 && (
+                      <div className="absolute z-30 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {clientResults.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => handleSelectClient(c)}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 text-sm border-b last:border-b-0"
+                          >
+                            <div className="font-medium">{c.primary_contact_name || c.name}</div>
+                            {c.primary_contact_phone && (
+                              <div className="text-xs text-gray-500">{c.primary_contact_phone}</div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                  {/* Company Name (optional) */}
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Company name (optional)"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  />
+                  {/* Company Name - Merged search/input field */}
+                  <div className="relative">
+                    <input
+                      ref={companyInputRef}
+                      type="text"
+                      value={companyNameInput}
+                      onChange={(e) => {
+                        setCompanyNameInput(e.target.value);
+                        if (selectedClient) {
+                          handleClearClient(); // Clear selection if user types
+                        }
+                      }}
+                      onFocus={() => companyResults.length > 0 && setShowCompanyDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                      placeholder="Company name (optional, type to search)"
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      disabled={!!selectedClient}
+                    />
+                    {showCompanyDropdown && companyResults.length > 0 && (
+                      <div className="absolute z-30 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {companyResults.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => handleSelectClient(c)}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 text-sm border-b last:border-b-0"
+                          >
+                            <div className="font-medium">{c.company_name}</div>
+                            <div className="text-xs text-gray-500">{c.primary_contact_name || c.name}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Phone + Email */}
                   <div className="flex gap-2">
@@ -462,7 +537,7 @@ export default function RequestEditorPage({
                     />
                   </div>
 
-                  {/* Source dropdown - moved from Job Details */}
+                  {/* Source dropdown */}
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Source</label>
                     <select
@@ -484,38 +559,60 @@ export default function RequestEditorPage({
               <div className="bg-white rounded-xl border p-5">
                 <h2 className="text-base font-semibold text-gray-900 mb-4">Service Location</h2>
                 <div className="space-y-3">
-                  {/* Street Address */}
-                  <input
-                    type="text"
-                    value={formData.address_line1}
-                    onChange={(e) => updateField('address_line1', e.target.value)}
+                  {/* Street Address - Smart autocomplete */}
+                  <SmartAddressInput
+                    value={{
+                      address_line1: formData.address_line1,
+                      city: formData.city,
+                      state: formData.state,
+                      zip: formData.zip,
+                      latitude: formData.latitude ?? null,
+                      longitude: formData.longitude ?? null,
+                    }}
+                    onChange={handleAddressChange}
+                    label=""
+                    required
+                    restrictToTexas
                     placeholder="Street address"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
 
-                  {/* City, State, ZIP inline */}
+                  {/* Unit + City/State/ZIP reference row */}
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      value={formData.city}
-                      onChange={(e) => updateField('city', e.target.value)}
-                      placeholder="City"
-                      className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    />
-                    <select
-                      value={formData.state}
-                      onChange={(e) => updateField('state', e.target.value)}
-                      className="w-20 px-3 py-2 border rounded-lg text-sm"
-                    >
-                      <option value="TX">TX</option>
-                    </select>
-                    <input
-                      type="text"
-                      value={formData.zip}
-                      onChange={(e) => updateField('zip', e.target.value)}
-                      placeholder="ZIP"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      placeholder="Unit/Suite"
                       className="w-24 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
+                    <div className="flex-1 px-3 py-2 bg-gray-50 border rounded-lg text-sm text-gray-600">
+                      {formData.city && formData.zip ? (
+                        <span>{formData.city}, {formData.state} {formData.zip}</span>
+                      ) : (
+                        <span className="text-gray-400">City, State ZIP (auto-filled)</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Territory - moved from Scheduled card */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Territory</label>
+                    <select
+                      value={formData.territory_id}
+                      onChange={(e) => updateField('territory_id', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="">Auto-detect from ZIP</option>
+                      {territories?.filter(t => {
+                        // Filter by BU if selected
+                        if (formData.business_unit_id && t.business_unit_id) {
+                          return t.is_active && t.business_unit_id === formData.business_unit_id;
+                        }
+                        return t.is_active;
+                      }).map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -688,27 +785,6 @@ export default function RequestEditorPage({
                       />
                       <span className={`text-sm ${scheduleLater ? 'text-gray-400' : 'text-gray-600'}`}>Anytime</span>
                     </label>
-                  </div>
-
-                  {/* Territory */}
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Territory</label>
-                    <select
-                      value={formData.territory_id}
-                      onChange={(e) => updateField('territory_id', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    >
-                      <option value="">Auto-detect from ZIP</option>
-                      {territories?.filter(t => {
-                        // Filter by BU if selected
-                        if (formData.business_unit_id && t.business_unit_id) {
-                          return t.is_active && t.business_unit_id === formData.business_unit_id;
-                        }
-                        return t.is_active;
-                      }).map((t) => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
-                      ))}
-                    </select>
                   </div>
 
                   {/* Assign Rep */}
