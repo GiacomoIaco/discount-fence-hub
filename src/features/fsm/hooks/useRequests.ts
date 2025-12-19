@@ -362,7 +362,7 @@ export function useConvertRequestToQuote() {
         .from('service_requests')
         .select(`
           *,
-          client:clients(id, name, billing_address_line1, billing_city, billing_state, billing_zip)
+          client:clients(id, name, address_line1, city, state, zip)
         `)
         .eq('id', requestId)
         .single();
@@ -378,11 +378,11 @@ export function useConvertRequestToQuote() {
       } : null;
 
       // Build billing address from client
-      const billingAddress = request.client?.billing_address_line1 ? {
-        line1: request.client.billing_address_line1,
-        city: request.client.billing_city || '',
-        state: request.client.billing_state || 'TX',
-        zip: request.client.billing_zip || '',
+      const billingAddress = request.client?.address_line1 ? {
+        line1: request.client.address_line1,
+        city: request.client.city || '',
+        state: request.client.state || 'TX',
+        zip: request.client.zip || '',
       } : null;
 
       // Create quote from request
@@ -456,7 +456,7 @@ export function useConvertRequestToJob() {
         .from('service_requests')
         .select(`
           *,
-          client:clients(id, name, billing_address_line1, billing_city, billing_state, billing_zip)
+          client:clients(id, name, address_line1, city, state, zip)
         `)
         .eq('id', requestId)
         .single();
