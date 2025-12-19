@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Check, Edit2, AlertTriangle } from 'lucide-react';
+import { Check, Edit2, AlertTriangle } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { CaptureLocationButton } from './CaptureLocationButton';
 import type { AddressSuggestion, AddressFormData } from '../types/location';
