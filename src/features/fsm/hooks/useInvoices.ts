@@ -70,7 +70,7 @@ export function useInvoice(id: string | undefined) {
         .from('invoices')
         .select(`
           *,
-          client:clients(id, name, code, billing_address_line1, billing_city, billing_state, billing_zip),
+          client:clients(id, name, code, address_line1, city, state, zip),
           job:jobs(id, job_number, product_type, linear_feet),
           quote:quotes(id, quote_number),
           line_items:invoice_line_items(*),

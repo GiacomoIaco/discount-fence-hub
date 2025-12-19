@@ -74,7 +74,7 @@ export function useJob(id: string | undefined) {
         .from('jobs')
         .select(`
           *,
-          client:clients(id, name, code, billing_address_line1, billing_city, billing_state, billing_zip),
+          client:clients(id, name, code, address_line1, city, state, zip),
           community:communities(id, name),
           property:properties(id, address_line1, city, state, zip),
           assigned_crew:crews(id, name, code, crew_size),
@@ -401,7 +401,7 @@ export function useCreateInvoiceFromJob() {
         .from('jobs')
         .select(`
           *,
-          client:clients(id, billing_address_line1, billing_city, billing_state, billing_zip),
+          client:clients(id, address_line1, city, state, zip),
           quote:quotes(id, total, tax_rate, tax_amount, discount_amount, subtotal)
         `)
         .eq('id', jobId)
@@ -416,12 +416,12 @@ export function useCreateInvoiceFromJob() {
           job_id: jobId,
           quote_id: job.quote_id,
           client_id: job.client_id,
-          billing_address: job.client?.billing_address_line1
+          billing_address: job.client?.address_line1
             ? {
-                line1: job.client.billing_address_line1,
-                city: job.client.billing_city || '',
-                state: job.client.billing_state || 'TX',
-                zip: job.client.billing_zip || '',
+                line1: job.client.address_line1,
+                city: job.client.city || '',
+                state: job.client.state || 'TX',
+                zip: job.client.zip || '',
               }
             : job.job_address,
           subtotal: job.quote?.subtotal || job.quoted_total || 0,
