@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { MapPin, Users, User, Settings } from 'lucide-react';
-import { TerritoriesList, CrewsList, SalesRepsList } from '../components';
+import { MapPin, Users, Settings } from 'lucide-react';
+import { TerritoriesList, CrewsList } from '../components';
 
-type TabId = 'territories' | 'crews' | 'sales_reps';
+// Note: Sales Reps tab removed - use Settings > Team Management instead
+// Reps are now managed through fsm_team_profiles, not sales_reps table
+
+type TabId = 'territories' | 'crews';
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'territories', label: 'Territories', icon: MapPin },
   { id: 'crews', label: 'Crews', icon: Users },
-  { id: 'sales_reps', label: 'Sales Reps', icon: User },
 ];
 
 export default function FSMSettingsPage() {
@@ -24,7 +26,7 @@ export default function FSMSettingsPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">FSM Settings</h1>
             <p className="text-sm text-gray-500">
-              Configure territories, crews, and sales representatives
+              Configure territories and crews
             </p>
           </div>
         </div>
@@ -55,7 +57,6 @@ export default function FSMSettingsPage() {
       <div className="flex-1 overflow-auto p-6">
         {activeTab === 'territories' && <TerritoriesList />}
         {activeTab === 'crews' && <CrewsList />}
-        {activeTab === 'sales_reps' && <SalesRepsList />}
       </div>
     </div>
   );

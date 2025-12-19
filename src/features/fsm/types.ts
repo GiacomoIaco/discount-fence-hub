@@ -85,6 +85,14 @@ export interface SalesRep {
   updated_at: string;
 }
 
+// User profile for rep joins (replaces SalesRep in new code)
+export interface RepUser {
+  id: string;  // user_id from auth.users
+  full_name: string | null;
+  email: string;
+  phone: string | null;
+}
+
 export interface Crew {
   id: string;
   name: string;
@@ -206,13 +214,15 @@ export interface ServiceRequest {
   requires_assessment: boolean;
   assessment_scheduled_at: string | null;
   assessment_completed_at: string | null;
-  assessment_rep_id: string | null;
+  assessment_rep_id: string | null;      // Legacy - use assessment_rep_user_id
+  assessment_rep_user_id: string | null; // FK to auth.users
   assessment_notes: string | null;
   // Status
   status: RequestStatus;
   status_changed_at: string;
   // Assignment
-  assigned_rep_id: string | null;
+  assigned_rep_id: string | null;        // Legacy - use assigned_rep_user_id
+  assigned_rep_user_id: string | null;   // FK to auth.users
   territory_id: string | null;
   business_unit_id: string | null;  // Legacy - use qbo_class_id instead
   qbo_class_id: string | null;      // QBO Class for accounting (e.g., "588451" = Austin Residential)
@@ -229,8 +239,10 @@ export interface ServiceRequest {
   client?: { id: string; name: string };
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string };
-  assigned_rep?: SalesRep;
-  assessment_rep?: SalesRep;
+  assigned_rep?: SalesRep;           // Legacy - use assigned_rep_user
+  assessment_rep?: SalesRep;         // Legacy - use assessment_rep_user
+  assigned_rep_user?: RepUser;       // New: joined from user_profiles
+  assessment_rep_user?: RepUser;     // New: joined from user_profiles
   territory?: { id: string; name: string; code: string };
   project?: { id: string; project_number: string };
   qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
@@ -294,8 +306,9 @@ export interface Quote {
   // Conversion
   converted_to_job_id: string | null;
   // Assignment
-  sales_rep_id: string | null;
-  qbo_class_id: string | null;  // QBO Class for accounting
+  sales_rep_id: string | null;       // Legacy - use sales_rep_user_id
+  sales_rep_user_id: string | null;  // FK to auth.users
+  qbo_class_id: string | null;       // QBO Class for accounting
   created_by: string | null;
   // Timestamps
   created_at: string;
@@ -316,7 +329,8 @@ export interface Quote {
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string; city?: string; state?: string; zip?: string };
   line_items?: QuoteLineItem[];
-  sales_rep?: SalesRep;
+  sales_rep?: SalesRep;              // Legacy - use sales_rep_user
+  sales_rep_user?: RepUser;          // New: joined from user_profiles
   request?: { id: string; request_number: string };
   qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
 }
@@ -374,7 +388,8 @@ export interface Job {
   estimated_duration_hours: number | null;
   // Assignment
   assigned_crew_id: string | null;
-  assigned_rep_id: string | null;
+  assigned_rep_id: string | null;        // Legacy - use assigned_rep_user_id
+  assigned_rep_user_id: string | null;   // FK to auth.users
   territory_id: string | null;
   qbo_class_id: string | null;  // QBO Class for accounting
   // Status
@@ -406,6 +421,7 @@ export interface Job {
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string };
   assigned_crew?: Crew;
+  assigned_rep_user?: RepUser;  // New: joined from user_profiles
   visits?: JobVisit[];
   qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
 }
