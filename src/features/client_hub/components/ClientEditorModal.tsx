@@ -404,17 +404,17 @@ export default function ClientEditorModal({ client, onClose }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  BU (Business Unit)
+                  QBO Class
                 </label>
                 <select
                   value={formData.default_qbo_class_id || ''}
                   onChange={(e) => setFormData({ ...formData, default_qbo_class_id: e.target.value || null })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Select BU...</option>
+                  <option value="">Select...</option>
                   {qboClasses?.map((qboClass) => (
                     <option key={qboClass.id} value={qboClass.id}>
-                      {qboClass.fully_qualified_name || qboClass.name}
+                      {qboClass.labor_code || qboClass.name}
                     </option>
                   ))}
                 </select>

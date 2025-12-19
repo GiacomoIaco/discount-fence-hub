@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   Building2,
-  MapPin,
   Users,
   Home,
   FileSpreadsheet,
 } from 'lucide-react';
 import ClientsList from './components/ClientsList';
 import CommunitiesList from './components/CommunitiesList';
-import GeographiesList from './components/GeographiesList';
 import RateSheetsList from './components/RateSheetsList';
 import ClientDetailPage from './pages/ClientDetailPage';
 import PropertyDetailPage from './pages/PropertyDetailPage';
@@ -16,7 +14,7 @@ import CommunityDetailPage from './pages/CommunityDetailPage';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
-type Tab = 'clients' | 'communities' | 'geographies' | 'rate-sheets';
+type Tab = 'clients' | 'communities' | 'rate-sheets';
 
 interface ClientHubProps {
   onBack?: () => void;
@@ -102,7 +100,6 @@ export default function ClientHub({
     { id: 'clients', label: 'Clients', icon: <Building2 className="w-4 h-4" /> },
     { id: 'communities', label: 'Communities', icon: <Home className="w-4 h-4" /> },
     { id: 'rate-sheets', label: 'Rate Sheets', icon: <FileSpreadsheet className="w-4 h-4" /> },
-    { id: 'geographies', label: 'Geographies', icon: <MapPin className="w-4 h-4" /> },
   ];
 
   return (
@@ -153,7 +150,6 @@ export default function ClientHub({
           <CommunitiesList onNavigateToEntity={onNavigateToEntity} />
         )}
         {activeTab === 'rate-sheets' && <RateSheetsList />}
-        {activeTab === 'geographies' && <GeographiesList />}
       </div>
     </div>
   );

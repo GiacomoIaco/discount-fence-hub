@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen, Calendar, User, Users, GripVertical } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen, Calendar, User, Users, GripVertical, MapPin } from 'lucide-react';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
-import { useClients, useGeographies } from '../hooks/useClients';
+import { useClients } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
 import { useQboClasses } from '../hooks/useQboClasses';
+import { useLocations } from '../../settings/territories/hooks/useTerritories';
 import { useCrews, useFsmTeamFull } from '../../fsm/hooks';
 import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import type { AddressFormData } from '../../shared/types/location';
@@ -21,7 +22,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
   const updateMutation = useUpdateCommunity();
 
   const { data: clients } = useClients({});
-  const { data: geographies } = useGeographies();
+  const { data: locations } = useLocations();
   const { data: rateSheets } = useRateSheets({ is_active: true });
   const { data: qboClasses } = useQboClasses(true); // Only selectable classes
   const { data: fsmTeamMembers } = useFsmTeamFull();
@@ -175,25 +176,28 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
             </div>
           </div>
 
-          {/* Geography */}
+          {/* Location */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Geography (Labor Zone)
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-gray-400" />
+                Location
+              </div>
             </label>
             <select
-              value={formData.geography_id}
-              onChange={(e) => setFormData({ ...formData, geography_id: e.target.value })}
+              value={formData.location_code || ''}
+              onChange={(e) => setFormData({ ...formData, location_code: e.target.value || null })}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">Select geography</option>
-              {geographies?.map((geo) => (
-                <option key={geo.id} value={geo.id}>
-                  {geo.name} ({geo.code}) - ${geo.base_labor_rate}/hr
+              <option value="">Select location</option>
+              {locations?.map((loc) => (
+                <option key={loc.code} value={loc.code}>
+                  {loc.name} ({loc.code})
                 </option>
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Geography determines labor rates for this community
+              Austin (ATX), San Antonio (SA), or Houston (HOU)
             </p>
           </div>
 
@@ -383,7 +387,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
                 <option value="">Use client's default</option>
                 {qboClasses?.map((qboClass) => (
                   <option key={qboClass.id} value={qboClass.id}>
-                    {qboClass.fully_qualified_name || qboClass.name}
+                    {qboClass.labor_code || qboClass.name}
                   </option>
                 ))}
               </select>
