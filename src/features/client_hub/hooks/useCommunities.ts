@@ -11,6 +11,7 @@ export function useCommunities(filters?: {
   search?: string;
   client_id?: string;
   geography_id?: string;
+  location_code?: string;
   status?: string;
 }) {
   return useQuery({
@@ -21,7 +22,8 @@ export function useCommunities(filters?: {
         .select(`
           *,
           client:clients(id, name, code),
-          geography:geographies(id, name, code)
+          geography:geographies(id, name, code),
+          location:locations(code, name)
         `)
         .order('name');
 
@@ -33,6 +35,9 @@ export function useCommunities(filters?: {
       }
       if (filters?.geography_id) {
         query = query.eq('geography_id', filters.geography_id);
+      }
+      if (filters?.location_code) {
+        query = query.eq('location_code', filters.location_code);
       }
       if (filters?.status) {
         query = query.eq('status', filters.status);
@@ -57,6 +62,7 @@ export function useCommunity(id: string | null) {
           *,
           client:clients(*),
           geography:geographies(*),
+          location:locations(code, name),
           contacts:community_contacts(
             *,
             contact_role:contact_roles(*)

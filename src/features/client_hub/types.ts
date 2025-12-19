@@ -137,7 +137,8 @@ export interface UserProfile {
 export interface Community {
   id: string;
   client_id: string;
-  geography_id: string | null;
+  geography_id: string | null; // Legacy - use location_code instead
+  location_code: string | null; // 'ATX', 'SA', 'HOU'
   name: string;
   code: string | null;
 
@@ -183,6 +184,7 @@ export interface Community {
   // Joined
   client?: Client;
   geography?: Geography;
+  location?: { code: string; name: string }; // Location info from locations table
   contacts?: CommunityContact[];
   default_rep?: UserProfile;
   assigned_rep?: { id: string; email: string; full_name: string | null };
@@ -360,7 +362,8 @@ export interface ClientFormData {
 
 export interface CommunityFormData {
   client_id: string;
-  geography_id: string;
+  geography_id: string; // Legacy - use location_code instead
+  location_code: string | null; // 'ATX', 'SA', 'HOU'
   name: string;
   code: string;
   address_line1: string;
