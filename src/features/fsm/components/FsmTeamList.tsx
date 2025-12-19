@@ -6,7 +6,7 @@ import type { FsmTeamMember, FsmRole, Crew } from '../types';
 import { FSM_ROLE_LABELS, DAY_SHORT_LABELS } from '../types';
 import FsmTeamEditorModal from './FsmTeamEditorModal';
 import FsmTeamImportModal from './FsmTeamImportModal';
-import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
+import { useQboClasses } from '../../client_hub/hooks/useQboClasses';
 
 interface EditingState {
   userId: string;
@@ -16,7 +16,7 @@ interface EditingState {
 
 export default function FsmTeamList() {
   const { data: teamMembers, isLoading } = useFsmTeamFull();
-  const { data: businessUnits } = useBusinessUnits();
+  const { data: qboClasses } = useQboClasses(true); // Only selectable classes
   const { data: crews } = useCrews();
   const { data: allAlignments } = useAllRepCrewAlignments();
   const deleteMutation = useDeleteFsmTeamProfile();
@@ -157,16 +157,16 @@ export default function FsmTeamList() {
             ))}
           </select>
 
-          {/* BU Filter */}
-          {businessUnits && businessUnits.length > 1 && (
+          {/* QBO Class Filter */}
+          {qboClasses && qboClasses.length > 1 && (
             <select
               value={filterBU}
               onChange={(e) => setFilterBU(e.target.value)}
               className="text-sm border border-gray-300 rounded-lg px-3 py-2"
             >
-              <option value="">All BUs</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>{bu.name}</option>
+              <option value="">All QBO Classes</option>
+              {qboClasses.map(qc => (
+                <option key={qc.id} value={qc.id}>{qc.labor_code || qc.name}</option>
               ))}
             </select>
           )}
@@ -202,7 +202,7 @@ export default function FsmTeamList() {
                   Roles
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Assigned BUs
+                  QBO Classes
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Aligned Crews
@@ -230,10 +230,7 @@ export default function FsmTeamList() {
                         <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                           <User className="w-4 h-4 text-green-600" />
                         </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{member.name}</div>
-                          <div className="text-xs text-gray-500">{member.email}</div>
-                        </div>
+                        <div className="font-medium text-gray-900">{member.name}</div>
                       </div>
                     </td>
 
@@ -256,19 +253,19 @@ export default function FsmTeamList() {
                       </div>
                     </td>
 
-                    {/* Assigned BUs - Inline Editable */}
+                    {/* QBO Classes - Inline Editable */}
                     <td className="px-4 py-3">
                       {isEditingBUs ? (
                         <div className="relative">
                           <div className="flex flex-wrap gap-1 mb-2">
                             {editing.selectedIds.map(id => {
-                              const bu = businessUnits?.find(b => b.id === id);
-                              return bu ? (
+                              const qc = qboClasses?.find(q => q.id === id);
+                              return qc ? (
                                 <span
                                   key={id}
                                   className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded inline-flex items-center gap-1"
                                 >
-                                  {bu.name}
+                                  {qc.labor_code || qc.name}
                                   <button
                                     onClick={() => toggleSelection(id)}
                                     className="hover:text-purple-900"
@@ -285,25 +282,25 @@ export default function FsmTeamList() {
                                 onClick={() => setDropdownOpen(!dropdownOpen)}
                                 className="w-full text-left text-xs border border-gray-300 rounded px-2 py-1 flex items-center justify-between bg-white"
                               >
-                                <span className="text-gray-500">Add BU...</span>
+                                <span className="text-gray-500">Add...</span>
                                 <ChevronDown className="w-3 h-3 text-gray-400" />
                               </button>
                               {dropdownOpen && (
                                 <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
-                                  {businessUnits?.filter(bu => !editing.selectedIds.includes(bu.id)).map(bu => (
+                                  {qboClasses?.filter(qc => !editing.selectedIds.includes(qc.id)).map(qc => (
                                     <button
-                                      key={bu.id}
+                                      key={qc.id}
                                       onClick={() => {
-                                        toggleSelection(bu.id);
+                                        toggleSelection(qc.id);
                                         setDropdownOpen(false);
                                       }}
                                       className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                                     >
-                                      {bu.name}
+                                      {qc.labor_code || qc.name}
                                     </button>
                                   ))}
-                                  {businessUnits?.filter(bu => !editing.selectedIds.includes(bu.id)).length === 0 && (
-                                    <div className="px-3 py-2 text-sm text-gray-500">All BUs selected</div>
+                                  {qboClasses?.filter(qc => !editing.selectedIds.includes(qc.id)).length === 0 && (
+                                    <div className="px-3 py-2 text-sm text-gray-500">All classes assigned</div>
                                   )}
                                 </div>
                               )}
@@ -332,13 +329,13 @@ export default function FsmTeamList() {
                         >
                           {(member.assigned_qbo_class_ids || []).length > 0 ? (
                             (member.assigned_qbo_class_ids || []).map(id => {
-                              const bu = businessUnits?.find(b => b.id === id);
-                              return bu ? (
+                              const qc = qboClasses?.find(q => q.id === id);
+                              return qc ? (
                                 <span
                                   key={id}
                                   className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded"
                                 >
-                                  {bu.name}
+                                  {qc.labor_code || qc.name}
                                 </span>
                               ) : null;
                             })
@@ -463,13 +460,11 @@ export default function FsmTeamList() {
                     {/* Details */}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                        {/* Territories */}
+                        {/* Territories - show codes */}
                         {member.territories.length > 0 && (
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5 text-blue-500" />
-                            {member.territories.length === 1
-                              ? member.territories[0].territory_name
-                              : `${member.territories.length} territories`}
+                            {member.territories.map(t => t.territory_code || t.territory_name).join(', ')}
                           </span>
                         )}
 

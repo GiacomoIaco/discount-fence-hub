@@ -28,6 +28,10 @@ export interface QboClass {
   is_active: boolean;
   is_selectable: boolean;          // User can toggle which appear in dropdowns
   synced_at: string;
+  // BU/QBO Normalization fields (Phase 0)
+  bu_type: 'residential' | 'builders' | 'commercial' | null;
+  location_code: 'ATX' | 'SA' | 'HOU' | null;
+  labor_code: string | null;       // e.g., 'ATX-RES', 'ATX-HB', 'COM'
 }
 
 // ============================================

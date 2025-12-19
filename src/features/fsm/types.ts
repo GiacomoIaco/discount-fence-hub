@@ -882,7 +882,7 @@ export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 export type SkillProficiency = 'trainee' | 'basic' | 'standard' | 'expert';
 
 export const FSM_ROLE_LABELS: Record<FsmRole, string> = {
-  rep: 'Sales Rep',
+  rep: 'Rep',
   project_manager: 'Project Manager',
   crew_lead: 'Crew Lead',
   dispatcher: 'Dispatcher',
@@ -1054,6 +1054,7 @@ export interface FsmTeamMember {
   territories: {
     territory_id: string;
     territory_name: string;
+    territory_code: string;
     coverage_days: DayOfWeek[] | null;
     is_primary: boolean;
   }[];
