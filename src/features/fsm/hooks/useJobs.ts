@@ -23,7 +23,6 @@ export function useJobs(filters?: JobFilters) {
           client:clients(id, name, code),
           community:communities(id, name),
           assigned_crew:crews(id, name, code),
-          assigned_rep_user:user_profiles!fk_jobs_assigned_rep_user(id, full_name, email, phone),
           qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .order('created_at', { ascending: false });
@@ -79,7 +78,6 @@ export function useJob(id: string | undefined) {
           community:communities(id, name),
           property:properties(id, address_line1, city, state, zip),
           assigned_crew:crews(id, name, code, crew_size),
-          assigned_rep_user:user_profiles!fk_jobs_assigned_rep_user(id, full_name, email, phone),
           quote:quotes(id, quote_number, total),
           visits:job_visits(*),
           qbo_class:qbo_classes(id, name, bu_type, location_code)
