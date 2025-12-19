@@ -34,7 +34,7 @@ const ALL_ROLES: FsmRole[] = ['rep', 'project_manager', 'crew_lead', 'dispatcher
 const ALL_PROFICIENCIES: SkillProficiency[] = ['trainee', 'basic', 'standard', 'expert'];
 
 export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorModalProps) {
-  const { data: qboClasses } = useQboClasses();
+  const { data: qboClasses } = useQboClasses(true); // Only show selectable classes
   const { data: territories } = useTerritories();
   const { data: projectTypes } = useProjectTypes();
   const { data: crews } = useCrews();
