@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Edit2, AlertTriangle } from 'lucide-react';
+import { Check, Edit2, AlertTriangle, MapPin } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { CaptureLocationButton } from './CaptureLocationButton';
 import type { AddressSuggestion, AddressFormData } from '../types/location';
@@ -123,9 +123,10 @@ export function SmartAddressInput({
             <Check className="w-3 h-3" />
             <span>Location verified</span>
           </div>
-          <span className="text-gray-400">
-            ({formatCoordinates(value.latitude!, value.longitude!, 4)})
-          </span>
+          <div className="flex items-center gap-1 text-gray-400">
+            <MapPin className="w-3 h-3" />
+            <span>{formatCoordinates(value.latitude!, value.longitude!, 4)}</span>
+          </div>
         </div>
       )}
 
