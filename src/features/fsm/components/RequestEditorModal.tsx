@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Phone, Globe, Users, Building, FileText, Wrench, Shield, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, FileText, Wrench, Shield, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
