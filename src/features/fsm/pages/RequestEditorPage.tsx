@@ -1,49 +1,40 @@
 /**
- * RequestEditorPage - Full page for creating/editing service requests
+ * RequestEditorPage - Compact full page for creating/editing service requests
  *
- * Routes:
- * - /requests/new → Create new request
- * - /requests/:id/edit → Edit existing request
+ * Redesigned for R-007: Single-screen layout with client properties panel
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Phone, Globe, Users, Building, Save, AlertCircle, FileText, Wrench, Shield } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, FileText, Wrench, Shield, Check, User, MapPin, Building2, ChevronRight, X } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest, useRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
-import { ClientLookup, PropertyLookup } from '../../../components/common/SmartLookup';
+import { useClientProperties } from '../../client_hub/hooks/useProperties';
 import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
+import { supabase } from '../../../lib/supabase';
 import type { AddressFormData } from '../../shared/types/location';
-import type { SelectedEntity } from '../../../components/common/SmartLookup';
-import type { Property } from '../../client_hub/types';
 import type { RequestFormData, RequestSource, RequestType, Priority } from '../types';
 import { PRODUCT_TYPES } from '../types';
 
 interface RequestEditorPageProps {
-  requestId?: string; // If provided, we're editing; otherwise creating
+  requestId?: string;
   onBack: () => void;
   onSaved?: (requestId: string) => void;
 }
 
-const SOURCES: { value: RequestSource; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: 'phone', label: 'Phone', icon: Phone },
-  { value: 'web', label: 'Website', icon: Globe },
-  { value: 'referral', label: 'Referral', icon: Users },
-  { value: 'walk_in', label: 'Walk-in', icon: Building },
-  { value: 'builder_portal', label: 'Builder Portal', icon: Building },
-];
+interface ClientSearchResult {
+  id: string;
+  name: string;
+  company_name: string | null;
+  primary_contact_name: string | null;
+  primary_contact_phone: string | null;
+  primary_contact_email: string | null;
+}
 
 const REQUEST_TYPES: { value: RequestType; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
   { value: 'new_quote', label: 'New Quote', icon: FileText, color: 'border-blue-500 bg-blue-50 text-blue-700' },
   { value: 'repair', label: 'Repair', icon: Wrench, color: 'border-orange-500 bg-orange-50 text-orange-700' },
   { value: 'warranty', label: 'Warranty', icon: Shield, color: 'border-purple-500 bg-purple-50 text-purple-700' },
-];
-
-const PRIORITIES: { value: Priority; label: string; color: string }[] = [
-  { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-600' },
-  { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-blue-600' },
-  { value: 'high', label: 'High', color: 'bg-orange-100 text-orange-600' },
-  { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-600' },
 ];
 
 const INITIAL_FORM_DATA: RequestFormData = {
@@ -69,7 +60,6 @@ const INITIAL_FORM_DATA: RequestFormData = {
   assigned_rep_id: '',
   territory_id: '',
   priority: 'normal',
-  // Geocoding fields
   latitude: null,
   longitude: null,
 };
@@ -81,53 +71,72 @@ export default function RequestEditorPage({
 }: RequestEditorPageProps) {
   const [formData, setFormData] = useState<RequestFormData>(INITIAL_FORM_DATA);
 
-  // Smart lookup state
-  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  // Client search state
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientResults, setClientResults] = useState<ClientSearchResult[]>([]);
+  const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(null);
+  const [showClientPanel, setShowClientPanel] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
   const { data: existingRequest, isLoading: isLoadingRequest } = useRequest(requestId);
   const { data: territories } = useTerritories();
   const { data: salesReps } = useSalesReps();
   const { data: businessUnits } = useBusinessUnits();
+  const { data: clientProperties } = useClientProperties(selectedClient?.id || null);
 
   const createMutation = useCreateRequest();
   const updateMutation = useUpdateRequest();
 
   const isEditing = !!requestId;
 
-  // Validation state
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
+
+  const filteredReps = useMemo(() => {
+    if (!salesReps) return [];
+    return salesReps.filter(r => r.is_active);
+  }, [salesReps]);
 
   // Validate required fields
   const validateForm = useMemo(() => {
     const errors: string[] = [];
-
-    // Must have either a client or contact info
     const hasClient = !!formData.client_id;
     const hasContactName = !!formData.contact_name.trim();
     const hasContactMethod = !!formData.contact_phone.trim() || !!formData.contact_email.trim();
 
     if (!hasClient && !hasContactName) {
-      errors.push('Customer name is required (select a client or enter contact name)');
+      errors.push('Customer name is required');
     }
-
     if (!hasClient && hasContactName && !hasContactMethod) {
-      errors.push('Phone or email is required for new contacts');
+      errors.push('Phone or email is required');
     }
-
-    // Must have an address
-    const hasAddress = !!formData.address_line1.trim();
-    if (!hasAddress) {
-      errors.push('Job site address is required');
+    if (!formData.address_line1.trim()) {
+      errors.push('Job address is required');
     }
-
     return errors;
   }, [formData.client_id, formData.contact_name, formData.contact_phone, formData.contact_email, formData.address_line1]);
 
   const isFormValid = validateForm.length === 0;
 
-  // Load existing request data when editing
+  // Search clients
+  useEffect(() => {
+    if (clientSearch.length < 2) {
+      setClientResults([]);
+      return;
+    }
+    const search = async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name, company_name, primary_contact_name, primary_contact_phone, primary_contact_email')
+        .or(`name.ilike.%${clientSearch}%,company_name.ilike.%${clientSearch}%,primary_contact_phone.ilike.%${clientSearch}%`)
+        .limit(5);
+      setClientResults(data || []);
+    };
+    const timer = setTimeout(search, 300);
+    return () => clearTimeout(timer);
+  }, [clientSearch]);
+
+  // Load existing request data
   useEffect(() => {
     if (existingRequest) {
       setFormData({
@@ -154,71 +163,62 @@ export default function RequestEditorPage({
         territory_id: existingRequest.territory_id || '',
         priority: existingRequest.priority,
       });
-
-      // Load existing client entity for display
       if (existingRequest.client) {
-        const communityName = existingRequest.community?.name;
-        const clientName = existingRequest.client.name;
-        setSelectedEntity({
-          client: existingRequest.client as any,
-          community: existingRequest.community as any,
-          display_name: communityName ? `${communityName} (${clientName})` : clientName,
+        // Cast to full client type since the join includes these fields
+        const client = existingRequest.client as ClientSearchResult;
+        setSelectedClient({
+          id: client.id,
+          name: client.name,
+          company_name: client.company_name || null,
+          primary_contact_name: client.primary_contact_name || null,
+          primary_contact_phone: client.primary_contact_phone || null,
+          primary_contact_email: client.primary_contact_email || null,
         });
-      }
-
-      // Load existing property for display
-      if (existingRequest.property) {
-        setSelectedProperty(existingRequest.property as any);
       }
     }
   }, [existingRequest]);
 
-  // Sync selected entity to form data
+  // Auto-detect territory from zip
   useEffect(() => {
-    if (selectedEntity) {
-      setFormData(prev => ({
-        ...prev,
-        client_id: selectedEntity.client.id,
-        community_id: selectedEntity.community?.id || '',
-        // Pre-fill contact info from client if no manual entry
-        contact_name: prev.contact_name || selectedEntity.client.primary_contact_name || '',
-        contact_phone: prev.contact_phone || selectedEntity.client.primary_contact_phone || '',
-        contact_email: prev.contact_email || selectedEntity.client.primary_contact_email || '',
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        client_id: '',
-        community_id: '',
-      }));
+    if (formData.zip && territories && !formData.territory_id) {
+      const match = territories.find(t => t.zip_codes.some(z => z.trim() === formData.zip.trim()));
+      if (match) setFormData(prev => ({ ...prev, territory_id: match.id }));
     }
-  }, [selectedEntity]);
+  }, [formData.zip, territories, formData.territory_id]);
 
-  // Sync selected property to form data
-  useEffect(() => {
-    if (selectedProperty) {
-      setFormData(prev => ({
-        ...prev,
-        property_id: selectedProperty.id,
-        address_line1: selectedProperty.address_line1,
-        city: selectedProperty.city || prev.city,
-        state: selectedProperty.state || prev.state,
-        zip: selectedProperty.zip || prev.zip,
-        latitude: selectedProperty.latitude ?? null,
-        longitude: selectedProperty.longitude ?? null,
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        property_id: '',
-      }));
-    }
-  }, [selectedProperty]);
-
-  // Handler for SmartAddressInput
-  const handleAddressChange = (address: AddressFormData) => {
+  const handleSelectClient = (client: ClientSearchResult) => {
+    setSelectedClient(client);
     setFormData(prev => ({
       ...prev,
+      client_id: client.id,
+      contact_name: client.primary_contact_name || client.name,
+      contact_phone: client.primary_contact_phone || '',
+      contact_email: client.primary_contact_email || '',
+    }));
+    setClientSearch('');
+    setClientResults([]);
+    setShowClientPanel(true);
+  };
+
+  const handleSelectProperty = (property: { id: string; address_line1: string; city: string | null; state: string; zip: string | null; latitude: number | null; longitude: number | null }) => {
+    setSelectedPropertyId(property.id);
+    setFormData(prev => ({
+      ...prev,
+      property_id: property.id,
+      address_line1: property.address_line1,
+      city: property.city || '',
+      state: property.state || 'TX',
+      zip: property.zip || '',
+      latitude: property.latitude ?? null,
+      longitude: property.longitude ?? null,
+    }));
+  };
+
+  const handleAddressChange = (address: AddressFormData) => {
+    setSelectedPropertyId(null);
+    setFormData(prev => ({
+      ...prev,
+      property_id: '',
       address_line1: address.address_line1,
       city: address.city,
       state: address.state,
@@ -226,38 +226,17 @@ export default function RequestEditorPage({
       latitude: address.latitude,
       longitude: address.longitude,
     }));
-    // Clear validation errors when user starts fixing the form
-    if (showValidationErrors) {
-      setShowValidationErrors(false);
-    }
+    if (showValidationErrors) setShowValidationErrors(false);
   };
-
-  // Auto-detect territory from zip code
-  useEffect(() => {
-    if (formData.zip && territories && !formData.territory_id) {
-      const matchingTerritory = territories.find(t =>
-        t.zip_codes.some(z => z.trim() === formData.zip.trim())
-      );
-      if (matchingTerritory) {
-        setFormData(prev => ({ ...prev, territory_id: matchingTerritory.id }));
-      }
-    }
-  }, [formData.zip, territories, formData.territory_id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Show validation errors if form is invalid
     if (!isFormValid) {
       setValidationErrors(validateForm);
       setShowValidationErrors(true);
-      // Scroll to top to show errors
-      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-
     setShowValidationErrors(false);
-
     try {
       if (isEditing && requestId) {
         await updateMutation.mutateAsync({ id: requestId, data: formData });
@@ -265,7 +244,6 @@ export default function RequestEditorPage({
         onBack();
       } else {
         const result = await createMutation.mutateAsync(formData);
-        // Navigate back first, then call onSaved which may trigger additional navigation
         onBack();
         onSaved?.(result.id);
       }
@@ -276,10 +254,16 @@ export default function RequestEditorPage({
 
   const updateField = <K extends keyof RequestFormData>(field: K, value: RequestFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear validation errors when user starts fixing the form
-    if (showValidationErrors) {
-      setShowValidationErrors(false);
-    }
+    if (showValidationErrors) setShowValidationErrors(false);
+  };
+
+  const toggleProductType = (pt: string) => {
+    setFormData(prev => ({
+      ...prev,
+      product_types: prev.product_types.includes(pt)
+        ? prev.product_types.filter(p => p !== pt)
+        : [...prev.product_types, pt],
+    }));
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -293,316 +277,82 @@ export default function RequestEditorPage({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {isEditing
-                    ? `Edit Request ${existingRequest?.request_number || ''}`
-                    : 'New Service Request'}
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  {isEditing ? 'Update request details' : 'Create a new client service request'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleSubmit}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Request'}
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Main Form Area */}
+      <div className={`flex-1 flex flex-col ${showClientPanel ? 'max-w-[70%]' : ''}`}>
+        {/* Compact Header */}
+        <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} className="p-1.5 hover:bg-gray-100 rounded">
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">
+                {isEditing ? `Edit ${existingRequest?.request_number || ''}` : 'New Service Request'}
+              </h1>
+              <p className="text-xs text-gray-500">{isEditing ? 'Update request details' : 'Create a new client service request'}</p>
+            </div>
           </div>
+          <button
+            onClick={handleSubmit}
+            disabled={isSaving}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? 'Saving...' : isEditing ? 'Save' : 'Create'}
+          </button>
         </div>
-      </div>
 
-      {/* Validation Errors */}
-      {showValidationErrors && validationErrors.length > 0 && (
-        <div className="max-w-4xl mx-auto px-6 pt-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-red-800">Please fix the following errors:</h3>
-                <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-                  {validationErrors.map((error, idx) => (
-                    <li key={idx}>{error}</li>
+        {/* Validation Errors */}
+        {showValidationErrors && validationErrors.length > 0 && (
+          <div className="mx-4 mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <span className="font-medium text-red-800">Fix errors: </span>
+                <span className="text-red-700">{validationErrors.join(', ')}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Form Content - All in one scrollable area */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Row 1: BU + Request Type */}
+          <div className="bg-white rounded-lg border p-4">
+            <div className="flex gap-6">
+              <div className="flex-1">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">BUSINESS UNIT</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {businessUnits?.map((bu) => (
+                    <button
+                      key={bu.id}
+                      type="button"
+                      onClick={() => updateField('business_unit_id', formData.business_unit_id === bu.id ? '' : bu.id)}
+                      className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
+                        formData.business_unit_id === bu.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {bu.code || bu.name.substring(0, 10)}
+                    </button>
                   ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Form Content */}
-      <div className="max-w-4xl mx-auto p-6">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Source Selection */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Request Source</h2>
-            <div className="flex flex-wrap gap-2">
-              {SOURCES.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => updateField('source', value)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors ${
-                    formData.source === value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Business Unit Selection */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Business Unit</h2>
-            <div className="flex flex-wrap gap-2">
-              {businessUnits?.map((bu) => (
-                <button
-                  key={bu.id}
-                  type="button"
-                  onClick={() => updateField('business_unit_id', formData.business_unit_id === bu.id ? '' : bu.id)}
-                  className={`px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
-                    formData.business_unit_id === bu.id
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                  }`}
-                >
-                  {bu.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Request Type Selection */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Request Type</h2>
-            <div className="flex flex-wrap gap-3">
-              {REQUEST_TYPES.map(({ value, label, icon: Icon, color }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => updateField('request_type', value)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-                    formData.request_type === value
-                      ? color
-                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Customer Section */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer</h2>
-            <div className="space-y-6">
-              {/* Smart Client/Community Lookup */}
-              <div>
-                <ClientLookup
-                  value={selectedEntity}
-                  onChange={setSelectedEntity}
-                  label="Customer"
-                  placeholder="Search by name, phone, email, or community..."
-                  onClientCreated={(client) => {
-                    console.log('New client created:', client);
-                  }}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Type to search existing clients and communities, or create a new one
-                </p>
-              </div>
-
-              {/* Smart Property Lookup (only shown when client is selected) */}
-              {selectedEntity && (
-                <div>
-                  <PropertyLookup
-                    clientId={selectedEntity.client.id}
-                    client={selectedEntity.client}
-                    value={selectedProperty}
-                    onChange={setSelectedProperty}
-                    label="Property / Job Site"
-                    placeholder="Search address or lot number..."
-                    onPropertyCreated={(property) => {
-                      console.log('New property created:', property);
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Manual Address Entry (shown when no property selected) */}
-              {!selectedProperty && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {selectedEntity ? 'Or Enter Address Manually' : 'Job Address'} <span className="text-red-500">*</span>
-                  </label>
-                  <SmartAddressInput
-                    value={{
-                      address_line1: formData.address_line1,
-                      city: formData.city,
-                      state: formData.state,
-                      zip: formData.zip,
-                      latitude: formData.latitude ?? null,
-                      longitude: formData.longitude ?? null,
-                    }}
-                    onChange={handleAddressChange}
-                    label=""
-                    required
-                    restrictToTexas
-                    placeholder="Start typing address..."
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Contact Info Section */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Name {!formData.client_id && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  type="text"
-                  value={formData.contact_name}
-                  onChange={(e) => updateField('contact_name', e.target.value)}
-                  placeholder="John Smith"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone {!formData.client_id && !formData.contact_email.trim() && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  type="tel"
-                  value={formData.contact_phone}
-                  onChange={(e) => updateField('contact_phone', e.target.value)}
-                  placeholder="512-555-1234"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email {!formData.client_id && !formData.contact_phone.trim() && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={(e) => updateField('contact_email', e.target.value)}
-                  placeholder="john@example.com"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Project Details Section */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Details</h2>
-            <div className="space-y-4">
-              {/* Product Types Multi-Select */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Types <span className="font-normal text-gray-500">(select all that apply)</span>
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {PRODUCT_TYPES.map((pt) => {
-                    const isSelected = formData.product_types.includes(pt);
-                    return (
-                      <button
-                        key={pt}
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            product_types: prev.product_types.includes(pt)
-                              ? prev.product_types.filter(p => p !== pt)
-                              : [...prev.product_types, pt],
-                          }));
-                        }}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          isSelected
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                          isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300'
-                        }`}>
-                          {isSelected && (
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        {pt}
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Est. Linear Feet</label>
-                <input
-                  type="number"
-                  value={formData.linear_feet_estimate}
-                  onChange={(e) => updateField('linear_feet_estimate', e.target.value)}
-                  placeholder="e.g., 150"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 max-w-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => updateField('description', e.target.value)}
-                  rows={4}
-                  placeholder="Describe the project scope, customer needs, special requirements..."
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+              <div className="flex-1">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">REQUEST TYPE</label>
                 <div className="flex gap-2">
-                  {PRIORITIES.map(({ value, label, color }) => (
+                  {REQUEST_TYPES.map(({ value, label, icon: Icon, color }) => (
                     <button
                       key={value}
                       type="button"
-                      onClick={() => updateField('priority', value)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                        formData.priority === value
-                          ? color
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      onClick={() => updateField('request_type', value)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded border text-xs font-medium transition-colors ${
+                        formData.request_type === value ? color : 'border-gray-200 text-gray-600'
                       }`}
                     >
+                      <Icon className="w-3.5 h-3.5" />
                       {label}
                     </button>
                   ))}
@@ -611,102 +361,341 @@ export default function RequestEditorPage({
             </div>
           </div>
 
-          {/* Assignment Section */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Assignment</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Territory</label>
+          {/* Row 2: Customer + Contact */}
+          <div className="bg-white rounded-lg border p-4">
+            <div className="flex gap-4">
+              {/* Customer Search */}
+              <div className="w-1/3">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">CUSTOMER</label>
+                {selectedClient ? (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-50 border rounded cursor-pointer hover:bg-gray-100"
+                    onClick={() => setShowClientPanel(true)}
+                  >
+                    <User className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-medium truncate flex-1">
+                      {selectedClient.company_name || selectedClient.name}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Search or enter new..."
+                      className="w-full px-3 py-2 border rounded text-sm"
+                    />
+                    {clientResults.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
+                        {clientResults.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => handleSelectClient(c)}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 text-sm border-b last:border-b-0"
+                          >
+                            <div className="font-medium">{c.company_name || c.name}</div>
+                            {c.primary_contact_phone && (
+                              <div className="text-xs text-gray-500">{c.primary_contact_phone}</div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Contact Info */}
+              <div className="flex-1 grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-2 block">CONTACT NAME</label>
+                  <input
+                    type="text"
+                    value={formData.contact_name}
+                    onChange={(e) => updateField('contact_name', e.target.value)}
+                    placeholder="Contact name"
+                    className="w-full px-3 py-2 border rounded text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-2 block">PHONE</label>
+                  <input
+                    type="tel"
+                    value={formData.contact_phone}
+                    onChange={(e) => updateField('contact_phone', e.target.value)}
+                    placeholder="512-555-1234"
+                    className="w-full px-3 py-2 border rounded text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-2 block">EMAIL</label>
+                  <input
+                    type="email"
+                    value={formData.contact_email}
+                    onChange={(e) => updateField('contact_email', e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full px-3 py-2 border rounded text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Address */}
+          <div className="bg-white rounded-lg border p-4">
+            <label className="text-xs font-medium text-gray-500 mb-2 block">JOB ADDRESS *</label>
+            <SmartAddressInput
+              value={{
+                address_line1: formData.address_line1,
+                city: formData.city,
+                state: formData.state,
+                zip: formData.zip,
+                latitude: formData.latitude ?? null,
+                longitude: formData.longitude ?? null,
+              }}
+              onChange={handleAddressChange}
+              label=""
+              required
+              restrictToTexas
+              placeholder="Start typing address..."
+            />
+          </div>
+
+          {/* Row 4: Product Types + Source + Linear Feet */}
+          <div className="bg-white rounded-lg border p-4">
+            <div className="flex gap-6">
+              <div className="flex-1">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">PRODUCT TYPES (select all that apply)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PRODUCT_TYPES.map((pt) => {
+                    const isSelected = formData.product_types.includes(pt);
+                    return (
+                      <button
+                        key={pt}
+                        type="button"
+                        onClick={() => toggleProductType(pt)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs transition-colors ${
+                          isSelected ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                        {pt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="w-32">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">SOURCE</label>
+                <select
+                  value={formData.source}
+                  onChange={(e) => updateField('source', e.target.value as RequestSource)}
+                  className="w-full px-3 py-2 border rounded text-sm"
+                >
+                  <option value="phone">Phone</option>
+                  <option value="web">Web</option>
+                  <option value="referral">Referral</option>
+                  <option value="walk_in">Walk-in</option>
+                  <option value="builder_portal">Builder</option>
+                </select>
+              </div>
+              <div className="w-28">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">EST. LF</label>
+                <input
+                  type="number"
+                  value={formData.linear_feet_estimate}
+                  onChange={(e) => updateField('linear_feet_estimate', e.target.value)}
+                  placeholder="150"
+                  className="w-full px-3 py-2 border rounded text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Row 5: Assignment + Assessment + Priority */}
+          <div className="bg-white rounded-lg border p-4">
+            <div className="flex gap-4 items-end">
+              <div className="w-40">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">TERRITORY</label>
                 <select
                   value={formData.territory_id}
                   onChange={(e) => updateField('territory_id', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded text-sm"
                 >
-                  <option value="">-- Auto-detect from ZIP --</option>
+                  <option value="">Auto-detect</option>
                   {territories?.filter(t => t.is_active).map((t) => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+                    <option key={t.id} value={t.id}>{t.code || t.name}</option>
                   ))}
                 </select>
-                {formData.zip && !formData.territory_id && (
-                  <p className="text-xs text-amber-600 mt-1">No territory found for ZIP {formData.zip}</p>
-                )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign to Rep</label>
+              <div className="w-40">
+                <label className="text-xs font-medium text-gray-500 mb-2 block">ASSIGN REP</label>
                 <select
                   value={formData.assigned_rep_id}
                   onChange={(e) => updateField('assigned_rep_id', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded text-sm"
                 >
-                  <option value="">-- Unassigned --</option>
-                  {salesReps?.filter(r => r.is_active).map((rep) => (
+                  <option value="">Unassigned</option>
+                  {filteredReps.map((rep) => (
                     <option key={rep.id} value={rep.id}>{rep.name}</option>
                   ))}
                 </select>
               </div>
-            </div>
-          </div>
-
-          {/* Assessment Section */}
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Assessment</h2>
-            <div className="space-y-4">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={formData.requires_assessment}
-                  onChange={(e) => updateField('requires_assessment', e.target.checked)}
-                  className="w-5 h-5 text-blue-600 rounded"
-                />
-                <span className="font-medium text-gray-700">Requires Site Assessment</span>
-              </label>
-
-              {formData.requires_assessment && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Schedule Assessment</label>
+              <div className="flex items-center gap-3 flex-1">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.requires_assessment}
+                    onChange={(e) => updateField('requires_assessment', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <span className="text-sm">Assessment</span>
+                </label>
+                {formData.requires_assessment && (
                   <input
                     type="datetime-local"
                     value={formData.assessment_scheduled_at}
                     onChange={(e) => updateField('assessment_scheduled_at', e.target.value)}
-                    className="w-full max-w-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1.5 border rounded text-xs"
                   />
-                </div>
-              )}
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1">Priority:</span>
+                {(['low', 'normal', 'high', 'urgent'] as Priority[]).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => updateField('priority', p)}
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      formData.priority === p
+                        ? p === 'urgent' ? 'bg-red-100 text-red-700'
+                          : p === 'high' ? 'bg-orange-100 text-orange-700'
+                          : p === 'normal' ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600'
+                        : 'text-gray-400 hover:bg-gray-100'
+                    }`}
+                  >
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Internal Notes Section */}
-          <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Internal Notes</h2>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => updateField('notes', e.target.value)}
-              rows={3}
-              placeholder="Notes for internal team only (not visible to customer)..."
-              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 bg-white"
-            />
-          </div>
-
-          {/* Bottom Actions */}
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-6 py-2.5 text-gray-700 hover:bg-gray-100 rounded-lg border"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Request'}
-            </button>
+          {/* Row 6: Description + Notes */}
+          <div className="flex gap-4">
+            <div className="flex-1 bg-white rounded-lg border p-4">
+              <label className="text-xs font-medium text-gray-500 mb-2 block">DESCRIPTION</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => updateField('description', e.target.value)}
+                rows={3}
+                placeholder="Project scope, requirements..."
+                className="w-full px-3 py-2 border rounded text-sm"
+              />
+            </div>
+            <div className="w-1/3 bg-yellow-50 rounded-lg border border-yellow-200 p-4">
+              <label className="text-xs font-medium text-gray-500 mb-2 block">INTERNAL NOTES</label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => updateField('notes', e.target.value)}
+                rows={3}
+                placeholder="Notes for team only..."
+                className="w-full px-3 py-2 border border-yellow-300 rounded text-sm bg-white"
+              />
+            </div>
           </div>
         </form>
       </div>
+
+      {/* Client Info Side Panel */}
+      {showClientPanel && selectedClient && (
+        <div className="w-[30%] min-w-[280px] border-l bg-gray-50 flex flex-col">
+          <div className="p-4 border-b bg-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blue-500" />
+              <span className="font-semibold text-sm truncate">
+                {selectedClient.company_name || selectedClient.name}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowClientPanel(false)}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Client Contact */}
+          <div className="p-4 border-b text-sm">
+            <div className="text-xs text-gray-500 mb-1">Contact</div>
+            <div className="font-medium">{selectedClient.primary_contact_name || selectedClient.name}</div>
+            <div className="text-gray-600">{selectedClient.primary_contact_phone}</div>
+            {selectedClient.primary_contact_email && (
+              <div className="text-gray-600 text-xs">{selectedClient.primary_contact_email}</div>
+            )}
+          </div>
+
+          {/* Properties List */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4 border-b bg-white sticky top-0">
+              <div className="text-xs font-medium text-gray-500">PROPERTIES ({clientProperties?.length || 0})</div>
+            </div>
+            {clientProperties && clientProperties.length > 0 ? (
+              <div className="p-3 space-y-2">
+                {clientProperties.map((prop) => (
+                  <button
+                    key={prop.id}
+                    type="button"
+                    onClick={() => handleSelectProperty(prop)}
+                    className={`w-full p-3 rounded text-left text-sm ${
+                      selectedPropertyId === prop.id
+                        ? 'bg-blue-100 border-blue-300 border'
+                        : 'bg-white border hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <MapPin className={`w-4 h-4 mt-0.5 ${selectedPropertyId === prop.id ? 'text-blue-500' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium">{prop.address_line1}</div>
+                        <div className="text-gray-500 text-xs">{prop.city}, {prop.state} {prop.zip}</div>
+                        {prop.community_name && (
+                          <div className="text-gray-400 text-xs mt-0.5">{prop.community_name}</div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-sm text-gray-500">
+                No properties found for this client
+              </div>
+            )}
+          </div>
+
+          {/* New Address Option */}
+          <div className="p-4 border-t bg-white">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPropertyId(null);
+                setFormData(prev => ({ ...prev, property_id: '', address_line1: '', city: '', zip: '' }));
+              }}
+              className={`w-full p-3 rounded text-sm text-center border ${
+                !selectedPropertyId && formData.address_line1 === ''
+                  ? 'bg-green-50 border-green-300 text-green-700'
+                  : 'hover:bg-gray-50 text-gray-600'
+              }`}
+            >
+              + Enter New Address
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
