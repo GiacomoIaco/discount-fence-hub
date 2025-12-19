@@ -126,7 +126,7 @@ export function useCreateFsmTeamProfile() {
         .insert({
           user_id: data.user_id,
           fsm_roles: data.fsm_roles,
-          business_unit_ids: data.business_unit_ids,
+          assigned_qbo_class_ids: data.assigned_qbo_class_ids,
           max_daily_assessments: data.max_daily_assessments,
           crew_id: data.crew_id || null,
           is_active: data.is_active,
@@ -208,7 +208,7 @@ export function useUpdateFsmTeamProfile() {
         .upsert({
           user_id: userId,
           fsm_roles: data.fsm_roles,
-          business_unit_ids: data.business_unit_ids,
+          assigned_qbo_class_ids: data.assigned_qbo_class_ids,
           max_daily_assessments: data.max_daily_assessments,
           crew_id: data.crew_id || null,
           is_active: data.is_active,

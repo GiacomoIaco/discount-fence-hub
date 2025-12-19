@@ -1086,7 +1086,7 @@ export interface ProjectTypeFormData {
 export interface FsmTeamProfileFormData {
   user_id: string;
   fsm_roles: FsmRole[];
-  business_unit_ids: string[];
+  assigned_qbo_class_ids: string[];  // QBO Classes this team member handles
   max_daily_assessments: number;
   crew_id: string;
   is_active: boolean;

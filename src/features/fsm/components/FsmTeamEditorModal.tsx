@@ -21,7 +21,7 @@ import {
   DAY_SHORT_LABELS,
   PROFICIENCY_LABELS,
 } from '../types';
-import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
+import { useQboClasses } from '../../client_hub/hooks/useQboClasses';
 import { useTeamMembers } from '../../settings/hooks/useTeamMembers';
 
 interface FsmTeamEditorModalProps {
@@ -34,7 +34,7 @@ const ALL_ROLES: FsmRole[] = ['rep', 'project_manager', 'crew_lead', 'dispatcher
 const ALL_PROFICIENCIES: SkillProficiency[] = ['trainee', 'basic', 'standard', 'expert'];
 
 export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorModalProps) {
-  const { data: businessUnits } = useBusinessUnits();
+  const { data: qboClasses } = useQboClasses();
   const { data: territories } = useTerritories();
   const { data: projectTypes } = useProjectTypes();
   const { data: crews } = useCrews();
@@ -47,7 +47,7 @@ export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorMod
   const [formData, setFormData] = useState<FsmTeamProfileFormData>({
     user_id: '',
     fsm_roles: [],
-    business_unit_ids: [],
+    assigned_qbo_class_ids: [],
     max_daily_assessments: 4,
     crew_id: '',
     is_active: true,
@@ -63,7 +63,7 @@ export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorMod
       setFormData({
         user_id: member.user_id,
         fsm_roles: member.fsm_roles,
-        business_unit_ids: member.business_unit_ids,
+        assigned_qbo_class_ids: member.assigned_qbo_class_ids || [],
         max_daily_assessments: member.max_daily_assessments,
         crew_id: member.crew_id || '',
         is_active: member.is_active,
@@ -113,12 +113,12 @@ export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorMod
     }));
   };
 
-  const toggleBU = (buId: string) => {
+  const toggleQboClass = (qboClassId: string) => {
     setFormData(prev => ({
       ...prev,
-      business_unit_ids: prev.business_unit_ids.includes(buId)
-        ? prev.business_unit_ids.filter(id => id !== buId)
-        : [...prev.business_unit_ids, buId],
+      assigned_qbo_class_ids: prev.assigned_qbo_class_ids.includes(qboClassId)
+        ? prev.assigned_qbo_class_ids.filter(id => id !== qboClassId)
+        : [...prev.assigned_qbo_class_ids, qboClassId],
     }));
   };
 
@@ -288,24 +288,24 @@ export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorMod
                   </div>
                 </div>
 
-                {/* Business Units */}
+                {/* QBO Classes (Business Units) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Units
+                    QBO Classes
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {businessUnits?.map(bu => (
+                    {qboClasses?.map(qc => (
                       <button
-                        key={bu.id}
+                        key={qc.id}
                         type="button"
-                        onClick={() => toggleBU(bu.id)}
+                        onClick={() => toggleQboClass(qc.id)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          formData.business_unit_ids.includes(bu.id)
+                          formData.assigned_qbo_class_ids.includes(qc.id)
                             ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
-                        {bu.name}
+                        {qc.name}
                       </button>
                     ))}
                   </div>

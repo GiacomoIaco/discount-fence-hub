@@ -206,7 +206,7 @@ export default function FsmTeamImportModal({ onClose }: Props) {
               .insert({
                 user_id: userId,
                 fsm_roles: row.roles,
-                business_unit_ids: [],
+                assigned_qbo_class_ids: [],
                 max_daily_assessments: row.maxAssessments,
                 is_active: row.isActive,
               });

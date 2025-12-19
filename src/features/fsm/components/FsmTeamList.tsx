@@ -119,7 +119,7 @@ export default function FsmTeamList() {
   // Filter team members
   const filteredMembers = teamMembers?.filter(m => {
     if (filterRole && !m.fsm_roles.includes(filterRole)) return false;
-    if (filterBU && !m.business_unit_ids.includes(filterBU)) return false;
+    if (filterBU && !(m.assigned_qbo_class_ids || []).includes(filterBU)) return false;
     return true;
   });
 
