@@ -197,6 +197,7 @@ export default function RequestEditorPage({
         contact_email: existingRequest.contact_email || '',
         contact_phone: existingRequest.contact_phone || '',
         address_line1: existingRequest.address_line1 || '',
+        address_line2: existingRequest.address_line2 || '',
         city: existingRequest.city || '',
         state: existingRequest.state || 'TX',
         zip: existingRequest.zip || '',
