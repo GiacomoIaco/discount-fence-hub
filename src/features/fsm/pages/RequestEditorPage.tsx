@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Phone, Globe, Users, Building, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Phone, Globe, Users, Building, Save, AlertCircle, FileText, Wrench, Shield } from 'lucide-react';
 import { useCreateRequest, useUpdateRequest, useRequest } from '../hooks';
 import { useTerritories, useSalesReps } from '../hooks';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
@@ -16,7 +16,7 @@ import { SmartAddressInput } from '../../shared/components/SmartAddressInput';
 import type { AddressFormData } from '../../shared/types/location';
 import type { SelectedEntity } from '../../../components/common/SmartLookup';
 import type { Property } from '../../client_hub/types';
-import type { RequestFormData, RequestSource, Priority } from '../types';
+import type { RequestFormData, RequestSource, RequestType, Priority } from '../types';
 import { PRODUCT_TYPES } from '../types';
 
 interface RequestEditorPageProps {
@@ -31,6 +31,12 @@ const SOURCES: { value: RequestSource; label: string; icon: React.ComponentType<
   { value: 'referral', label: 'Referral', icon: Users },
   { value: 'walk_in', label: 'Walk-in', icon: Building },
   { value: 'builder_portal', label: 'Builder Portal', icon: Building },
+];
+
+const REQUEST_TYPES: { value: RequestType; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
+  { value: 'new_quote', label: 'New Quote', icon: FileText, color: 'border-blue-500 bg-blue-50 text-blue-700' },
+  { value: 'repair', label: 'Repair', icon: Wrench, color: 'border-orange-500 bg-orange-50 text-orange-700' },
+  { value: 'warranty', label: 'Warranty', icon: Shield, color: 'border-purple-500 bg-purple-50 text-purple-700' },
 ];
 
 const PRIORITIES: { value: Priority; label: string; color: string }[] = [
@@ -382,6 +388,28 @@ export default function RequestEditorPage({
                   }`}
                 >
                   {bu.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Request Type Selection */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Request Type</h2>
+            <div className="flex flex-wrap gap-3">
+              {REQUEST_TYPES.map(({ value, label, icon: Icon, color }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => updateField('request_type', value)}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    formData.request_type === value
+                      ? color
+                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {label}
                 </button>
               ))}
             </div>
