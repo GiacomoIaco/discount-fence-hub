@@ -9,7 +9,7 @@ import type { AddressFormData } from '../../shared/types/location';
 import type { SelectedEntity } from '../../../components/common/SmartLookup';
 import type { Property } from '../../client_hub/types';
 import type { ServiceRequest, RequestFormData, RequestSource, RequestType, Priority } from '../types';
-import { PRODUCT_TYPES, REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS } from '../types';
+import { PRODUCT_TYPES } from '../types';
 
 interface RequestEditorModalProps {
   isOpen: boolean;

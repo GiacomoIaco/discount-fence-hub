@@ -16,6 +16,7 @@ import type { AddressFormData } from '../../shared/types/location';
 import type { SelectedEntity } from '../../../components/common/SmartLookup';
 import type { Property } from '../../client_hub/types';
 import type { RequestFormData, RequestSource, Priority } from '../types';
+import { PRODUCT_TYPES } from '../types';
 
 interface RequestEditorPageProps {
   requestId?: string; // If provided, we're editing; otherwise creating
@@ -38,17 +39,6 @@ const PRIORITIES: { value: Priority; label: string; color: string }[] = [
   { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-600' },
 ];
 
-const PRODUCT_TYPE_OPTIONS = [
-  'Wood Vertical',
-  'Wood Horizontal',
-  'Iron',
-  'Chain Link',
-  'Vinyl',
-  'Gate',
-  'Deck',
-  'Glass Railing',
-];
-
 const INITIAL_FORM_DATA: RequestFormData = {
   client_id: '',
   community_id: '',
@@ -61,12 +51,14 @@ const INITIAL_FORM_DATA: RequestFormData = {
   state: 'TX',
   zip: '',
   source: 'phone',
-  product_type: '',
+  request_type: 'new_quote',
+  product_types: [],
   linear_feet_estimate: '',
   description: '',
   notes: '',
   requires_assessment: true,
   assessment_scheduled_at: '',
+  business_unit_id: '',
   assigned_rep_id: '',
   territory_id: '',
   priority: 'normal',
@@ -142,12 +134,14 @@ export default function RequestEditorPage({
         state: existingRequest.state || 'TX',
         zip: existingRequest.zip || '',
         source: existingRequest.source,
-        product_type: existingRequest.product_type || '',
+        request_type: existingRequest.request_type || 'new_quote',
+        product_types: existingRequest.product_types || [],
         linear_feet_estimate: existingRequest.linear_feet_estimate?.toString() || '',
         description: existingRequest.description || '',
         notes: existingRequest.notes || '',
         requires_assessment: existingRequest.requires_assessment,
         assessment_scheduled_at: existingRequest.assessment_scheduled_at || '',
+        business_unit_id: existingRequest.business_unit_id || '',
         assigned_rep_id: existingRequest.assigned_rep_id || '',
         territory_id: existingRequest.territory_id || '',
         priority: existingRequest.priority,
@@ -480,30 +474,57 @@ export default function RequestEditorPage({
           <div className="bg-white rounded-lg border p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Details</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
-                  <select
-                    value={formData.product_type}
-                    onChange={(e) => updateField('product_type', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- Select --</option>
-                    {PRODUCT_TYPE_OPTIONS.map((pt) => (
-                      <option key={pt} value={pt}>{pt}</option>
-                    ))}
-                  </select>
+              {/* Product Types Multi-Select */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Types <span className="font-normal text-gray-500">(select all that apply)</span>
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {PRODUCT_TYPES.map((pt) => {
+                    const isSelected = formData.product_types.includes(pt);
+                    return (
+                      <button
+                        key={pt}
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            product_types: prev.product_types.includes(pt)
+                              ? prev.product_types.filter(p => p !== pt)
+                              : [...prev.product_types, pt],
+                          }));
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          isSelected
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                          isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                        }`}>
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        {pt}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Est. Linear Feet</label>
-                  <input
-                    type="number"
-                    value={formData.linear_feet_estimate}
-                    onChange={(e) => updateField('linear_feet_estimate', e.target.value)}
-                    placeholder="e.g., 150"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Est. Linear Feet</label>
+                <input
+                  type="number"
+                  value={formData.linear_feet_estimate}
+                  onChange={(e) => updateField('linear_feet_estimate', e.target.value)}
+                  placeholder="e.g., 150"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 max-w-xs"
+                />
               </div>
 
               <div>
