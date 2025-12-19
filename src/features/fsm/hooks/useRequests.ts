@@ -24,7 +24,8 @@ export function useRequests(filters?: RequestFilters) {
           community:communities(id, name),
           property:properties(id, address_line1),
           assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name),
-          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name)
+          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name),
+          qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .order('created_at', { ascending: false });
 
@@ -80,7 +81,8 @@ export function useRequest(id: string | undefined) {
           property:properties(id, address_line1, lot_number),
           assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name, email, phone),
           assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name, email, phone),
-          territory:territories(id, name, code)
+          territory:territories(id, name, code),
+          qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .eq('id', id)
         .single();

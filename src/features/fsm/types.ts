@@ -214,7 +214,8 @@ export interface ServiceRequest {
   // Assignment
   assigned_rep_id: string | null;
   territory_id: string | null;
-  business_unit_id: string | null;  // BU for rep filtering
+  business_unit_id: string | null;  // Legacy - use qbo_class_id instead
+  qbo_class_id: string | null;      // QBO Class for accounting (e.g., "588451" = Austin Residential)
   // Priority
   priority: Priority;
   // Conversion
@@ -232,6 +233,7 @@ export interface ServiceRequest {
   assessment_rep?: SalesRep;
   territory?: { id: string; name: string; code: string };
   project?: { id: string; project_number: string };
+  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
 }
 
 export interface Quote {
@@ -293,6 +295,7 @@ export interface Quote {
   converted_to_job_id: string | null;
   // Assignment
   sales_rep_id: string | null;
+  qbo_class_id: string | null;  // QBO Class for accounting
   created_by: string | null;
   // Timestamps
   created_at: string;
@@ -315,6 +318,7 @@ export interface Quote {
   line_items?: QuoteLineItem[];
   sales_rep?: SalesRep;
   request?: { id: string; request_number: string };
+  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
 }
 
 export interface QuoteLineItem {
@@ -372,6 +376,7 @@ export interface Job {
   assigned_crew_id: string | null;
   assigned_rep_id: string | null;
   territory_id: string | null;
+  qbo_class_id: string | null;  // QBO Class for accounting
   // Status
   status: JobStatus;
   status_changed_at: string;
@@ -402,6 +407,7 @@ export interface Job {
   property?: { id: string; address_line1: string };
   assigned_crew?: Crew;
   visits?: JobVisit[];
+  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
 }
 
 export interface JobVisit {

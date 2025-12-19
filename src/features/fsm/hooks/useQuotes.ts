@@ -21,7 +21,8 @@ export function useQuotes(filters?: QuoteFilters) {
           *,
           client:clients(id, name, code),
           community:communities(id, name),
-          sales_rep:sales_reps(id, name)
+          sales_rep:sales_reps(id, name),
+          qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .order('created_at', { ascending: false });
 
@@ -73,7 +74,8 @@ export function useQuote(id: string | undefined) {
           property:properties(id, address_line1, city, state, zip),
           sales_rep:sales_reps(id, name, email, phone),
           request:service_requests(id, request_number),
-          line_items:quote_line_items(*)
+          line_items:quote_line_items(*),
+          qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .eq('id', id)
         .single();
