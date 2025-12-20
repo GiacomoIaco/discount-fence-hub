@@ -146,11 +146,12 @@ export function useConvertQuoteToProject() {
           ? previousJobIds[i - 1] ?? null
           : null;
 
+        // Note: status is auto-computed by trigger, quote auto-converts via cascade trigger
         const jobResult = await supabase
           .from('jobs')
           .insert({
             project_id: projectId,
-            quote_id: conversion.quote_id,
+            quote_id: conversion.quote_id,  // This triggers cascade: Quote → converted
             client_id: quote.client_id,
             community_id: quote.community_id || null,
             property_id: quote.property_id || null,
@@ -168,7 +169,7 @@ export function useConvertQuoteToProject() {
             quoted_total: jobValue,
             product_type: quote.product_type || null,
             linear_feet: quote.linear_feet || null,
-            status: jobConfig.scheduled_date && jobConfig.assigned_crew_id ? 'scheduled' : 'won',
+            // status: computed by trigger (will be 'won' or 'scheduled' based on crew/date)
           })
           .select('id, job_number')
           .single();
@@ -186,27 +187,8 @@ export function useConvertQuoteToProject() {
         previousJobIds.push(newJob.id);
       }
 
-      // 5. Update quote status to converted
-      await supabase
-        .from('quotes')
-        .update({
-          status: 'converted',
-          converted_to_job_id: createdJobs[0]?.id || null,
-          status_changed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', conversion.quote_id);
-
-      // 6. Record status history
-      await supabase
-        .from('fsm_status_history')
-        .insert({
-          entity_type: 'quote',
-          entity_id: conversion.quote_id,
-          from_status: quote.status,
-          to_status: 'converted',
-          notes: `Converted to ${createdJobs.length} job(s)`,
-        });
+      // Quote status auto-updated via cascade trigger when first job is created with quote_id
+      // Status history is auto-recorded by trigger
 
       return {
         project: {

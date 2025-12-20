@@ -386,10 +386,11 @@ export function useConvertRequestToQuote() {
       } : null;
 
       // Create quote from request
+      // Note: status is auto-computed by trigger, request auto-converts via cascade trigger
       const { data: quote, error: quoteError } = await supabase
         .from('quotes')
         .insert({
-          request_id: requestId,
+          request_id: requestId,  // This triggers cascade: Request → converted
           client_id: request.client_id,
           community_id: request.community_id,
           property_id: request.property_id,
@@ -399,35 +400,14 @@ export function useConvertRequestToQuote() {
           linear_feet: request.linear_feet_estimate,
           scope_summary: request.description,
           sales_rep_id: request.assigned_rep_id,
-          status: 'draft',
+          // status: computed by trigger (will be 'draft')
         })
         .select()
         .single();
 
       if (quoteError) throw quoteError;
 
-      // Update request status to converted
-      const { error: updateError } = await supabase
-        .from('service_requests')
-        .update({
-          status: 'converted',
-          status_changed_at: new Date().toISOString(),
-          converted_to_quote_id: quote.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', requestId);
-
-      if (updateError) throw updateError;
-
-      // Record in status history
-      await supabase.from('fsm_status_history').insert({
-        entity_type: 'request',
-        entity_id: requestId,
-        from_status: request.status,
-        to_status: 'converted',
-        notes: `Converted to Quote #${quote.quote_number}`,
-      });
-
+      // Status history is auto-recorded by trigger
       return quote;
     },
     onSuccess: (quote) => {
@@ -509,11 +489,12 @@ export function useConvertRequestToJob() {
       }
 
       // Create job directly from request
+      // Note: status is auto-computed by trigger, request auto-converts via cascade trigger
       const { data: job, error: jobError } = await supabase
         .from('jobs')
         .insert({
           project_id: projectId,
-          request_id: requestId,  // Direct link, no quote
+          request_id: requestId,  // This triggers cascade: Request → converted
           client_id: request.client_id,
           community_id: request.community_id,
           property_id: request.property_id,
@@ -522,35 +503,14 @@ export function useConvertRequestToJob() {
           linear_feet: request.linear_feet_estimate,
           description: request.description,
           territory_id: request.territory_id,
-          status: 'won',
+          // status: computed by trigger (will be 'won')
         })
         .select()
         .single();
 
       if (jobError) throw jobError;
 
-      // Update request status to converted
-      const { error: updateError } = await supabase
-        .from('service_requests')
-        .update({
-          status: 'converted',
-          status_changed_at: new Date().toISOString(),
-          converted_to_job_id: job.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', requestId);
-
-      if (updateError) throw updateError;
-
-      // Record in status history
-      await supabase.from('fsm_status_history').insert({
-        entity_type: 'request',
-        entity_id: requestId,
-        from_status: request.status,
-        to_status: 'converted',
-        notes: `Converted directly to Job #${job.job_number}`,
-      });
-
+      // Status history is auto-recorded by trigger
       return job as Job;
     },
     onSuccess: (job) => {

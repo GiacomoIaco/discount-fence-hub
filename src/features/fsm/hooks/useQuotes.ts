@@ -336,10 +336,11 @@ export function useConvertQuoteToJob() {
       if (quoteError) throw quoteError;
 
       // Create job from quote
+      // Note: status is auto-computed by trigger, quote auto-converts via cascade trigger
       const { data: job, error: jobError } = await supabase
         .from('jobs')
         .insert({
-          quote_id: quoteId,
+          quote_id: quoteId,  // This triggers cascade: Quote → converted
           client_id: quote.client_id,
           community_id: quote.community_id,
           property_id: quote.property_id,
@@ -349,7 +350,7 @@ export function useConvertQuoteToJob() {
           description: quote.scope_summary,
           quoted_total: quote.total,
           bom_project_id: quote.bom_project_id,
-          status: 'won',
+          // status: computed by trigger (will be 'won')
         })
         .select()
         .single();
@@ -369,18 +370,8 @@ export function useConvertQuoteToJob() {
         console.warn('Failed to transfer custom fields:', transferError);
       }
 
-      // Update quote status
-      const { error: updateError } = await supabase
-        .from('quotes')
-        .update({
-          status: 'converted',
-          converted_to_job_id: job.id,
-          status_changed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', quoteId);
-
-      if (updateError) throw updateError;
+      // Quote status auto-updated via cascade trigger
+      // Status history is auto-recorded by trigger
 
       return job;
     },

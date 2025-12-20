@@ -410,10 +410,11 @@ export function useCreateInvoiceFromJob() {
       if (jobError) throw jobError;
 
       // Create invoice from job
+      // Note: status is auto-computed by trigger, job auto-updates via cascade trigger
       const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
-          job_id: jobId,
+          job_id: jobId,  // This triggers cascade: Job → invoiced_at set
           quote_id: job.quote_id,
           client_id: job.client_id,
           billing_address: job.client?.address_line1
@@ -433,7 +434,7 @@ export function useCreateInvoiceFromJob() {
           balance_due: job.quote?.total || job.quoted_total || 0,
           invoice_date: new Date().toISOString().split('T')[0],
           payment_terms: 'Net 30',
-          status: 'draft',
+          // status: computed by trigger (will be 'draft')
         })
         .select()
         .single();
@@ -453,18 +454,8 @@ export function useCreateInvoiceFromJob() {
         console.warn('Failed to transfer custom fields:', transferError);
       }
 
-      // Update job status and link invoice
-      const { error: updateError } = await supabase
-        .from('jobs')
-        .update({
-          status: 'requires_invoicing',
-          invoice_id: invoice.id,
-          status_changed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
-
-      if (updateError) throw updateError;
+      // Job status auto-updated via cascade trigger (sets invoiced_at)
+      // Status history is auto-recorded by trigger
 
       return invoice;
     },
