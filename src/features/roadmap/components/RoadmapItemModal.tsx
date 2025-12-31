@@ -402,8 +402,10 @@ export default function RoadmapItemModal({
                           />
                         </div>
                       </div>
-                      <span className="text-sm text-gray-500 min-w-[40px]">
-                        {audioDuration > 0 ? formatDuration(audioDuration) : '--:--'}
+                      <span className="text-sm text-gray-500 min-w-[70px] text-right">
+                        {isPlaying && audioRef.current
+                          ? `${formatDuration(Math.floor(audioRef.current.currentTime))} / ${audioDuration > 0 ? formatDuration(audioDuration) : '--:--'}`
+                          : audioDuration > 0 ? formatDuration(audioDuration) : '--:--'}
                       </span>
                     </div>
                   )}
@@ -416,7 +418,8 @@ export default function RoadmapItemModal({
                     onLoadedMetadata={handleAudioLoadedMetadata}
                     onError={handleAudioError}
                     onCanPlay={handleAudioCanPlay}
-                    preload="metadata"
+                    preload="auto"
+                    crossOrigin="anonymous"
                     className="hidden"
                   />
 
