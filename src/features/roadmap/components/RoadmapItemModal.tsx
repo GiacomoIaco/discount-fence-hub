@@ -146,6 +146,16 @@ export default function RoadmapItemModal({
   const handleAudioCanPlay = () => {
     setAudioLoading(false);
     setAudioError(null);
+    // Try to get duration when audio is ready (WebM often doesn't report in metadata)
+    if (audioRef.current && isFinite(audioRef.current.duration) && audioRef.current.duration > 0) {
+      setAudioDuration(Math.floor(audioRef.current.duration));
+    }
+  };
+
+  const handleDurationChange = () => {
+    if (audioRef.current && isFinite(audioRef.current.duration) && audioRef.current.duration > 0) {
+      setAudioDuration(Math.floor(audioRef.current.duration));
+    }
   };
 
   const formatDuration = (seconds: number) => {
@@ -416,6 +426,7 @@ export default function RoadmapItemModal({
                     onTimeUpdate={handleAudioTimeUpdate}
                     onEnded={handleAudioEnded}
                     onLoadedMetadata={handleAudioLoadedMetadata}
+                    onDurationChange={handleDurationChange}
                     onError={handleAudioError}
                     onCanPlay={handleAudioCanPlay}
                     preload="auto"
