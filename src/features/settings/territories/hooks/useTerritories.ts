@@ -4,7 +4,6 @@ import type {
   Territory,
   TerritoryWithReps,
   TerritoryFormData,
-  TerritoryAssignment,
   BusinessUnit,
   SalesRep
 } from '../types/territory.types';
@@ -92,6 +91,13 @@ export function useBusinessUnits() {
   });
 }
 
+// User profile type for join
+interface UserProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
+
 // Fetch team members who can be assigned to territories (from FSM team profiles)
 export function useSalesReps() {
   return useQuery({
@@ -117,17 +123,20 @@ export function useSalesReps() {
       // Transform to SalesRep-like structure for backwards compatibility
       const reps: SalesRep[] = (data || [])
         .filter(d => d.user)
-        .map(d => ({
-          id: d.user_id,
-          user_id: d.user_id,
-          name: d.user?.full_name || d.user?.email || 'Unknown',
-          email: d.user?.email || null,
-          phone: null,
-          territory_ids: [],
-          product_skills: [],
-          max_daily_assessments: 5,
-          is_active: true,
-        }));
+        .map(d => {
+          const user = d.user as unknown as UserProfile;
+          return {
+            id: d.user_id,
+            user_id: d.user_id,
+            name: user?.full_name || user?.email || 'Unknown',
+            email: user?.email || null,
+            phone: null,
+            territory_ids: [],
+            product_skills: [],
+            max_daily_assessments: 5,
+            is_active: true,
+          };
+        });
 
       return reps.sort((a, b) => a.name.localeCompare(b.name));
     },
