@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Users, Edit2, Trash2, ChevronDown, ChevronUp, Check, Save, X, Palette, Clipboard, Trash } from 'lucide-react';
+import { MapPin, Users, Edit2, Trash2, ChevronDown, ChevronUp, Check, Save, Palette, Clipboard, Trash } from 'lucide-react';
 import type { TerritoryWithReps, TerritoryFormData, BusinessUnit, SalesRep } from '../types/territory.types';
 import { TERRITORY_COLORS } from '../types/territory.types';
 

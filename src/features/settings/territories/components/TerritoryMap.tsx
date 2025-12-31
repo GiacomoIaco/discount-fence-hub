@@ -85,7 +85,6 @@ export function TerritoryMap({
 
     const drawnLayer = e.layer;
     const drawnGeoJson = drawnLayer.toGeoJSON();
-    const drawnGeometry = drawnGeoJson.geometry;
 
     // Find all zips whose centroids fall inside the drawn shape
     const matchingZips: string[] = [];

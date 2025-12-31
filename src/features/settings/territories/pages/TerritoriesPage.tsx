@@ -13,7 +13,7 @@ import {
   useAssignRep,
   useUnassignRep,
 } from '../hooks/useTerritories';
-import type { TerritoryWithReps, TerritoryFormData } from '../types/territory.types';
+import type { TerritoryFormData } from '../types/territory.types';
 
 export function TerritoriesPage() {
   const [selectedBusinessUnitId, setSelectedBusinessUnitId] = useState<string>('');
