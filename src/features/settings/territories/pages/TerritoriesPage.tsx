@@ -5,6 +5,7 @@ import { TerritoryCard } from '../components/TerritoryCard';
 import { TerritoryEditor } from '../components/TerritoryEditor';
 import {
   useTerritories,
+  useLocations,
   useBusinessUnits,
   useSalesReps,
   useCreateTerritory,
@@ -16,15 +17,16 @@ import {
 import type { TerritoryWithReps, TerritoryFormData } from '../types/territory.types';
 
 export function TerritoriesPage() {
-  const [selectedBusinessUnit, setSelectedBusinessUnit] = useState<string>('');
+  const [selectedLocationCode, setSelectedLocationCode] = useState<string>('');
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | undefined>();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingTerritory, setEditingTerritory] = useState<TerritoryWithReps | undefined>();
 
   // Data queries
   const { data: territories = [], isLoading: loadingTerritories } = useTerritories(
-    selectedBusinessUnit || undefined
+    selectedLocationCode || undefined
   );
+  const { data: locations = [], isLoading: loadingLocations } = useLocations();
   const { data: businessUnits = [], isLoading: loadingBUs } = useBusinessUnits();
   const { data: salesReps = [], isLoading: loadingReps } = useSalesReps();
 
@@ -36,7 +38,7 @@ export function TerritoriesPage() {
   const unassignRep = useUnassignRep();
 
   // Loading state
-  const isLoading = loadingTerritories || loadingBUs || loadingReps;
+  const isLoading = loadingTerritories || loadingLocations || loadingBUs || loadingReps;
 
   // Get selected territory's zip codes for highlighting
   const selectedTerritory = territories.find(t => t.id === selectedTerritoryId);
@@ -113,15 +115,15 @@ export function TerritoriesPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* BU Filter */}
+          {/* Location Filter */}
           <select
-            value={selectedBusinessUnit}
-            onChange={(e) => setSelectedBusinessUnit(e.target.value)}
+            value={selectedLocationCode}
+            onChange={(e) => setSelectedLocationCode(e.target.value)}
             className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">All Business Units</option>
-            {businessUnits.map(bu => (
-              <option key={bu.id} value={bu.id}>{bu.name}</option>
+            <option value="">All Locations</option>
+            {locations.map(loc => (
+              <option key={loc.code} value={loc.code}>{loc.name}</option>
             ))}
           </select>
 
