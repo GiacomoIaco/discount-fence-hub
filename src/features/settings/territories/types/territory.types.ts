@@ -23,6 +23,10 @@ export interface TerritoryWithReps extends Territory {
   metro: string | null;
   assigned_reps: AssignedRep[];
   zip_count: number | null;
+  // Demographics (from aggregated metro_zip_centroids)
+  total_households: number | null;
+  total_population: number | null;
+  avg_median_income: number | null;
 }
 
 export interface AssignedRep {
@@ -48,6 +52,8 @@ export interface MetroZipCentroid {
   lat: number;
   lng: number;
   population: number | null;
+  household_count: number | null;
+  median_income: number | null;
 }
 
 export interface BusinessUnit {

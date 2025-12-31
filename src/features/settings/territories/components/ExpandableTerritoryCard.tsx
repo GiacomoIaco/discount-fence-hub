@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Users, Edit2, Trash2, ChevronDown, ChevronUp, Check, Save, Palette, Clipboard, Trash } from 'lucide-react';
+import { MapPin, Users, Edit2, Trash2, ChevronDown, ChevronUp, Check, Save, Palette, Clipboard, Trash, Home, DollarSign } from 'lucide-react';
 import type { TerritoryWithReps, TerritoryFormData, BusinessUnit, SalesRep } from '../types/territory.types';
 import { TERRITORY_COLORS } from '../types/territory.types';
 
@@ -207,11 +207,23 @@ export function ExpandableTerritoryCard({
         </div>
 
         {/* Stats */}
-        <div className="flex gap-4 text-sm text-gray-600 mb-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 mb-3">
           <div className="flex items-center gap-1">
             <MapPin size={14} />
             <span>{territory.zip_count || 0} zips</span>
           </div>
+          {territory.total_households != null && territory.total_households > 0 && (
+            <div className="flex items-center gap-1" title="Total households">
+              <Home size={14} className="text-blue-500" />
+              <span>{(territory.total_households / 1000).toFixed(0)}K</span>
+            </div>
+          )}
+          {territory.avg_median_income != null && territory.avg_median_income > 0 && (
+            <div className="flex items-center gap-1" title="Avg median income">
+              <DollarSign size={14} className="text-green-500" />
+              <span>${(territory.avg_median_income / 1000).toFixed(0)}K</span>
+            </div>
+          )}
           {territory.business_unit_name && (
             <div className="text-gray-400">
               {territory.business_unit_name}
