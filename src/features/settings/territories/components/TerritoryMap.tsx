@@ -1,9 +1,14 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, useMap, FeatureGroup } from 'react-leaflet';
+import { EditControl } from 'react-leaflet-draw';
 import L from 'leaflet';
+import * as turf from '@turf/turf';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
 import type { TerritoryWithReps } from '../types/territory.types';
 import { METRO_OPTIONS, TEXAS_GEOJSON_URL } from '../types/territory.types';
+
+type SelectionMode = 'click' | 'draw';
 
 // Component to handle map view changes
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -20,6 +25,7 @@ interface TerritoryMapProps {
   territories: TerritoryWithReps[];
   selectedTerritoryId?: string;
   onZipClick?: (zipCode: string) => void;
+  onZipsSelected?: (zips: string[]) => void; // Bulk selection from lasso
   isSelectionEnabled?: boolean;
   selectedZips?: string[];
 }
@@ -34,6 +40,7 @@ export function TerritoryMap({
   territories,
   selectedTerritoryId,
   onZipClick,
+  onZipsSelected,
   isSelectionEnabled = false,
   selectedZips = [],
 }: TerritoryMapProps) {
@@ -44,6 +51,7 @@ export function TerritoryMap({
   const [filteredGeoData, setFilteredGeoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [hoveredZip, setHoveredZip] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('click');
 
   // Selected zips as a Set for quick lookup
   const selectedZipSet = useMemo(() => new Set(selectedZips), [selectedZips]);
@@ -70,6 +78,45 @@ export function TerritoryMap({
       setMapZoom(10);
     }
   }, []);
+
+  // Handle drawn shape (lasso selection)
+  const handleShapeDrawn = useCallback((e: any) => {
+    if (!filteredGeoData || !onZipsSelected) return;
+
+    const drawnLayer = e.layer;
+    const drawnGeoJson = drawnLayer.toGeoJSON();
+    const drawnGeometry = drawnGeoJson.geometry;
+
+    // Find all zips whose centroids fall inside the drawn shape
+    const matchingZips: string[] = [];
+
+    for (const feature of filteredGeoData.features) {
+      try {
+        // Calculate centroid of the zip polygon
+        const centroid = turf.centroid(feature);
+        const zipCode = getZipFromFeature(feature);
+
+        // Check if centroid is inside the drawn shape
+        if (turf.booleanPointInPolygon(centroid, drawnGeoJson)) {
+          matchingZips.push(zipCode);
+        }
+      } catch (err) {
+        // Skip invalid geometries
+      }
+    }
+
+    if (matchingZips.length > 0) {
+      // Merge with existing selection (add, don't replace)
+      const existingSet = new Set(selectedZips);
+      const newZips = matchingZips.filter(z => !existingSet.has(z));
+      if (newZips.length > 0) {
+        onZipsSelected([...selectedZips, ...newZips]);
+      }
+    }
+
+    // Remove the drawn shape from the map
+    drawnLayer.remove();
+  }, [filteredGeoData, onZipsSelected, selectedZips]);
 
   // Fetch Texas GeoJSON data
   useEffect(() => {
@@ -213,7 +260,7 @@ export function TerritoryMap({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Metro selector */}
+      {/* Metro selector + Mode toggle */}
       <div className="flex gap-2 p-2 bg-gray-50 border-b">
         {METRO_OPTIONS.map(option => (
           <button
@@ -228,6 +275,38 @@ export function TerritoryMap({
             {option.label}
           </button>
         ))}
+
+        {/* Mode toggle - only show when selection is enabled */}
+        {isSelectionEnabled && (
+          <>
+            <div className="w-px h-8 bg-gray-300 self-center mx-2" />
+            <div className="flex rounded-lg border overflow-hidden">
+              <button
+                onClick={() => setSelectionMode('click')}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                  selectionMode === 'click'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+                title="Click individual zips"
+              >
+                Click
+              </button>
+              <button
+                onClick={() => setSelectionMode('draw')}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                  selectionMode === 'draw'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+                title="Draw to select multiple zips"
+              >
+                Draw
+              </button>
+            </div>
+          </>
+        )}
+
         <div className="flex-1" />
         <div className="text-sm text-gray-500 self-center">
           {totalInView} zip codes
@@ -267,17 +346,63 @@ export function TerritoryMap({
               onEachFeature={onEachFeature}
             />
           )}
+
+          {/* Draw controls - only in draw mode */}
+          {isSelectionEnabled && selectionMode === 'draw' && (
+            <FeatureGroup>
+              <EditControl
+                position="topright"
+                onCreated={handleShapeDrawn}
+                draw={{
+                  polygon: {
+                    allowIntersection: false,
+                    shapeOptions: {
+                      color: '#8B5CF6',
+                      fillColor: '#8B5CF6',
+                      fillOpacity: 0.2,
+                    },
+                  },
+                  rectangle: {
+                    shapeOptions: {
+                      color: '#8B5CF6',
+                      fillColor: '#8B5CF6',
+                      fillOpacity: 0.2,
+                    },
+                  },
+                  circle: false,
+                  circlemarker: false,
+                  polyline: false,
+                  marker: false,
+                }}
+                edit={{
+                  edit: false,
+                  remove: false,
+                }}
+              />
+            </FeatureGroup>
+          )}
         </MapContainer>
 
         {/* Selection mode indicator */}
         {isSelectionEnabled && (
-          <div className="absolute top-4 left-4 bg-white px-3 py-2 rounded-lg shadow-md border border-green-200 z-[1000]">
+          <div className={`absolute top-4 left-4 bg-white px-3 py-2 rounded-lg shadow-md z-[1000] ${
+            selectionMode === 'click' ? 'border border-green-200' : 'border border-purple-200'
+          }`}>
             <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="font-medium text-green-700">Click to Select</span>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                selectionMode === 'click' ? 'bg-green-500' : 'bg-purple-500'
+              }`} />
+              <span className={`font-medium ${
+                selectionMode === 'click' ? 'text-green-700' : 'text-purple-700'
+              }`}>
+                {selectionMode === 'click' ? 'Click to Select' : 'Draw to Select'}
+              </span>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Click ZIP areas on the map to toggle selection
+              {selectionMode === 'click'
+                ? 'Click ZIP areas on the map to toggle selection'
+                : 'Draw a polygon or rectangle to select multiple ZIPs'
+              }
             </p>
           </div>
         )}

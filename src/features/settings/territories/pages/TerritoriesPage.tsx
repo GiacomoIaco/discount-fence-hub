@@ -123,6 +123,12 @@ export function TerritoriesPage() {
     );
   };
 
+  // Handle bulk zip selection from lasso draw
+  const handleZipsSelected = (zips: string[]) => {
+    if (!expandedTerritoryId) return;
+    setEditingZips(zips);
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -232,6 +238,7 @@ export function TerritoriesPage() {
               selectedZips={highlightedZips}
               isSelectionEnabled={!!expandedTerritoryId}
               onZipClick={handleMapZipClick}
+              onZipsSelected={handleZipsSelected}
             />
           )}
         </div>
