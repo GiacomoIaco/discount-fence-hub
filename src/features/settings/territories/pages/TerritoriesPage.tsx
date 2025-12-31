@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, MapPin, Loader2 } from 'lucide-react';
 import { TerritoryMap } from '../components/TerritoryMap';
-import { TerritoryCard } from '../components/TerritoryCard';
+import { ExpandableTerritoryCard } from '../components/ExpandableTerritoryCard';
 import { TerritoryEditor } from '../components/TerritoryEditor';
 import {
   useTerritories,
@@ -18,8 +18,9 @@ import type { TerritoryWithReps, TerritoryFormData } from '../types/territory.ty
 export function TerritoriesPage() {
   const [selectedBusinessUnitId, setSelectedBusinessUnitId] = useState<string>('');
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | undefined>();
+  const [expandedTerritoryId, setExpandedTerritoryId] = useState<string | null>(null);
+  const [editingZips, setEditingZips] = useState<string[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [editingTerritory, setEditingTerritory] = useState<TerritoryWithReps | undefined>();
 
   // Data queries
   const { data: territories = [], isLoading: loadingTerritories } = useTerritories(
@@ -39,32 +40,48 @@ export function TerritoriesPage() {
   const isLoading = loadingTerritories || loadingBUs || loadingReps;
 
   // Get selected territory's zip codes for highlighting
+  // When editing, show the editing zips; otherwise show selected territory's zips
   const selectedTerritory = territories.find(t => t.id === selectedTerritoryId);
-  const highlightedZips = selectedTerritory?.zip_codes || [];
+  const highlightedZips = expandedTerritoryId ? editingZips : (selectedTerritory?.zip_codes || []);
 
   // Handlers
   const handleNewTerritory = () => {
-    setEditingTerritory(undefined);
+    setExpandedTerritoryId(null);
+    setEditingZips([]);
     setIsEditorOpen(true);
   };
 
-  const handleEditTerritory = (territory: TerritoryWithReps) => {
-    setEditingTerritory(territory);
-    setIsEditorOpen(true);
+  const handleExpandTerritory = (territoryId: string) => {
+    const territory = territories.find(t => t.id === territoryId);
+    setExpandedTerritoryId(territoryId);
+    setSelectedTerritoryId(territoryId);
+    setEditingZips(territory?.zip_codes || []);
+  };
+
+  const handleCollapseTerritory = () => {
+    setExpandedTerritoryId(null);
+    setEditingZips([]);
   };
 
   const handleSaveTerritory = async (data: TerritoryFormData) => {
     try {
-      if (editingTerritory?.id) {
-        await updateTerritory.mutateAsync({ ...data, id: editingTerritory.id });
-      } else {
-        await createTerritory.mutateAsync(data);
-      }
+      await createTerritory.mutateAsync(data);
       setIsEditorOpen(false);
-      setEditingTerritory(undefined);
     } catch (error) {
       console.error('Failed to save territory:', error);
       alert('Failed to save territory. Please try again.');
+    }
+  };
+
+  const handleUpdateTerritory = async (territoryId: string, data: TerritoryFormData) => {
+    try {
+      await updateTerritory.mutateAsync({ ...data, id: territoryId });
+      setExpandedTerritoryId(null);
+      setEditingZips([]);
+    } catch (error) {
+      console.error('Failed to update territory:', error);
+      alert('Failed to update territory. Please try again.');
+      throw error;
     }
   };
 
@@ -94,6 +111,16 @@ export function TerritoriesPage() {
     } catch (error) {
       console.error('Failed to unassign rep:', error);
     }
+  };
+
+  // Handle zip click on map when editing
+  const handleMapZipClick = (zipCode: string) => {
+    if (!expandedTerritoryId) return;
+    setEditingZips(prev =>
+      prev.includes(zipCode)
+        ? prev.filter(z => z !== zipCode)
+        : [...prev, zipCode]
+    );
   };
 
   return (
@@ -163,18 +190,29 @@ export function TerritoriesPage() {
               </div>
             ) : (
               territories.map(territory => (
-                <TerritoryCard
+                <ExpandableTerritoryCard
                   key={territory.id}
                   territory={territory}
                   isSelected={territory.id === selectedTerritoryId}
+                  isExpanded={territory.id === expandedTerritoryId}
                   salesReps={salesReps}
-                  onSelect={() => setSelectedTerritoryId(
-                    territory.id === selectedTerritoryId ? undefined : territory.id
-                  )}
-                  onEdit={() => handleEditTerritory(territory)}
+                  businessUnits={businessUnits}
+                  onSelect={() => {
+                    if (expandedTerritoryId !== territory.id) {
+                      setSelectedTerritoryId(
+                        territory.id === selectedTerritoryId ? undefined : territory.id
+                      );
+                    }
+                  }}
+                  onExpand={() => handleExpandTerritory(territory.id)}
+                  onCollapse={handleCollapseTerritory}
+                  onSave={(data) => handleUpdateTerritory(territory.id, data)}
                   onDelete={() => handleDeleteTerritory(territory.id)}
                   onAssignRep={(repId) => handleAssignRep(territory.id, repId)}
                   onUnassignRep={(repId) => handleUnassignRep(territory.id, repId)}
+                  onZipsChange={setEditingZips}
+                  externalZips={territory.id === expandedTerritoryId ? editingZips : undefined}
+                  isSaving={updateTerritory.isPending}
                 />
               ))
             )}
@@ -192,31 +230,21 @@ export function TerritoriesPage() {
               territories={territories}
               selectedTerritoryId={selectedTerritoryId}
               selectedZips={highlightedZips}
+              isSelectionEnabled={!!expandedTerritoryId}
+              onZipClick={handleMapZipClick}
             />
           )}
         </div>
       </div>
 
-      {/* Editor Modal */}
+      {/* Editor Modal - only for new territories */}
       <TerritoryEditor
         isOpen={isEditorOpen}
-        onClose={() => {
-          setIsEditorOpen(false);
-          setEditingTerritory(undefined);
-        }}
+        onClose={() => setIsEditorOpen(false)}
         onSave={handleSaveTerritory}
-        initialData={editingTerritory ? {
-          id: editingTerritory.id,
-          name: editingTerritory.name,
-          code: editingTerritory.code,
-          business_unit_id: editingTerritory.business_unit_id,
-          color: editingTerritory.color,
-          description: editingTerritory.description || '',
-          geometry: editingTerritory.geometry,
-          zip_codes: editingTerritory.zip_codes,
-        } : undefined}
+        initialData={undefined}
         businessUnits={businessUnits}
-        isLoading={createTerritory.isPending || updateTerritory.isPending}
+        isLoading={createTerritory.isPending}
       />
     </div>
   );
