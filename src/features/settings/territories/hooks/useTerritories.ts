@@ -92,19 +92,44 @@ export function useBusinessUnits() {
   });
 }
 
-// Fetch sales reps
+// Fetch team members who can be assigned to territories (from FSM team profiles)
 export function useSalesReps() {
   return useQuery({
-    queryKey: ['sales-reps'],
+    queryKey: ['territory-assignable-reps'],
     queryFn: async () => {
+      // Fetch FSM team profiles that have 'rep' role
       const { data, error } = await supabase
-        .from('sales_reps')
-        .select('*')
+        .from('fsm_team_profiles')
+        .select(`
+          user_id,
+          fsm_roles,
+          user:user_profiles!fsm_team_profiles_user_id_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
         .eq('is_active', true)
-        .order('name');
+        .contains('fsm_roles', ['rep']);
 
       if (error) throw error;
-      return data as SalesRep[];
+
+      // Transform to SalesRep-like structure for backwards compatibility
+      const reps: SalesRep[] = (data || [])
+        .filter(d => d.user)
+        .map(d => ({
+          id: d.user_id,
+          user_id: d.user_id,
+          name: d.user?.full_name || d.user?.email || 'Unknown',
+          email: d.user?.email || null,
+          phone: null,
+          territory_ids: [],
+          product_skills: [],
+          max_daily_assessments: 5,
+          is_active: true,
+        }));
+
+      return reps.sort((a, b) => a.name.localeCompare(b.name));
     },
   });
 }
@@ -194,63 +219,65 @@ export function useDeleteTerritory() {
   });
 }
 
-// Assign sales rep to territory
+// Assign rep to territory (uses FSM territory coverage)
 export function useAssignRep() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       territoryId,
-      salesRepId,
-      isPrimary = true
+      salesRepId, // This is now user_id from user_profiles
+      isPrimary = false
     }: {
       territoryId: string;
       salesRepId: string;
       isPrimary?: boolean;
     }) => {
       const { data, error } = await supabase
-        .from('territory_assignments')
+        .from('fsm_territory_coverage')
         .upsert({
           territory_id: territoryId,
-          sales_rep_id: salesRepId,
+          user_id: salesRepId,
           is_primary: isPrimary,
         }, {
-          onConflict: 'territory_id,sales_rep_id',
+          onConflict: 'user_id,territory_id',
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data as TerritoryAssignment;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['territories'] });
+      queryClient.invalidateQueries({ queryKey: ['fsm-team-profiles'] });
     },
   });
 }
 
-// Remove sales rep from territory
+// Remove rep from territory (uses FSM territory coverage)
 export function useUnassignRep() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       territoryId,
-      salesRepId
+      salesRepId // This is now user_id from user_profiles
     }: {
       territoryId: string;
       salesRepId: string;
     }) => {
       const { error } = await supabase
-        .from('territory_assignments')
+        .from('fsm_territory_coverage')
         .delete()
         .eq('territory_id', territoryId)
-        .eq('sales_rep_id', salesRepId);
+        .eq('user_id', salesRepId);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['territories'] });
+      queryClient.invalidateQueries({ queryKey: ['fsm-team-profiles'] });
     },
   });
 }
