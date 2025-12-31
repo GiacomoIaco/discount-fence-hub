@@ -104,30 +104,35 @@ export function useSalesReps() {
     queryKey: ['territory-assignable-reps'],
     queryFn: async () => {
       // Fetch FSM team profiles that have 'rep' role
-      const { data, error } = await supabase
+      const { data: profiles, error: profileError } = await supabase
         .from('fsm_team_profiles')
-        .select(`
-          user_id,
-          fsm_roles,
-          user:user_profiles!fsm_team_profiles_user_id_fkey(
-            id,
-            full_name,
-            email
-          )
-        `)
+        .select('user_id, fsm_roles')
         .eq('is_active', true)
         .contains('fsm_roles', ['rep']);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+      if (!profiles || profiles.length === 0) return [];
+
+      // Fetch user profiles for these team members
+      const userIds = profiles.map(p => p.user_id);
+      const { data: users, error: userError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (userError) throw userError;
+
+      // Create a map of user_id to user profile
+      const userMap = new Map<string, UserProfile>();
+      (users || []).forEach(u => userMap.set(u.id, u));
 
       // Transform to SalesRep-like structure for backwards compatibility
-      const reps: SalesRep[] = (data || [])
-        .filter(d => d.user)
-        .map(d => {
-          const user = d.user as unknown as UserProfile;
+      const reps: SalesRep[] = profiles
+        .map(p => {
+          const user = userMap.get(p.user_id);
           return {
-            id: d.user_id,
-            user_id: d.user_id,
+            id: p.user_id,
+            user_id: p.user_id,
             name: user?.full_name || user?.email || 'Unknown',
             email: user?.email || null,
             phone: null,
@@ -136,7 +141,8 @@ export function useSalesReps() {
             max_daily_assessments: 5,
             is_active: true,
           };
-        });
+        })
+        .filter(r => r.name !== 'Unknown'); // Filter out any without user profiles
 
       return reps.sort((a, b) => a.name.localeCompare(b.name));
     },
