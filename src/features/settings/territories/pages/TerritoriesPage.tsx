@@ -13,6 +13,7 @@ import {
   useAssignRep,
   useUnassignRep,
 } from '../hooks/useTerritories';
+import { useAllZipCentroids } from '../hooks/useZipCentroids';
 import type { TerritoryFormData } from '../types/territory.types';
 
 export function TerritoriesPage() {
@@ -28,6 +29,7 @@ export function TerritoriesPage() {
   );
   const { data: businessUnits = [], isLoading: loadingBUs } = useBusinessUnits();
   const { data: salesReps = [], isLoading: loadingReps } = useSalesReps();
+  const { data: zipCentroids = [] } = useAllZipCentroids();
 
   // Mutations
   const createTerritory = useCreateTerritory();
@@ -239,6 +241,7 @@ export function TerritoriesPage() {
               isSelectionEnabled={!!expandedTerritoryId}
               onZipClick={handleMapZipClick}
               onZipsSelected={handleZipsSelected}
+              zipCentroids={zipCentroids}
             />
           )}
         </div>

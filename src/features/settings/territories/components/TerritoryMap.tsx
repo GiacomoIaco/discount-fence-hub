@@ -5,7 +5,7 @@ import L from 'leaflet';
 import * as turf from '@turf/turf';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
-import type { TerritoryWithReps } from '../types/territory.types';
+import type { TerritoryWithReps, MetroZipCentroid } from '../types/territory.types';
 import { METRO_OPTIONS, TEXAS_GEOJSON_URL } from '../types/territory.types';
 
 type SelectionMode = 'click' | 'draw';
@@ -28,6 +28,7 @@ interface TerritoryMapProps {
   onZipsSelected?: (zips: string[]) => void; // Bulk selection from lasso
   isSelectionEnabled?: boolean;
   selectedZips?: string[];
+  zipCentroids?: MetroZipCentroid[]; // Demographics data for tooltips
 }
 
 // Extract ZIP code from GeoJSON feature properties
@@ -43,6 +44,7 @@ export function TerritoryMap({
   onZipsSelected,
   isSelectionEnabled = false,
   selectedZips = [],
+  zipCentroids = [],
 }: TerritoryMapProps) {
   const [activeMetro, setActiveMetro] = useState<string>('austin');
   const [mapCenter, setMapCenter] = useState<[number, number]>([30.2672, -97.7431]);
@@ -55,6 +57,13 @@ export function TerritoryMap({
 
   // Selected zips as a Set for quick lookup
   const selectedZipSet = useMemo(() => new Set(selectedZips), [selectedZips]);
+
+  // Zip centroids as a Map for quick demographics lookup
+  const centroidMap = useMemo(() => {
+    const map = new Map<string, MetroZipCentroid>();
+    zipCentroids.forEach(c => map.set(c.zip_code, c));
+    return map;
+  }, [zipCentroids]);
 
   // Get zips assigned to visible territories
   const territoryZipMap = useMemo(() => {
@@ -216,11 +225,34 @@ export function TerritoryMap({
     const zip = getZipFromFeature(feature);
     const assignedTerritories = territoryZipMap.get(zip) || [];
     const isSelected = selectedZipSet.has(zip);
+    const centroid = centroidMap.get(zip);
 
     // Build tooltip content
     let tooltipContent = `<div class="p-1"><div class="font-bold text-sm">ZIP: ${zip}</div>`;
+
+    // Demographics row
+    if (centroid) {
+      const parts: string[] = [];
+      if (centroid.city) {
+        parts.push(centroid.city);
+      }
+      tooltipContent += `<div class="text-xs text-gray-600">${parts.join(' • ')}</div>`;
+
+      // Households and income
+      const stats: string[] = [];
+      if (centroid.household_count) {
+        stats.push(`${(centroid.household_count / 1000).toFixed(0)}K households`);
+      }
+      if (centroid.median_income) {
+        stats.push(`$${(centroid.median_income / 1000).toFixed(0)}K avg income`);
+      }
+      if (stats.length > 0) {
+        tooltipContent += `<div class="text-xs text-gray-500">${stats.join(' • ')}</div>`;
+      }
+    }
+
     if (isSelected) {
-      tooltipContent += '<div class="text-xs text-green-600 font-semibold">✓ Selected</div>';
+      tooltipContent += '<div class="text-xs text-green-600 font-semibold mt-1">✓ Selected</div>';
     }
     if (assignedTerritories.length > 0) {
       tooltipContent += `<div class="text-xs text-blue-600 pt-1">${assignedTerritories.map(t => t.name).join(', ')}</div>`;
@@ -239,7 +271,7 @@ export function TerritoryMap({
       mouseover: () => setHoveredZip(zip),
       mouseout: () => setHoveredZip(null),
     });
-  }, [isSelectionEnabled, onZipClick, territoryZipMap, selectedZipSet]);
+  }, [isSelectionEnabled, onZipClick, territoryZipMap, selectedZipSet, centroidMap]);
 
   // Key for forcing GeoJSON re-render when state changes
   const geojsonKey = useMemo(() => {
