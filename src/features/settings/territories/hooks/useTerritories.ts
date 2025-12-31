@@ -36,17 +36,17 @@ export function useLocations() {
 }
 
 // Fetch all territories with assigned reps
-export function useTerritories(locationCode?: string) {
+export function useTerritories(businessUnitId?: string) {
   return useQuery({
-    queryKey: ['territories', locationCode],
+    queryKey: ['territories', businessUnitId],
     queryFn: async () => {
       let query = supabase
         .from('territories_with_reps')
         .select('*')
         .order('name');
 
-      if (locationCode) {
-        query = query.eq('location_code', locationCode);
+      if (businessUnitId) {
+        query = query.eq('business_unit_id', businessUnitId);
       }
 
       const { data, error } = await query;
