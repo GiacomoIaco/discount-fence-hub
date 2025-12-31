@@ -16,6 +16,9 @@ export interface RoadmapItem {
   session_notes: string | null;
   commit_refs: string[] | null;
   related_items: string[] | null;
+  // Voice recording fields
+  audio_url: string | null;
+  voice_transcript: string | null;
   // Joined from user_profiles
   creator_name?: string;
   // Joined attachments

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Trash2, Save, User, Lock, MessageSquarePlus, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Trash2, Save, User, Lock, MessageSquarePlus, Sparkles, Mic, Play, Pause, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { HUB_CONFIG, type HubKey } from '../RoadmapHub';
 import { STATUS_CONFIG, COMPLEXITY_CONFIG, type RoadmapItem, type StatusType, type ComplexityType, type RoadmapAttachment } from '../types';
@@ -56,6 +56,14 @@ export default function RoadmapItemModal({
   const [reanalyzing, setReanalyzing] = useState(false);
   const [attachments, setAttachments] = useState<RoadmapAttachment[]>([]);
   const [relatedItemIds, setRelatedItemIds] = useState<string[]>(item.related_items || []);
+
+  // Voice recording playback state
+  const [voiceExpanded, setVoiceExpanded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const [formData, setFormData] = useState({
     title: item.title,
     raw_idea: item.raw_idea || '',
@@ -86,6 +94,44 @@ export default function RoadmapItemModal({
   useEffect(() => {
     fetchAttachments();
   }, [item.id]);
+
+  // Audio playback handlers
+  const playAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const pauseAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleAudioTimeUpdate = () => {
+    if (audioRef.current && audioRef.current.duration && isFinite(audioRef.current.duration)) {
+      setPlaybackProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+    }
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    setPlaybackProgress(0);
+  };
+
+  const handleAudioLoadedMetadata = () => {
+    if (audioRef.current && isFinite(audioRef.current.duration)) {
+      setAudioDuration(Math.floor(audioRef.current.duration));
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleSave = async () => {
     if (!formData.title.trim()) {
@@ -285,6 +331,79 @@ export default function RoadmapItemModal({
               )}
             </div>
           </div>
+
+          {/* Voice Recording section - collapsible */}
+          {item.audio_url && (
+            <div className="border border-purple-200 rounded-lg overflow-hidden bg-gradient-to-r from-purple-50 to-blue-50">
+              <button
+                type="button"
+                onClick={() => setVoiceExpanded(!voiceExpanded)}
+                className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-purple-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-900">Voice Recording</span>
+                  {item.voice_transcript && (
+                    <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                      Transcript available
+                    </span>
+                  )}
+                </div>
+                {voiceExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-purple-600" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-purple-600" />
+                )}
+              </button>
+
+              {voiceExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-purple-200">
+                  {/* Audio player */}
+                  <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-200 mt-3">
+                    <button
+                      type="button"
+                      onClick={isPlaying ? pauseAudio : playAudio}
+                      className="p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition-colors"
+                    >
+                      {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                    </button>
+                    <div className="flex-1">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-600 transition-all"
+                          style={{ width: `${playbackProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-500 min-w-[40px]">
+                      {audioDuration > 0 ? formatDuration(audioDuration) : '--:--'}
+                    </span>
+                  </div>
+
+                  <audio
+                    ref={audioRef}
+                    src={item.audio_url}
+                    onTimeUpdate={handleAudioTimeUpdate}
+                    onEnded={handleAudioEnded}
+                    onLoadedMetadata={handleAudioLoadedMetadata}
+                    className="hidden"
+                  />
+
+                  {/* Transcript */}
+                  {item.voice_transcript && (
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Original Transcript
+                      </label>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {item.voice_transcript}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Importance & Complexity row - more compact */}
           <div className="flex flex-wrap items-center gap-4 pb-2 border-b border-gray-100">

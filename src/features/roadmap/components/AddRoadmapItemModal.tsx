@@ -337,6 +337,7 @@ export default function AddRoadmapItemModal({
         complexity: formData.complexity,
         status: 'idea',
         audio_url: savedAudioUrl || null,
+        voice_transcript: transcript || null,
         created_by: user?.id || null,
       }).select('id').single();
 
