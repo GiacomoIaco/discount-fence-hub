@@ -62,6 +62,8 @@ export default function RoadmapItemModal({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [formData, setFormData] = useState({
@@ -96,10 +98,17 @@ export default function RoadmapItemModal({
   }, [item.id]);
 
   // Audio playback handlers
-  const playAudio = () => {
+  const playAudio = async () => {
     if (audioRef.current) {
-      audioRef.current.play();
-      setIsPlaying(true);
+      setAudioError(null);
+      try {
+        await audioRef.current.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.error('Audio playback error:', error);
+        setAudioError('Failed to play audio. The recording may be unavailable.');
+        setIsPlaying(false);
+      }
     }
   };
 
@@ -125,6 +134,18 @@ export default function RoadmapItemModal({
     if (audioRef.current && isFinite(audioRef.current.duration)) {
       setAudioDuration(Math.floor(audioRef.current.duration));
     }
+    setAudioLoading(false);
+  };
+
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    console.error('Audio load error:', e);
+    setAudioError('Could not load audio. The recording may have expired or is unavailable.');
+    setAudioLoading(false);
+  };
+
+  const handleAudioCanPlay = () => {
+    setAudioLoading(false);
+    setAudioError(null);
   };
 
   const formatDuration = (seconds: number) => {
@@ -359,26 +380,33 @@ export default function RoadmapItemModal({
               {voiceExpanded && (
                 <div className="px-4 pb-4 space-y-3 border-t border-purple-200">
                   {/* Audio player */}
-                  <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-200 mt-3">
-                    <button
-                      type="button"
-                      onClick={isPlaying ? pauseAudio : playAudio}
-                      className="p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition-colors"
-                    >
-                      {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                    </button>
-                    <div className="flex-1">
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-purple-600 transition-all"
-                          style={{ width: `${playbackProgress}%` }}
-                        />
-                      </div>
+                  {audioError ? (
+                    <div className="flex items-center gap-3 bg-red-50 rounded-lg p-3 border border-red-200 mt-3">
+                      <span className="text-sm text-red-600">{audioError}</span>
                     </div>
-                    <span className="text-sm text-gray-500 min-w-[40px]">
-                      {audioDuration > 0 ? formatDuration(audioDuration) : '--:--'}
-                    </span>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-200 mt-3">
+                      <button
+                        type="button"
+                        onClick={isPlaying ? pauseAudio : playAudio}
+                        disabled={audioLoading}
+                        className="p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition-colors disabled:opacity-50"
+                      >
+                        {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                      </button>
+                      <div className="flex-1">
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-600 transition-all"
+                            style={{ width: `${playbackProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-500 min-w-[40px]">
+                        {audioDuration > 0 ? formatDuration(audioDuration) : '--:--'}
+                      </span>
+                    </div>
+                  )}
 
                   <audio
                     ref={audioRef}
@@ -386,6 +414,9 @@ export default function RoadmapItemModal({
                     onTimeUpdate={handleAudioTimeUpdate}
                     onEnded={handleAudioEnded}
                     onLoadedMetadata={handleAudioLoadedMetadata}
+                    onError={handleAudioError}
+                    onCanPlay={handleAudioCanPlay}
+                    preload="metadata"
                     className="hidden"
                   />
 
