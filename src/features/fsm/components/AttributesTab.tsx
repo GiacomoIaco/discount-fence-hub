@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MapPin, Wrench } from 'lucide-react';
-import TerritoriesList from './TerritoriesList';
+import TerritoriesPage from '../../settings/territories/pages/TerritoriesPage';
 import ProjectTypesList from './ProjectTypesList';
 import { useBusinessUnits } from '../../settings/hooks/useBusinessUnits';
 
@@ -57,7 +57,9 @@ export default function AttributesTab() {
 
       {/* Content */}
       {subTab === 'territories' && (
-        <TerritoriesList />
+        <div className="h-[calc(100vh-200px)]">
+          <TerritoriesPage />
+        </div>
       )}
       {subTab === 'project_types' && (
         <ProjectTypesList filterByBusinessUnit={selectedBU || undefined} />

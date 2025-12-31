@@ -1,7 +1,6 @@
 // FSM Components
+// Note: TerritoriesList and TerritoryEditorModal removed - use Settings > Territories instead
 
-export { default as TerritoriesList } from './TerritoriesList';
-export { default as TerritoryEditorModal } from './TerritoryEditorModal';
 export { default as CrewsList } from './CrewsList';
 export { default as CrewEditorModal } from './CrewEditorModal';
 // SalesRepsList and SalesRepEditorModal removed - use FsmTeamList with role='rep' filter

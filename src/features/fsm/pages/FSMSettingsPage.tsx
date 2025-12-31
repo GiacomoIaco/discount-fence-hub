@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MapPin, Users, Settings } from 'lucide-react';
-import { TerritoriesList, CrewsList } from '../components';
+import { CrewsList } from '../components';
+import TerritoriesPage from '../../settings/territories/pages/TerritoriesPage';
 
 // Note: Sales Reps tab removed - use Settings > Team Management instead
 // Reps are now managed through fsm_team_profiles, not sales_reps table
@@ -55,7 +56,7 @@ export default function FSMSettingsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {activeTab === 'territories' && <TerritoriesList />}
+        {activeTab === 'territories' && <TerritoriesPage />}
         {activeTab === 'crews' && <CrewsList />}
       </div>
     </div>
