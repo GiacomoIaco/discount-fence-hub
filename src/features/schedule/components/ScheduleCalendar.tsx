@@ -29,7 +29,7 @@ import type {
 } from '../types/schedule.types';
 import type { CalendarViewType } from '../hooks/useCalendarViews';
 import { filterResources, filterEntries } from '../hooks/useScheduleFilters';
-import type { Crew, SalesRep } from '../../fsm/types';
+import type { Crew } from '../../fsm/types';
 import { EventCard } from './EventCard';
 import { ScheduleEntryModal } from './ScheduleEntryModal';
 import { UnscheduledJobsSidebar } from './UnscheduledJobsSidebar';

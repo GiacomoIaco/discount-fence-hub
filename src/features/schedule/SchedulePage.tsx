@@ -14,7 +14,7 @@ import { useScheduleEntries } from './hooks/useScheduleEntries';
 import { useCrewCapacity } from './hooks/useCrewCapacity';
 import { useScheduleRealtime } from './hooks/useScheduleRealtime';
 import { useSalesReps } from '../fsm/hooks/useSalesReps';
-import type { Crew, SalesRep } from '../fsm/types';
+import type { Crew } from '../fsm/types';
 import type { CreateScheduleEntryInput } from './types/schedule.types';
 
 // ============================================
