@@ -88,56 +88,57 @@ export function MessageCenterHub() {
   };
 
   // Invite sales rep to conversation from Contact Info Panel
+  // Note: salesRepId is now user_id from user_profiles (not old sales_reps.id)
   const handleInviteSalesRep = async (salesRepId: string, salesRepName: string) => {
     if (!selectedConversation) return;
 
     try {
-      // Fetch full sales rep data
-      const { data: salesRep, error: repError } = await supabase
-        .from('sales_reps')
-        .select('id, name, email, phone, user_id')
+      // Fetch user profile data (salesRepId is now user_id)
+      const { data: userProfile, error: repError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, phone')
         .eq('id', salesRepId)
         .single();
 
-      if (repError || !salesRep) {
-        showError('Could not find sales rep information');
+      if (repError || !userProfile) {
+        showError('Could not find user information');
         return;
       }
 
-      // Check if mc_contact already exists for this sales rep (by user_id or email)
+      // Check if mc_contact already exists for this user (by user_id or email)
       let mcContact = null;
 
-      if (salesRep.user_id) {
-        const { data: existing } = await supabase
-          .from('mc_contacts')
-          .select('id')
-          .eq('employee_id', salesRep.user_id)
-          .single();
-        mcContact = existing;
-      }
+      // Check by employee_id (user_id)
+      const { data: existing } = await supabase
+        .from('mc_contacts')
+        .select('id')
+        .eq('employee_id', userProfile.id)
+        .single();
+      mcContact = existing;
 
-      if (!mcContact && salesRep.email) {
-        const { data: existing } = await supabase
+      if (!mcContact && userProfile.email) {
+        const { data: existingByEmail } = await supabase
           .from('mc_contacts')
           .select('id')
-          .eq('email_primary', salesRep.email)
+          .eq('email_primary', userProfile.email)
           .single();
-        mcContact = existing;
+        mcContact = existingByEmail;
       }
 
       // Create mc_contact if doesn't exist
       if (!mcContact) {
-        const nameParts = salesRep.name.split(' ');
+        const displayName = userProfile.full_name || userProfile.email || 'Unknown';
+        const nameParts = displayName.split(' ');
         const { data: newContact, error: createError } = await supabase
           .from('mc_contacts')
           .insert({
             contact_type: 'employee',
-            display_name: salesRep.name,
+            display_name: displayName,
             first_name: nameParts[0],
             last_name: nameParts.slice(1).join(' '),
-            email_primary: salesRep.email,
-            phone_primary: salesRep.phone,
-            employee_id: salesRep.user_id,
+            email_primary: userProfile.email,
+            phone_primary: userProfile.phone,
+            employee_id: userProfile.id,
             company_name: 'Discount Fence',
             context_label: 'Sales Rep'
           })

@@ -72,22 +72,43 @@ export function ContactInfoPanel({ contact, conversationId, isOpen, onClose, onI
         if (client) {
           const { data: projects } = await supabase
             .from('projects')
-            .select(`
-              id, name, status, created_at,
-              assigned_rep:sales_reps(id, name, email, phone, user_id)
-            `)
+            .select(`id, name, status, created_at, assigned_rep_user_id`)
             .eq('client_id', client.id)
             .order('created_at', { ascending: false })
             .limit(5);
 
-          // Map to handle Supabase returning joined data as array
-          const mappedProjects: LinkedProject[] = (projects || []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            status: p.status,
-            created_at: p.created_at,
-            assigned_rep: Array.isArray(p.assigned_rep) ? p.assigned_rep[0] || null : p.assigned_rep
-          }));
+          // Fetch user profiles for assigned reps
+          const userIds = new Set<string>();
+          (projects || []).forEach((p: any) => {
+            if (p.assigned_rep_user_id) userIds.add(p.assigned_rep_user_id);
+          });
+
+          let userMap = new Map<string, { id: string; full_name: string | null; email: string | null; phone: string | null }>();
+          if (userIds.size > 0) {
+            const { data: userProfiles } = await supabase
+              .from('user_profiles')
+              .select('id, full_name, email, phone')
+              .in('id', Array.from(userIds));
+            (userProfiles || []).forEach((u: any) => userMap.set(u.id, u));
+          }
+
+          // Map to LinkedProject structure
+          const mappedProjects: LinkedProject[] = (projects || []).map((p: any) => {
+            const user = p.assigned_rep_user_id ? userMap.get(p.assigned_rep_user_id) : null;
+            return {
+              id: p.id,
+              name: p.name,
+              status: p.status,
+              created_at: p.created_at,
+              assigned_rep: user ? {
+                id: user.id,
+                name: user.full_name || user.email || 'Unknown',
+                email: user.email || undefined,
+                phone: user.phone || undefined,
+                user_id: user.id,
+              } : null
+            };
+          });
           setLinkedProjects(mappedProjects);
         }
       } else {

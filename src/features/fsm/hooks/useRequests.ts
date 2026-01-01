@@ -1,21 +1,46 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { ServiceRequest, RequestFormData, RequestStatus, Job } from '../types';
+import type { ServiceRequest, RequestFormData, RequestStatus, Job, RepUser } from '../types';
 import { showSuccess, showError } from '../../../lib/toast';
 
 interface RequestFilters {
   status?: RequestStatus | RequestStatus[];
   clientId?: string;
-  assignedRepId?: string;
+  assignedRepId?: string;  // Now expects user_id, not sales_rep_id
   territoryId?: string;
   dateFrom?: string;
   dateTo?: string;
+}
+
+// Helper to fetch user profiles by IDs
+async function fetchUserProfiles(userIds: string[]): Promise<Map<string, RepUser>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, email, phone')
+    .in('id', userIds);
+
+  if (error) {
+    console.warn('Failed to fetch user profiles:', error);
+    return new Map();
+  }
+
+  const map = new Map<string, RepUser>();
+  (data || []).forEach(u => map.set(u.id, {
+    id: u.id,
+    full_name: u.full_name,
+    email: u.email || '',
+    phone: u.phone || null,
+  }));
+  return map;
 }
 
 export function useRequests(filters?: RequestFilters) {
   return useQuery({
     queryKey: ['service_requests', filters],
     queryFn: async () => {
+      // Query without sales_reps joins - we'll fetch user profiles separately
       let query = supabase
         .from('service_requests')
         .select(`
@@ -23,8 +48,6 @@ export function useRequests(filters?: RequestFilters) {
           client:clients(id, name),
           community:communities(id, name),
           property:properties(id, address_line1),
-          assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name),
-          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name),
           qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .order('created_at', { ascending: false });
@@ -43,7 +66,8 @@ export function useRequests(filters?: RequestFilters) {
       }
 
       if (filters?.assignedRepId) {
-        query = query.eq('assigned_rep_id', filters.assignedRepId);
+        // Filter by new user_id column
+        query = query.eq('assigned_rep_user_id', filters.assignedRepId);
       }
 
       if (filters?.territoryId) {
@@ -61,7 +85,25 @@ export function useRequests(filters?: RequestFilters) {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as ServiceRequest[];
+
+      // Collect unique user IDs for rep lookups
+      const userIds = new Set<string>();
+      (data || []).forEach(req => {
+        if (req.assigned_rep_user_id) userIds.add(req.assigned_rep_user_id);
+        if (req.assessment_rep_user_id) userIds.add(req.assessment_rep_user_id);
+      });
+
+      // Fetch user profiles
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      // Merge user profiles into requests
+      const requestsWithUsers = (data || []).map(req => ({
+        ...req,
+        assigned_rep_user: req.assigned_rep_user_id ? userMap.get(req.assigned_rep_user_id) : undefined,
+        assessment_rep_user: req.assessment_rep_user_id ? userMap.get(req.assessment_rep_user_id) : undefined,
+      }));
+
+      return requestsWithUsers as ServiceRequest[];
     },
   });
 }
@@ -79,8 +121,6 @@ export function useRequest(id: string | undefined) {
           client:clients(id, name, code),
           community:communities(id, name),
           property:properties(id, address_line1, lot_number),
-          assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name, email, phone),
-          assessment_rep:sales_reps!service_requests_assessment_rep_id_fkey(id, name, email, phone),
           territory:territories(id, name, code),
           qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
@@ -88,7 +128,19 @@ export function useRequest(id: string | undefined) {
         .single();
 
       if (error) throw error;
-      return data as ServiceRequest;
+
+      // Fetch user profiles for reps
+      const userIds: string[] = [];
+      if (data.assigned_rep_user_id) userIds.push(data.assigned_rep_user_id);
+      if (data.assessment_rep_user_id) userIds.push(data.assessment_rep_user_id);
+
+      const userMap = await fetchUserProfiles(userIds);
+
+      return {
+        ...data,
+        assigned_rep_user: data.assigned_rep_user_id ? userMap.get(data.assigned_rep_user_id) : undefined,
+        assessment_rep_user: data.assessment_rep_user_id ? userMap.get(data.assessment_rep_user_id) : undefined,
+      } as ServiceRequest;
     },
     enabled: !!id,
   });
@@ -127,7 +179,7 @@ export function useCreateRequest() {
           assessment_scheduled_at: data.assessment_scheduled_at || null,
           // Assignment
           business_unit_id: data.business_unit_id || null,
-          assigned_rep_id: data.assigned_rep_id || null,
+          assigned_rep_user_id: data.assigned_rep_id || null,  // Form uses assigned_rep_id, we write to user_id column
           territory_id: data.territory_id || null,
           priority: data.priority,
           // Status
@@ -182,7 +234,7 @@ export function useUpdateRequest() {
       if (data.requires_assessment !== undefined) updates.requires_assessment = data.requires_assessment;
       if (data.assessment_scheduled_at !== undefined) updates.assessment_scheduled_at = data.assessment_scheduled_at || null;
       if (data.business_unit_id !== undefined) updates.business_unit_id = data.business_unit_id || null;
-      if (data.assigned_rep_id !== undefined) updates.assigned_rep_id = data.assigned_rep_id || null;
+      if (data.assigned_rep_id !== undefined) updates.assigned_rep_user_id = data.assigned_rep_id || null;  // Write to user_id column
       if (data.territory_id !== undefined) updates.territory_id = data.territory_id || null;
       if (data.priority !== undefined) updates.priority = data.priority;
 
@@ -277,7 +329,7 @@ export function useScheduleAssessment() {
         .from('service_requests')
         .update({
           assessment_scheduled_at: scheduledAt,
-          assessment_rep_id: repId || null,
+          assessment_rep_user_id: repId || null,  // Write to user_id column
           status: 'assessment_scheduled',
           status_changed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

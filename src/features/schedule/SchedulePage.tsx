@@ -13,6 +13,7 @@ import { useCalendarViews } from './hooks/useCalendarViews';
 import { useScheduleEntries } from './hooks/useScheduleEntries';
 import { useCrewCapacity } from './hooks/useCrewCapacity';
 import { useScheduleRealtime } from './hooks/useScheduleRealtime';
+import { useSalesReps } from '../fsm/hooks/useSalesReps';
 import type { Crew, SalesRep } from '../fsm/types';
 import type { CreateScheduleEntryInput } from './types/schedule.types';
 
@@ -86,19 +87,8 @@ export default function SchedulePage({
     },
   });
 
-  // Fetch sales reps
-  const { data: salesReps = [] } = useQuery({
-    queryKey: ['sales_reps', 'active'],
-    queryFn: async (): Promise<SalesRep[]> => {
-      const { data, error } = await supabase
-        .from('sales_reps')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // Fetch sales reps (now from user_profiles + fsm_team_profiles)
+  const { data: salesReps = [] } = useSalesReps();
 
   // Fetch schedule entries (shared by both views)
   const { data: entries = [] } = useScheduleEntries({

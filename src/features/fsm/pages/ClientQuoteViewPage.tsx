@@ -79,7 +79,6 @@ export default function ClientQuoteViewPage() {
           *,
           client:clients(id, name, primary_contact_name),
           community:communities(id, name),
-          sales_rep:sales_reps(id, name, email, phone),
           line_items:quote_line_items(*)
         `)
         .eq('view_token', token)
@@ -90,6 +89,28 @@ export default function ClientQuoteViewPage() {
         setLoading(false);
         return;
       }
+
+      // Fetch sales rep user profile if assigned
+      let salesRep = null;
+      if (quoteData.sales_rep_user_id) {
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('id, full_name, email, phone')
+          .eq('id', quoteData.sales_rep_user_id)
+          .single();
+
+        if (userProfile) {
+          salesRep = {
+            id: userProfile.id,
+            name: userProfile.full_name || userProfile.email || 'Unknown',
+            email: userProfile.email || undefined,
+            phone: userProfile.phone || undefined,
+          };
+        }
+      }
+
+      // Add sales_rep to quote data
+      quoteData.sales_rep = salesRep;
 
       // Check if token has expired (7 days)
       const tokenCreatedAt = quoteData.view_token_created_at;

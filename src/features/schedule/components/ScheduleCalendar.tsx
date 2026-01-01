@@ -17,6 +17,7 @@ import { ChevronLeft } from 'lucide-react';
 
 import { useScheduleEntries, useQuickUpdateEntry, useCreateScheduleEntry, useMoveMultiDayEntries } from '../hooks/useScheduleEntries';
 import { useCrewCapacity } from '../hooks/useCrewCapacity';
+import { useSalesReps } from '../../fsm/hooks/useSalesReps';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import type {
@@ -143,19 +144,8 @@ export function ScheduleCalendar({
     },
   });
 
-  // Fetch sales reps
-  const { data: salesReps = [] } = useQuery({
-    queryKey: ['sales_reps', 'active'],
-    queryFn: async (): Promise<SalesRep[]> => {
-      const { data, error } = await supabase
-        .from('sales_reps')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // Fetch sales reps (now from user_profiles + fsm_team_profiles)
+  const { data: salesReps = [] } = useSalesReps();
 
   // Fetch schedule entries
   const { data: entries = [] } = useScheduleEntries({

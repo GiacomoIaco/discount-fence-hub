@@ -1,13 +1,37 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { Project, ProjectStatus } from '../types';
+import type { Project, ProjectStatus, RepUser } from '../types';
 import { showSuccess, showError } from '../../../lib/toast';
 
 interface ProjectFilters {
   status?: ProjectStatus | ProjectStatus[];
   clientId?: string;
-  assignedRepId?: string;
+  assignedRepId?: string;  // Now expects user_id, not sales_rep_id
   territoryId?: string;
+}
+
+// Helper to fetch user profiles by IDs
+async function fetchUserProfiles(userIds: string[]): Promise<Map<string, RepUser>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, email, phone')
+    .in('id', userIds);
+
+  if (error) {
+    console.warn('Failed to fetch user profiles:', error);
+    return new Map();
+  }
+
+  const map = new Map<string, RepUser>();
+  (data || []).forEach(u => map.set(u.id, {
+    id: u.id,
+    full_name: u.full_name,
+    email: u.email || '',
+    phone: u.phone || null,
+  }));
+  return map;
 }
 
 export function useProjects(filters?: ProjectFilters) {
@@ -21,8 +45,7 @@ export function useProjects(filters?: ProjectFilters) {
           client:clients(id, name),
           community:communities(id, name),
           property:properties(id, address_line1),
-          territory:territories(id, name, code),
-          assigned_rep:sales_reps(id, name)
+          territory:territories(id, name, code)
         `)
         .order('created_at', { ascending: false });
 
@@ -39,7 +62,8 @@ export function useProjects(filters?: ProjectFilters) {
       }
 
       if (filters?.assignedRepId) {
-        query = query.eq('assigned_rep_id', filters.assignedRepId);
+        // Filter by new user_id column
+        query = query.eq('assigned_rep_user_id', filters.assignedRepId);
       }
 
       if (filters?.territoryId) {
@@ -49,7 +73,23 @@ export function useProjects(filters?: ProjectFilters) {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as Project[];
+
+      // Collect unique user IDs for rep lookups
+      const userIds = new Set<string>();
+      (data || []).forEach(project => {
+        if (project.assigned_rep_user_id) userIds.add(project.assigned_rep_user_id);
+      });
+
+      // Fetch user profiles
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      // Merge user profiles into projects
+      const projectsWithUsers = (data || []).map(project => ({
+        ...project,
+        assigned_rep_user: project.assigned_rep_user_id ? userMap.get(project.assigned_rep_user_id) : undefined,
+      }));
+
+      return projectsWithUsers as Project[];
     },
   });
 }
@@ -67,14 +107,23 @@ export function useProject(id: string | undefined) {
           client:clients(id, name, code),
           community:communities(id, name),
           property:properties(id, address_line1, lot_number, city, state, zip),
-          territory:territories(id, name, code),
-          assigned_rep:sales_reps(id, name, email, phone)
+          territory:territories(id, name, code)
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as Project;
+
+      // Fetch user profile for assigned rep
+      const userIds: string[] = [];
+      if (data.assigned_rep_user_id) userIds.push(data.assigned_rep_user_id);
+
+      const userMap = await fetchUserProfiles(userIds);
+
+      return {
+        ...data,
+        assigned_rep_user: data.assigned_rep_user_id ? userMap.get(data.assigned_rep_user_id) : undefined,
+      } as Project;
     },
     enabled: !!id,
   });
@@ -96,7 +145,7 @@ export function useProjectEntities(projectId: string | undefined) {
           .select(`
             id, request_number, status, request_type, product_type,
             contact_name, address_line1, created_at,
-            assigned_rep:sales_reps!service_requests_assigned_rep_id_fkey(id, name)
+            assigned_rep_user_id
           `)
           .eq('project_id', projectId)
           .order('created_at', { ascending: true }),
@@ -106,7 +155,7 @@ export function useProjectEntities(projectId: string | undefined) {
           .select(`
             id, quote_number, status, total, product_type,
             created_at, sent_at, client_approved_at,
-            sales_rep:sales_reps(id, name)
+            sales_rep_user_id
           `)
           .eq('project_id', projectId)
           .order('created_at', { ascending: true }),
@@ -117,7 +166,8 @@ export function useProjectEntities(projectId: string | undefined) {
             id, job_number, status, is_warranty, product_type,
             scheduled_date, linear_feet, quoted_total,
             created_at, work_completed_at,
-            assigned_crew:crews(id, name)
+            assigned_crew:crews(id, name),
+            assigned_rep_user_id
           `)
           .eq('project_id', projectId)
           .order('created_at', { ascending: true }),
@@ -137,10 +187,41 @@ export function useProjectEntities(projectId: string | undefined) {
       if (jobsResult.error) throw jobsResult.error;
       if (invoicesResult.error) throw invoicesResult.error;
 
+      // Collect all user IDs for rep lookups
+      const userIds = new Set<string>();
+      (requestsResult.data || []).forEach(r => {
+        if (r.assigned_rep_user_id) userIds.add(r.assigned_rep_user_id);
+      });
+      (quotesResult.data || []).forEach(q => {
+        if (q.sales_rep_user_id) userIds.add(q.sales_rep_user_id);
+      });
+      (jobsResult.data || []).forEach(j => {
+        if (j.assigned_rep_user_id) userIds.add(j.assigned_rep_user_id);
+      });
+
+      // Fetch user profiles
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      // Merge user profiles into entities
+      const requests = (requestsResult.data || []).map(r => ({
+        ...r,
+        assigned_rep_user: r.assigned_rep_user_id ? userMap.get(r.assigned_rep_user_id) : undefined,
+      }));
+
+      const quotes = (quotesResult.data || []).map(q => ({
+        ...q,
+        sales_rep_user: q.sales_rep_user_id ? userMap.get(q.sales_rep_user_id) : undefined,
+      }));
+
+      const jobs = (jobsResult.data || []).map(j => ({
+        ...j,
+        assigned_rep_user: j.assigned_rep_user_id ? userMap.get(j.assigned_rep_user_id) : undefined,
+      }));
+
       return {
-        requests: requestsResult.data || [],
-        quotes: quotesResult.data || [],
-        jobs: jobsResult.data || [],
+        requests,
+        quotes,
+        jobs,
         invoices: invoicesResult.data || [],
       };
     },

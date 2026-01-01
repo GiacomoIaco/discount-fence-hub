@@ -1,14 +1,38 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { Quote, QuoteLineItem, QuoteStatus } from '../types';
+import type { Quote, QuoteLineItem, QuoteStatus, RepUser } from '../types';
 import { showSuccess, showError } from '../../../lib/toast';
 
 interface QuoteFilters {
   status?: QuoteStatus | QuoteStatus[];
   clientId?: string;
-  salesRepId?: string;
+  salesRepId?: string;  // Now expects user_id, not sales_rep_id
   dateFrom?: string;
   dateTo?: string;
+}
+
+// Helper to fetch user profiles by IDs
+async function fetchUserProfiles(userIds: string[]): Promise<Map<string, RepUser>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, email, phone')
+    .in('id', userIds);
+
+  if (error) {
+    console.warn('Failed to fetch user profiles:', error);
+    return new Map();
+  }
+
+  const map = new Map<string, RepUser>();
+  (data || []).forEach(u => map.set(u.id, {
+    id: u.id,
+    full_name: u.full_name,
+    email: u.email || '',
+    phone: u.phone || null,
+  }));
+  return map;
 }
 
 export function useQuotes(filters?: QuoteFilters) {
@@ -21,7 +45,6 @@ export function useQuotes(filters?: QuoteFilters) {
           *,
           client:clients(id, name, code),
           community:communities(id, name),
-          sales_rep:sales_reps(id, name),
           qbo_class:qbo_classes(id, name, bu_type, location_code)
         `)
         .order('created_at', { ascending: false });
@@ -40,7 +63,8 @@ export function useQuotes(filters?: QuoteFilters) {
       }
 
       if (filters?.salesRepId) {
-        query = query.eq('sales_rep_id', filters.salesRepId);
+        // Filter by new user_id column
+        query = query.eq('sales_rep_user_id', filters.salesRepId);
       }
 
       if (filters?.dateFrom) {
@@ -54,7 +78,23 @@ export function useQuotes(filters?: QuoteFilters) {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as Quote[];
+
+      // Collect unique user IDs for rep lookups
+      const userIds = new Set<string>();
+      (data || []).forEach(quote => {
+        if (quote.sales_rep_user_id) userIds.add(quote.sales_rep_user_id);
+      });
+
+      // Fetch user profiles
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      // Merge user profiles into quotes
+      const quotesWithUsers = (data || []).map(quote => ({
+        ...quote,
+        sales_rep_user: quote.sales_rep_user_id ? userMap.get(quote.sales_rep_user_id) : undefined,
+      }));
+
+      return quotesWithUsers as Quote[];
     },
   });
 }
@@ -72,7 +112,6 @@ export function useQuote(id: string | undefined) {
           client:clients(id, name, code, address_line1, city, state, zip, primary_contact_email, primary_contact_phone, primary_contact_name),
           community:communities(id, name),
           property:properties(id, address_line1, city, state, zip),
-          sales_rep:sales_reps(id, name, email, phone),
           request:service_requests(id, request_number),
           line_items:quote_line_items(*),
           qbo_class:qbo_classes(id, name, bu_type, location_code)
@@ -81,7 +120,17 @@ export function useQuote(id: string | undefined) {
         .single();
 
       if (error) throw error;
-      return data as Quote & { line_items: QuoteLineItem[] };
+
+      // Fetch user profile for sales rep
+      const userIds: string[] = [];
+      if (data.sales_rep_user_id) userIds.push(data.sales_rep_user_id);
+
+      const userMap = await fetchUserProfiles(userIds);
+
+      return {
+        ...data,
+        sales_rep_user: data.sales_rep_user_id ? userMap.get(data.sales_rep_user_id) : undefined,
+      } as Quote & { line_items: QuoteLineItem[] };
     },
     enabled: !!id,
   });
@@ -97,14 +146,29 @@ export function useQuotesByClient(clientId: string | undefined) {
         .from('quotes')
         .select(`
           *,
-          community:communities(id, name),
-          sales_rep:sales_reps(id, name)
+          community:communities(id, name)
         `)
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Quote[];
+
+      // Collect unique user IDs for rep lookups
+      const userIds = new Set<string>();
+      (data || []).forEach(quote => {
+        if (quote.sales_rep_user_id) userIds.add(quote.sales_rep_user_id);
+      });
+
+      // Fetch user profiles
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      // Merge user profiles into quotes
+      const quotesWithUsers = (data || []).map(quote => ({
+        ...quote,
+        sales_rep_user: quote.sales_rep_user_id ? userMap.get(quote.sales_rep_user_id) : undefined,
+      }));
+
+      return quotesWithUsers as Quote[];
     },
     enabled: !!clientId,
   });
@@ -125,7 +189,7 @@ interface CreateQuoteData {
   payment_terms?: string;
   deposit_required?: number;
   deposit_percent?: number;
-  sales_rep_id?: string;
+  sales_rep_id?: string;  // Accepts user_id for backwards compatibility
 }
 
 export function useCreateQuote() {
@@ -150,7 +214,7 @@ export function useCreateQuote() {
           payment_terms: data.payment_terms || 'Net 30',
           deposit_required: data.deposit_required || 0,
           deposit_percent: data.deposit_percent || 0,
-          sales_rep_id: data.sales_rep_id || null,
+          sales_rep_user_id: data.sales_rep_id || null,  // Write to user_id column
           status: 'draft',
         })
         .select()

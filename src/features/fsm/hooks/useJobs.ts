@@ -154,7 +154,7 @@ interface CreateJobData {
   scheduled_time_end?: string;
   estimated_duration_hours?: number;
   assigned_crew_id?: string;
-  assigned_rep_id?: string;
+  assigned_rep_id?: string;  // Accepts user_id for backwards compatibility
   territory_id?: string;
   bom_project_id?: string;
 }
@@ -182,7 +182,7 @@ export function useCreateJob() {
           scheduled_time_end: data.scheduled_time_end || null,
           estimated_duration_hours: data.estimated_duration_hours || null,
           assigned_crew_id: data.assigned_crew_id || null,
-          assigned_rep_id: data.assigned_rep_id || null,
+          assigned_rep_user_id: data.assigned_rep_id || null,  // Write to user_id column
           territory_id: data.territory_id || null,
           bom_project_id: data.bom_project_id || null,
           status: 'won',

@@ -6,7 +6,31 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { ServiceRequest, Quote, Job } from '../../fsm/types';
+import type { ServiceRequest, Quote, Job, RepUser } from '../../fsm/types';
+
+// Helper to fetch user profiles by IDs
+async function fetchUserProfiles(userIds: string[]): Promise<Map<string, RepUser>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, email, phone')
+    .in('id', userIds);
+
+  if (error) {
+    console.warn('Failed to fetch user profiles:', error);
+    return new Map();
+  }
+
+  const map = new Map<string, RepUser>();
+  (data || []).forEach(u => map.set(u.id, {
+    id: u.id,
+    full_name: u.full_name,
+    email: u.email || '',
+    phone: u.phone || null,
+  }));
+  return map;
+}
 
 /**
  * Get all service requests for a property
@@ -22,14 +46,25 @@ export function usePropertyRequests(propertyId: string | null) {
         .select(`
           *,
           client:clients(id, name),
-          community:communities(id, name),
-          assigned_rep:sales_reps(id, name)
+          community:communities(id, name)
         `)
         .eq('property_id', propertyId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as ServiceRequest[];
+
+      // Fetch user profiles for reps
+      const userIds = new Set<string>();
+      (data || []).forEach(req => {
+        if (req.assigned_rep_user_id) userIds.add(req.assigned_rep_user_id);
+      });
+
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      return (data || []).map(req => ({
+        ...req,
+        assigned_rep_user: req.assigned_rep_user_id ? userMap.get(req.assigned_rep_user_id) : undefined,
+      })) as ServiceRequest[];
     },
     enabled: !!propertyId,
   });
@@ -49,14 +84,25 @@ export function usePropertyQuotes(propertyId: string | null) {
         .select(`
           *,
           client:clients(id, name),
-          community:communities(id, name),
-          sales_rep:sales_reps(id, name)
+          community:communities(id, name)
         `)
         .eq('property_id', propertyId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Quote[];
+
+      // Fetch user profiles for reps
+      const userIds = new Set<string>();
+      (data || []).forEach(quote => {
+        if (quote.sales_rep_user_id) userIds.add(quote.sales_rep_user_id);
+      });
+
+      const userMap = await fetchUserProfiles(Array.from(userIds));
+
+      return (data || []).map(quote => ({
+        ...quote,
+        sales_rep_user: quote.sales_rep_user_id ? userMap.get(quote.sales_rep_user_id) : undefined,
+      })) as Quote[];
     },
     enabled: !!propertyId,
   });
