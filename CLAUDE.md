@@ -65,6 +65,36 @@ FROM roadmap_items WHERE code = 'O-012';
 
 **Updating items** - Use `npm run migrate:direct` with an UPDATE statement, or update via the app's Roadmap UI.
 
+### Adding Roadmap Items via SQL
+
+The `roadmap_items` table has these constraints:
+
+| Column | Required | Valid Values |
+|--------|----------|--------------|
+| `code` | Yes | Unique, e.g., 'C-010' |
+| `title` | Yes | Text |
+| `hub` | Yes (NOT NULL) | `'ops-hub'`, `'requests'`, `'chat'`, `'analytics'`, `'settings'`, `'general'`, `'leadership'`, `'future'` |
+| `status` | Yes | `'idea'`, `'researched'`, `'approved'`, `'in_progress'`, `'done'`, `'wont_do'`, `'parked'` |
+| `raw_idea` | No | Text description |
+| `claude_analysis` | No | Claude's detailed analysis |
+| `complexity` | No | `'XS'`, `'S'`, `'M'`, `'L'`, `'XL'` |
+
+**Note**: `priority` column does NOT exist. Use `complexity` instead.
+
+**Example INSERT**:
+```sql
+INSERT INTO roadmap_items (code, title, status, raw_idea, hub)
+VALUES ('C-010', 'My Feature', 'idea', 'Description here', 'chat')
+ON CONFLICT (code) DO NOTHING;
+```
+
+**IMPORTANT**: Use `ON CONFLICT DO NOTHING` to avoid overwriting existing items. If you need to update, use a separate `UPDATE` statement after confirming the item doesn't exist.
+
+**How to run**: Create a `.sql` file in `migrations/` folder, then:
+```bash
+npm run migrate:direct <filename.sql>
+```
+
 ### Expanding Ideas
 
 When user asks to expand on an idea (e.g., "expand on S-001"):
