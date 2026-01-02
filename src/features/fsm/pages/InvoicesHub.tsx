@@ -22,8 +22,9 @@ import {
   X,
   Wrench,
 } from 'lucide-react';
-import { useInvoices, useCreateInvoiceFromJob } from '../hooks/useInvoices';
+import { useInvoices, useCreateInvoice } from '../hooks/useInvoices';
 import { useJobs } from '../hooks/useJobs';
+import type { Job } from '../types';
 import { InvoiceDetailPage } from '../pages';
 import {
   INVOICE_STATUS_LABELS,
@@ -65,13 +66,13 @@ export default function InvoicesHub({
 
   // Fetch completed jobs for invoice creation (jobs without invoices)
   const { data: completedJobs } = useJobs({ status: 'completed' });
-  const createInvoiceMutation = useCreateInvoiceFromJob();
+  const createInvoiceMutation = useCreateInvoice();
 
   // Filter completed jobs to only show those without invoices
-  const invoiceableJobs = completedJobs?.filter(job => !job.invoice_id);
+  const invoiceableJobs = completedJobs?.filter((job: Job) => !job.invoice_id);
 
   // Filter invoiceable jobs by search
-  const filteredInvoiceableJobs = invoiceableJobs?.filter(job => {
+  const filteredInvoiceableJobs = invoiceableJobs?.filter((job: Job) => {
     if (!jobSearchQuery) return true;
     const query = jobSearchQuery.toLowerCase();
     return (
@@ -81,9 +82,20 @@ export default function InvoicesHub({
   });
 
   // Handle creating invoice from job
-  const handleCreateFromJob = async (jobId: string) => {
+  const handleCreateFromJob = async (job: Job) => {
     try {
-      const invoice = await createInvoiceMutation.mutateAsync(jobId);
+      const invoice = await createInvoiceMutation.mutateAsync({
+        job_id: job.id,
+        client_id: job.client_id,
+        billing_address: job.job_address || {},
+        subtotal: job.quoted_total || 0,
+        tax_rate: 0,
+        tax_amount: 0,
+        discount_amount: 0,
+        total: job.quoted_total || 0,
+        invoice_date: new Date().toISOString().split('T')[0],
+        payment_terms: 'Net 30',
+      });
       setShowJobSelector(false);
       setJobSearchQuery('');
       // Navigate to the new invoice
@@ -199,10 +211,10 @@ export default function InvoicesHub({
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredInvoiceableJobs.map((job) => (
+                {filteredInvoiceableJobs.map((job: Job) => (
                   <button
                     key={job.id}
-                    onClick={() => handleCreateFromJob(job.id)}
+                    onClick={() => handleCreateFromJob(job)}
                     disabled={createInvoiceMutation.isPending}
                     className="w-full flex items-center gap-3 p-3 border rounded-lg hover:border-green-300 hover:bg-green-50 text-left transition-colors disabled:opacity-50"
                   >
@@ -216,7 +228,7 @@ export default function InvoicesHub({
                       </p>
                     </div>
                     <div className="text-sm text-gray-500">
-                      {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : 'Completed'}
+                      Completed
                     </div>
                   </button>
                 ))}

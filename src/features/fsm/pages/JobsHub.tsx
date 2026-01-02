@@ -123,7 +123,7 @@ export default function JobsHub({
             onNavigateToEntity('project', { id: projectId });
           }
         }}
-        initialData={{ source: 'direct_job' }}
+        initialData={{ source: 'phone' }}  // Using 'phone' as source for jobs created directly
       />
     );
   }

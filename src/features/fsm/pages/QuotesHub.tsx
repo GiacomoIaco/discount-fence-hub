@@ -81,31 +81,10 @@ export default function QuotesHub({
     }
   };
 
-  // Handle closing quote detail - clear URL
-  const handleQuoteClose = () => {
-    if (onClearEntity) {
-      onClearEntity();
-    }
-  };
-
   // Handle navigation to related entities
   const handleNavigateToJob = (jobId: string) => {
     if (onNavigateToEntity) {
       onNavigateToEntity('job', { id: jobId });
-    }
-  };
-
-  const handleNavigateToRequest = (requestId: string) => {
-    if (onNavigateToEntity) {
-      onNavigateToEntity('request', { id: requestId });
-    }
-  };
-
-  // Handle editing a quote - opens QuoteCard in edit mode
-  const handleEditQuote = (quoteId: string) => {
-    setQuoteMode('edit');
-    if (onNavigateToEntity) {
-      onNavigateToEntity('quote', { id: quoteId });
     }
   };
 
