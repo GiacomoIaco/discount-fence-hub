@@ -207,11 +207,14 @@ export function InvoiceCard({
     value: string | number
   ) => {
     const updated = [...formData.line_items];
-    (updated[index] as Record<string, unknown>)[field] = value;
+    updated[index] = { ...updated[index], [field]: value };
 
     // Recalculate total
     if (field === 'quantity' || field === 'unit_price') {
-      updated[index].total = updated[index].quantity * updated[index].unit_price;
+      updated[index] = {
+        ...updated[index],
+        total: updated[index].quantity * updated[index].unit_price,
+      };
     }
 
     setFormData({ ...formData, line_items: updated });

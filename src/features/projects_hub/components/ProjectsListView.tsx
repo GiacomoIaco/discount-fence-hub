@@ -19,7 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useProjects } from '../../fsm/hooks/useProjects';
-import type { Project, ProjectStatus } from '../../fsm/types';
+import type { ProjectStatus } from '../../fsm/types';
 
 const PROJECT_STATUS_CONFIG: Record<
   ProjectStatus,
@@ -254,7 +254,6 @@ export default function ProjectsListView({
         <div className="space-y-3">
           {sortedProjects.map((project) => {
             const statusConfig = PROJECT_STATUS_CONFIG[project.status];
-            const _StatusIcon = statusConfig.icon;
 
             return (
               <div

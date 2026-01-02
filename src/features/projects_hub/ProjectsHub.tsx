@@ -141,12 +141,13 @@ export default function ProjectsHub({
         if (showCreateWizard) {
           return (
             <ProjectCreateWizard
+              isOpen={true}
               onComplete={(projectId) => {
                 setShowCreateWizard(false);
                 setSelectedProjectId(projectId);
                 handleNavigateToEntity('project', { id: projectId });
               }}
-              onCancel={() => setShowCreateWizard(false)}
+              onClose={() => setShowCreateWizard(false)}
             />
           );
         }

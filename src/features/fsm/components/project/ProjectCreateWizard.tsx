@@ -130,7 +130,12 @@ export function ProjectCreateWizard({
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Property[];
+
+      // Transform community array to object (Supabase returns arrays for joins)
+      return (data || []).map((prop) => ({
+        ...prop,
+        community: Array.isArray(prop.community) ? prop.community[0] : prop.community,
+      })) as Property[];
     },
     enabled: !!selectedClient?.id,
   });
@@ -151,7 +156,7 @@ export function ProjectCreateWizard({
   });
 
   // Fetch territories for auto-detection
-  const { data: territories = [] } = useTerritories({});
+  const { data: territories = [] } = useTerritories();
 
   // Reset form when dialog opens
   useEffect(() => {

@@ -23,6 +23,7 @@ import {
   Plus,
   Edit2,
   AlertTriangle,
+  MoreVertical,
 } from 'lucide-react';
 import {
   useProjectFull,

@@ -173,13 +173,13 @@ export function JobCard({
     value: string | number | undefined
   ) => {
     const updated = [...formData.visits];
-    (updated[index] as Record<string, unknown>)[field] = value;
+    updated[index] = { ...updated[index], [field]: value };
 
     // Auto-calculate labor_cost
     if (field === 'labor_hours' || field === 'labor_rate') {
       const hours = updated[index].labor_hours || 0;
       const rate = updated[index].labor_rate || 0;
-      updated[index].labor_cost = hours * rate;
+      updated[index] = { ...updated[index], labor_cost: hours * rate };
     }
 
     setFormData({ ...formData, visits: updated });

@@ -76,7 +76,6 @@ export function BillingTab({
   const totalInvoiced = invoices.reduce((sum, i) => sum + (i.total || 0), 0);
   const totalPaid = invoices.reduce((sum, i) => sum + (i.amount_paid || 0), 0);
   const totalBalanceDue = totalInvoiced - totalPaid;
-  const _hasUnpaid = invoices.some((i) => !['paid', 'bad_debt'].includes(i.status));
   const hasPastDue = invoices.some((i) => i.status === 'past_due');
 
   const toggleExpand = (invoiceId: string) => {
