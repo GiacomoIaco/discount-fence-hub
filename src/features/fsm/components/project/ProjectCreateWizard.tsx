@@ -213,7 +213,8 @@ export function ProjectCreateWizard({
       case 'business_unit':
         return !!selectedQboClass;
       case 'details':
-        return !!formData.name;
+        // Project name is optional - we have a default fallback in handleCreate
+        return true;
       default:
         return false;
     }
