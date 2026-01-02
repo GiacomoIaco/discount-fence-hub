@@ -264,7 +264,7 @@ export default function QuoteBuilderPage({
       setValidUntil(existingQuote.valid_until || '');
       setPaymentTerms(existingQuote.payment_terms || 'Net 30');
       setDepositPercent(existingQuote.deposit_percent?.toString() || '0');
-      setSalesRepId(existingQuote.sales_rep_id || '');
+      setSalesRepId(existingQuote.sales_rep_user_id || '');
       setTaxRate(((existingQuote.tax_rate || 0.0825) * 100).toString());
       setDiscountPercent(existingQuote.discount_percent?.toString() || '0');
       setLineItems((existingQuote.line_items || []).map(li => ({
@@ -426,7 +426,7 @@ export default function QuoteBuilderPage({
             payment_terms: paymentTerms,
             deposit_percent: parseFloat(depositPercent) || 0,
             deposit_required: depositAmount,
-            sales_rep_id: salesRepId || null,
+            sales_rep_user_id: salesRepId || null,
             tax_rate: (parseFloat(taxRate) || 0) / 100,
             discount_percent: parseFloat(discountPercent) || 0,
             discount_amount: discountAmount,
@@ -502,7 +502,7 @@ export default function QuoteBuilderPage({
           payment_terms: paymentTerms,
           deposit_percent: parseFloat(depositPercent) || 0,
           deposit_required: depositAmount,
-          sales_rep_id: salesRepId || undefined,
+          sales_rep_id: salesRepId || undefined,  // useCreateQuote maps this to sales_rep_user_id
         });
 
         savedQuoteId = result.id;
