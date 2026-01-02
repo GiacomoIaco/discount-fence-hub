@@ -1,9 +1,13 @@
 /**
- * InvoicesHub - FSM Invoices Hub
+ * InvoicesHub - FSM Invoices Hub (Project-First Architecture)
  *
  * Routes:
  * - /invoices → InvoicesList (list view)
  * - /invoices/:id → InvoiceDetailPage (detail view)
+ *
+ * Flow:
+ * - "New Invoice" → Job selection modal → Create invoice from job
+ * - Click invoice → InvoiceDetailPage
  */
 
 import { useState } from 'react';
@@ -15,8 +19,11 @@ import {
   Building2,
   Calendar,
   AlertTriangle,
+  X,
+  Wrench,
 } from 'lucide-react';
-import { useInvoices } from '../hooks/useInvoices';
+import { useInvoices, useCreateInvoiceFromJob } from '../hooks/useInvoices';
+import { useJobs } from '../hooks/useJobs';
 import { InvoiceDetailPage } from '../pages';
 import {
   INVOICE_STATUS_LABELS,
@@ -44,6 +51,10 @@ export default function InvoicesHub({
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all' | 'past_due'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Job selection modal state
+  const [showJobSelector, setShowJobSelector] = useState(false);
+  const [jobSearchQuery, setJobSearchQuery] = useState('');
+
   const filters = statusFilter === 'all'
     ? undefined
     : statusFilter === 'past_due'
@@ -51,6 +62,38 @@ export default function InvoicesHub({
     : { status: statusFilter };
 
   const { data: invoices, isLoading, error } = useInvoices(filters);
+
+  // Fetch completed jobs for invoice creation (jobs without invoices)
+  const { data: completedJobs } = useJobs({ status: 'completed' });
+  const createInvoiceMutation = useCreateInvoiceFromJob();
+
+  // Filter completed jobs to only show those without invoices
+  const invoiceableJobs = completedJobs?.filter(job => !job.invoice_id);
+
+  // Filter invoiceable jobs by search
+  const filteredInvoiceableJobs = invoiceableJobs?.filter(job => {
+    if (!jobSearchQuery) return true;
+    const query = jobSearchQuery.toLowerCase();
+    return (
+      job.job_number?.toLowerCase().includes(query) ||
+      job.client?.name?.toLowerCase().includes(query)
+    );
+  });
+
+  // Handle creating invoice from job
+  const handleCreateFromJob = async (jobId: string) => {
+    try {
+      const invoice = await createInvoiceMutation.mutateAsync(jobId);
+      setShowJobSelector(false);
+      setJobSearchQuery('');
+      // Navigate to the new invoice
+      if (onNavigateToEntity) {
+        onNavigateToEntity('invoice', { id: invoice.id });
+      }
+    } catch (error) {
+      console.error('Failed to create invoice:', error);
+    }
+  };
 
   // Filter invoices by search query
   const filteredInvoices = invoices?.filter(invoice => {
@@ -110,6 +153,81 @@ export default function InvoicesHub({
     return invoice.due_date && new Date(invoice.due_date) < new Date() && invoice.balance_due > 0;
   };
 
+  // Job selector modal
+  const renderJobSelectorModal = () => {
+    if (!showJobSelector) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h2 className="text-lg font-semibold">Create Invoice from Job</h2>
+            <button
+              onClick={() => {
+                setShowJobSelector(false);
+                setJobSearchQuery('');
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="px-6 py-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={jobSearchQuery}
+                onChange={(e) => setJobSearchQuery(e.target.value)}
+                placeholder="Search completed jobs..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {/* Jobs list */}
+          <div className="p-4 overflow-y-auto max-h-[50vh]">
+            {!filteredInvoiceableJobs?.length ? (
+              <div className="text-center py-8 text-gray-500">
+                <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p>No completed jobs ready for invoicing</p>
+                <p className="text-sm mt-1">Complete a job first to create an invoice</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredInvoiceableJobs.map((job) => (
+                  <button
+                    key={job.id}
+                    onClick={() => handleCreateFromJob(job.id)}
+                    disabled={createInvoiceMutation.isPending}
+                    className="w-full flex items-center gap-3 p-3 border rounded-lg hover:border-green-300 hover:bg-green-50 text-left transition-colors disabled:opacity-50"
+                  >
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <Wrench className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{job.job_number}</p>
+                      <p className="text-sm text-gray-500">
+                        {job.client?.name} • ${job.quoted_total?.toLocaleString() || 0}
+                      </p>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : 'Completed'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // If viewing a specific invoice, render the detail page
   if (entityContext?.type === 'invoice') {
     return (
@@ -139,10 +257,7 @@ export default function InvoicesHub({
               </div>
             </div>
             <button
-              onClick={() => {
-                // TODO: Create invoice from job or manually
-                console.log('Create new invoice');
-              }}
+              onClick={() => setShowJobSelector(true)}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               <Plus className="w-4 h-4" />
@@ -198,7 +313,7 @@ export default function InvoicesHub({
             <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No invoices found</p>
             <button
-              onClick={() => console.log('Create invoice')}
+              onClick={() => setShowJobSelector(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               <Plus className="w-4 h-4" />
@@ -273,6 +388,9 @@ export default function InvoicesHub({
           </div>
         )}
       </div>
+
+      {/* Job selector modal */}
+      {renderJobSelectorModal()}
     </div>
   );
 }

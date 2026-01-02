@@ -1,9 +1,13 @@
 /**
- * JobsHub - FSM Jobs Hub
+ * JobsHub - FSM Jobs Hub (Project-First Architecture)
  *
  * Routes:
  * - /jobs → JobsList (list view)
  * - /jobs/:id → JobDetailPage (detail view)
+ *
+ * Flow:
+ * - "New Job" → ProjectCreateWizard → JobDetailPage (after creation)
+ * - Click job → JobDetailPage
  */
 
 import { useState } from 'react';
@@ -18,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
 import { JobDetailPage } from '../pages';
+import { ProjectCreateWizard } from '../components/project';
 import {
   JOB_STATUS_LABELS,
   JOB_STATUS_COLORS,
@@ -43,6 +48,9 @@ export default function JobsHub({
 }: JobsHubProps) {
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Project-First Architecture state
+  const [showProjectWizard, setShowProjectWizard] = useState(false);
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: jobs, isLoading, error } = useJobs(filters);
@@ -102,6 +110,24 @@ export default function JobsHub({
     });
   };
 
+  // Show ProjectCreateWizard when creating new job
+  if (showProjectWizard) {
+    return (
+      <ProjectCreateWizard
+        isOpen={true}
+        onClose={() => setShowProjectWizard(false)}
+        onComplete={(projectId) => {
+          setShowProjectWizard(false);
+          // Navigate to the new project to add job
+          if (onNavigateToEntity) {
+            onNavigateToEntity('project', { id: projectId });
+          }
+        }}
+        initialData={{ source: 'direct_job' }}
+      />
+    );
+  }
+
   // If viewing a specific job, render the detail page
   if (entityContext?.type === 'job') {
     return (
@@ -131,10 +157,7 @@ export default function JobsHub({
               </div>
             </div>
             <button
-              onClick={() => {
-                // TODO: Create job directly or from quote
-                console.log('Create new job');
-              }}
+              onClick={() => setShowProjectWizard(true)}
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
             >
               <Plus className="w-4 h-4" />
@@ -189,7 +212,7 @@ export default function JobsHub({
             <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No jobs found</p>
             <button
-              onClick={() => console.log('Create job')}
+              onClick={() => setShowProjectWizard(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
             >
               <Plus className="w-4 h-4" />
