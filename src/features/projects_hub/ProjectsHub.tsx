@@ -60,7 +60,7 @@ export default function ProjectsHub({
   onNavigateToEntity: externalNavigateToEntity,
   onClearEntity: externalClearEntity,
 }: ProjectsHubProps) {
-  const { navigateToEntity: localNavigateToEntity, getEntityContext, navigateTo, currentPath } = useAppNavigation();
+  const { navigateToEntity: localNavigateToEntity, getEntityContext, navigateTo } = useAppNavigation();
 
   // Use external context if provided, otherwise get from URL
   const entityContext = externalEntityContext ?? getEntityContext();
@@ -193,8 +193,8 @@ export default function ProjectsHub({
             <ProjectPage
               projectId={selectedProjectId}
               onBack={() => {
-                setSelectedProjectId(null);
-                handleClearEntity();
+                // Force navigation using window.location to ensure state reset
+                window.location.href = '/projects';
               }}
               onNavigateToQuote={(quoteId) =>
                 handleNavigateToEntity('quote', { id: quoteId })
