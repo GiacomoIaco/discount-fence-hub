@@ -234,7 +234,6 @@ export function ProjectCreateWizard({
         .insert({
           client_id: selectedClient.id,
           address_line1: newPropertyData.address_line1,
-          address_line2: newPropertyData.address_line2 || null,
           city: newPropertyData.city,
           state: newPropertyData.state,
           zip: newPropertyData.zip,
