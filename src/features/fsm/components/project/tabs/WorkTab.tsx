@@ -60,7 +60,7 @@ interface WorkTabProps {
 
 export function WorkTab({
   jobs,
-  projectId,
+  projectId: _projectId,
   onCreateJob,
   onEditJob,
   onViewJob,
@@ -315,19 +315,24 @@ export function WorkTab({
                 {isExpanded && (
                   <div className="border-t">
                     {/* Budget vs Actual */}
-                    {(job.budgeted_total_cost > 0 || job.actual_total_cost > 0) && (
+                    {((job.budgeted_total_cost ?? 0) > 0 || (job.actual_total_cost ?? 0) > 0) && (
                       <div className="p-4 bg-gray-50">
                         <BudgetActualDisplay
-                          budgetedLaborHours={job.budgeted_labor_hours || 0}
-                          budgetedLaborCost={job.budgeted_labor_cost || 0}
-                          budgetedMaterialCost={job.budgeted_material_cost || 0}
-                          budgetedTotalCost={job.budgeted_total_cost || 0}
-                          actualLaborHours={job.actual_labor_hours || 0}
-                          actualLaborCost={job.actual_labor_cost || 0}
-                          actualMaterialCost={job.actual_material_cost || 0}
-                          actualTotalCost={job.actual_total_cost || 0}
+                          labor={{
+                            budgetedHours: job.budgeted_labor_hours || 0,
+                            actualHours: job.actual_labor_hours || 0,
+                            budgetedCost: job.budgeted_labor_cost || 0,
+                            actualCost: job.actual_labor_cost || 0,
+                          }}
+                          materials={{
+                            budgeted: job.budgeted_material_cost || 0,
+                            actual: job.actual_material_cost || 0,
+                          }}
+                          total={{
+                            budgeted: job.budgeted_total_cost || 0,
+                            actual: job.actual_total_cost || 0,
+                          }}
                           hasRework={job.has_rework}
-                          reworkCost={job.rework_cost || 0}
                         />
                       </div>
                     )}

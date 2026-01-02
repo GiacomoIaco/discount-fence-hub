@@ -254,7 +254,7 @@ export default function ProjectsListView({
         <div className="space-y-3">
           {sortedProjects.map((project) => {
             const statusConfig = PROJECT_STATUS_CONFIG[project.status];
-            const StatusIcon = statusConfig.icon;
+            const _StatusIcon = statusConfig.icon;
 
             return (
               <div
@@ -331,9 +331,9 @@ export default function ProjectsListView({
                       <span className="text-gray-500">
                         {project.job_count || 0} job(s)
                       </span>
-                      {project.total_job_value > 0 && (
+                      {(project.total_job_value ?? 0) > 0 && (
                         <span className="font-medium text-gray-900">
-                          {formatCurrency(project.total_job_value)}
+                          {formatCurrency(project.total_job_value || 0)}
                         </span>
                       )}
                     </div>

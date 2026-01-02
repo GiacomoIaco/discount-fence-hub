@@ -231,8 +231,7 @@ export default function JobDetailPage({
             status={job.status}
             scheduledDate={job.scheduled_date}
             workStartedAt={job.work_started_at}
-            completedAt={job.completed_at}
-            invoiceId={job.invoice_id}
+            workCompletedAt={job.work_completed_at}
             compact
           />
         }

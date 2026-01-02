@@ -1,5 +1,8 @@
 // FSM Types - Field Service Management
 
+// Re-export QboClass from client_hub
+export type { QboClass } from '../client_hub/types';
+
 // ============================================
 // STATUS ENUMS
 // ============================================
@@ -294,6 +297,15 @@ export interface Project {
   total_balance_due?: number;
   has_rework?: boolean;
   child_project_count?: number;
+
+  // Derived display fields (from v_projects_full view)
+  client_display_name?: string;
+  property_address?: string;
+  property_city?: string;
+  community_name?: string;
+  rep_name?: string;
+  accepted_quote_total?: number;
+  total_job_value?: number;
 }
 
 export interface ServiceRequest {
@@ -398,6 +410,8 @@ export interface Quote {
   product_type: string | null;
   linear_feet: number | null;
   scope_summary: string | null;
+  notes: string | null;  // Client-visible notes
+  internal_notes: string | null;  // Internal notes
   // Approval
   requires_approval: boolean;
   approval_status: 'pending' | 'approved' | 'rejected' | null;
@@ -481,6 +495,11 @@ export interface QuoteLineItem {
   is_visible_to_client: boolean;
   group_name: string | null;
   created_at: string;
+  // Joined fields from SKU
+  sku_code?: string;
+  product_type?: string;
+  // Convenience alias for total_price
+  total?: number;
 }
 
 export interface Job {
@@ -514,10 +533,13 @@ export interface Job {
   geocoded_at?: string | null;
 
   // Scope
+  name: string | null;  // Job display name (e.g., "Phase 1 - Install")
   product_type: string | null;
   linear_feet: number | null;
   description: string | null;
   special_instructions: string | null;
+  notes: string | null;  // Client-visible notes
+  internal_notes: string | null;  // Internal notes
 
   // Pricing
   quoted_total: number | null;
@@ -678,7 +700,10 @@ export interface Invoice {
   invoice_date: string;
   due_date: string | null;
   payment_terms: string;
+  terms: string | null;  // Display terms (may differ from payment_terms)
   po_number: string | null;
+  notes: string | null;  // Client-visible notes
+  internal_notes: string | null;  // Internal notes
   // Status
   status: InvoiceStatus;
   status_changed_at: string;
@@ -1474,7 +1499,7 @@ export const INVOICE_GROUP_STATUS_COLORS: Record<InvoiceGroupStatus, string> = {
 // EXTENDED JOB (with multi-job project support)
 // ============================================
 
-export interface JobWithContext extends Job {
+export interface JobWithContext extends Omit<Job, 'depends_on_job'> {
   // New multi-job fields
   name: string | null;
   project_type_id: string | null;
@@ -1490,7 +1515,7 @@ export interface JobWithContext extends Job {
   project?: ProjectWithJobs;
   project_type?: ProjectType;
   invoice_group?: InvoiceGroup;
-  depends_on_job?: Job;
+  depends_on_job?: Job; // Full Job for extended context
   skill_tags?: SkillTag[];
   quote_line_items?: QuoteLineItem[];
   pm?: {
@@ -1521,7 +1546,7 @@ export interface JobFormData {
 // EXTENDED PROJECT (with jobs and invoice grouping)
 // ============================================
 
-export interface ProjectWithJobs extends Project {
+export interface ProjectWithJobs extends Omit<Project, 'jobs'> {
   // New fields
   default_invoice_together: boolean;
   job_count: number;

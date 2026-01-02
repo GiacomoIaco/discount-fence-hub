@@ -13,7 +13,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   Briefcase,
   LayoutDashboard,
   FileText,
@@ -23,7 +22,6 @@ import {
   Clock,
   Plus,
   Edit2,
-  MoreVertical,
   AlertTriangle,
 } from 'lucide-react';
 import {
@@ -129,24 +127,28 @@ export function ProjectPage({
 
     return [
       {
+        id: 'quote',
         label: 'Quote',
-        isCompleted: hasAcceptedQuote,
-        isCurrent: !hasAcceptedQuote && quotes.length > 0,
+        completed: hasAcceptedQuote,
+        current: !hasAcceptedQuote && quotes.length > 0,
       },
       {
+        id: 'jobs',
         label: 'Jobs',
-        isCompleted: hasCompletedJobs && !hasActiveJobs,
-        isCurrent: hasActiveJobs,
+        completed: hasCompletedJobs && !hasActiveJobs,
+        current: hasActiveJobs,
       },
       {
+        id: 'invoice',
         label: 'Invoice',
-        isCompleted: hasPaidInvoices,
-        isCurrent: invoices.length > 0 && !hasPaidInvoices,
+        completed: hasPaidInvoices,
+        current: invoices.length > 0 && !hasPaidInvoices,
       },
       {
+        id: 'paid',
         label: 'Paid',
-        isCompleted: allInvoicesPaid,
-        isCurrent: false,
+        completed: allInvoicesPaid,
+        current: false,
       },
     ];
   };
@@ -421,13 +423,13 @@ function OverviewTab({ project, quotes, jobs, invoices, childProjects }: Overvie
             subtotal={project.accepted_quote_total || 0}
             total={project.total_job_value || 0}
             amountPaid={project.total_paid || 0}
-            showPaymentInfo
-            layout="horizontal"
+            balanceDue={(project.total_job_value || 0) - (project.total_paid || 0)}
+            horizontal
           />
         </div>
 
         {/* Budget vs Actual */}
-        {(project.total_budgeted_cost > 0 || project.total_actual_cost > 0) && (
+        {((project.total_budgeted_cost ?? 0) > 0 || (project.total_actual_cost ?? 0) > 0) && (
           <div className="bg-white rounded-lg border p-6">
             <h3 className="font-semibold text-gray-900 mb-4">Budget vs Actual</h3>
             <div className="grid grid-cols-2 gap-6">
@@ -441,7 +443,7 @@ function OverviewTab({ project, quotes, jobs, invoices, childProjects }: Overvie
                 <p className="text-sm text-gray-500">Actual Cost</p>
                 <p
                   className={`text-xl font-bold ${
-                    project.total_actual_cost > project.total_budgeted_cost
+                    (project.total_actual_cost ?? 0) > (project.total_budgeted_cost ?? 0)
                       ? 'text-red-600'
                       : 'text-green-600'
                   }`}

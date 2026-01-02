@@ -24,7 +24,7 @@ import {
   ChevronDown,
   AlertTriangle,
 } from 'lucide-react';
-import type { Job, JobVisit, JobVisitType, Crew, JobStatus, VisitStatus } from '../../types';
+import type { Job, JobVisitType, Crew, VisitStatus } from '../../types';
 import { BudgetActualDisplay } from '../shared/BudgetActualDisplay';
 
 // Visit form data
@@ -101,7 +101,7 @@ export function JobCard({
   isEditing,
   job,
   crews = [],
-  projectId,
+  projectId: _projectId,
   onSave,
   onCancel,
   onToggleEdit,
@@ -484,16 +484,21 @@ export function JobCard({
       {(job?.budgeted_total_cost || job?.actual_total_cost) && !isEditing && (
         <div className="p-4 bg-gray-50 border-t">
           <BudgetActualDisplay
-            budgetedLaborHours={job.budgeted_labor_hours || 0}
-            budgetedLaborCost={job.budgeted_labor_cost || 0}
-            budgetedMaterialCost={job.budgeted_material_cost || 0}
-            budgetedTotalCost={job.budgeted_total_cost || 0}
-            actualLaborHours={job.actual_labor_hours || actualLaborHours}
-            actualLaborCost={job.actual_labor_cost || actualLaborCost}
-            actualMaterialCost={job.actual_material_cost || 0}
-            actualTotalCost={job.actual_total_cost || actualLaborCost}
+            labor={{
+              budgetedHours: job.budgeted_labor_hours || 0,
+              actualHours: job.actual_labor_hours || actualLaborHours,
+              budgetedCost: job.budgeted_labor_cost || 0,
+              actualCost: job.actual_labor_cost || actualLaborCost,
+            }}
+            materials={{
+              budgeted: job.budgeted_material_cost || 0,
+              actual: job.actual_material_cost || 0,
+            }}
+            total={{
+              budgeted: job.budgeted_total_cost || 0,
+              actual: job.actual_total_cost || actualLaborCost,
+            }}
             hasRework={hasRework}
-            reworkCost={job.rework_cost || 0}
           />
         </div>
       )}

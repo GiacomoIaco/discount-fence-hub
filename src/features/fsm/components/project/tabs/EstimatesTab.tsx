@@ -54,7 +54,7 @@ interface EstimatesTabProps {
 
 export function EstimatesTab({
   quotes,
-  projectId,
+  projectId: _projectId,
   onCreateQuote,
   onEditQuote,
   onConvertToJobs,
@@ -296,10 +296,11 @@ export function EstimatesTab({
                   <div className="px-4 pb-4">
                     <TotalsDisplay
                       subtotal={quote.subtotal || 0}
-                      taxAmount={quote.tax_amount || 0}
-                      discountAmount={quote.discount_amount || 0}
+                      tax={quote.tax_amount || 0}
+                      taxRate={quote.tax_rate}
+                      discount={quote.discount_amount || 0}
                       total={quote.total || 0}
-                      layout="horizontal"
+                      horizontal
                     />
                   </div>
 

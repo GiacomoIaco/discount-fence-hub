@@ -17,11 +17,10 @@ import {
   Trash2,
   Save,
   X,
-  Search,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import type { Quote, QuoteLineItem, ProductType } from '../../types';
+import type { Quote, ProductType } from '../../types';
 import { TotalsDisplay } from '../shared/TotalsDisplay';
 
 // Line item form data
@@ -32,9 +31,9 @@ interface LineItemFormData {
   quantity: number;
   unit_price: number;
   total: number;
-  sku_id?: string;
+  sku_id?: string | null;
   sku_code?: string;
-  product_type?: ProductType;
+  product_type?: string;
   sort_order: number;
 }
 
@@ -68,7 +67,7 @@ interface QuoteCardProps {
 export function QuoteCard({
   isEditing,
   quote,
-  projectId,
+  projectId: _projectId,
   onSave,
   onCancel,
   onToggleEdit,
@@ -89,7 +88,7 @@ export function QuoteCard({
   useEffect(() => {
     if (quote) {
       setFormData({
-        product_type: quote.product_type || undefined,
+        product_type: (quote.product_type as ProductType) || undefined,
         linear_feet: quote.linear_feet || undefined,
         notes: quote.notes || '',
         internal_notes: quote.internal_notes || '',
@@ -99,7 +98,7 @@ export function QuoteCard({
           description: item.description,
           quantity: item.quantity || 1,
           unit_price: item.unit_price || 0,
-          total: item.total || 0,
+          total: item.total ?? item.total_price ?? 0,
           sku_id: item.sku_id,
           sku_code: item.sku_code,
           product_type: item.product_type,
@@ -508,10 +507,11 @@ export function QuoteCard({
         <div className="p-4 bg-gray-50 border-t">
           <TotalsDisplay
             subtotal={subtotal}
-            taxAmount={quote?.tax_amount || 0}
-            discountAmount={quote?.discount_amount || 0}
+            tax={quote?.tax_amount || 0}
+            taxRate={quote?.tax_rate}
+            discount={quote?.discount_amount || 0}
             total={total}
-            layout="horizontal"
+            horizontal
           />
         </div>
       </div>

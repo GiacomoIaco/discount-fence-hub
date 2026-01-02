@@ -19,7 +19,6 @@ import {
   Calendar,
   ArrowRight,
   CheckCircle,
-  Clock,
   AlertTriangle,
   CreditCard,
 } from 'lucide-react';
@@ -53,7 +52,7 @@ interface BillingTabProps {
 
 export function BillingTab({
   invoices,
-  projectId,
+  projectId: _projectId,
   onCreateInvoice,
   onSendInvoice,
   onRecordPayment,
@@ -74,10 +73,10 @@ export function BillingTab({
   });
 
   // Calculate totals
-  const totalInvoiced = invoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const totalInvoiced = invoices.reduce((sum, i) => sum + (i.total || 0), 0);
   const totalPaid = invoices.reduce((sum, i) => sum + (i.amount_paid || 0), 0);
   const totalBalanceDue = totalInvoiced - totalPaid;
-  const hasUnpaid = invoices.some((i) => !['paid', 'bad_debt'].includes(i.status));
+  const _hasUnpaid = invoices.some((i) => !['paid', 'bad_debt'].includes(i.status));
   const hasPastDue = invoices.some((i) => i.status === 'past_due');
 
   const toggleExpand = (invoiceId: string) => {
@@ -198,7 +197,7 @@ export function BillingTab({
             unit_price: number;
             total: number;
           }>;
-          const balanceDue = (invoice.total_amount || 0) - (invoice.amount_paid || 0);
+          const balanceDue = (invoice.total || 0) - (invoice.amount_paid || 0);
           const isPaid = invoice.status === 'paid';
           const isPastDue = invoice.status === 'past_due';
           const daysPastDue = isPastDue ? getDaysPastDue(invoice.due_date) : 0;
@@ -274,7 +273,7 @@ export function BillingTab({
                 {/* Amounts */}
                 <div className="text-right">
                   <p className="font-bold text-gray-900">
-                    {formatCurrency(invoice.total_amount || 0)}
+                    {formatCurrency(invoice.total || 0)}
                   </p>
                   {!isPaid && balanceDue > 0 && (
                     <p className="text-sm text-red-600 font-medium">
@@ -336,13 +335,13 @@ export function BillingTab({
                   {/* Totals */}
                   <div className="px-4 pb-4">
                     <TotalsDisplay
-                      subtotal={invoice.subtotal || invoice.total_amount || 0}
-                      taxAmount={invoice.tax_amount || 0}
-                      discountAmount={invoice.discount_amount || 0}
-                      total={invoice.total_amount || 0}
+                      subtotal={invoice.subtotal || invoice.total || 0}
+                      tax={invoice.tax_amount || 0}
+                      discount={invoice.discount_amount || 0}
+                      total={invoice.total || 0}
                       amountPaid={invoice.amount_paid || 0}
-                      showPaymentInfo
-                      layout="horizontal"
+                      balanceDue={invoice.balance_due || 0}
+                      horizontal
                     />
                   </div>
 

@@ -20,13 +20,12 @@ import {
   ChevronUp,
   ChevronDown,
   Calendar,
-  DollarSign,
   CreditCard,
   CheckCircle,
   Clock,
   AlertTriangle,
 } from 'lucide-react';
-import type { Invoice, InvoiceStatus, Payment, PaymentMethod } from '../../types';
+import type { Invoice, InvoiceStatus, PaymentMethod } from '../../types';
 import { TotalsDisplay } from '../shared/TotalsDisplay';
 
 // Line item form data
@@ -104,8 +103,8 @@ interface InvoiceCardProps {
 export function InvoiceCard({
   isEditing,
   invoice,
-  projectId,
-  jobId,
+  projectId: _projectId,
+  jobId: _jobId,
   onSave,
   onCancel,
   onToggleEdit,
@@ -695,12 +694,12 @@ export function InvoiceCard({
         <div className="p-4 bg-gray-50 border-t">
           <TotalsDisplay
             subtotal={subtotal}
-            taxAmount={taxAmount}
-            discountAmount={discountAmount}
+            tax={taxAmount}
+            discount={discountAmount}
             total={total}
             amountPaid={amountPaid}
-            showPaymentInfo
-            layout="horizontal"
+            balanceDue={balanceDue}
+            horizontal
           />
         </div>
       </div>
