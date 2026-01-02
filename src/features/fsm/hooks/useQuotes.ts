@@ -176,6 +176,7 @@ export function useQuotesByClient(clientId: string | undefined) {
 
 interface CreateQuoteData {
   request_id?: string;
+  project_id?: string;
   bom_project_id?: string;
   client_id: string;
   community_id?: string;
@@ -201,6 +202,7 @@ export function useCreateQuote() {
         .from('quotes')
         .insert({
           request_id: data.request_id || null,
+          project_id: data.project_id || null,
           bom_project_id: data.bom_project_id || null,
           client_id: data.client_id,
           community_id: data.community_id || null,

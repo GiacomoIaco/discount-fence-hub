@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder, ProjectsListView } from './components';
-import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
+import { RequestsHub, QuotesHub, JobsHub, InvoicesHub, QuoteBuilderPage } from '../fsm/pages';
 import { ProjectPage, ProjectCreateWizard } from '../fsm/components/project';
+import { useProjectFull } from '../fsm/hooks/useProjects';
 import { SidebarTooltip } from '../../components/sidebar';
 import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
@@ -84,6 +85,10 @@ export default function ProjectsHub({
     entityContext?.type === 'project' ? entityContext.params.id : null
   );
   const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [creatingQuoteForProjectId, setCreatingQuoteForProjectId] = useState<string | null>(null);
+
+  // Fetch project data for quote builder context
+  const { data: projectForQuote } = useProjectFull(creatingQuoteForProjectId || undefined);
 
   // Update view when entity context changes
   useEffect(() => {
@@ -137,6 +142,27 @@ export default function ProjectsHub({
         return <ProjectsDashboard onNavigate={setActiveView} />;
 
       case 'projects':
+        // Show quote builder if creating quote from project
+        if (creatingQuoteForProjectId && projectForQuote) {
+          return (
+            <QuoteBuilderPage
+              projectId={creatingQuoteForProjectId}
+              requestData={{
+                client_id: projectForQuote.client_id,
+                client_name: projectForQuote.client_display_name || projectForQuote.client?.name,
+                community_id: projectForQuote.community_id,
+                community_name: projectForQuote.community?.name,
+                property_id: projectForQuote.property_id,
+              }}
+              onBack={() => setCreatingQuoteForProjectId(null)}
+              onSuccess={() => {
+                setCreatingQuoteForProjectId(null);
+                // Invalidate project queries to refresh quote count
+              }}
+            />
+          );
+        }
+
         // Show create wizard if triggered
         if (showCreateWizard) {
           return (
@@ -171,7 +197,7 @@ export default function ProjectsHub({
                 handleNavigateToEntity('invoice', { id: invoiceId })
               }
               onCreateQuote={() => {
-                // TODO: Navigate to quote builder with project context
+                setCreatingQuoteForProjectId(selectedProjectId);
               }}
               onCreateJob={() => {
                 // TODO: Navigate to job creation with project context

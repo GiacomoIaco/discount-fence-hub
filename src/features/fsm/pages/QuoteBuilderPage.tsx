@@ -62,7 +62,9 @@ interface QuoteBuilderPageProps {
   quoteId?: string;
   /** Request ID to create quote from */
   requestId?: string;
-  /** Pre-filled data from request */
+  /** Project ID for creating quote within a project */
+  projectId?: string;
+  /** Pre-filled data from request or project */
   requestData?: {
     client_id?: string;
     client_name?: string;
@@ -192,6 +194,7 @@ function CopyButton({ text }: { text: string }) {
 export default function QuoteBuilderPage({
   quoteId,
   requestId,
+  projectId,
   requestData,
   onBack,
   onSuccess,
@@ -486,6 +489,7 @@ export default function QuoteBuilderPage({
         // Create new quote
         const result = await createMutation.mutateAsync({
           request_id: requestId || undefined,
+          project_id: projectId || undefined,
           client_id: selectedClientId,
           community_id: selectedCommunityId || undefined,
           property_id: selectedPropertyId || undefined,
