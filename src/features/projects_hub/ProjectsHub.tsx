@@ -184,8 +184,9 @@ export default function ProjectsHub({
           );
         }
 
-        // Show project detail if selected
-        if (selectedProjectId) {
+        // Show project detail if selected AND URL matches (defensive check)
+        // This ensures UI stays in sync with URL even during async state updates
+        if (selectedProjectId && entityContext?.type === 'project') {
           return (
             <ProjectPage
               projectId={selectedProjectId}
