@@ -34,6 +34,7 @@ import {
   QUOTE_STATUS_COLORS,
 } from '../types';
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
+import { QuoteProgress } from '../components/shared/WorkflowProgress';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -307,6 +308,16 @@ export default function QuoteDetailPage({
                   {quote.product_type && ` â€¢ ${quote.product_type}`}
                   {quote.linear_feet && ` â€¢ ${quote.linear_feet} LF`}
                 </p>
+                {/* Workflow Progress */}
+                <div className="mt-3">
+                  <QuoteProgress
+                    status={quote.status}
+                    sentAt={quote.sent_at}
+                    approvedAt={quote.approved_at}
+                    convertedToJobId={quote.converted_to_job_id}
+                    compact
+                  />
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">

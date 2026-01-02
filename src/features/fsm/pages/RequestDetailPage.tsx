@@ -35,6 +35,7 @@ import {
   SOURCE_LABELS,
 } from '../types';
 import { hasValidCoordinates, formatCoordinates } from '../../shared/types/location';
+import { RequestProgress } from '../components/shared/WorkflowProgress';
 
 type Tab = 'overview' | 'assessment' | 'activity';
 
@@ -180,6 +181,18 @@ export default function RequestDetailPage({
                   {request.product_type || 'No product type'} â€¢ {SOURCE_LABELS[request.source]}
                   {request.linear_feet_estimate && ` â€¢ ${request.linear_feet_estimate} LF`}
                 </p>
+                {/* Workflow Progress */}
+                <div className="mt-3">
+                  <RequestProgress
+                    status={request.status}
+                    requiresAssessment={request.requires_assessment}
+                    assessmentScheduledAt={request.assessment_scheduled_at}
+                    assessmentCompletedAt={request.assessment_completed_at}
+                    convertedToQuoteId={request.converted_to_quote_id}
+                    convertedToJobId={request.converted_to_job_id}
+                    compact
+                  />
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">

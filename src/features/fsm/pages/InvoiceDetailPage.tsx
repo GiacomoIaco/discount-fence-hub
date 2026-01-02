@@ -31,6 +31,7 @@ import {
   PAYMENT_METHOD_LABELS,
   type PaymentMethod,
 } from '../types';
+import { InvoiceProgress } from '../components/shared/WorkflowProgress';
 
 type Tab = 'overview' | 'payments' | 'activity';
 
@@ -205,6 +206,15 @@ export default function InvoiceDetailPage({
                     <DollarSign className="w-4 h-4" />
                     {formatCurrency(invoice.total)}
                   </span>
+                </div>
+                {/* Workflow Progress */}
+                <div className="mt-3">
+                  <InvoiceProgress
+                    status={invoice.status}
+                    sentAt={invoice.sent_at}
+                    balanceDue={invoice.balance_due}
+                    compact
+                  />
                 </div>
               </div>
             </div>
