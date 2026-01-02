@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder, ProjectsListView } from './components';
-import { RequestsHub, QuotesHub, JobsHub, InvoicesHub, QuoteBuilderPage } from '../fsm/pages';
+import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
 import { ProjectPage, ProjectCreateWizard } from '../fsm/components/project';
+import { QuoteCard } from '../fsm/components/QuoteCard';
 import { useProjectFull } from '../fsm/hooks/useProjects';
 import { SidebarTooltip } from '../../components/sidebar';
 import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
@@ -86,9 +87,14 @@ export default function ProjectsHub({
   );
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [creatingQuoteForProjectId, setCreatingQuoteForProjectId] = useState<string | null>(null);
+  // Track quote being edited/viewed within project context
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [quoteViewMode, setQuoteViewMode] = useState<'create' | 'edit' | 'view'>('create');
 
-  // Fetch project data for quote builder context
-  const { data: projectForQuote } = useProjectFull(creatingQuoteForProjectId || undefined);
+  // Fetch project data for quote context
+  const { data: projectForQuote } = useProjectFull(
+    (creatingQuoteForProjectId || editingQuoteId) && selectedProjectId ? selectedProjectId : undefined
+  );
 
   // Update view when entity context changes
   useEffect(() => {
@@ -148,22 +154,33 @@ export default function ProjectsHub({
         return <ProjectsDashboard onNavigate={setActiveView} />;
 
       case 'projects':
-        // Show quote builder if creating quote from project
-        if (creatingQuoteForProjectId && projectForQuote) {
+        // Show QuoteCard if creating/editing/viewing a quote within project context
+        if ((creatingQuoteForProjectId || editingQuoteId) && projectForQuote) {
           return (
-            <QuoteBuilderPage
-              projectId={creatingQuoteForProjectId}
-              requestData={{
-                client_id: projectForQuote.client_id ?? undefined,
-                client_name: projectForQuote.client_display_name || projectForQuote.client?.name,
-                community_id: projectForQuote.community_id ?? undefined,
-                community_name: projectForQuote.community?.name,
-                property_id: projectForQuote.property_id ?? undefined,
-              }}
-              onBack={() => setCreatingQuoteForProjectId(null)}
-              onSuccess={() => {
+            <QuoteCard
+              mode={quoteViewMode}
+              projectId={selectedProjectId || undefined}
+              clientId={projectForQuote.client_id || undefined}
+              communityId={projectForQuote.community_id || undefined}
+              propertyId={projectForQuote.property_id || undefined}
+              quoteId={editingQuoteId || undefined}
+              onBack={() => {
                 setCreatingQuoteForProjectId(null);
-                // Invalidate project queries to refresh quote count
+                setEditingQuoteId(null);
+                setQuoteViewMode('create');
+              }}
+              onSave={() => {
+                setCreatingQuoteForProjectId(null);
+                setEditingQuoteId(null);
+                setQuoteViewMode('create');
+                // Project queries auto-refresh via React Query
+              }}
+              onConvertToJob={(quoteId) => {
+                // Navigate to work tab after conversion
+                setCreatingQuoteForProjectId(null);
+                setEditingQuoteId(null);
+                setQuoteViewMode('create');
+                console.log('Quote converted to job:', quoteId);
               }}
             />
           );
@@ -196,9 +213,11 @@ export default function ProjectsHub({
                 // Force navigation using window.location to ensure state reset
                 window.location.href = '/projects';
               }}
-              onNavigateToQuote={(quoteId) =>
-                handleNavigateToEntity('quote', { id: quoteId })
-              }
+              onNavigateToQuote={(quoteId) => {
+                // Open quote in QuoteCard within project context (edit mode)
+                setEditingQuoteId(quoteId);
+                setQuoteViewMode('edit');
+              }}
               onNavigateToJob={(jobId) =>
                 handleNavigateToEntity('job', { id: jobId })
               }
@@ -307,6 +326,8 @@ export default function ProjectsHub({
                     // Clear project selection when navigating via sidebar
                     setSelectedProjectId(null);
                     setCreatingQuoteForProjectId(null);
+                    setEditingQuoteId(null);
+                    setQuoteViewMode('create');
                     setShowCreateWizard(false);
                     // Navigate to the appropriate route (clears URL params)
                     const route = item.key === 'dashboard' ? 'projects-hub' :
