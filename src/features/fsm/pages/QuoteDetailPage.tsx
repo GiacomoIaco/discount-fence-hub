@@ -11,7 +11,6 @@
 
 import { useState } from 'react';
 import {
-  ArrowLeft,
   Edit2,
   Send,
   CheckCircle,
@@ -23,10 +22,10 @@ import {
   Briefcase,
   History,
   Package,
-  Clock,
   ChevronDown,
   Layers,
 } from 'lucide-react';
+// ArrowLeft, Clock removed - using EntityHeader
 import { useQuote, useUpdateQuoteStatus, useSendQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
 import QuoteToJobsModal from '../components/QuoteToJobsModal';
 import {
@@ -36,6 +35,7 @@ import {
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 import { QuoteProgress } from '../components/shared/WorkflowProgress';
 import { TotalsDisplay } from '../components/shared/TotalsDisplay';
+import { EntityHeader } from '../components/shared/EntityHeader';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -276,147 +276,141 @@ export default function QuoteDetailPage({
     { id: 'activity', label: 'Activity', icon: <History className="w-4 h-4" /> },
   ];
 
+  // Build extra badges
+  const extraBadges = [];
+  if (quote.requires_approval && quote.approval_status === 'pending') {
+    extraBadges.push({ label: 'Needs Approval', colorClass: 'bg-amber-100 text-amber-700' });
+  }
+
+  // Action buttons
+  const actionButtons = (
+    <>
+      {onEditQuote && (
+        <button
+          onClick={() => onEditQuote(quote.id)}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          <Edit2 className="w-4 h-4" />
+          Edit
+        </button>
+      )}
+      {canSend && (
+        <button
+          onClick={() => setShowSendModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Send className="w-4 h-4" />
+          Send Quote
+        </button>
+      )}
+      {canApprove && (
+        <button
+          onClick={() => setShowApproveModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Mark Approved
+        </button>
+      )}
+      {canMarkLost && (
+        <button
+          onClick={() => setShowLostModal(true)}
+          className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+        >
+          <XCircle className="w-4 h-4" />
+          Mark Lost
+        </button>
+      )}
+      {canConvertToJob && (
+        <div className="relative">
+          <div className="flex">
+            <button
+              onClick={handleConvertToJob}
+              disabled={convertToJobMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <Briefcase className="w-4 h-4" />
+              {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
+            </button>
+            <button
+              onClick={() => setShowJobDropdown(!showJobDropdown)}
+              className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 border-l border-green-500"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+          {showJobDropdown && (
+            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border z-10">
+              <button
+                onClick={() => {
+                  setShowJobDropdown(false);
+                  handleConvertToJob();
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg"
+              >
+                <Briefcase className="w-4 h-4 text-gray-500" />
+                Create Single Job
+              </button>
+              <button
+                onClick={() => {
+                  setShowJobDropdown(false);
+                  setShowMultiJobModal(true);
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-b-lg"
+              >
+                <Layers className="w-4 h-4 text-gray-500" />
+                Create Multiple Jobs
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {quote.converted_to_job_id && onNavigateToJob && (
+        <button
+          onClick={() => onNavigateToJob(quote.converted_to_job_id!)}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
+          <Briefcase className="w-4 h-4" />
+          View Job
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-4">
-          {/* Back button and title row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {quote.quote_number}
-                  </h1>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${QUOTE_STATUS_COLORS[quote.status]}`}>
-                    {QUOTE_STATUS_LABELS[quote.status]}
-                  </span>
-                  {quote.requires_approval && quote.approval_status === 'pending' && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                      Needs Approval
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {quote.client?.name || 'No client'}
-                  {quote.product_type && ` â€¢ ${quote.product_type}`}
-                  {quote.linear_feet && ` â€¢ ${quote.linear_feet} LF`}
-                </p>
-                {/* Workflow Progress */}
-                <div className="mt-3">
-                  <QuoteProgress
-                    status={quote.status}
-                    sentAt={quote.sent_at}
-                    approvedAt={quote.approved_at}
-                    convertedToJobId={quote.converted_to_job_id}
-                    compact
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {onEditQuote && (
-                <button
-                  onClick={() => onEditQuote(quote.id)}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  Edit
-                </button>
-              )}
-              {canSend && (
-                <button
-                  onClick={() => setShowSendModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Send className="w-4 h-4" />
-                  Send Quote
-                </button>
-              )}
-              {canApprove && (
-                <button
-                  onClick={() => setShowApproveModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Mark Approved
-                </button>
-              )}
-              {canMarkLost && (
-                <button
-                  onClick={() => setShowLostModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Mark Lost
-                </button>
-              )}
-              {canConvertToJob && (
-                <div className="relative">
-                  <div className="flex">
-                    <button
-                      onClick={handleConvertToJob}
-                      disabled={convertToJobMutation.isPending}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 disabled:opacity-50"
-                    >
-                      <Briefcase className="w-4 h-4" />
-                      {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
-                    </button>
-                    <button
-                      onClick={() => setShowJobDropdown(!showJobDropdown)}
-                      className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 border-l border-green-500"
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {showJobDropdown && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border z-10">
-                      <button
-                        onClick={() => {
-                          setShowJobDropdown(false);
-                          handleConvertToJob();
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg"
-                      >
-                        <Briefcase className="w-4 h-4 text-gray-500" />
-                        Create Single Job
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowJobDropdown(false);
-                          setShowMultiJobModal(true);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-b-lg"
-                      >
-                        <Layers className="w-4 h-4 text-gray-500" />
-                        Create Multiple Jobs
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-              {quote.converted_to_job_id && onNavigateToJob && (
-                <button
-                  onClick={() => onNavigateToJob(quote.converted_to_job_id!)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                >
-                  <Briefcase className="w-4 h-4" />
-                  View Job
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
+      <EntityHeader
+        onBack={onBack}
+        icon={FileText}
+        iconBgClass="bg-blue-100"
+        iconColorClass="text-blue-600"
+        title={quote.quote_number}
+        statusBadge={{
+          label: QUOTE_STATUS_LABELS[quote.status],
+          colorClass: QUOTE_STATUS_COLORS[quote.status],
+        }}
+        extraBadges={extraBadges}
+        subtitle={
+          <span>
+            {quote.client?.name || 'No client'}
+            {quote.product_type && ` • ${quote.product_type}`}
+            {quote.linear_feet && ` • ${quote.linear_feet} LF`}
+          </span>
+        }
+        workflowProgress={
+          <QuoteProgress
+            status={quote.status}
+            sentAt={quote.sent_at}
+            approvedAt={quote.approved_at}
+            convertedToJobId={quote.converted_to_job_id}
+            compact
+          />
+        }
+        actions={actionButtons}
+      >
         {/* Tabs */}
-        <div className="px-6">
+        <div className="px-6 pt-4 -mx-6">
           <nav className="flex gap-6 -mb-px">
             {tabs.map((tab) => (
               <button
@@ -434,7 +428,7 @@ export default function QuoteDetailPage({
             ))}
           </nav>
         </div>
-      </div>
+      </EntityHeader>
 
       {/* Content */}
       <div className="p-6">

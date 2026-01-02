@@ -11,7 +11,6 @@
 
 import { useState } from 'react';
 import {
-  ArrowLeft,
   Edit2,
   Phone,
   Mail,
@@ -36,6 +35,7 @@ import {
 } from '../types';
 import { hasValidCoordinates, formatCoordinates } from '../../shared/types/location';
 import { RequestProgress } from '../components/shared/WorkflowProgress';
+import { EntityHeader } from '../components/shared/EntityHeader';
 
 type Tab = 'overview' | 'assessment' | 'activity';
 
@@ -151,108 +151,100 @@ export default function RequestDetailPage({
     { id: 'activity', label: 'Activity', icon: <History className="w-4 h-4" /> },
   ];
 
+  // Build action buttons based on request state
+  const actionButtons = (
+    <>
+      <button
+        onClick={() => onEdit?.(request.id)}
+        className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+      >
+        <Edit2 className="w-4 h-4" />
+        Edit
+      </button>
+
+      {/* Convert options - only show when ready and not yet converted */}
+      {canConvert && (
+        <>
+          <button
+            onClick={() => onCreateQuote?.(request.id)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Create Quote
+          </button>
+          {/* Direct to Job - only if client is assigned */}
+          {request.client_id && (
+            <button
+              onClick={async () => {
+                const job = await convertToJobMutation.mutateAsync(request.id);
+                onNavigateToJob?.(job.id);
+              }}
+              disabled={convertToJobMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              title="Skip quote and create job directly (for builders without PO process)"
+            >
+              <PlusCircle className="w-4 h-4" />
+              {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Already converted - show navigation buttons */}
+      {request.converted_to_quote_id && (
+        <button
+          onClick={() => onNavigateToQuote?.(request.converted_to_quote_id!)}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
+          View Quote
+        </button>
+      )}
+      {request.converted_to_job_id && (
+        <button
+          onClick={() => onNavigateToJob?.(request.converted_to_job_id!)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+        >
+          View Job
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-4">
-          {/* Back button and title row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {request.request_number}
-                  </h1>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${REQUEST_STATUS_COLORS[request.status]}`}>
-                    {REQUEST_STATUS_LABELS[request.status]}
-                  </span>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${PRIORITY_COLORS[request.priority]}`}>
-                    {PRIORITY_LABELS[request.priority]}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {request.product_type || 'No product type'} â€¢ {SOURCE_LABELS[request.source]}
-                  {request.linear_feet_estimate && ` â€¢ ${request.linear_feet_estimate} LF`}
-                </p>
-                {/* Workflow Progress */}
-                <div className="mt-3">
-                  <RequestProgress
-                    status={request.status}
-                    requiresAssessment={request.requires_assessment}
-                    assessmentScheduledAt={request.assessment_scheduled_at}
-                    assessmentCompletedAt={request.assessment_completed_at}
-                    convertedToQuoteId={request.converted_to_quote_id}
-                    convertedToJobId={request.converted_to_job_id}
-                    compact
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onEdit?.(request.id)}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </button>
-
-              {/* Convert options - only show when ready and not yet converted */}
-              {canConvert && (
-                <>
-                  <button
-                    onClick={() => onCreateQuote?.(request.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    Create Quote
-                  </button>
-                  {/* Direct to Job - only if client is assigned */}
-                  {request.client_id && (
-                    <button
-                      onClick={async () => {
-                        const job = await convertToJobMutation.mutateAsync(request.id);
-                        onNavigateToJob?.(job.id);
-                      }}
-                      disabled={convertToJobMutation.isPending}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                      title="Skip quote and create job directly (for builders without PO process)"
-                    >
-                      <PlusCircle className="w-4 h-4" />
-                      {convertToJobMutation.isPending ? 'Creating...' : 'Create Job'}
-                    </button>
-                  )}
-                </>
-              )}
-
-              {/* Already converted - show navigation buttons */}
-              {request.converted_to_quote_id && (
-                <button
-                  onClick={() => onNavigateToQuote?.(request.converted_to_quote_id!)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                >
-                  View Quote
-                </button>
-              )}
-              {request.converted_to_job_id && (
-                <button
-                  onClick={() => onNavigateToJob?.(request.converted_to_job_id!)}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                >
-                  View Job
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
+      <EntityHeader
+        onBack={onBack}
+        title={request.request_number}
+        statusBadge={{
+          label: REQUEST_STATUS_LABELS[request.status],
+          colorClass: REQUEST_STATUS_COLORS[request.status],
+        }}
+        extraBadges={[
+          {
+            label: PRIORITY_LABELS[request.priority],
+            colorClass: PRIORITY_COLORS[request.priority],
+          },
+        ]}
+        subtitle={
+          <span>
+            {request.product_type || 'No product type'} • {SOURCE_LABELS[request.source]}
+            {request.linear_feet_estimate && ` • ${request.linear_feet_estimate} LF`}
+          </span>
+        }
+        workflowProgress={
+          <RequestProgress
+            status={request.status}
+            requiresAssessment={request.requires_assessment}
+            assessmentScheduledAt={request.assessment_scheduled_at}
+            assessmentCompletedAt={request.assessment_completed_at}
+            convertedToQuoteId={request.converted_to_quote_id}
+            convertedToJobId={request.converted_to_job_id}
+            compact
+          />
+        }
+        actions={actionButtons}
+      >
         {/* Tabs */}
         <div className="px-6">
           <nav className="flex gap-6 -mb-px">
@@ -272,7 +264,7 @@ export default function RequestDetailPage({
             ))}
           </nav>
         </div>
-      </div>
+      </EntityHeader>
 
       {/* Content */}
       <div className="p-6">

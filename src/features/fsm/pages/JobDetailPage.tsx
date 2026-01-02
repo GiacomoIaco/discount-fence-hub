@@ -11,7 +11,6 @@
 
 import { useState } from 'react';
 import {
-  ArrowLeft,
   CheckCircle,
   FileText,
   Building2,
@@ -26,12 +25,15 @@ import {
   Wrench,
   Receipt,
 } from 'lucide-react';
+// ArrowLeft removed - using EntityHeader
 import { useJob, useScheduleJob, useCompleteJob, useCreateInvoiceFromJob } from '../hooks/useJobs';
 import {
   JOB_STATUS_LABELS,
   JOB_STATUS_COLORS,
 } from '../types';
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
+import { EntityHeader } from '../components/shared/EntityHeader';
+import { JobProgress } from '../components/shared/WorkflowProgress';
 
 type Tab = 'overview' | 'visits' | 'activity';
 
@@ -159,92 +161,85 @@ export default function JobDetailPage({
     );
   }
 
+  // Action buttons
+  const actionButtons = (
+    <>
+      {/* Schedule Button */}
+      {job.status === 'won' && (
+        <button
+          onClick={() => setShowScheduleModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Calendar className="w-4 h-4" />
+          Schedule
+        </button>
+      )}
+
+      {/* Complete Button */}
+      {job.status === 'in_progress' && (
+        <button
+          onClick={() => setShowCompleteModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Complete Job
+        </button>
+      )}
+
+      {/* Create Invoice Button */}
+      {job.status === 'completed' && !job.invoice_id && (
+        <button
+          onClick={handleCreateInvoice}
+          disabled={createInvoice.isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+        >
+          <Receipt className="w-4 h-4" />
+          {createInvoice.isPending ? 'Creating...' : 'Create Invoice'}
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-4">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Jobs
-          </button>
-
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Wrench className="w-8 h-8 text-orange-600" />
-              </div>
-              <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {job.job_number}
-                  </h1>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${JOB_STATUS_COLORS[job.status]}`}>
-                    {JOB_STATUS_LABELS[job.status]}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-gray-500">
-                  {job.client && (
-                    <span className="flex items-center gap-1">
-                      <Building2 className="w-4 h-4" />
-                      {job.client.name}
-                    </span>
-                  )}
-                  {job.product_type && (
-                    <span>{job.product_type}</span>
-                  )}
-                  {job.linear_feet && (
-                    <span>{job.linear_feet} LF</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {/* Schedule Button */}
-              {job.status === 'won' && (
-                <button
-                  onClick={() => setShowScheduleModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Schedule
-                </button>
-              )}
-
-              {/* Complete Button */}
-              {job.status === 'in_progress' && (
-                <button
-                  onClick={() => setShowCompleteModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Complete Job
-                </button>
-              )}
-
-              {/* Create Invoice Button */}
-              {job.status === 'completed' && !job.invoice_id && (
-                <button
-                  onClick={handleCreateInvoice}
-                  disabled={createInvoice.isPending}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                >
-                  <Receipt className="w-4 h-4" />
-                  {createInvoice.isPending ? 'Creating...' : 'Create Invoice'}
-                </button>
-              )}
-
-              {/* Status changes via actions only - removed manual status dropdown per Jobber pattern */}
-            </div>
-          </div>
-        </div>
-
+      <EntityHeader
+        onBack={onBack}
+        backLabel="Back to Jobs"
+        icon={Wrench}
+        iconBgClass="bg-orange-100"
+        iconColorClass="text-orange-600"
+        title={job.job_number}
+        statusBadge={{
+          label: JOB_STATUS_LABELS[job.status],
+          colorClass: JOB_STATUS_COLORS[job.status],
+        }}
+        subtitle={
+          <span className="flex items-center gap-4">
+            {job.client && (
+              <span className="flex items-center gap-1">
+                <Building2 className="w-4 h-4" />
+                {job.client.name}
+              </span>
+            )}
+            {job.product_type && <span>{job.product_type}</span>}
+            {job.linear_feet && <span>{job.linear_feet} LF</span>}
+          </span>
+        }
+        workflowProgress={
+          <JobProgress
+            status={job.status}
+            scheduledDate={job.scheduled_date}
+            workStartedAt={job.work_started_at}
+            completedAt={job.completed_at}
+            invoiceId={job.invoice_id}
+            compact
+          />
+        }
+        actions={actionButtons}
+      >
         {/* Tabs */}
-        <div className="px-6 flex gap-1 border-t">
+        <div className="px-6 pt-4 -mx-6 flex gap-1 border-t">
           {(['overview', 'visits', 'activity'] as Tab[]).map((tab) => (
             <button
               key={tab}
@@ -261,7 +256,7 @@ export default function JobDetailPage({
             </button>
           ))}
         </div>
-      </div>
+      </EntityHeader>
 
       {/* Tab Content */}
       <div className="p-6">

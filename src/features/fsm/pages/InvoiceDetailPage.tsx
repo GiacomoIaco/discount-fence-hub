@@ -11,7 +11,6 @@
 
 import { useState } from 'react';
 import {
-  ArrowLeft,
   Send,
   Receipt,
   Building2,
@@ -24,6 +23,7 @@ import {
   FileText,
   RefreshCw,
 } from 'lucide-react';
+// ArrowLeft removed - using EntityHeader
 import { useInvoice, useSendInvoice, useRecordPayment, useSyncToQuickBooks } from '../hooks/useInvoices';
 import {
   INVOICE_STATUS_LABELS,
@@ -33,6 +33,7 @@ import {
 } from '../types';
 import { InvoiceProgress } from '../components/shared/WorkflowProgress';
 import { TotalsDisplay } from '../components/shared/TotalsDisplay';
+import { EntityHeader } from '../components/shared/EntityHeader';
 
 type Tab = 'overview' | 'payments' | 'activity';
 
@@ -164,107 +165,95 @@ export default function InvoiceDetailPage({
 
   const isPastDue = invoice.due_date && new Date(invoice.due_date) < new Date() && invoice.balance_due > 0;
 
+  // Build extra badges
+  const extraBadges = [];
+  if (isPastDue) {
+    extraBadges.push({ label: 'Past Due', colorClass: 'bg-red-100 text-red-700' });
+  }
+
+  // Action buttons
+  const actionButtons = (
+    <>
+      {/* Send Button */}
+      {invoice.status === 'draft' && (
+        <button
+          onClick={() => setShowSendModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Send className="w-4 h-4" />
+          Send Invoice
+        </button>
+      )}
+
+      {/* Record Payment Button */}
+      {invoice.status !== 'draft' && invoice.balance_due > 0 && (
+        <button
+          onClick={() => {
+            setPaymentAmount(invoice.balance_due.toFixed(2));
+            setShowPaymentModal(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+        >
+          <CreditCard className="w-4 h-4" />
+          Record Payment
+        </button>
+      )}
+
+      {/* Sync to QBO Button */}
+      {invoice.status !== 'draft' && !invoice.qbo_invoice_id && (
+        <button
+          onClick={handleSyncToQbo}
+          disabled={syncToQbo.isPending}
+          className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${syncToQbo.isPending ? 'animate-spin' : ''}`} />
+          Sync to QBO
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-4">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Invoices
-          </button>
-
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Receipt className="w-8 h-8 text-green-600" />
-              </div>
-              <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {invoice.invoice_number}
-                  </h1>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${INVOICE_STATUS_COLORS[invoice.status]}`}>
-                    {INVOICE_STATUS_LABELS[invoice.status]}
-                  </span>
-                  {isPastDue && (
-                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
-                      Past Due
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-gray-500">
-                  {invoice.client && (
-                    <span className="flex items-center gap-1">
-                      <Building2 className="w-4 h-4" />
-                      {invoice.client.name}
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4" />
-                    {formatCurrency(invoice.total)}
-                  </span>
-                </div>
-                {/* Workflow Progress */}
-                <div className="mt-3">
-                  <InvoiceProgress
-                    status={invoice.status}
-                    sentAt={invoice.sent_at}
-                    balanceDue={invoice.balance_due}
-                    compact
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {/* Send Button */}
-              {invoice.status === 'draft' && (
-                <button
-                  onClick={() => setShowSendModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Send className="w-4 h-4" />
-                  Send Invoice
-                </button>
-              )}
-
-              {/* Record Payment Button */}
-              {invoice.status !== 'draft' && invoice.balance_due > 0 && (
-                <button
-                  onClick={() => {
-                    setPaymentAmount(invoice.balance_due.toFixed(2));
-                    setShowPaymentModal(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  Record Payment
-                </button>
-              )}
-
-              {/* Sync to QBO Button */}
-              {invoice.status !== 'draft' && !invoice.qbo_invoice_id && (
-                <button
-                  onClick={handleSyncToQbo}
-                  disabled={syncToQbo.isPending}
-                  className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${syncToQbo.isPending ? 'animate-spin' : ''}`} />
-                  Sync to QBO
-                </button>
-              )}
-
-              {/* Status changes via actions only - removed manual status dropdown per Jobber pattern */}
-            </div>
-          </div>
-        </div>
-
+      <EntityHeader
+        onBack={onBack}
+        backLabel="Back to Invoices"
+        icon={Receipt}
+        iconBgClass="bg-green-100"
+        iconColorClass="text-green-600"
+        title={invoice.invoice_number}
+        statusBadge={{
+          label: INVOICE_STATUS_LABELS[invoice.status],
+          colorClass: INVOICE_STATUS_COLORS[invoice.status],
+        }}
+        extraBadges={extraBadges}
+        subtitle={
+          <span className="flex items-center gap-4">
+            {invoice.client && (
+              <span className="flex items-center gap-1">
+                <Building2 className="w-4 h-4" />
+                {invoice.client.name}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <DollarSign className="w-4 h-4" />
+              {formatCurrency(invoice.total)}
+            </span>
+          </span>
+        }
+        workflowProgress={
+          <InvoiceProgress
+            status={invoice.status}
+            sentAt={invoice.sent_at}
+            balanceDue={invoice.balance_due}
+            compact
+          />
+        }
+        actions={actionButtons}
+      >
         {/* Tabs */}
-        <div className="px-6 flex gap-1 border-t">
+        <div className="px-6 pt-4 -mx-6 flex gap-1 border-t">
           {(['overview', 'payments', 'activity'] as Tab[]).map((tab) => (
             <button
               key={tab}
@@ -281,7 +270,7 @@ export default function InvoiceDetailPage({
             </button>
           ))}
         </div>
-      </div>
+      </EntityHeader>
 
       {/* Tab Content */}
       <div className="p-6">
