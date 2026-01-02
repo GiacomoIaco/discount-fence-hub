@@ -17,9 +17,11 @@ import {
 interface Props {
   client: Client | null;
   onClose: () => void;
+  /** Optional callback when client is saved (passes client ID) */
+  onSave?: (clientId: string) => void;
 }
 
-export default function ClientEditorModal({ client, onClose }: Props) {
+export default function ClientEditorModal({ client, onClose, onSave }: Props) {
   const createMutation = useCreateClient();
   const updateMutation = useUpdateClient();
   const setCrewPreferencesMutation = useSetClientCrewPreferences();
@@ -229,7 +231,12 @@ export default function ClientEditorModal({ client, onClose }: Props) {
         });
       }
 
-      onClose();
+      // Call onSave callback with the client ID if provided
+      if (onSave && clientId) {
+        onSave(clientId);
+      } else {
+        onClose();
+      }
     } catch {
       // Error handled by mutation
     }

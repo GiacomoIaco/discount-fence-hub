@@ -1,7 +1,7 @@
 // Project-First Architecture Components
 
 export { ProjectPage } from './ProjectPage';
-export { ProjectCreateWizard } from './ProjectCreateWizard';
+export { ProjectCreateWizard, type ProjectWizardResult } from './ProjectCreateWizard';
 
 // Tab components
 export { EstimatesTab } from './tabs/EstimatesTab';

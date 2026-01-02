@@ -116,11 +116,11 @@ export default function JobsHub({
       <ProjectCreateWizard
         isOpen={true}
         onClose={() => setShowProjectWizard(false)}
-        onComplete={(projectId) => {
+        onComplete={(result) => {
           setShowProjectWizard(false);
           // Navigate to the new project to add job
           if (onNavigateToEntity) {
-            onNavigateToEntity('project', { id: projectId });
+            onNavigateToEntity('project', { id: result.projectId });
           }
         }}
         initialData={{ source: 'phone' }}  // Using 'phone' as source for jobs created directly

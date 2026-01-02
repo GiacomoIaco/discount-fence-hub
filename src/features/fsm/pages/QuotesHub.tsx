@@ -22,9 +22,8 @@ import {
   User,
 } from 'lucide-react';
 import { useQuotes } from '../hooks/useQuotes';
-import { useProjectFull } from '../hooks/useProjects';
 import { QuoteCard } from '../components/QuoteCard';
-import { ProjectCreateWizard } from '../components/project';
+import { ProjectCreateWizard, type ProjectWizardResult } from '../components/project';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
@@ -53,14 +52,11 @@ export default function QuotesHub({
 
   // Project-First Architecture state
   const [showProjectWizard, setShowProjectWizard] = useState(false);
-  const [newProjectId, setNewProjectId] = useState<string | null>(null);
+  const [wizardResult, setWizardResult] = useState<ProjectWizardResult | null>(null);
   const [quoteMode, setQuoteMode] = useState<'create' | 'edit' | 'view'>('view');
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: quotes, isLoading, error } = useQuotes(filters);
-
-  // Fetch project data when creating quote from new project
-  const { data: projectData } = useProjectFull(newProjectId || undefined);
 
   // Filter quotes by search query
   const filteredQuotes = quotes?.filter(quote => {
@@ -90,7 +86,7 @@ export default function QuotesHub({
 
   // Handle closing QuoteCard and returning to list
   const handleQuoteCardBack = () => {
-    setNewProjectId(null);
+    setWizardResult(null);
     setQuoteMode('view');
     if (onClearEntity) {
       onClearEntity();
@@ -119,9 +115,9 @@ export default function QuotesHub({
       <ProjectCreateWizard
         isOpen={true}
         onClose={() => setShowProjectWizard(false)}
-        onComplete={(projectId) => {
+        onComplete={(result) => {
           setShowProjectWizard(false);
-          setNewProjectId(projectId);
+          setWizardResult(result);
           setQuoteMode('create');
         }}
         initialData={{ source: 'direct_quote' }}
@@ -130,17 +126,17 @@ export default function QuotesHub({
   }
 
   // Show QuoteCard for creating new quote (after project wizard completes)
-  if (newProjectId && projectData) {
+  if (wizardResult) {
     return (
       <QuoteCard
         mode="create"
-        projectId={newProjectId}
-        clientId={projectData.client_id || undefined}
-        communityId={projectData.community_id || undefined}
-        propertyId={projectData.property_id || undefined}
+        projectId={wizardResult.projectId}
+        clientId={wizardResult.clientId}
+        communityId={wizardResult.communityId}
+        propertyId={wizardResult.propertyId}
         onBack={handleQuoteCardBack}
         onSave={() => {
-          setNewProjectId(null);
+          setWizardResult(null);
           setQuoteMode('view');
         }}
         onConvertToJob={(quoteId) => {

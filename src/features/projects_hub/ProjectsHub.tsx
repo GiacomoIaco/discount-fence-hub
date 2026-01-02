@@ -15,7 +15,7 @@ import {
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder, ProjectsListView } from './components';
 import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
-import { ProjectPage, ProjectCreateWizard } from '../fsm/components/project';
+import { ProjectPage, ProjectCreateWizard, type ProjectWizardResult } from '../fsm/components/project';
 import { QuoteCard } from '../fsm/components/QuoteCard';
 import { useProjectFull } from '../fsm/hooks/useProjects';
 import { SidebarTooltip } from '../../components/sidebar';
@@ -191,10 +191,10 @@ export default function ProjectsHub({
           return (
             <ProjectCreateWizard
               isOpen={true}
-              onComplete={(projectId) => {
+              onComplete={(result: ProjectWizardResult) => {
                 setShowCreateWizard(false);
-                setSelectedProjectId(projectId);
-                handleNavigateToEntity('project', { id: projectId });
+                setSelectedProjectId(result.projectId);
+                handleNavigateToEntity('project', { id: result.projectId });
               }}
               onClose={() => setShowCreateWizard(false)}
             />
