@@ -303,7 +303,21 @@ export default function ProjectsHub({
             return (
               <SidebarTooltip key={item.key} label={item.label} showTooltip={collapsed}>
                 <button
-                  onClick={() => setActiveView(item.key)}
+                  onClick={() => {
+                    // Clear project selection when navigating via sidebar
+                    setSelectedProjectId(null);
+                    setCreatingQuoteForProjectId(null);
+                    setShowCreateWizard(false);
+                    // Navigate to the appropriate route (clears URL params)
+                    const route = item.key === 'dashboard' ? 'projects-hub' :
+                                  item.key === 'projects' ? 'projects-hub' :
+                                  item.key === 'requests' ? 'requests' :
+                                  item.key === 'quotes' ? 'quotes' :
+                                  item.key === 'jobs' ? 'jobs' :
+                                  item.key === 'invoices' ? 'invoices' : 'projects-hub';
+                    navigateTo(route);
+                    setActiveView(item.key);
+                  }}
                   className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? 'bg-white/20 text-white shadow-lg'

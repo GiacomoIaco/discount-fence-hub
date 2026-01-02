@@ -402,8 +402,11 @@ export default function QuoteBuilderPage({
 
   const handleSave = async () => {
     if (!selectedClientId) {
+      console.warn('[QuoteSave] No client selected');
       return;
     }
+
+    console.log('[QuoteSave] Starting save with', lineItems.length, 'line items');
 
     try {
       let savedQuoteId = quoteId;
@@ -503,26 +506,36 @@ export default function QuoteBuilderPage({
         });
 
         savedQuoteId = result.id;
+        console.log('[QuoteSave] Created quote:', savedQuoteId);
 
+        console.log('[QuoteSave] Saving', lineItems.length, 'line items...');
         for (let i = 0; i < lineItems.length; i++) {
           const item = lineItems[i];
-          await addLineItemMutation.mutateAsync({
-            quote_id: result.id,
-            line_type: item.line_type,
-            description: item.description,
-            quantity: item.quantity,
-            unit_type: item.unit_type,
-            unit_price: item.unit_price,
-            unit_cost: item.unit_cost,
-            total_price: item.quantity * item.unit_price,
-            sort_order: i,
-            is_visible_to_client: true,
-            group_name: null,
-            material_id: null,
-            labor_code_id: null,
-            sku_id: item.sku_id || null, // O-036: SKU-based pricing
-          });
+          console.log('[QuoteSave] Saving line item', i + 1, ':', item.description, 'qty:', item.quantity, 'price:', item.unit_price);
+          try {
+            await addLineItemMutation.mutateAsync({
+              quote_id: result.id,
+              line_type: item.line_type,
+              description: item.description,
+              quantity: item.quantity,
+              unit_type: item.unit_type,
+              unit_price: item.unit_price,
+              unit_cost: item.unit_cost,
+              total_price: item.quantity * item.unit_price,
+              sort_order: i,
+              is_visible_to_client: true,
+              group_name: null,
+              material_id: null,
+              labor_code_id: null,
+              sku_id: item.sku_id || null, // O-036: SKU-based pricing
+            });
+            console.log('[QuoteSave] Line item', i + 1, 'saved successfully');
+          } catch (lineError) {
+            console.error('[QuoteSave] Failed to save line item', i + 1, ':', lineError);
+            throw lineError; // Re-throw to trigger the outer catch
+          }
         }
+        console.log('[QuoteSave] All line items saved');
 
         await updateMutation.mutateAsync({
           id: result.id,
@@ -542,12 +555,16 @@ export default function QuoteBuilderPage({
         });
       }
 
+      console.log('[QuoteSave] Save completed, calling onSuccess and onBack');
       if (savedQuoteId) {
         onSuccess?.(savedQuoteId);
       }
       onBack();
     } catch (error) {
-      console.error('Failed to save quote:', error);
+      console.error('[QuoteSave] Failed to save quote:', error);
+      // Show error to user
+      const message = error instanceof Error ? error.message : 'Failed to save quote';
+      alert(`Error saving quote: ${message}`);
     }
   };
 
