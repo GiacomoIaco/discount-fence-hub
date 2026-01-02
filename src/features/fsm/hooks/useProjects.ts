@@ -372,8 +372,8 @@ export function useProjectFull(id: string | undefined) {
             .from('projects')
             .select(`
               *,
-              client:clients(id, name, company_name, email, phone),
-              property:properties(id, address_line1, address_line2, city, state, zip, latitude, longitude),
+              client:clients(id, name, company_name, primary_contact_phone),
+              property:properties(id, address_line1, city, state, zip, latitude, longitude),
               community:communities(id, name, code),
               qbo_class:qbo_classes(id, name, labor_code, bu_type, location_code),
               territory:territories(id, name, code)
