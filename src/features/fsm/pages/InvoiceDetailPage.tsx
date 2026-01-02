@@ -1,4 +1,4 @@
-/**
+﻿/**
  * InvoiceDetailPage - Full page view of an invoice
  *
  * Accessible via URL: /invoices/:id
@@ -12,7 +12,6 @@
 import { useState } from 'react';
 import {
   ArrowLeft,
-  Edit2,
   Send,
   Receipt,
   Building2,
@@ -25,13 +24,11 @@ import {
   FileText,
   RefreshCw,
 } from 'lucide-react';
-import { useInvoice, useUpdateInvoiceStatus, useSendInvoice, useRecordPayment, useSyncToQuickBooks } from '../hooks/useInvoices';
+import { useInvoice, useSendInvoice, useRecordPayment, useSyncToQuickBooks } from '../hooks/useInvoices';
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_COLORS,
-  INVOICE_TRANSITIONS,
   PAYMENT_METHOD_LABELS,
-  type InvoiceStatus,
   type PaymentMethod,
 } from '../types';
 
@@ -56,7 +53,6 @@ export default function InvoiceDetailPage({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const { data: invoice, isLoading, error } = useInvoice(invoiceId);
-  const updateStatus = useUpdateInvoiceStatus();
   const sendInvoice = useSendInvoice();
   const recordPayment = useRecordPayment();
   const syncToQbo = useSyncToQuickBooks();
@@ -105,11 +101,6 @@ export default function InvoiceDetailPage({
     if (address.line2) parts.push(address.line2);
     parts.push(`${address.city}, ${address.state} ${address.zip}`);
     return parts.join('\n');
-  };
-
-  const handleStatusChange = async (newStatus: InvoiceStatus) => {
-    if (!invoice) return;
-    await updateStatus.mutateAsync({ id: invoice.id, status: newStatus });
   };
 
   const handleSend = async () => {
@@ -169,7 +160,6 @@ export default function InvoiceDetailPage({
     );
   }
 
-  const allowedTransitions = INVOICE_TRANSITIONS[invoice.status] || [];
   const isPastDue = invoice.due_date && new Date(invoice.due_date) < new Date() && invoice.balance_due > 0;
 
   return (
@@ -257,28 +247,7 @@ export default function InvoiceDetailPage({
                 </button>
               )}
 
-              {/* Status Transitions */}
-              {allowedTransitions.length > 0 && (
-                <div className="relative group">
-                  <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
-                    <Edit2 className="w-4 h-4" />
-                    Update Status
-                  </button>
-                  <div className="absolute right-0 mt-1 py-1 bg-white border rounded-lg shadow-lg hidden group-hover:block z-10 min-w-[160px]">
-                    {allowedTransitions.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusChange(status)}
-                        disabled={updateStatus.isPending}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <span className={`w-2 h-2 rounded-full ${INVOICE_STATUS_COLORS[status].replace('text-', 'bg-').split(' ')[0]}`} />
-                        {INVOICE_STATUS_LABELS[status]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Status changes via actions only - removed manual status dropdown per Jobber pattern */}
             </div>
           </div>
         </div>
@@ -524,7 +493,7 @@ export default function InvoiceDetailPage({
                         <p className="font-medium">{formatCurrency(payment.amount)}</p>
                         <p className="text-sm text-gray-500">
                           {PAYMENT_METHOD_LABELS[payment.payment_method]} - {formatDate(payment.payment_date)}
-                          {payment.reference_number && ` • Ref: ${payment.reference_number}`}
+                          {payment.reference_number && ` â€¢ Ref: ${payment.reference_number}`}
                         </p>
                       </div>
                     </div>

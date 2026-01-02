@@ -26,15 +26,13 @@ import {
   Clipboard,
   Navigation,
 } from 'lucide-react';
-import { useRequest, useUpdateRequestStatus, useScheduleAssessment, useCompleteAssessment, useConvertRequestToJob } from '../hooks/useRequests';
+import { useRequest, useScheduleAssessment, useCompleteAssessment, useConvertRequestToJob } from '../hooks/useRequests';
 import {
   REQUEST_STATUS_LABELS,
   REQUEST_STATUS_COLORS,
   PRIORITY_LABELS,
   PRIORITY_COLORS,
   SOURCE_LABELS,
-  REQUEST_TRANSITIONS,
-  type RequestStatus,
 } from '../types';
 import { hasValidCoordinates, formatCoordinates } from '../../shared/types/location';
 
@@ -62,7 +60,6 @@ export default function RequestDetailPage({
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   const { data: request, isLoading, error } = useRequest(requestId);
-  const updateStatusMutation = useUpdateRequestStatus();
   const scheduleAssessmentMutation = useScheduleAssessment();
   const completeAssessmentMutation = useCompleteAssessment();
   const convertToJobMutation = useConvertRequestToJob();
@@ -93,11 +90,6 @@ export default function RequestDetailPage({
       hour: 'numeric',
       minute: '2-digit',
     });
-  };
-
-  const handleStatusChange = async (newStatus: RequestStatus) => {
-    if (!request) return;
-    await updateStatusMutation.mutateAsync({ id: request.id, status: newStatus });
   };
 
   const handleScheduleAssessment = async () => {
@@ -146,7 +138,6 @@ export default function RequestDetailPage({
     );
   }
 
-  const allowedTransitions = REQUEST_TRANSITIONS[request.status] || [];
   const canScheduleAssessment = request.requires_assessment && !request.assessment_scheduled_at;
   const canCompleteAssessment = request.assessment_scheduled_at && !request.assessment_completed_at;
   const isReadyForConversion = request.status === 'assessment_completed' || !request.requires_assessment;

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QuoteDetailPage - Full page view of a quote
  *
  * Accessible via URL: /quotes/:id
@@ -32,8 +32,6 @@ import QuoteToJobsModal from '../components/QuoteToJobsModal';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
-  QUOTE_TRANSITIONS,
-  type QuoteStatus,
 } from '../types';
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 
@@ -118,11 +116,6 @@ export default function QuoteDetailPage({
       hour: 'numeric',
       minute: '2-digit',
     });
-  };
-
-  const handleStatusChange = async (newStatus: QuoteStatus) => {
-    if (!quote) return;
-    await updateStatusMutation.mutateAsync({ id: quote.id, status: newStatus });
   };
 
   const handleSendQuote = async () => {
@@ -266,7 +259,6 @@ export default function QuoteDetailPage({
     );
   }
 
-  const allowedTransitions = QUOTE_TRANSITIONS[quote.status] || [];
   const canSend = quote.status === 'draft' || quote.status === 'changes_requested';
   const canApprove = quote.status === 'sent' || quote.status === 'follow_up';
   const canMarkLost = ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval'].includes(quote.status);
@@ -312,8 +304,8 @@ export default function QuoteDetailPage({
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
                   {quote.client?.name || 'No client'}
-                  {quote.product_type && ` • ${quote.product_type}`}
-                  {quote.linear_feet && ` • ${quote.linear_feet} LF`}
+                  {quote.product_type && ` â€¢ ${quote.product_type}`}
+                  {quote.linear_feet && ` â€¢ ${quote.linear_feet} LF`}
                 </p>
               </div>
             </div>
@@ -594,24 +586,7 @@ export default function QuoteDetailPage({
                 </div>
               )}
 
-              {/* Status Actions */}
-              {allowedTransitions.length > 0 && (
-                <div className="bg-white rounded-lg border p-6">
-                  <h3 className="text-sm font-medium text-gray-900 mb-4">Change Status</h3>
-                  <div className="space-y-2">
-                    {allowedTransitions.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusChange(status)}
-                        disabled={updateStatusMutation.isPending}
-                        className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors ${QUOTE_STATUS_COLORS[status]} hover:opacity-80 disabled:opacity-50`}
-                      >
-                        {QUOTE_STATUS_LABELS[status]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Status changes via actions only - removed manual status dropdown per Jobber pattern */}
 
               {/* Custom Fields */}
               <CustomFieldsSection

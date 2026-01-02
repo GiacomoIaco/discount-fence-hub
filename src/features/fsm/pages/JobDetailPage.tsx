@@ -1,4 +1,4 @@
-/**
+﻿/**
  * JobDetailPage - Full page view of a job
  *
  * Accessible via URL: /jobs/:id
@@ -12,7 +12,6 @@
 import { useState } from 'react';
 import {
   ArrowLeft,
-  Edit2,
   CheckCircle,
   FileText,
   Building2,
@@ -27,12 +26,10 @@ import {
   Wrench,
   Receipt,
 } from 'lucide-react';
-import { useJob, useUpdateJobStatus, useScheduleJob, useCompleteJob, useCreateInvoiceFromJob } from '../hooks/useJobs';
+import { useJob, useScheduleJob, useCompleteJob, useCreateInvoiceFromJob } from '../hooks/useJobs';
 import {
   JOB_STATUS_LABELS,
   JOB_STATUS_COLORS,
-  JOB_TRANSITIONS,
-  type JobStatus,
 } from '../types';
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 
@@ -57,7 +54,6 @@ export default function JobDetailPage({
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   const { data: job, isLoading, error } = useJob(jobId);
-  const updateStatus = useUpdateJobStatus();
   const scheduleJob = useScheduleJob();
   const completeJob = useCompleteJob();
   const createInvoice = useCreateInvoiceFromJob();
@@ -103,11 +99,6 @@ export default function JobDetailPage({
     if (address.line2) parts.push(address.line2);
     parts.push(`${address.city}, ${address.state} ${address.zip}`);
     return parts.join('\n');
-  };
-
-  const handleStatusChange = async (newStatus: JobStatus) => {
-    if (!job) return;
-    await updateStatus.mutateAsync({ id: job.id, status: newStatus });
   };
 
   const handleSchedule = async () => {
@@ -167,8 +158,6 @@ export default function JobDetailPage({
       </div>
     );
   }
-
-  const allowedTransitions = JOB_TRANSITIONS[job.status] || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -249,28 +238,7 @@ export default function JobDetailPage({
                 </button>
               )}
 
-              {/* Status Transitions */}
-              {allowedTransitions.length > 0 && job.status !== 'won' && job.status !== 'in_progress' && (
-                <div className="relative group">
-                  <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
-                    <Edit2 className="w-4 h-4" />
-                    Update Status
-                  </button>
-                  <div className="absolute right-0 mt-1 py-1 bg-white border rounded-lg shadow-lg hidden group-hover:block z-10 min-w-[160px]">
-                    {allowedTransitions.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusChange(status)}
-                        disabled={updateStatus.isPending}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <span className={`w-2 h-2 rounded-full ${JOB_STATUS_COLORS[status].replace('text-', 'bg-').split(' ')[0]}`} />
-                        {JOB_STATUS_LABELS[status]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Status changes via actions only - removed manual status dropdown per Jobber pattern */}
             </div>
           </div>
         </div>
