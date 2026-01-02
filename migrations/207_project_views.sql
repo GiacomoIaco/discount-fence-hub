@@ -12,13 +12,11 @@ SELECT
   -- Client info
   c.name as client_name,
   c.company_name as client_company,
-  c.email as client_email,
-  c.phone as client_phone,
+  c.primary_contact_phone as client_phone,
   COALESCE(c.company_name, c.name) as client_display_name,
 
   -- Property info
   prop.address_line1 as property_address,
-  prop.address_line2 as property_address2,
   prop.city as property_city,
   prop.state as property_state,
   prop.zip as property_zip,
@@ -44,58 +42,58 @@ SELECT
   parent.name as parent_project_name,
   parent.project_number as parent_project_number,
 
-  -- Counts
-  (SELECT COUNT(*) FROM quotes q WHERE q.project_id = p.id) as quote_count,
-  (SELECT COUNT(*) FROM quotes q WHERE q.project_id = p.id AND q.acceptance_status = 'pending') as pending_quote_count,
-  (SELECT COUNT(*) FROM jobs j WHERE j.project_id = p.id) as job_count,
-  (SELECT COUNT(*) FROM jobs j WHERE j.project_id = p.id AND j.status NOT IN ('completed', 'cancelled')) as active_job_count,
-  (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id) as invoice_count,
-  (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id AND i.status NOT IN ('paid', 'bad_debt')) as unpaid_invoice_count,
+  -- Computed counts
+  (SELECT COUNT(*) FROM quotes q WHERE q.project_id = p.id) as cnt_quotes,
+  (SELECT COUNT(*) FROM quotes q WHERE q.project_id = p.id AND q.acceptance_status = 'pending') as cnt_pending_quotes,
+  (SELECT COUNT(*) FROM jobs j WHERE j.project_id = p.id) as cnt_jobs,
+  (SELECT COUNT(*) FROM jobs j WHERE j.project_id = p.id AND j.status NOT IN ('completed', 'cancelled')) as cnt_active_jobs,
+  (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id) as cnt_invoices,
+  (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id AND i.status NOT IN ('paid', 'bad_debt')) as cnt_unpaid_invoices,
 
-  -- Financial totals
+  -- Financial totals (computed)
   (SELECT COALESCE(SUM(q.total), 0)
    FROM quotes q
    WHERE q.project_id = p.id AND q.acceptance_status = 'accepted'
-  ) as accepted_quote_total,
+  ) as sum_accepted_quotes,
 
   (SELECT COALESCE(SUM(j.quoted_total), 0)
    FROM jobs j
    WHERE j.project_id = p.id
-  ) as total_job_value,
+  ) as sum_job_value,
 
-  (SELECT COALESCE(SUM(i.total_amount), 0)
+  (SELECT COALESCE(SUM(i.total), 0)
    FROM invoices i
    WHERE i.project_id = p.id
-  ) as total_invoiced,
+  ) as sum_invoiced,
 
   (SELECT COALESCE(SUM(i.amount_paid), 0)
    FROM invoices i
    WHERE i.project_id = p.id
-  ) as total_paid,
+  ) as sum_paid,
 
-  (SELECT COALESCE(SUM(i.total_amount - COALESCE(i.amount_paid, 0)), 0)
+  (SELECT COALESCE(SUM(i.total - COALESCE(i.amount_paid, 0)), 0)
    FROM invoices i
    WHERE i.project_id = p.id AND i.status NOT IN ('paid', 'bad_debt')
-  ) as total_balance_due,
+  ) as sum_balance_due,
 
-  -- Budget vs Actual (from jobs)
+  -- Budget vs Actual (computed from jobs)
   (SELECT COALESCE(SUM(j.budgeted_total_cost), 0)
    FROM jobs j
    WHERE j.project_id = p.id
-  ) as total_budgeted_cost,
+  ) as sum_budgeted_cost,
 
   (SELECT COALESCE(SUM(j.actual_total_cost), 0)
    FROM jobs j
    WHERE j.project_id = p.id
-  ) as total_actual_cost,
+  ) as sum_actual_cost,
 
-  -- Has rework
+  -- Rework flag (computed)
   EXISTS (
     SELECT 1 FROM jobs j WHERE j.project_id = p.id AND j.has_rework = true
-  ) as has_rework,
+  ) as has_rework_jobs,
 
-  -- Related projects count (warranty, change orders)
-  (SELECT COUNT(*) FROM projects child WHERE child.parent_project_id = p.id) as child_project_count
+  -- Related projects (warranty, change orders)
+  (SELECT COUNT(*) FROM projects child WHERE child.parent_project_id = p.id) as cnt_child_projects
 
 FROM projects p
 LEFT JOIN clients c ON p.client_id = c.id
@@ -120,7 +118,7 @@ SELECT
   c.company_name as client_company,
   COALESCE(c.company_name, c.name) as client_display_name,
   rep.full_name as sales_rep_name,
-  (SELECT COUNT(*) FROM quote_line_items qli WHERE qli.quote_id = q.id) as line_item_count,
+  (SELECT COUNT(*) FROM quote_line_items qli WHERE qli.quote_id = q.id) as cnt_line_items,
   superseded.quote_number as superseded_by_quote_number
 FROM quotes q
 LEFT JOIN projects p ON q.project_id = p.id
@@ -146,16 +144,16 @@ SELECT
   crew.code as crew_code,
   depends_on.job_number as depends_on_job_number,
   depends_on.name as depends_on_job_name,
-  -- Visit counts
-  (SELECT COUNT(*) FROM job_visits jv WHERE jv.job_id = j.id) as visit_count,
-  (SELECT COUNT(*) FROM job_visits jv WHERE jv.job_id = j.id AND jv.status = 'completed') as completed_visit_count,
-  (SELECT COUNT(*) FROM job_visits jv WHERE jv.job_id = j.id AND jv.visit_type IN ('rework', 'callback', 'warranty')) as rework_visit_count,
-  -- Variance calculations
+  -- Computed visit counts
+  (SELECT COUNT(*) FROM job_visits jv WHERE jv.job_id = j.id) as cnt_visits,
+  (SELECT COUNT(*) FROM job_visits jv WHERE jv.job_id = j.id AND jv.status = 'completed') as cnt_completed_visits,
+  (SELECT COUNT(*) FROM job_visits jv WHERE jv.job_id = j.id AND jv.visit_type IN ('rework', 'callback', 'warranty')) as cnt_rework_visits,
+  -- Computed variance
   CASE
     WHEN j.budgeted_total_cost > 0
     THEN ROUND(((j.actual_total_cost - j.budgeted_total_cost) / j.budgeted_total_cost * 100)::numeric, 1)
     ELSE 0
-  END as cost_variance_pct
+  END as computed_cost_variance_pct
 FROM jobs j
 LEFT JOIN projects p ON j.project_id = p.id
 LEFT JOIN clients c ON j.client_id = c.id
@@ -178,16 +176,16 @@ SELECT
   COALESCE(c.company_name, c.name) as client_display_name,
   j.job_number,
   j.name as job_name,
-  -- Balance calculation
-  (i.total_amount - COALESCE(i.amount_paid, 0)) as balance_due,
+  -- Computed balance
+  (i.total - COALESCE(i.amount_paid, 0)) as computed_balance_due,
   -- Payment count
-  (SELECT COUNT(*) FROM payments pay WHERE pay.invoice_id = i.id) as payment_count,
-  -- Days past due
+  (SELECT COUNT(*) FROM payments pay WHERE pay.invoice_id = i.id) as cnt_payments,
+  -- Computed days past due
   CASE
     WHEN i.status = 'sent' AND i.due_date < CURRENT_DATE
     THEN CURRENT_DATE - i.due_date
     ELSE 0
-  END as days_past_due
+  END as computed_days_past_due
 FROM invoices i
 LEFT JOIN projects p ON i.project_id = p.id
 LEFT JOIN clients c ON i.client_id = c.id
@@ -203,14 +201,13 @@ CREATE OR REPLACE VIEW v_project_timeline AS
 WITH timeline_events AS (
   -- Project created
   SELECT
-    project_id,
+    id as project_id,
     'project_created' as event_type,
     'Project created' as event_description,
-    NULL as entity_id,
-    NULL as entity_number,
+    id as entity_id,
+    project_number as entity_number,
     created_at as event_time
   FROM projects
-  WHERE project_id IS NOT NULL
 
   UNION ALL
 
@@ -275,7 +272,7 @@ WITH timeline_events AS (
     END as event_description,
     id as entity_id,
     invoice_number as entity_number,
-    COALESCE(paid_at, sent_at, created_at) as event_time
+    COALESCE(sent_at, created_at) as event_time
   FROM invoices
   WHERE project_id IS NOT NULL
 )

@@ -19,8 +19,8 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS relationship_type TEXT CHECK (rela
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS source TEXT CHECK (source IN ('request', 'direct_quote', 'phone', 'walk_in', 'referral', 'builder_portal'));
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_request_id UUID REFERENCES service_requests(id) ON DELETE SET NULL;
 
--- QBO Class (accounting category)
-ALTER TABLE projects ADD COLUMN IF NOT EXISTS qbo_class_id UUID REFERENCES qbo_classes(id) ON DELETE SET NULL;
+-- QBO Class (accounting category) - VARCHAR to match qbo_classes.id type
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS qbo_class_id VARCHAR REFERENCES qbo_classes(id) ON DELETE SET NULL;
 
 -- Assigned rep (person-centric)
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_rep_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;

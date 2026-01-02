@@ -8,54 +8,65 @@
 CREATE TABLE IF NOT EXISTS job_visits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-  visit_number INTEGER NOT NULL DEFAULT 1,
-
-  -- Visit classification
-  visit_type TEXT NOT NULL DEFAULT 'initial'
-    CHECK (visit_type IN ('initial', 'continuation', 'rework', 'callback', 'inspection', 'warranty')),
-
-  -- Scheduling
-  scheduled_date DATE,
-  scheduled_start_time TIME,
-  scheduled_end_time TIME,
-  scheduled_duration_hours DECIMAL(5,2),
-
-  -- Crew assignment
-  assigned_crew_id UUID REFERENCES crews(id) ON DELETE SET NULL,
-
-  -- Actual time tracking
-  actual_start_time TIMESTAMPTZ,
-  actual_end_time TIMESTAMPTZ,
-  labor_hours DECIMAL(6,2),
-  labor_rate DECIMAL(10,2),
-  labor_cost DECIMAL(12,2),
-
-  -- Crew members who worked
-  crew_member_ids UUID[],
-  crew_member_count INTEGER,
-
-  -- Status
-  status TEXT DEFAULT 'scheduled'
-    CHECK (status IN ('scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rescheduled', 'no_show')),
-
-  -- Issue tracking (for rework/callback/warranty)
-  issue_description TEXT,
-  issue_category TEXT CHECK (issue_category IN ('material_defect', 'workmanship', 'customer_request', 'weather', 'other')),
-  resolution_notes TEXT,
-  is_billable BOOLEAN DEFAULT true,
-
-  -- Notes and photos
-  notes TEXT,
-  photos TEXT[], -- Array of storage URLs
-
-  -- Timestamps
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  completed_at TIMESTAMPTZ,
-
-  -- Unique constraint on job + visit number
-  UNIQUE(job_id, visit_number)
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- ============================================
+-- 1b. Add all columns (handles existing table)
+-- ============================================
+
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS visit_number INTEGER DEFAULT 1;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS visit_type TEXT DEFAULT 'initial';
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS scheduled_date DATE;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS scheduled_start_time TIME;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS scheduled_end_time TIME;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS scheduled_duration_hours DECIMAL(5,2);
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS assigned_crew_id UUID REFERENCES crews(id) ON DELETE SET NULL;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS actual_start_time TIMESTAMPTZ;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMPTZ;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS labor_hours DECIMAL(6,2);
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS labor_rate DECIMAL(10,2);
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS labor_cost DECIMAL(12,2);
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS crew_member_ids UUID[];
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS crew_member_count INTEGER;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'scheduled';
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS issue_description TEXT;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS issue_category TEXT;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS resolution_notes TEXT;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS is_billable BOOLEAN DEFAULT true;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS photos TEXT[];
+ALTER TABLE job_visits ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
+-- Add check constraints (ignore if already exists)
+DO $$
+BEGIN
+  ALTER TABLE job_visits ADD CONSTRAINT job_visits_visit_type_check
+    CHECK (visit_type IN ('initial', 'continuation', 'rework', 'callback', 'inspection', 'warranty'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE job_visits ADD CONSTRAINT job_visits_status_check
+    CHECK (status IN ('scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rescheduled', 'no_show'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE job_visits ADD CONSTRAINT job_visits_issue_category_check
+    CHECK (issue_category IN ('material_defect', 'workmanship', 'customer_request', 'weather', 'other'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Add unique constraint (ignore if already exists)
+DO $$
+BEGIN
+  ALTER TABLE job_visits ADD CONSTRAINT job_visits_job_id_visit_number_key UNIQUE(job_id, visit_number);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================
 -- 2. Create indexes
