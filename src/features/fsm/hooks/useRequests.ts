@@ -420,6 +420,12 @@ export function useConvertRequestToQuote() {
         .single();
 
       if (requestError) throw requestError;
+      if (!request) throw new Error('Request not found');
+
+      // Require a client for quote conversion
+      if (!request.client_id) {
+        throw new Error('Request must have a client assigned before converting to a quote. Please edit the request and assign a client first.');
+      }
 
       // Build job address from request
       const jobAddress = request.address_line1 ? {

@@ -45,6 +45,7 @@ export default function QuotesHub({
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showBuilder, setShowBuilder] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: quotes, isLoading, error } = useQuotes(filters);
@@ -88,6 +89,11 @@ export default function QuotesHub({
     }
   };
 
+  // Handle editing a quote - opens builder with existing quote
+  const handleEditQuote = (quoteId: string) => {
+    setEditingQuoteId(quoteId);
+  };
+
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount == null) return '$0.00';
     return new Intl.NumberFormat('en-US', {
@@ -103,6 +109,18 @@ export default function QuotesHub({
       day: 'numeric',
     });
   };
+
+  // If editing an existing quote, render the builder page with quoteId
+  if (editingQuoteId) {
+    return (
+      <QuoteBuilderPage
+        quoteId={editingQuoteId}
+        onBack={() => {
+          setEditingQuoteId(null);
+        }}
+      />
+    );
+  }
 
   // If creating a new quote (via URL or local state), render the builder page
   if (showBuilder || (entityContext?.type === 'quote' && entityContext.id === 'new')) {
@@ -126,6 +144,7 @@ export default function QuotesHub({
         onBack={handleQuoteClose}
         onNavigateToJob={handleNavigateToJob}
         onNavigateToRequest={handleNavigateToRequest}
+        onEditQuote={handleEditQuote}
       />
     );
   }
