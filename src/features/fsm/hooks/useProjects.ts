@@ -434,10 +434,7 @@ export function useProjectQuotes(projectId: string | undefined) {
         .select(`
           *,
           client:clients(id, name, company_name),
-          line_items:quote_line_items(
-            id, description, quantity, unit_price, unit_cost, unit_type, total, line_type,
-            sku_id
-          ),
+          line_items:quote_line_items(*),
           sales_rep_user_id
         `)
         .eq('project_id', projectId)
