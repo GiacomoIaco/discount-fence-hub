@@ -124,6 +124,7 @@ export interface RepUser {
   full_name: string | null;
   email: string;
   phone: string | null;
+  is_active?: boolean;  // From fsm_team_profiles join
 }
 
 // Backwards compatibility alias - prefer RepUser in new code
