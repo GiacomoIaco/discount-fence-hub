@@ -369,7 +369,7 @@ export function useApproveQuote() {
         .from('quotes')
         .update({
           approval_status: 'approved',
-          approved_at: new Date().toISOString(),
+          client_approved_at: new Date().toISOString(), // Triggers computed status
           approval_notes: notes || null,
           updated_at: new Date().toISOString(),
         })
