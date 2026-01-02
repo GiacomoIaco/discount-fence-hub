@@ -536,10 +536,10 @@ export default function QuoteDetailPage({
                       <span className="text-sm font-medium">{quote.community.name}</span>
                     </div>
                   )}
-                  {quote.sales_rep && (
+                  {quote.sales_rep_user && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500">Sales Rep</span>
-                      <span className="text-sm font-medium">{quote.sales_rep.name}</span>
+                      <span className="text-sm font-medium">{quote.sales_rep_user.name}</span>
                     </div>
                   )}
                   {quote.request && onNavigateToRequest && (

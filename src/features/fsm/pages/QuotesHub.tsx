@@ -291,10 +291,10 @@ export default function QuotesHub({
                       <Calendar className="w-4 h-4" />
                       {formatDate(quote.created_at)}
                     </div>
-                    {quote.sales_rep && (
+                    {quote.sales_rep_user && (
                       <div className="flex items-center gap-1 text-gray-500">
                         <User className="w-4 h-4" />
-                        {quote.sales_rep.name}
+                        {quote.sales_rep_user.name}
                       </div>
                     )}
                     <div className="text-right">

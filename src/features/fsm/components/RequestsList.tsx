@@ -205,10 +205,10 @@ export default function RequestsList({ onSelectRequest, onCreate, onEdit, hideHe
                     )}
 
                     {/* Assigned Rep */}
-                    {request.assigned_rep && (
+                    {request.assigned_rep_user && (
                       <div className="flex items-center gap-1 text-gray-600">
                         <User className="w-3 h-3" />
-                        {request.assigned_rep.name}
+                        {request.assigned_rep_user.name}
                       </div>
                     )}
 

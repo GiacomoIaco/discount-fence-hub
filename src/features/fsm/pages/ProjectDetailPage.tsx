@@ -460,12 +460,12 @@ export default function ProjectDetailPage({
                   </div>
                 )}
 
-                {project.assigned_rep && (
+                {project.assigned_rep_user && (
                   <div className="flex items-start gap-3">
                     <User className="w-4 h-4 text-gray-400 mt-0.5" />
                     <div>
                       <p className="text-sm text-gray-500">Assigned Rep</p>
-                      <p className="font-medium">{project.assigned_rep.name}</p>
+                      <p className="font-medium">{project.assigned_rep_user.name}</p>
                     </div>
                   </div>
                 )}

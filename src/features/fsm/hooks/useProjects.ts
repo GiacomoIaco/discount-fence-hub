@@ -36,6 +36,7 @@ async function fetchUserProfiles(userIds: string[]): Promise<Map<string, RepUser
   const map = new Map<string, RepUser>();
   (data || []).forEach(u => map.set(u.id, {
     id: u.id,
+    name: u.full_name || u.email || 'Unknown',
     full_name: u.full_name,
     email: u.email || '',
     phone: u.phone || null,

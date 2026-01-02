@@ -266,10 +266,10 @@ export default function ClientQuoteViewPage() {
           {quote?.sales_rep && (
             <div className="bg-gray-50 rounded-lg p-4 text-left">
               <p className="text-sm font-medium text-gray-900 mb-2">Your Sales Representative:</p>
-              <p className="text-gray-700">{quote.sales_rep.name}</p>
-              {quote.sales_rep.phone && (
-                <a href={`tel:${quote.sales_rep.phone}`} className="text-blue-600 hover:underline text-sm">
-                  {quote.sales_rep.phone}
+              <p className="text-gray-700">{quote.sales_rep_user.name}</p>
+              {quote.sales_rep_user.phone && (
+                <a href={`tel:${quote.sales_rep_user.phone}`} className="text-blue-600 hover:underline text-sm">
+                  {quote.sales_rep_user.phone}
                 </a>
               )}
             </div>
@@ -292,10 +292,10 @@ export default function ClientQuoteViewPage() {
           {quote?.sales_rep && (
             <div className="bg-gray-50 rounded-lg p-4 text-left">
               <p className="text-sm font-medium text-gray-900 mb-2">Your Sales Representative:</p>
-              <p className="text-gray-700">{quote.sales_rep.name}</p>
-              {quote.sales_rep.phone && (
-                <a href={`tel:${quote.sales_rep.phone}`} className="text-blue-600 hover:underline text-sm">
-                  {quote.sales_rep.phone}
+              <p className="text-gray-700">{quote.sales_rep_user.name}</p>
+              {quote.sales_rep_user.phone && (
+                <a href={`tel:${quote.sales_rep_user.phone}`} className="text-blue-600 hover:underline text-sm">
+                  {quote.sales_rep_user.phone}
                 </a>
               )}
             </div>
@@ -437,7 +437,7 @@ export default function ClientQuoteViewPage() {
         )}
 
         {/* Sales Rep Contact */}
-        {quote.sales_rep && (
+        {quote.sales_rep_user && (
           <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Sales Representative</h3>
             <div className="flex items-center gap-4">
@@ -445,20 +445,20 @@ export default function ClientQuoteViewPage() {
                 <Building2 className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">{quote.sales_rep.name}</p>
+                <p className="font-medium text-gray-900">{quote.sales_rep_user.name}</p>
                 <div className="flex gap-4 mt-1">
-                  {quote.sales_rep.phone && (
+                  {quote.sales_rep_user.phone && (
                     <a
-                      href={`tel:${quote.sales_rep.phone}`}
+                      href={`tel:${quote.sales_rep_user.phone}`}
                       className="text-blue-600 hover:underline text-sm flex items-center gap-1"
                     >
                       <Phone className="w-4 h-4" />
-                      {quote.sales_rep.phone}
+                      {quote.sales_rep_user.phone}
                     </a>
                   )}
-                  {quote.sales_rep.email && (
+                  {quote.sales_rep_user.email && (
                     <a
-                      href={`mailto:${quote.sales_rep.email}`}
+                      href={`mailto:${quote.sales_rep_user.email}`}
                       className="text-blue-600 hover:underline text-sm flex items-center gap-1"
                     >
                       <Mail className="w-4 h-4" />

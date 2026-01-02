@@ -387,10 +387,10 @@ export default function RequestDetailPage({
                       <span className="text-sm font-medium">{request.community.name}</span>
                     </div>
                   )}
-                  {request.assigned_rep && (
+                  {request.assigned_rep_user && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500">Assigned To</span>
-                      <span className="text-sm font-medium">{request.assigned_rep.name}</span>
+                      <span className="text-sm font-medium">{request.assigned_rep_user.name}</span>
                     </div>
                   )}
                   {request.territory && (
@@ -442,10 +442,10 @@ export default function RequestDetailPage({
                     <span className="text-sm text-gray-500">Completed</span>
                     <span className="text-sm font-medium">{formatDateTime(request.assessment_completed_at)}</span>
                   </div>
-                  {request.assessment_rep && (
+                  {request.assessment_rep_user && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500">Completed By</span>
-                      <span className="text-sm font-medium">{request.assessment_rep.name}</span>
+                      <span className="text-sm font-medium">{request.assessment_rep_user.name}</span>
                     </div>
                   )}
                   {request.assessment_notes && (

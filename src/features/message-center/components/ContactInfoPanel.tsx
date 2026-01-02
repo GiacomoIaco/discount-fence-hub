@@ -357,16 +357,16 @@ export function ContactInfoPanel({ contact, conversationId, isOpen, onClose, onI
                               {format(new Date(project.created_at), 'MMM d')}
                             </span>
                           </div>
-                          {project.assigned_rep && (
+                          {project.assigned_rep_user && (
                             <div className="flex items-center justify-between mt-2">
                               <p className="text-xs text-gray-500">
-                                Sales: {project.assigned_rep.name}
+                                Sales: {project.assigned_rep_user.name}
                               </p>
                               {onInviteSalesRep && (
                                 <button
-                                  onClick={() => onInviteSalesRep(project.assigned_rep!.id, project.assigned_rep!.name)}
+                                  onClick={() => onInviteSalesRep(project.assigned_rep_user!.id, project.assigned_rep_user!.name)}
                                   className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                  title={`Invite ${project.assigned_rep.name} to conversation`}
+                                  title={`Invite ${project.assigned_rep_user.name} to conversation`}
                                 >
                                   <UserPlus className="w-3 h-3" />
                                   Invite
