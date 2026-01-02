@@ -154,11 +154,11 @@ export default function ProjectsHub({
             <QuoteBuilderPage
               projectId={creatingQuoteForProjectId}
               requestData={{
-                client_id: projectForQuote.client_id,
+                client_id: projectForQuote.client_id ?? undefined,
                 client_name: projectForQuote.client_display_name || projectForQuote.client?.name,
-                community_id: projectForQuote.community_id,
+                community_id: projectForQuote.community_id ?? undefined,
                 community_name: projectForQuote.community?.name,
-                property_id: projectForQuote.property_id,
+                property_id: projectForQuote.property_id ?? undefined,
               }}
               onBack={() => setCreatingQuoteForProjectId(null)}
               onSuccess={() => {
@@ -186,8 +186,8 @@ export default function ProjectsHub({
 
         // Show project detail if selected AND URL contains the project ID (defensive check)
         // This ensures UI stays in sync with URL even during async state updates
-        // We check currentPath directly because entityContext may be stale during navigation
-        const urlHasProjectId = currentPath.includes(`/projects/${selectedProjectId}`);
+        // We use window.location.pathname because React Router state may lag behind
+        const urlHasProjectId = window.location.pathname.includes(`/projects/${selectedProjectId}`);
         if (selectedProjectId && urlHasProjectId) {
           return (
             <ProjectPage
