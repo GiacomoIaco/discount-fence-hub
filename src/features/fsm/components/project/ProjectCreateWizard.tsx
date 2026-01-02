@@ -140,7 +140,7 @@ export function ProjectCreateWizard({
       const { data: directProps, error: directError } = await supabase
         .from('properties')
         .select(`
-          id, address_line1, address_line2, city, state, zip, community_id, client_id,
+          id, address_line1, city, state, zip, community_id, client_id,
           community:communities(name)
         `)
         .eq('client_id', selectedClient.id)
@@ -161,7 +161,7 @@ export function ProjectCreateWizard({
         const { data: commProps, error: commError } = await supabase
           .from('properties')
           .select(`
-            id, address_line1, address_line2, city, state, zip, community_id, client_id,
+            id, address_line1, city, state, zip, community_id, client_id,
             community:communities(name)
           `)
           .in('community_id', communityIds)
