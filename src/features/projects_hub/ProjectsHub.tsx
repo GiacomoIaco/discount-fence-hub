@@ -97,7 +97,13 @@ export default function ProjectsHub({
       // Also set project ID if navigating to a project
       if (entityContext.type === 'project') {
         setSelectedProjectId(entityContext.params.id);
+      } else {
+        // Clear project ID when navigating to a different entity type
+        setSelectedProjectId(null);
       }
+    } else if (!entityContext) {
+      // Clear project ID when entity context is removed (navigating to list)
+      setSelectedProjectId(null);
     }
   }, [entityContext]);
 
