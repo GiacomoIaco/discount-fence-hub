@@ -24,8 +24,8 @@ import {
   Package,
   ChevronDown,
   Layers,
+  Clock,
 } from 'lucide-react';
-// ArrowLeft, Clock removed - using EntityHeader
 import { useQuote, useUpdateQuoteStatus, useSendQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
 import QuoteToJobsModal from '../components/QuoteToJobsModal';
 import {

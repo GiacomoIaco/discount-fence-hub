@@ -22,8 +22,8 @@ import {
   Wrench,
   FileText,
   RefreshCw,
+  ArrowLeft,
 } from 'lucide-react';
-// ArrowLeft removed - using EntityHeader
 import { useInvoice, useSendInvoice, useRecordPayment, useSyncToQuickBooks } from '../hooks/useInvoices';
 import {
   INVOICE_STATUS_LABELS,

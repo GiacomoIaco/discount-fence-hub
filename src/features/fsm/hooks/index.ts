@@ -20,3 +20,6 @@ export * from './useQuoteToProject';
 // Smart Address & Location (Phase 5)
 export * from './useTerritoryDetection';
 export * from './useCrewRouting';
+
+// Project-First Architecture (Phase 6)
+export * from './useAcceptQuote';

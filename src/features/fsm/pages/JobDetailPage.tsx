@@ -24,8 +24,8 @@ import {
   Truck,
   Wrench,
   Receipt,
+  ArrowLeft,
 } from 'lucide-react';
-// ArrowLeft removed - using EntityHeader
 import { useJob, useScheduleJob, useCompleteJob, useCreateInvoiceFromJob } from '../hooks/useJobs';
 import {
   JOB_STATUS_LABELS,

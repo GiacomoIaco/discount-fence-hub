@@ -14,3 +14,9 @@ export { default as AttributesTab } from './AttributesTab';
 export { default as FsmTeamList } from './FsmTeamList';
 export { default as FsmTeamEditorModal } from './FsmTeamEditorModal';
 export { default as FsmTeamImportModal } from './FsmTeamImportModal';
+
+// Project-First Architecture (Phase 3D)
+export * from './project';
+
+// Shared components
+export * from './shared';

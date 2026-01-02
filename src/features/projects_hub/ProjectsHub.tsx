@@ -10,10 +10,12 @@ import {
   Briefcase,
   PanelLeftClose,
   PanelLeft,
+  FolderKanban,
 } from 'lucide-react';
 import type { ProjectsHubView } from './types';
-import { ProjectsDashboard, ComingSoonPlaceholder } from './components';
+import { ProjectsDashboard, ComingSoonPlaceholder, ProjectsListView } from './components';
 import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
+import { ProjectPage, ProjectCreateWizard } from '../fsm/components/project';
 import { SidebarTooltip } from '../../components/sidebar';
 import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
@@ -22,6 +24,7 @@ const STORAGE_KEY = 'sidebar-collapsed-projects-hub';
 
 const NAV_ITEMS: { key: ProjectsHubView; label: string; icon: typeof LayoutDashboard; comingSoon?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'projects', label: 'Projects', icon: FolderKanban },  // Project-First view
   { key: 'requests', label: 'Requests', icon: ClipboardList },
   { key: 'quotes', label: 'Quotes', icon: FileText },
   { key: 'jobs', label: 'Jobs', icon: Hammer },
@@ -31,6 +34,7 @@ const NAV_ITEMS: { key: ProjectsHubView; label: string; icon: typeof LayoutDashb
 
 // Map entity types to views
 const ENTITY_TO_VIEW: Record<string, ProjectsHubView> = {
+  project: 'projects',
   request: 'requests',
   quote: 'quotes',
   job: 'jobs',
@@ -75,10 +79,20 @@ export default function ProjectsHub({
     return stored === 'true';
   });
 
+  // Project-First architecture state
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    entityContext?.type === 'project' ? entityContext.params.id : null
+  );
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
+
   // Update view when entity context changes
   useEffect(() => {
     if (entityContext && ENTITY_TO_VIEW[entityContext.type]) {
       setActiveView(ENTITY_TO_VIEW[entityContext.type]);
+      // Also set project ID if navigating to a project
+      if (entityContext.type === 'project') {
+        setSelectedProjectId(entityContext.params.id);
+      }
     }
   }, [entityContext]);
 
@@ -96,7 +110,8 @@ export default function ProjectsHub({
       externalClearEntity();
     } else {
       // Navigate back to the section list
-      navigateTo(activeView === 'requests' ? 'requests' :
+      navigateTo(activeView === 'projects' ? 'projects-hub' :
+                 activeView === 'requests' ? 'requests' :
                  activeView === 'quotes' ? 'quotes' :
                  activeView === 'jobs' ? 'jobs' :
                  activeView === 'invoices' ? 'invoices' : 'projects-hub');
@@ -120,6 +135,61 @@ export default function ProjectsHub({
     switch (activeView) {
       case 'dashboard':
         return <ProjectsDashboard onNavigate={setActiveView} />;
+
+      case 'projects':
+        // Show create wizard if triggered
+        if (showCreateWizard) {
+          return (
+            <ProjectCreateWizard
+              onComplete={(projectId) => {
+                setShowCreateWizard(false);
+                setSelectedProjectId(projectId);
+                handleNavigateToEntity('project', { id: projectId });
+              }}
+              onCancel={() => setShowCreateWizard(false)}
+            />
+          );
+        }
+
+        // Show project detail if selected
+        if (selectedProjectId) {
+          return (
+            <ProjectPage
+              projectId={selectedProjectId}
+              onBack={() => {
+                setSelectedProjectId(null);
+                handleClearEntity();
+              }}
+              onNavigateToQuote={(quoteId) =>
+                handleNavigateToEntity('quote', { id: quoteId })
+              }
+              onNavigateToJob={(jobId) =>
+                handleNavigateToEntity('job', { id: jobId })
+              }
+              onNavigateToInvoice={(invoiceId) =>
+                handleNavigateToEntity('invoice', { id: invoiceId })
+              }
+              onCreateQuote={() => {
+                // TODO: Navigate to quote builder with project context
+              }}
+              onCreateJob={() => {
+                // TODO: Navigate to job creation with project context
+              }}
+            />
+          );
+        }
+
+        // Show projects list
+        return (
+          <ProjectsListView
+            onSelectProject={(projectId) => {
+              setSelectedProjectId(projectId);
+              handleNavigateToEntity('project', { id: projectId });
+            }}
+            onCreateProject={() => setShowCreateWizard(true)}
+          />
+        );
+
       case 'requests':
         return (
           <RequestsHub

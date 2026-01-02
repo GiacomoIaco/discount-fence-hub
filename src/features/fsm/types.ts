@@ -43,9 +43,52 @@ export type InvoiceStatus =
 
 export type VisitStatus =
   | 'scheduled'
+  | 'confirmed'
   | 'in_progress'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'rescheduled'
+  | 'no_show';
+
+// Enhanced visit type for job_visits table
+export type JobVisitType =
+  | 'initial'
+  | 'continuation'
+  | 'rework'
+  | 'callback'
+  | 'inspection'
+  | 'warranty';
+
+// Issue category for rework/callback visits
+export type VisitIssueCategory =
+  | 'material_defect'
+  | 'workmanship'
+  | 'customer_request'
+  | 'weather'
+  | 'other';
+
+// Quote acceptance status (for multi-quote per project)
+export type QuoteAcceptanceStatus =
+  | 'pending'
+  | 'accepted'
+  | 'declined'
+  | 'superseded';
+
+// Project relationship type (for warranty/follow-up)
+export type ProjectRelationshipType =
+  | 'warranty'
+  | 'change_order'
+  | 'follow_up'
+  | 'phase';
+
+// Project source (how the project originated)
+export type ProjectSource =
+  | 'request'
+  | 'direct_quote'
+  | 'phone'
+  | 'walk_in'
+  | 'referral'
+  | 'builder_portal';
 
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
 export type RequestSource = 'phone' | 'web' | 'referral' | 'walk_in' | 'builder_portal';
@@ -142,43 +185,115 @@ export interface CrewMember {
 export interface Project {
   id: string;
   project_number: string;
-  // Customer
+
+  // Customer & Location (PRIMARY - data lives here, not duplicated)
   client_id: string | null;
   community_id: string | null;
-  property_id: string | null;
+  property_id: string | null;  // Address comes from properties table
+  qbo_class_id: string | null; // QBO Class for accounting (replaces BU)
+  assigned_rep_user_id: string | null; // FK to auth.users
+
   // Info
   name: string | null;
   description: string | null;
   product_type: string | null;
-  // Address
+
+  // Address (legacy - prefer property_id for new projects)
   address_line1: string | null;
   city: string | null;
   state: string;
   zip: string | null;
-  // Assignment
+
+  // Assignment (legacy)
   territory_id: string | null;
   assigned_rep_id: string | null;
+
+  // Quote acceptance tracking
+  accepted_quote_id: string | null;
+
+  // Source tracking
+  source: ProjectSource | null;
+  source_request_id: string | null;
+
+  // Warranty/Follow-up linking
+  parent_project_id: string | null;
+  relationship_type: ProjectRelationshipType | null;
+
   // Status
   status: ProjectStatus;
+
   // Financials
   total_quoted: number;
   total_invoiced: number;
   total_paid: number;
+
   // Timestamps
   created_at: string;
   updated_at: string;
   created_by: string | null;
-  // Joined
-  client?: { id: string; name: string };
+
+  // Joined - Basic
+  client?: { id: string; name: string; company_name?: string };
   community?: { id: string; name: string };
-  property?: { id: string; address_line1: string };
+  property?: {
+    id: string;
+    address_line1: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    latitude?: number;
+    longitude?: number;
+  };
   territory?: { id: string; name: string; code: string };
   assigned_rep?: SalesRep;
+  assigned_rep_user?: RepUser;
+  qbo_class?: {
+    id: string;
+    name: string;
+    bu_type: string;
+    location_code: string | null;
+    labor_code: string;
+  };
+
+  // Parent project (for warranty/follow-up)
+  parent_project?: {
+    id: string;
+    project_number: string;
+    name: string | null;
+  };
+
+  // Accepted quote
+  accepted_quote?: {
+    id: string;
+    quote_number: string;
+    total: number;
+  };
+
+  // Source request
+  source_request?: {
+    id: string;
+    request_number: string;
+  };
+
   // Related entities
   requests?: ServiceRequest[];
   quotes?: Quote[];
   jobs?: Job[];
   invoices?: Invoice[];
+
+  // Aggregates (from views)
+  quote_count?: number;
+  pending_quote_count?: number;
+  job_count?: number;
+  active_job_count?: number;
+  invoice_count?: number;
+  unpaid_invoice_count?: number;
+  total_budgeted_cost?: number;
+  total_actual_cost?: number;
+  total_balance_due?: number;
+  has_rework?: boolean;
+  child_project_count?: number;
 }
 
 export interface ServiceRequest {
@@ -304,6 +419,18 @@ export interface Quote {
   client_po_number: string | null;
   lost_reason: string | null;
   lost_to_competitor: string | null;
+
+  // Quote acceptance (multi-quote per project)
+  acceptance_status: QuoteAcceptanceStatus;
+  superseded_by_quote_id: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  declined_reason: string | null;
+
+  // Version tracking
+  version_number: number;
+  is_revision_of_quote_id: string | null;
+
   // Conversion
   converted_to_job_id: string | null;
   // Assignment
@@ -359,90 +486,173 @@ export interface QuoteLineItem {
 export interface Job {
   id: string;
   job_number: string;
+
   // Project
   project_id: string | null;
+
+  // Phase tracking (multi-job per project)
+  phase_number: number;
+  phase_name: string | null;
+  depends_on_job_id: string | null;
+
   // Source
   quote_id: string | null;
   request_id: string | null;  // Direct from request (no quote)
+
   // Warranty
   is_warranty: boolean;
-  // Customer
+
+  // Customer (inherited from project, but stored for queries)
   client_id: string;
   community_id: string | null;
   property_id: string | null;
   job_address: AddressSnapshot;
+
   // Geocoding (from migration 178)
   site_latitude?: number | null;
   site_longitude?: number | null;
   geocoded_at?: string | null;
+
   // Scope
   product_type: string | null;
   linear_feet: number | null;
   description: string | null;
   special_instructions: string | null;
+
   // Pricing
   quoted_total: number | null;
+
+  // Budget tracking
+  budgeted_labor_hours: number | null;
+  budgeted_labor_cost: number | null;
+  budgeted_material_cost: number | null;
+  budgeted_total_cost: number | null;
+
+  // Actual tracking (calculated from visits)
+  actual_labor_hours: number;
+  actual_labor_cost: number;
+  actual_material_cost: number;
+  actual_total_cost: number;
+
+  // Rework tracking
+  has_rework: boolean;
+  rework_reason: string | null;
+  rework_cost: number;
+
   // Schedule
   scheduled_date: string | null;
   scheduled_time_start: string | null;
   scheduled_time_end: string | null;
   estimated_duration_hours: number | null;
+
   // Assignment
   assigned_crew_id: string | null;
   assigned_rep_id: string | null;        // Legacy - use assigned_rep_user_id
   assigned_rep_user_id: string | null;   // FK to auth.users
   territory_id: string | null;
   qbo_class_id: string | null;  // QBO Class for accounting
+
   // Status
   status: JobStatus;
   status_changed_at: string;
+
   // Yard workflow
   ready_for_yard_at: string | null;
   picking_started_at: string | null;
   picking_completed_at: string | null;
   staging_completed_at: string | null;
+
   // Field workflow
   loaded_at: string | null;
   work_started_at: string | null;
   work_completed_at: string | null;
+
   // Completion
   completion_photos: string[];
   completion_signature: string | null;
   completion_notes: string | null;
   completed_by: string | null;
+
   // References
   invoice_id: string | null;
   bom_project_id: string | null;
+
   // Timestamps
   created_at: string;
   updated_at: string;
   created_by: string | null;
+
   // Joined
-  client?: { id: string; name: string };
+  client?: { id: string; name: string; company_name?: string };
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string };
+  project?: { id: string; project_number: string; name: string | null };
   assigned_crew?: Crew;
-  assigned_rep_user?: RepUser;  // New: joined from user_profiles
+  assigned_rep_user?: RepUser;
+  depends_on_job?: { id: string; job_number: string; name: string | null };
   visits?: JobVisit[];
   qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
+
+  // Variance calculations (from view)
+  labor_hours_variance_pct?: number;
+  labor_cost_variance_pct?: number;
+  total_cost_variance_pct?: number;
+  profit_margin_pct?: number;
 }
 
 export interface JobVisit {
   id: string;
   job_id: string;
   visit_number: number;
-  visit_type: VisitType;
-  scheduled_date: string;
-  scheduled_time_start: string | null;
-  scheduled_time_end: string | null;
+
+  // Visit classification
+  visit_type: JobVisitType;
+
+  // Scheduling
+  scheduled_date: string | null;
+  scheduled_start_time: string | null;
+  scheduled_end_time: string | null;
+  scheduled_duration_hours: number | null;
+
+  // Crew assignment
   assigned_crew_id: string | null;
+
+  // Actual time tracking
+  actual_start_time: string | null;
+  actual_end_time: string | null;
+  labor_hours: number | null;
+  labor_rate: number | null;
+  labor_cost: number | null;
+
+  // Crew members who worked
+  crew_member_ids: string[] | null;
+  crew_member_count: number | null;
+
+  // Status
   status: VisitStatus;
-  completed_at: string | null;
+
+  // Issue tracking (for rework/callback/warranty)
+  issue_description: string | null;
+  issue_category: VisitIssueCategory | null;
+  resolution_notes: string | null;
+  is_billable: boolean;
+
+  // Notes and photos
   notes: string | null;
   photos: string[];
+
+  // Timestamps
   created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+
   // Joined
   assigned_crew?: Crew;
+  job?: {
+    id: string;
+    job_number: string;
+    project_id: string | null;
+  };
 }
 
 export interface Invoice {
@@ -792,6 +1002,82 @@ export const REQUEST_TYPE_COLORS: Record<RequestType, string> = {
   new_quote: 'bg-blue-100 text-blue-700',
   repair: 'bg-orange-100 text-orange-700',
   warranty: 'bg-purple-100 text-purple-700',
+};
+
+// ============================================
+// QUOTE ACCEPTANCE STATUS
+// ============================================
+
+export const QUOTE_ACCEPTANCE_STATUS_LABELS: Record<QuoteAcceptanceStatus, string> = {
+  pending: 'Pending',
+  accepted: 'Accepted',
+  declined: 'Declined',
+  superseded: 'Superseded',
+};
+
+export const QUOTE_ACCEPTANCE_STATUS_COLORS: Record<QuoteAcceptanceStatus, string> = {
+  pending: 'bg-gray-100 text-gray-700',
+  accepted: 'bg-green-100 text-green-700',
+  declined: 'bg-red-100 text-red-700',
+  superseded: 'bg-gray-100 text-gray-500',
+};
+
+// ============================================
+// JOB VISIT TYPE
+// ============================================
+
+export const JOB_VISIT_TYPE_LABELS: Record<JobVisitType, string> = {
+  initial: 'Initial Visit',
+  continuation: 'Continuation',
+  rework: 'Rework',
+  callback: 'Callback',
+  inspection: 'Inspection',
+  warranty: 'Warranty',
+};
+
+export const JOB_VISIT_TYPE_COLORS: Record<JobVisitType, string> = {
+  initial: 'bg-blue-100 text-blue-700',
+  continuation: 'bg-cyan-100 text-cyan-700',
+  rework: 'bg-red-100 text-red-700',
+  callback: 'bg-orange-100 text-orange-700',
+  inspection: 'bg-purple-100 text-purple-700',
+  warranty: 'bg-amber-100 text-amber-700',
+};
+
+// ============================================
+// VISIT ISSUE CATEGORY
+// ============================================
+
+export const VISIT_ISSUE_CATEGORY_LABELS: Record<VisitIssueCategory, string> = {
+  material_defect: 'Material Defect',
+  workmanship: 'Workmanship Issue',
+  customer_request: 'Customer Request',
+  weather: 'Weather Damage',
+  other: 'Other',
+};
+
+// ============================================
+// PROJECT SOURCE
+// ============================================
+
+export const PROJECT_SOURCE_LABELS: Record<ProjectSource, string> = {
+  request: 'Service Request',
+  direct_quote: 'Direct Quote',
+  phone: 'Phone Call',
+  walk_in: 'Walk-in',
+  referral: 'Referral',
+  builder_portal: 'Builder Portal',
+};
+
+// ============================================
+// PROJECT RELATIONSHIP TYPE
+// ============================================
+
+export const PROJECT_RELATIONSHIP_TYPE_LABELS: Record<ProjectRelationshipType, string> = {
+  warranty: 'Warranty',
+  change_order: 'Change Order',
+  follow_up: 'Follow-up',
+  phase: 'Phase',
 };
 
 // ============================================
