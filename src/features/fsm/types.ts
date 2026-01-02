@@ -124,7 +124,6 @@ export interface RepUser {
   full_name: string | null;
   email: string;
   phone: string | null;
-  is_active?: boolean;  // Optional - from fsm_team_profiles join
 }
 
 // Backwards compatibility alias - prefer RepUser in new code
@@ -149,7 +148,6 @@ export interface Crew {
   is_subcontractor: boolean;
   lead_name: string | null;
   lead_phone: string | null;
-  is_active?: boolean;  // Optional - from fsm_team_profiles join
   // Geocoding (from migration 178)
   home_latitude?: number | null;
   home_longitude?: number | null;
@@ -172,7 +170,6 @@ export interface CrewMember {
   user_id: string | null;
   name: string;
   phone: string | null;
-  is_active?: boolean;  // Optional - from fsm_team_profiles join
   is_lead: boolean;
   is_active: boolean;
   joined_at: string;
@@ -313,7 +310,6 @@ export interface ServiceRequest {
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
-  is_active?: boolean;  // Optional - from fsm_team_profiles join
   // Address
   address_line1: string | null;
   address_line2: string | null;  // Unit/Suite

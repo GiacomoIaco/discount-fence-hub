@@ -263,7 +263,7 @@ export default function ClientQuoteViewPage() {
           <p className="text-gray-600 mb-6">
             Thank you for approving Quote #{quote?.quote_number}. Your sales representative will be in touch shortly to schedule your project.
           </p>
-          {quote?.sales_rep && (
+          {quote?.sales_rep_user && (
             <div className="bg-gray-50 rounded-lg p-4 text-left">
               <p className="text-sm font-medium text-gray-900 mb-2">Your Sales Representative:</p>
               <p className="text-gray-700">{quote.sales_rep_user.name}</p>
@@ -289,7 +289,7 @@ export default function ClientQuoteViewPage() {
           <p className="text-gray-600 mb-6">
             Your change request for Quote #{quote?.quote_number} has been submitted. Your sales representative will review your feedback and send an updated quote.
           </p>
-          {quote?.sales_rep && (
+          {quote?.sales_rep_user && (
             <div className="bg-gray-50 rounded-lg p-4 text-left">
               <p className="text-sm font-medium text-gray-900 mb-2">Your Sales Representative:</p>
               <p className="text-gray-700">{quote.sales_rep_user.name}</p>
