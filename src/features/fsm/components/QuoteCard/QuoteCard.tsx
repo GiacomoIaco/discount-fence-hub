@@ -11,15 +11,28 @@
  */
 
 import { useState, useCallback } from 'react';
+import { XCircle } from 'lucide-react';
 import type { QuoteCardProps } from './types';
 import { useQuoteForm } from './useQuoteForm';
 import QuoteHeader from './QuoteHeader';
 import QuoteClientSection from './QuoteClientSection';
 import QuoteLineItems from './QuoteLineItems';
 import QuoteSidebar from './QuoteSidebar';
-import { useSendQuote, useApproveQuote, useConvertQuoteToJob } from '../../hooks/useQuotes';
+import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote } from '../../hooks/useQuotes';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
+
+// Lost reason options
+const LOST_REASONS = [
+  'Price too high',
+  'Went with competitor',
+  'Project cancelled',
+  'Budget constraints',
+  'Timeline issues',
+  'Changed requirements',
+  'No response',
+  'Other',
+] as const;
 
 export default function QuoteCard({
   mode: initialMode,
@@ -39,6 +52,12 @@ export default function QuoteCard({
 }: QuoteCardProps) {
   // Allow mode switching (view -> edit)
   const [mode, setMode] = useState(initialMode);
+
+  // Mark Lost modal state
+  const [showLostModal, setShowLostModal] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [lostCompetitor, setLostCompetitor] = useState('');
+  const [lostNotes, setLostNotes] = useState('');
 
   // Form state management
   const {
@@ -78,6 +97,8 @@ export default function QuoteCard({
   const sendMutation = useSendQuote();
   const approveMutation = useApproveQuote();
   const convertMutation = useConvertQuoteToJob();
+  const updateStatusMutation = useUpdateQuoteStatus();
+  const updateQuoteMutation = useUpdateQuote();
 
   // Handle save
   const handleSave = useCallback(async () => {
@@ -133,6 +154,34 @@ export default function QuoteCard({
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }, [quoteId, convertMutation, onConvertToJob]);
+
+  // Handle mark lost
+  const handleMarkLost = useCallback(async () => {
+    if (!quoteId || !lostReason) return;
+    try {
+      // Update status to lost and store reason
+      await updateStatusMutation.mutateAsync({
+        id: quoteId,
+        status: 'lost',
+        notes: `Reason: ${lostReason}${lostCompetitor ? `. Lost to: ${lostCompetitor}` : ''}${lostNotes ? `. ${lostNotes}` : ''}`,
+      });
+      // Also store the lost reason details separately
+      await updateQuoteMutation.mutateAsync({
+        id: quoteId,
+        data: {
+          lost_reason: lostReason,
+          lost_to_competitor: lostCompetitor || null,
+        },
+      });
+      setShowLostModal(false);
+      setLostReason('');
+      setLostCompetitor('');
+      setLostNotes('');
+    } catch (error) {
+      console.error('Failed to mark quote as lost:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, lostReason, lostCompetitor, lostNotes, updateStatusMutation, updateQuoteMutation]);
 
   // Handle edit mode switch
   const handleEdit = useCallback(() => {
@@ -210,12 +259,13 @@ export default function QuoteCard({
         mode={mode}
         quote={quote}
         validation={validation}
-        isSaving={isSaving || sendMutation.isPending}
+        isSaving={isSaving || sendMutation.isPending || updateStatusMutation.isPending}
         isDirty={isDirty}
         onBack={onBack}
         onSave={handleSave}
         onSend={handleSaveAndSend}
         onApprove={handleApprove}
+        onMarkLost={() => setShowLostModal(true)}
         onConvertToJob={handleConvertToJob}
         onEdit={handleEdit}
       />
@@ -328,6 +378,94 @@ export default function QuoteCard({
           onFieldChange={handleSidebarFieldChange}
         />
       </div>
+
+      {/* Mark Lost Modal */}
+      {showLostModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Mark Quote Lost</h3>
+            <p className="text-gray-600 mb-4">
+              Record why this quote was lost. This helps us improve future quotes.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lost Reason <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={lostReason}
+                  onChange={(e) => setLostReason(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Select a reason...</option>
+                  {LOST_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {lostReason === 'Went with competitor' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Which Competitor? <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lostCompetitor}
+                    onChange={(e) => setLostCompetitor(e.target.value)}
+                    placeholder="Competitor name"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Additional Notes <span className="text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={lostNotes}
+                  onChange={(e) => setLostNotes(e.target.value)}
+                  placeholder="Any additional context..."
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowLostModal(false);
+                  setLostReason('');
+                  setLostCompetitor('');
+                  setLostNotes('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={updateStatusMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkLost}
+                disabled={updateStatusMutation.isPending || !lostReason}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {updateStatusMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4" />
+                    Mark Lost
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

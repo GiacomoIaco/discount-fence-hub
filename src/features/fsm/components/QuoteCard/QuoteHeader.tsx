@@ -5,7 +5,7 @@
  * Actions change based on mode and quote status.
  */
 
-import { ArrowLeft, FileText, Save, Send, Check, Briefcase, Edit2 } from 'lucide-react';
+import { ArrowLeft, FileText, Save, Send, Check, Briefcase, Edit2, XCircle } from 'lucide-react';
 import type { Quote, QuoteStatus } from '../../types';
 import type { QuoteCardMode, QuoteValidation } from './types';
 import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS } from '../../types';
@@ -20,6 +20,7 @@ interface QuoteHeaderProps {
   onSave?: () => void;
   onSend?: () => void;
   onApprove?: () => void;
+  onMarkLost?: () => void;
   onConvertToJob?: () => void;
   onEdit?: () => void;
 }
@@ -34,6 +35,7 @@ export default function QuoteHeader({
   onSave,
   onSend,
   onApprove,
+  onMarkLost,
   onConvertToJob,
   onEdit,
 }: QuoteHeaderProps) {
@@ -45,6 +47,7 @@ export default function QuoteHeader({
   const showSaveButton = mode !== 'view';
   const showSendButton = mode !== 'view' && (status === 'draft' || status === 'pending_approval');
   const showApproveButton = mode === 'view' && status === 'sent';
+  const showMarkLostButton = mode === 'view' && ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval'].includes(status || '');
   const showConvertButton = mode === 'view' && status === 'approved';
   const showEditButton = mode === 'view';
 
@@ -139,6 +142,17 @@ export default function QuoteHeader({
               >
                 <Check className="w-4 h-4" />
                 Mark Approved
+              </button>
+            )}
+
+            {/* Mark Lost button (view mode, certain statuses) */}
+            {showMarkLostButton && onMarkLost && (
+              <button
+                onClick={onMarkLost}
+                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+              >
+                <XCircle className="w-4 h-4" />
+                Mark Lost
               </button>
             )}
 
