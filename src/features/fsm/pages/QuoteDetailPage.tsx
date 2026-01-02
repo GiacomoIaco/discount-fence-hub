@@ -35,6 +35,7 @@ import {
 } from '../types';
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 import { QuoteProgress } from '../components/shared/WorkflowProgress';
+import { TotalsDisplay } from '../components/shared/TotalsDisplay';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -444,33 +445,21 @@ export default function QuoteDetailPage({
               {/* Pricing Summary */}
               <div className="bg-white rounded-lg border p-6">
                 <h3 className="text-sm font-medium text-gray-900 mb-4">Pricing Summary</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium">{formatCurrency(quote.subtotal || subtotal)}</span>
+                <TotalsDisplay
+                  subtotal={quote.subtotal || subtotal}
+                  tax={quote.tax_amount || 0}
+                  taxRate={(quote.tax_rate || 0) * 100}
+                  discount={quote.discount_amount || 0}
+                  discountType={quote.discount_percent > 0 ? 'percent' : 'amount'}
+                  discountPercent={quote.discount_percent || 0}
+                  total={quote.total || 0}
+                />
+                {quote.deposit_required > 0 && (
+                  <div className="flex justify-between text-sm text-gray-500 pt-3 mt-3 border-t">
+                    <span>Deposit Required</span>
+                    <span className="font-medium">{formatCurrency(quote.deposit_required)}</span>
                   </div>
-                  {quote.discount_amount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount {quote.discount_percent > 0 && `(${quote.discount_percent}%)`}</span>
-                      <span>-{formatCurrency(quote.discount_amount)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tax ({((quote.tax_rate || 0) * 100).toFixed(2)}%)</span>
-                    <span className="font-medium">{formatCurrency(quote.tax_amount)}</span>
-                  </div>
-                  <hr />
-                  <div className="flex justify-between text-lg">
-                    <span className="font-semibold">Total</span>
-                    <span className="font-bold text-blue-600">{formatCurrency(quote.total)}</span>
-                  </div>
-                  {quote.deposit_required > 0 && (
-                    <div className="flex justify-between text-sm text-gray-500 pt-2">
-                      <span>Deposit Required</span>
-                      <span>{formatCurrency(quote.deposit_required)}</span>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* Scope Summary */}

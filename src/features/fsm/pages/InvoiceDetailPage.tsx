@@ -32,6 +32,7 @@ import {
   type PaymentMethod,
 } from '../types';
 import { InvoiceProgress } from '../components/shared/WorkflowProgress';
+import { TotalsDisplay } from '../components/shared/TotalsDisplay';
 
 type Tab = 'overview' | 'payments' | 'activity';
 
@@ -294,38 +295,15 @@ export default function InvoiceDetailPage({
                   <DollarSign className="w-5 h-5 text-gray-400" />
                   Invoice Amounts
                 </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-500">Subtotal</span>
-                    <span>{formatCurrency(invoice.subtotal)}</span>
-                  </div>
-                  {invoice.discount_amount > 0 && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Discount</span>
-                      <span className="text-red-600">-{formatCurrency(invoice.discount_amount)}</span>
-                    </div>
-                  )}
-                  {invoice.tax_amount > 0 && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Tax ({invoice.tax_rate}%)</span>
-                      <span>{formatCurrency(invoice.tax_amount)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between py-2 border-b font-semibold">
-                    <span>Total</span>
-                    <span>{formatCurrency(invoice.total)}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-500">Amount Paid</span>
-                    <span className="text-green-600">{formatCurrency(invoice.amount_paid)}</span>
-                  </div>
-                  <div className="flex justify-between py-2 font-semibold text-lg">
-                    <span>Balance Due</span>
-                    <span className={invoice.balance_due > 0 ? 'text-red-600' : 'text-green-600'}>
-                      {formatCurrency(invoice.balance_due)}
-                    </span>
-                  </div>
-                </div>
+                <TotalsDisplay
+                  subtotal={invoice.subtotal || 0}
+                  tax={invoice.tax_amount || 0}
+                  taxRate={invoice.tax_rate || 0}
+                  discount={invoice.discount_amount || 0}
+                  total={invoice.total || 0}
+                  amountPaid={invoice.amount_paid || 0}
+                  balanceDue={invoice.balance_due || 0}
+                />
               </div>
 
               {/* Line Items */}
