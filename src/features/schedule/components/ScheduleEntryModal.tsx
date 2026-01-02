@@ -17,7 +17,7 @@ import type {
   ScheduleEntryStatus,
   CreateScheduleEntryInput,
 } from '../types/schedule.types';
-import type { Crew, SalesRep } from '../../fsm/types';
+import type { Crew, RepUser } from '../../fsm/types';
 
 // ============================================
 // TYPES
@@ -30,7 +30,7 @@ interface ScheduleEntryModalProps {
   prefillData?: Partial<CreateScheduleEntryInput>;
   onClose: () => void;
   crews: Crew[];
-  salesReps: SalesRep[];
+  salesReps: RepUser[];
 }
 
 // ============================================

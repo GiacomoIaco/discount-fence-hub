@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { SalesRep } from '../types';
+import type { RepUser } from '../types';
 
 /**
  * Fetch all users who can act as sales reps.
@@ -9,7 +9,7 @@ import type { SalesRep } from '../types';
  * 1. Users with role='Sales' in user_profiles
  * 2. Users with fsm_team_profiles containing 'rep' role
  *
- * Returns SalesRep-compatible structure for backwards compatibility.
+ * Returns RepUser[] - the standard user representation.
  */
 export function useSalesReps() {
   return useQuery({
@@ -58,19 +58,13 @@ export function useSalesReps() {
         allUsers = [...allUsers, ...(fsmUsers || [])];
       }
 
-      // Transform to SalesRep-compatible structure
-      const reps: SalesRep[] = allUsers.map(u => ({
-        id: u.id,  // Now using user_id instead of old sales_rep.id
-        user_id: u.id,
+      // Transform to RepUser structure
+      const reps: RepUser[] = allUsers.map(u => ({
+        id: u.id,
         name: u.full_name || u.email || 'Unknown',
+        full_name: u.full_name,
         email: u.email,
         phone: u.phone,
-        territory_ids: [],  // Will be filled from fsm_territory_coverage if needed
-        product_skills: [],  // Will be filled from fsm_person_skills if needed
-        max_daily_assessments: 5,
-        is_active: true,
-        created_at: '',
-        updated_at: '',
       }));
 
       // Sort by name
@@ -96,19 +90,12 @@ export function useSalesRep(id: string | undefined) {
 
       if (error) throw error;
 
-      // Transform to SalesRep-compatible structure
-      const rep: SalesRep = {
+      const rep: RepUser = {
         id: data.id,
-        user_id: data.id,
         name: data.full_name || data.email || 'Unknown',
+        full_name: data.full_name,
         email: data.email,
         phone: data.phone,
-        territory_ids: [],
-        product_skills: [],
-        max_daily_assessments: 5,
-        is_active: true,
-        created_at: '',
-        updated_at: '',
       };
 
       return rep;
@@ -193,21 +180,15 @@ export function useAvailableSalesReps(territoryId?: string, productType?: string
         filteredUserIds = new Set([...filteredUserIds].filter(id => skillUserIds.has(id)));
       }
 
-      // Transform to SalesRep-compatible structure
-      const reps: SalesRep[] = allUsers
+      // Transform to RepUser structure
+      const reps: RepUser[] = allUsers
         .filter(u => filteredUserIds.has(u.id))
         .map(u => ({
           id: u.id,
-          user_id: u.id,
           name: u.full_name || u.email || 'Unknown',
+          full_name: u.full_name,
           email: u.email,
           phone: u.phone,
-          territory_ids: [],
-          product_skills: [],
-          max_daily_assessments: 5,
-          is_active: true,
-          created_at: '',
-          updated_at: '',
         }));
 
       return reps.sort((a, b) => a.name.localeCompare(b.name));
@@ -216,4 +197,4 @@ export function useAvailableSalesReps(territoryId?: string, productType?: string
 }
 
 // Note: Create/Update/Delete mutations removed - use FSM Team Management instead
-// The old sales_reps table is deprecated. Manage reps through Settings > Team Management.
+// Manage reps through Settings > Team Management.

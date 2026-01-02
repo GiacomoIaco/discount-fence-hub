@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { MapPin, Users, Edit2, Trash2, ChevronDown, Check } from 'lucide-react';
-import type { TerritoryWithReps, SalesRep } from '../types/territory.types';
+import type { TerritoryWithReps, RepUser } from '../types/territory.types';
 
 interface TerritoryCardProps {
   territory: TerritoryWithReps;
   isSelected: boolean;
-  salesReps: SalesRep[];
+  salesReps: RepUser[];
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;

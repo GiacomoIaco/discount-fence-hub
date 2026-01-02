@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Users, Edit2, Trash2, ChevronDown, ChevronUp, Check, Save, Palette, Clipboard, Trash, Home, DollarSign } from 'lucide-react';
-import type { TerritoryWithReps, TerritoryFormData, BusinessUnit, SalesRep } from '../types/territory.types';
+import type { TerritoryWithReps, TerritoryFormData, BusinessUnit, RepUser } from '../types/territory.types';
 import { TERRITORY_COLORS } from '../types/territory.types';
 
 interface ExpandableTerritoryCardProps {
   territory: TerritoryWithReps;
   isSelected: boolean;
   isExpanded: boolean;
-  salesReps: SalesRep[];
+  salesReps: RepUser[];
   businessUnits: BusinessUnit[];
   onSelect: () => void;
   onExpand: () => void;

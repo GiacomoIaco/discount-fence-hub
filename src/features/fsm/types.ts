@@ -117,27 +117,17 @@ export interface Territory {
   updated_at: string;
 }
 
-export interface SalesRep {
-  id: string;
-  user_id: string | null;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  territory_ids: string[];
-  product_skills: string[];
-  max_daily_assessments: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-// User profile for rep joins (replaces SalesRep in new code)
+// User profile for reps - standard representation
 export interface RepUser {
   id: string;  // user_id from auth.users
+  name: string;  // Computed: full_name || email || 'Unknown'
   full_name: string | null;
   email: string;
   phone: string | null;
 }
+
+// Backwards compatibility alias - prefer RepUser in new code
+export type SalesRep = RepUser;
 
 export interface Crew {
   id: string;
@@ -249,7 +239,6 @@ export interface Project {
     longitude?: number;
   };
   territory?: { id: string; name: string; code: string };
-  assigned_rep?: SalesRep;
   assigned_rep_user?: RepUser;
   qbo_class?: {
     id: string;
@@ -367,10 +356,8 @@ export interface ServiceRequest {
   client?: { id: string; name: string };
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string };
-  assigned_rep?: SalesRep;           // Legacy - use assigned_rep_user
-  assessment_rep?: SalesRep;         // Legacy - use assessment_rep_user
-  assigned_rep_user?: RepUser;       // New: joined from user_profiles
-  assessment_rep_user?: RepUser;     // New: joined from user_profiles
+  assigned_rep_user?: RepUser;       // Joined from user_profiles
+  assessment_rep_user?: RepUser;     // Joined from user_profiles
   territory?: { id: string; name: string; code: string };
   project?: { id: string; project_number: string };
   qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
@@ -471,8 +458,7 @@ export interface Quote {
   community?: { id: string; name: string };
   property?: { id: string; address_line1: string; city?: string; state?: string; zip?: string };
   line_items?: QuoteLineItem[];
-  sales_rep?: SalesRep;              // Legacy - use sales_rep_user
-  sales_rep_user?: RepUser;          // New: joined from user_profiles
+  sales_rep_user?: RepUser;          // Joined from user_profiles
   request?: { id: string; request_number: string };
   qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
 }
@@ -783,17 +769,6 @@ export interface TerritoryFormData {
   business_unit_id: string; // Legacy - use location_code instead
   location_code: string; // 'ATX', 'SA', 'HOU'
   disabled_qbo_class_ids: string[]; // QBO class IDs disabled for this territory
-  is_active: boolean;
-}
-
-export interface SalesRepFormData {
-  name: string;
-  email: string;
-  phone: string;
-  user_id: string;
-  territory_ids: string[];
-  product_skills: string[];
-  max_daily_assessments: number;
   is_active: boolean;
 }
 

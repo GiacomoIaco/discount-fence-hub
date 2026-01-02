@@ -65,17 +65,8 @@ export interface BusinessUnit {
   is_active: boolean;
 }
 
-export interface SalesRep {
-  id: string;
-  user_id: string | null;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  territory_ids: string[];
-  product_skills: string[];
-  max_daily_assessments: number;
-  is_active: boolean;
-}
+// Re-export RepUser from fsm for backwards compatibility
+export type { RepUser } from '../../../fsm/types';
 
 // Map drawing types
 export type DrawingMode = 'circle' | 'rectangle' | 'polygon' | null;

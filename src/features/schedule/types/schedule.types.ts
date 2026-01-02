@@ -1,5 +1,5 @@
 // Schedule Feature Types
-import type { Crew, SalesRep, Job, ServiceRequest } from '../../fsm/types';
+import type { Crew, RepUser, Job, ServiceRequest } from '../../fsm/types';
 
 // ============================================
 // SCHEDULE ENTRY TYPES
@@ -68,7 +68,7 @@ export interface ScheduleEntry {
   };
   service_request?: Partial<ServiceRequest> & { client_name?: string; request_number?: string };
   crew?: Pick<Crew, 'id' | 'name' | 'code'>;
-  sales_rep?: Pick<SalesRep, 'id' | 'name'>;
+  sales_rep?: Pick<RepUser, 'id' | 'name'>;
 }
 
 // ============================================

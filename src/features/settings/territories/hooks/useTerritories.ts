@@ -5,8 +5,8 @@ import type {
   TerritoryWithReps,
   TerritoryFormData,
   BusinessUnit,
-  SalesRep
 } from '../types/territory.types';
+import type { RepUser } from '../../../fsm/types';
 
 // Location type
 export interface Location {
@@ -96,6 +96,7 @@ interface UserProfile {
   id: string;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
 }
 
 // Fetch team members who can be assigned to territories (from FSM team profiles)
@@ -117,7 +118,7 @@ export function useSalesReps() {
       const userIds = profiles.map(p => p.user_id);
       const { data: users, error: userError } = await supabase
         .from('user_profiles')
-        .select('id, full_name, email')
+        .select('id, full_name, email, phone')
         .in('id', userIds);
 
       if (userError) throw userError;
@@ -126,20 +127,17 @@ export function useSalesReps() {
       const userMap = new Map<string, UserProfile>();
       (users || []).forEach(u => userMap.set(u.id, u));
 
-      // Transform to SalesRep-like structure for backwards compatibility
-      const reps: SalesRep[] = profiles
+      // Transform to RepUser structure
+      const reps: RepUser[] = profiles
         .map(p => {
           const user = userMap.get(p.user_id);
+          const name = user?.full_name || user?.email || 'Unknown';
           return {
             id: p.user_id,
-            user_id: p.user_id,
-            name: user?.full_name || user?.email || 'Unknown',
-            email: user?.email || null,
-            phone: null,
-            territory_ids: [],
-            product_skills: [],
-            max_daily_assessments: 5,
-            is_active: true,
+            name,
+            full_name: user?.full_name || null,
+            email: user?.email || '',
+            phone: user?.phone || null,
           };
         })
         .filter(r => r.name !== 'Unknown'); // Filter out any without user profiles
