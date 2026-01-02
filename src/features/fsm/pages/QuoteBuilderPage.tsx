@@ -479,7 +479,6 @@ export default function QuoteBuilderPage({
               material_id: null,
               labor_code_id: null,
               sku_id: item.sku_id || null, // O-036: SKU-based pricing
-              bom_line_item_id: null,
             });
           }
         }
@@ -522,7 +521,6 @@ export default function QuoteBuilderPage({
             material_id: null,
             labor_code_id: null,
             sku_id: item.sku_id || null, // O-036: SKU-based pricing
-            bom_line_item_id: null,
           });
         }
 
