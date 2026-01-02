@@ -41,8 +41,7 @@ interface Client {
   id: string;
   name: string;
   company_name: string | null;
-  email: string | null;
-  phone: string | null;
+  primary_contact_phone: string | null;
 }
 
 interface Property {
@@ -104,7 +103,7 @@ export function ProjectCreateWizard({
 
       const { data, error } = await supabase
         .from('clients')
-        .select('id, name, company_name, email, phone')
+        .select('id, name, company_name, primary_contact_phone')
         .or(`name.ilike.%${clientSearch}%,company_name.ilike.%${clientSearch}%`)
         .limit(10);
 
@@ -395,8 +394,8 @@ export function ProjectCreateWizard({
                       {selectedClient.company_name && (
                         <p className="text-sm text-blue-700">{selectedClient.name}</p>
                       )}
-                      {selectedClient.email && (
-                        <p className="text-sm text-blue-600">{selectedClient.email}</p>
+                      {selectedClient.primary_contact_phone && (
+                        <p className="text-sm text-blue-600">{selectedClient.primary_contact_phone}</p>
                       )}
                     </div>
                     <button
