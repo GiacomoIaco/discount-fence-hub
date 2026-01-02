@@ -1,4 +1,4 @@
-﻿/**
+/**
  * QuoteDetailPage - Full page view of a quote
  *
  * Accessible via URL: /quotes/:id
@@ -26,7 +26,7 @@ import {
   Layers,
   Clock,
 } from 'lucide-react';
-import { useQuote, useUpdateQuoteStatus, useSendQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
+import { useQuote, useUpdateQuoteStatus, useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
 import QuoteToJobsModal from '../components/QuoteToJobsModal';
 import {
   QUOTE_STATUS_LABELS,
@@ -90,6 +90,7 @@ export default function QuoteDetailPage({
   const updateStatusMutation = useUpdateQuoteStatus();
   const updateQuoteMutation = useUpdateQuote();
   const sendQuoteMutation = useSendQuote();
+  const approveQuoteMutation = useApproveQuote();
   const convertToJobMutation = useConvertQuoteToJob();
 
   const formatCurrency = (amount: number | null | undefined) => {
@@ -189,10 +190,10 @@ export default function QuoteDetailPage({
   const handleApproveQuote = async () => {
     if (!quote) return;
     try {
-      // Update status to approved and store PO number/notes
-      await updateStatusMutation.mutateAsync({
+      // Use useApproveQuote hook which sets approval_status and approved_at
+      // This properly triggers the computed status (migration 194)
+      await approveQuoteMutation.mutateAsync({
         id: quote.id,
-        status: 'approved',
         notes: approvePo ? `PO: ${approvePo}. ${approveNotes}` : approveNotes || undefined,
       });
       // Also store the PO number separately
@@ -394,8 +395,8 @@ export default function QuoteDetailPage({
         subtitle={
           <span>
             {quote.client?.name || 'No client'}
-            {quote.product_type && ` • ${quote.product_type}`}
-            {quote.linear_feet && ` • ${quote.linear_feet} LF`}
+            {quote.product_type && ` � ${quote.product_type}`}
+            {quote.linear_feet && ` � ${quote.linear_feet} LF`}
           </span>
         }
         workflowProgress={

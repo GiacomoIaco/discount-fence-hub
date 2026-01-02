@@ -490,7 +490,7 @@ export interface QuoteLineItem {
   material_id: string | null;
   labor_code_id: string | null;
   sku_id: string | null;
-  bom_line_item_id: string | null;
+  
   sort_order: number;
   is_visible_to_client: boolean;
   group_name: string | null;
