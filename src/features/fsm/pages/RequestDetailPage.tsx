@@ -1,4 +1,4 @@
-/**
+﻿/**
  * RequestDetailPage - Full page view of a service request
  *
  * Accessible via URL: /requests/:id
@@ -186,8 +186,8 @@ export default function RequestDetailPage({
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
-                  {request.product_type || 'No product type'} • {SOURCE_LABELS[request.source]}
-                  {request.linear_feet_estimate && ` • ${request.linear_feet_estimate} LF`}
+                  {request.product_type || 'No product type'} â€¢ {SOURCE_LABELS[request.source]}
+                  {request.linear_feet_estimate && ` â€¢ ${request.linear_feet_estimate} LF`}
                 </p>
               </div>
             </div>
@@ -406,24 +406,7 @@ export default function RequestDetailPage({
                 </div>
               </div>
 
-              {/* Status Actions */}
-              {allowedTransitions.length > 0 && (
-                <div className="bg-white rounded-lg border p-6">
-                  <h3 className="text-sm font-medium text-gray-900 mb-4">Change Status</h3>
-                  <div className="space-y-2">
-                    {allowedTransitions.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusChange(status)}
-                        disabled={updateStatusMutation.isPending}
-                        className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors ${REQUEST_STATUS_COLORS[status]} hover:opacity-80 disabled:opacity-50`}
-                      >
-                        {REQUEST_STATUS_LABELS[status]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Status changes via actions only - removed manual status dropdown per Jobber pattern */}
             </div>
           </div>
         )}
