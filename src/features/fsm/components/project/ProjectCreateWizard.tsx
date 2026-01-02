@@ -311,7 +311,7 @@ export function ProjectCreateWizard({
         .insert({
           client_id: selectedClient.id,
           address_line1: newPropertyAddress.address_line1,
-          address_line2: newPropertyAddress.address_line2 || null,
+          // Note: address_line2 column doesn't exist in properties table
           city: newPropertyAddress.city,
           state: newPropertyAddress.state,
           zip: newPropertyAddress.zip,
