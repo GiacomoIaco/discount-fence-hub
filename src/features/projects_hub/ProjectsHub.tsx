@@ -60,7 +60,7 @@ export default function ProjectsHub({
   onNavigateToEntity: externalNavigateToEntity,
   onClearEntity: externalClearEntity,
 }: ProjectsHubProps) {
-  const { navigateToEntity: localNavigateToEntity, getEntityContext, navigateTo } = useAppNavigation();
+  const { navigateToEntity: localNavigateToEntity, getEntityContext, navigateTo, currentPath } = useAppNavigation();
 
   // Use external context if provided, otherwise get from URL
   const entityContext = externalEntityContext ?? getEntityContext();
@@ -184,9 +184,11 @@ export default function ProjectsHub({
           );
         }
 
-        // Show project detail if selected AND URL matches (defensive check)
+        // Show project detail if selected AND URL contains the project ID (defensive check)
         // This ensures UI stays in sync with URL even during async state updates
-        if (selectedProjectId && entityContext?.type === 'project') {
+        // We check currentPath directly because entityContext may be stale during navigation
+        const urlHasProjectId = currentPath.includes(`/projects/${selectedProjectId}`);
+        if (selectedProjectId && urlHasProjectId) {
           return (
             <ProjectPage
               projectId={selectedProjectId}
