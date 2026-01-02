@@ -43,6 +43,7 @@ export function useClientSearch(
         // ============================================
         const clientConditions = [
           `name.ilike.%${query}%`,
+          `company_name.ilike.%${query}%`,
           `code.ilike.%${query}%`,
           `primary_contact_email.ilike.%${query}%`,
         ];
@@ -87,15 +88,22 @@ export function useClientSearch(
               matchField = 'phone';
               confidence = 95;
             }
+          } else if (client.company_name?.toLowerCase().includes(q)) {
+            // Company name match - high confidence for business clients
+            matchField = 'name';
+            confidence = client.company_name.toLowerCase().startsWith(q) ? 95 : 85;
           } else if (client.name?.toLowerCase().startsWith(q)) {
             confidence = 90;
           }
+
+          // Use company_name as display name for builders/commercial, else use name
+          const displayName = client.company_name || client.name;
 
           allResults.push({
             entity_type: 'client',
             id: client.id,
             name: client.name,
-            display_name: client.name,
+            display_name: displayName,
             subtitle: client.business_unit === 'builders' ? 'Builder' :
                       client.business_unit === 'commercial' ? 'Commercial' : 'Residential',
             primary_contact_name: client.primary_contact_name,

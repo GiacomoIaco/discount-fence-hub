@@ -7,9 +7,9 @@
 
 import { User, MapPin, Mail, Phone, Building2 } from 'lucide-react';
 import type { QuoteCardMode } from './types';
-import { useClients } from '../../../client_hub/hooks/useClients';
-import { useCommunities } from '../../../client_hub/hooks/useCommunities';
-import { useProperties } from '../../../client_hub/hooks/useProperties';
+import { useClients, useClient } from '../../../client_hub/hooks/useClients';
+import { useCommunities, useCommunity } from '../../../client_hub/hooks/useCommunities';
+import { useProperties, useProperty } from '../../../client_hub/hooks/useProperties';
 import { ClientLookup } from '../../../../components/common/SmartLookup';
 import type { SelectedEntity } from '../../../../components/common/SmartLookup';
 
@@ -34,15 +34,28 @@ export default function QuoteClientSection({
 }: QuoteClientSectionProps) {
   const isEditable = mode !== 'view';
 
-  // Fetch data
+  // Fetch data lists for dropdowns
   const { data: clients } = useClients({ status: 'active' });
   const { data: communities } = useCommunities(clientId ? { client_id: clientId } : undefined);
   const { data: properties } = useProperties(communityId || null);
 
-  // Get selected entities
-  const selectedClient = clients?.find(c => c.id === clientId);
-  const selectedCommunity = communities?.find(c => c.id === communityId);
-  const selectedProperty = properties?.find(p => p.id === propertyId);
+  // Fallback: Fetch entities directly by ID when they're not in the lists
+  // This handles cases where wizard passes IDs that aren't in filtered lists
+  const clientInList = clients?.find(c => c.id === clientId);
+  const { data: directClient } = useClient(clientId && !clientInList ? clientId : null);
+
+  const communityInList = communities?.find(c => c.id === communityId);
+  const { data: directCommunity } = useCommunity(communityId && !communityInList ? communityId : null);
+
+  // Fetch property directly by ID when we have propertyId but no communityId
+  // This handles residential properties linked directly to client (not via community)
+  const propertyInList = properties?.find(p => p.id === propertyId);
+  const { data: directProperty } = useProperty(propertyId && !propertyInList ? propertyId : null);
+
+  // Get selected entities - prefer list, fallback to direct fetch
+  const selectedClient = clientInList || directClient;
+  const selectedCommunity = communityInList || directCommunity;
+  const selectedProperty = propertyInList || directProperty;
 
   // Build selected entity for ClientLookup
   const selectedEntity: SelectedEntity | null = selectedClient ? {
