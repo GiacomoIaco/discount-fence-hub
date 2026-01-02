@@ -1,9 +1,14 @@
 /**
- * QuotesHub - FSM Quotes Hub
+ * QuotesHub - FSM Quotes Hub (Project-First Architecture)
  *
  * Routes:
  * - /quotes → QuotesList (list view)
- * - /quotes/:id → QuoteDetailPage (detail view)
+ * - /quotes/:id → QuoteCard (unified view/edit)
+ *
+ * Flow:
+ * - "New Quote" → ProjectCreateWizard → QuoteCard (create mode)
+ * - Click quote → QuoteCard (view mode)
+ * - Edit button → QuoteCard (edit mode)
  */
 
 import { useState } from 'react';
@@ -17,8 +22,9 @@ import {
   User,
 } from 'lucide-react';
 import { useQuotes } from '../hooks/useQuotes';
-import QuoteDetailPage from './QuoteDetailPage';
-import QuoteBuilderPage from './QuoteBuilderPage';
+import { useProjectFull } from '../hooks/useProjects';
+import { QuoteCard } from '../components/QuoteCard';
+import { ProjectCreateWizard } from '../components/project';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
@@ -44,11 +50,17 @@ export default function QuotesHub({
 }: QuotesHubProps) {
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showBuilder, setShowBuilder] = useState(false);
-  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+
+  // Project-First Architecture state
+  const [showProjectWizard, setShowProjectWizard] = useState(false);
+  const [newProjectId, setNewProjectId] = useState<string | null>(null);
+  const [quoteMode, setQuoteMode] = useState<'create' | 'edit' | 'view'>('view');
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: quotes, isLoading, error } = useQuotes(filters);
+
+  // Fetch project data when creating quote from new project
+  const { data: projectData } = useProjectFull(newProjectId || undefined);
 
   // Filter quotes by search query
   const filteredQuotes = quotes?.filter(quote => {
@@ -89,9 +101,21 @@ export default function QuotesHub({
     }
   };
 
-  // Handle editing a quote - opens builder with existing quote
+  // Handle editing a quote - opens QuoteCard in edit mode
   const handleEditQuote = (quoteId: string) => {
-    setEditingQuoteId(quoteId);
+    setQuoteMode('edit');
+    if (onNavigateToEntity) {
+      onNavigateToEntity('quote', { id: quoteId });
+    }
+  };
+
+  // Handle closing QuoteCard and returning to list
+  const handleQuoteCardBack = () => {
+    setNewProjectId(null);
+    setQuoteMode('view');
+    if (onClearEntity) {
+      onClearEntity();
+    }
   };
 
   const formatCurrency = (amount: number | null | undefined) => {
@@ -110,41 +134,57 @@ export default function QuotesHub({
     });
   };
 
-  // If editing an existing quote, render the builder page with quoteId
-  if (editingQuoteId) {
+  // Show ProjectCreateWizard when creating new quote
+  if (showProjectWizard) {
     return (
-      <QuoteBuilderPage
-        quoteId={editingQuoteId}
-        onBack={() => {
-          setEditingQuoteId(null);
+      <ProjectCreateWizard
+        isOpen={true}
+        onClose={() => setShowProjectWizard(false)}
+        onComplete={(projectId) => {
+          setShowProjectWizard(false);
+          setNewProjectId(projectId);
+          setQuoteMode('create');
+        }}
+        initialData={{ source: 'direct_quote' }}
+      />
+    );
+  }
+
+  // Show QuoteCard for creating new quote (after project wizard completes)
+  if (newProjectId && projectData) {
+    return (
+      <QuoteCard
+        mode="create"
+        projectId={newProjectId}
+        clientId={projectData.client_id || undefined}
+        communityId={projectData.community_id || undefined}
+        propertyId={projectData.property_id || undefined}
+        onBack={handleQuoteCardBack}
+        onSave={() => {
+          setNewProjectId(null);
+          setQuoteMode('view');
+        }}
+        onConvertToJob={(quoteId) => {
+          handleNavigateToJob(quoteId);
         }}
       />
     );
   }
 
-  // If creating a new quote (via URL or local state), render the builder page
-  if (showBuilder || (entityContext?.type === 'quote' && entityContext.id === 'new')) {
-    return (
-      <QuoteBuilderPage
-        onBack={() => {
-          setShowBuilder(false);
-          if (entityContext?.id === 'new' && onClearEntity) {
-            onClearEntity();
-          }
-        }}
-      />
-    );
-  }
-
-  // If viewing a specific quote, render the detail page
+  // Show QuoteCard for viewing/editing existing quote
   if (entityContext?.type === 'quote' && entityContext.id !== 'new') {
     return (
-      <QuoteDetailPage
+      <QuoteCard
+        mode={quoteMode}
         quoteId={entityContext.id}
-        onBack={handleQuoteClose}
-        onNavigateToJob={handleNavigateToJob}
-        onNavigateToRequest={handleNavigateToRequest}
-        onEditQuote={handleEditQuote}
+        onBack={handleQuoteCardBack}
+        onSave={() => {
+          setQuoteMode('view');
+          // Quote stays open in view mode after save
+        }}
+        onConvertToJob={(quoteId) => {
+          handleNavigateToJob(quoteId);
+        }}
       />
     );
   }
@@ -166,7 +206,7 @@ export default function QuotesHub({
               </div>
             </div>
             <button
-              onClick={() => setShowBuilder(true)}
+              onClick={() => setShowProjectWizard(true)}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
             >
               <Plus className="w-4 h-4" />
@@ -221,7 +261,7 @@ export default function QuotesHub({
             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No quotes found</p>
             <button
-              onClick={() => setShowBuilder(true)}
+              onClick={() => setShowProjectWizard(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
             >
               <Plus className="w-4 h-4" />
