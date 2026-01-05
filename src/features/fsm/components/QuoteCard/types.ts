@@ -55,6 +55,8 @@ export interface LineItemFormState {
   pricing_source?: string | null;
   isNew?: boolean;
   isDeleted?: boolean;
+  /** When true, user entered custom description instead of selecting SKU */
+  isCustom?: boolean;
 }
 
 export interface QuoteFormState {

@@ -18,6 +18,8 @@ interface QuoteClientSectionProps {
   clientId: string;
   communityId: string;
   propertyId: string;
+  /** When set, client/community/property are locked (set at project level) */
+  projectId?: string;
   onClientChange: (clientId: string, communityId?: string) => void;
   onCommunityChange: (communityId: string) => void;
   onPropertyChange: (propertyId: string) => void;
@@ -28,11 +30,14 @@ export default function QuoteClientSection({
   clientId,
   communityId,
   propertyId,
+  projectId,
   onClientChange,
   onCommunityChange,
   onPropertyChange,
 }: QuoteClientSectionProps) {
-  const isEditable = mode !== 'view';
+  // Fields are editable only in edit/create mode AND when not project-linked
+  // When a quote is part of a project, client/community/property are fixed at project level
+  const isEditable = mode !== 'view' && !projectId;
 
   // Fetch data lists for dropdowns
   const { data: clients } = useClients({ status: 'active' });
@@ -76,6 +81,15 @@ export default function QuoteClientSection({
 
   return (
     <div className="bg-white rounded-xl border p-6">
+      {/* Locked indicator when project-linked */}
+      {projectId && mode !== 'view' && (
+        <div className="mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          Client and property are set at the project level and cannot be changed here.
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Client Section */}
         <div>

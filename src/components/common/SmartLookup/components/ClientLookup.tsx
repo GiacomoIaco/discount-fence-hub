@@ -208,11 +208,12 @@ export function ClientLookup({
         <p className="mt-1 text-sm text-red-600">{error}</p>
       )}
 
-      {/* Dropdown */}
+      {/* Dropdown - uses fixed positioning to escape overflow:hidden parents */}
       {isOpen && !value && query.length >= 2 && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto"
+          className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto"
+          style={{ position: 'absolute' }}
         >
           {/* Results */}
           {results.length > 0 ? (

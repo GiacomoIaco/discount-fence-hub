@@ -274,12 +274,13 @@ export default function QuoteCard({
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content */}
         <main className="flex-1 p-6 overflow-auto space-y-6">
-          {/* Client & Property Section */}
+          {/* Client & Property Section - locked when project-linked */}
           <QuoteClientSection
             mode={mode}
             clientId={form.clientId}
             communityId={form.communityId}
             propertyId={form.propertyId}
+            projectId={projectId}
             onClientChange={handleClientChange}
             onCommunityChange={(id) => setFields({ communityId: id, propertyId: '' })}
             onPropertyChange={(id) => setField('propertyId', id)}

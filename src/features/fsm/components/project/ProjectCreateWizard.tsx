@@ -193,15 +193,23 @@ export function ProjectCreateWizard({
     }
   }, [isOpen, initialData]);
 
-  // Auto-select QBO class when client is selected (if they have a default)
-  useEffect(() => {
-    if (selectedClient?.default_qbo_class_id && qboClasses.length > 0 && !selectedQboClass) {
-      const defaultClass = qboClasses.find(q => q.id === selectedClient.default_qbo_class_id);
-      if (defaultClass) {
-        setSelectedQboClass(defaultClass);
-      }
-    }
-  }, [selectedClient, qboClasses, selectedQboClass]);
+  // Detect location from ZIP (returns ATX, SA, HOU, or null)
+  const detectLocationFromZip = (zip: string): string | null => {
+    if (!zip || zip.length < 5) return null;
+    // Austin area ZIPs typically start with 786, 787, 789
+    // San Antonio area ZIPs typically start with 780, 781, 782
+    // Houston area ZIPs typically start with 77
+    const zipPrefix = zip.substring(0, 2);
+    const zipPrefix3 = zip.substring(0, 3);
+
+    if (zipPrefix === '77') return 'HOU';
+    if (['780', '781', '782'].includes(zipPrefix3)) return 'SA';
+    if (['786', '787', '789', '784', '785'].includes(zipPrefix3)) return 'ATX';
+
+    // Fallback: check territories
+    const territory = territories.find((t) => t.zip_codes?.includes(zip));
+    return territory?.location_code || null;
+  };
 
   // Auto-detect territory from ZIP
   const detectTerritory = (zip: string) => {
@@ -209,6 +217,58 @@ export function ProjectCreateWizard({
     const territory = territories.find((t) => t.zip_codes?.includes(zip));
     return territory?.id || null;
   };
+
+  // Auto-suggest QBO class based on: 1) client default, 2) client type + location
+  useEffect(() => {
+    if (qboClasses.length === 0 || selectedQboClass) return;
+
+    // Priority 1: Use client's explicit default_qbo_class_id
+    if (selectedClient?.default_qbo_class_id) {
+      const defaultClass = qboClasses.find(q => q.id === selectedClient.default_qbo_class_id);
+      if (defaultClass) {
+        setSelectedQboClass(defaultClass);
+        return;
+      }
+    }
+
+    // Priority 2: Infer from client type + property location
+    if (selectedClient) {
+      // Map client business_unit to bu_type
+      const buTypeMap: Record<string, string> = {
+        'residential': 'residential',
+        'builders': 'builders',
+        'commercial': 'commercial',
+      };
+      const buType = buTypeMap[selectedClient.business_unit || ''] || 'residential';
+
+      // Try to get location from property or new address
+      let locationCode: string | null = null;
+      if (selectedProperty?.zip) {
+        locationCode = detectLocationFromZip(selectedProperty.zip);
+      } else if (newPropertyAddress.zip) {
+        locationCode = detectLocationFromZip(newPropertyAddress.zip);
+      }
+
+      // Find matching QBO class
+      if (locationCode) {
+        const suggestedClass = qboClasses.find(
+          q => q.bu_type === buType && q.location_code === locationCode
+        );
+        if (suggestedClass) {
+          setSelectedQboClass(suggestedClass);
+          return;
+        }
+      }
+
+      // Fallback: just match bu_type (prefer ATX as default location)
+      const fallbackClass = qboClasses.find(
+        q => q.bu_type === buType && q.location_code === 'ATX'
+      ) || qboClasses.find(q => q.bu_type === buType);
+      if (fallbackClass) {
+        setSelectedQboClass(fallbackClass);
+      }
+    }
+  }, [selectedClient, selectedProperty, newPropertyAddress.zip, qboClasses, selectedQboClass, territories]);
 
   // Handle step navigation
   const goToStep = (step: WizardStep) => {
@@ -333,18 +393,44 @@ export function ProjectCreateWizard({
     });
   };
 
-  // Suggested QBO class badge
+  // Compute which QBO class would be suggested (for badge display)
   const suggestedQboClass = useMemo(() => {
-    if (!selectedClient?.default_qbo_class_id || !qboClasses.length) return null;
-    return qboClasses.find(q => q.id === selectedClient.default_qbo_class_id);
-  }, [selectedClient, qboClasses]);
+    if (!selectedClient || !qboClasses.length) return null;
+
+    // Priority 1: client's default
+    if (selectedClient.default_qbo_class_id) {
+      return qboClasses.find(q => q.id === selectedClient.default_qbo_class_id) || null;
+    }
+
+    // Priority 2: infer from client type + location
+    const buTypeMap: Record<string, string> = {
+      'residential': 'residential',
+      'builders': 'builders',
+      'commercial': 'commercial',
+    };
+    const buType = buTypeMap[selectedClient.business_unit || ''] || 'residential';
+
+    let locationCode: string | null = null;
+    if (selectedProperty?.zip) {
+      locationCode = detectLocationFromZip(selectedProperty.zip);
+    } else if (newPropertyAddress.zip) {
+      locationCode = detectLocationFromZip(newPropertyAddress.zip);
+    }
+
+    if (locationCode) {
+      return qboClasses.find(q => q.bu_type === buType && q.location_code === locationCode) || null;
+    }
+
+    // Fallback: match bu_type with ATX
+    return qboClasses.find(q => q.bu_type === buType && q.location_code === 'ATX') || null;
+  }, [selectedClient, selectedProperty, newPropertyAddress.zip, qboClasses]);
 
   if (!isOpen) return null;
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b">
             <h2 className="text-lg font-semibold">Create New Project</h2>
@@ -400,17 +486,20 @@ export function ProjectCreateWizard({
             </div>
           </div>
 
-          {/* Step Content */}
-          <div className="p-6 overflow-y-auto max-h-[50vh]">
+          {/* Step Content - overflow-visible on client step to allow dropdown to show */}
+          <div
+            className={`p-6 flex-1 min-h-0 ${currentStep === 'client' ? 'overflow-visible' : 'overflow-y-auto'}`}
+            style={{ maxHeight: '60vh' }}
+          >
             {/* Step 1: Client/Community Selection (unified search) */}
             {currentStep === 'client' && (
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-visible">
                 <h3 className="font-medium text-gray-900">Select Client or Community</h3>
                 <p className="text-sm text-gray-500">
                   Search for a client by name, or a community like "Creek Hollow"
                 </p>
 
-                {/* Unified Client/Community Lookup */}
+                {/* Unified Client/Community Lookup - shows selection internally */}
                 <ClientLookup
                   value={selectedEntity}
                   onChange={(entity) => {
@@ -426,43 +515,6 @@ export function ProjectCreateWizard({
                   label=""
                   placeholder="Search clients or communities..."
                 />
-
-                {/* Selected Entity Display */}
-                {selectedEntity && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        {selectedEntity.community ? (
-                          <Building className="w-6 h-6 text-blue-600" />
-                        ) : (
-                          <User className="w-6 h-6 text-blue-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-blue-900">
-                          {selectedEntity.display_name}
-                        </p>
-                        {selectedEntity.community && (
-                          <p className="text-sm text-blue-700">
-                            Community under {selectedEntity.client.company_name || selectedEntity.client.name}
-                          </p>
-                        )}
-                        {!selectedEntity.community && selectedClient?.primary_contact_phone && (
-                          <p className="text-sm text-blue-600">{selectedClient.primary_contact_phone}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSelectedEntity(null);
-                          setSelectedQboClass(null);
-                        }}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Create New Client Button */}
                 <button
@@ -578,7 +630,11 @@ export function ProjectCreateWizard({
                 {suggestedQboClass && selectedQboClass?.id === suggestedQboClass.id && (
                   <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 p-2 rounded-lg">
                     <Check className="w-4 h-4" />
-                    <span>Auto-selected based on client's default setting</span>
+                    <span>
+                      Auto-selected based on {selectedClient?.default_qbo_class_id
+                        ? "client's default setting"
+                        : `client type (${selectedClient?.business_unit || 'residential'}) and location`}
+                    </span>
                   </div>
                 )}
 

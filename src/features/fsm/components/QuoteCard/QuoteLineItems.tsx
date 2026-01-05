@@ -70,7 +70,7 @@ export default function QuoteLineItems({
   };
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-visible">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
         <h2 className="text-lg font-semibold">Line Items</h2>
@@ -144,29 +144,54 @@ export default function QuoteLineItems({
                   )}
                 </div>
 
-                {/* Description */}
+                {/* Description - SKU search OR manual entry */}
                 <div className="col-span-3">
-                  {isEditable && (item.line_type === 'material' || item.line_type === 'labor') ? (
-                    <div>
-                      <SkuSearchCombobox
-                        value={item.sku_id ? { id: item.sku_id, sku_name: item.description } as SkuSearchResult : null}
-                        onChange={(sku) => handleSkuSelect(index, sku)}
-                        placeholder="Search SKU..."
-                      />
+                  {isEditable ? (
+                    <div className="space-y-1">
+                      {/* Show SKU search for material/labor if no custom description yet */}
+                      {(item.line_type === 'material' || item.line_type === 'labor') && !item.isCustom ? (
+                        <>
+                          <SkuSearchCombobox
+                            value={item.sku_id ? { id: item.sku_id, sku_name: item.description } as SkuSearchResult : null}
+                            onChange={(sku) => handleSkuSelect(index, sku)}
+                            placeholder="Search SKU or type custom..."
+                          />
+                          {!item.sku_id && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdateItem(index, { isCustom: true })}
+                              className="text-xs text-purple-600 hover:text-purple-800"
+                            >
+                              + Enter custom item
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => onUpdateItem(index, { description: e.target.value })}
+                            placeholder="Description"
+                            className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
+                          />
+                          {(item.line_type === 'material' || item.line_type === 'labor') && item.isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdateItem(index, { isCustom: false, description: '', sku_id: null })}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Search catalog instead
+                            </button>
+                          )}
+                        </>
+                      )}
                       {item.pricing_source && (
-                        <div className="text-xs text-gray-400 mt-1 truncate" title={item.pricing_source}>
+                        <div className="text-xs text-gray-400 truncate" title={item.pricing_source}>
                           {item.pricing_source}
                         </div>
                       )}
                     </div>
-                  ) : isEditable ? (
-                    <input
-                      type="text"
-                      value={item.description}
-                      onChange={(e) => onUpdateItem(index, { description: e.target.value })}
-                      placeholder="Description"
-                      className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
-                    />
                   ) : (
                     <span className="text-sm text-gray-900">{item.description}</span>
                   )}
