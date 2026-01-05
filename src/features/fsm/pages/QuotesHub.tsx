@@ -127,6 +127,7 @@ export default function QuotesHub({
 
   // Show QuoteCard for creating new quote (after project wizard completes)
   if (wizardResult) {
+    console.log('[QuotesHub] Rendering QuoteCard with wizardResult:', wizardResult);
     return (
       <QuoteCard
         mode="create"

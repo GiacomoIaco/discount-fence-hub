@@ -320,13 +320,15 @@ export function ProjectCreateWizard({
     createProject.mutate(projectData, {
       onSuccess: (result) => {
         // Return all the data that was selected in the wizard
-        onComplete({
+        const wizardResult = {
           projectId: result.id,
           clientId: selectedClient.id,
           communityId: communityId || undefined,
           propertyId: propertyId,
           qboClassId: selectedQboClass?.id,
-        });
+        };
+        console.log('[ProjectCreateWizard] Completing with:', wizardResult);
+        onComplete(wizardResult);
       },
     });
   };

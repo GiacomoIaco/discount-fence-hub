@@ -86,6 +86,9 @@ const initialFormState: QuoteFormState = {
 export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   const { mode, quoteId, projectId, requestId, requestData, clientId, communityId, propertyId } = options;
 
+  // Debug: Log incoming props
+  console.log('[useQuoteForm] Init with:', { mode, clientId, communityId, propertyId, quoteId, projectId });
+
   // Load existing quote for edit/view modes
   const { data: quote, isLoading: isLoadingQuote } = useQuote(mode !== 'create' ? quoteId : undefined);
 
@@ -142,10 +145,12 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
 
   // Initialize form from request data or project context (create mode)
   useEffect(() => {
+    console.log('[useQuoteForm] Create effect check:', { mode, quote: !!quote, clientId, communityId, propertyId });
     if (mode === 'create' && !quote) {
       const validDate = new Date();
       validDate.setDate(validDate.getDate() + 30);
 
+      console.log('[useQuoteForm] Setting form from props:', { clientId, communityId, propertyId });
       setForm(prev => ({
         ...prev,
         clientId: clientId || requestData?.client_id || '',
