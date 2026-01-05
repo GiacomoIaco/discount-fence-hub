@@ -228,6 +228,7 @@ export function useCreateQuote() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
       showSuccess(`Quote ${data.quote_number} created`);
     },
     onError: (error: Error) => {
@@ -253,6 +254,7 @@ export function useUpdateQuote() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
       showSuccess('Quote updated');
     },
     onError: (error: Error) => {
@@ -492,6 +494,7 @@ export function useAddQuoteLineItem() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['quotes', variables.quote_id] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
     },
     onError: (error: Error) => {
       showError(error.message || 'Failed to add line item');
@@ -513,6 +516,7 @@ export function useUpdateQuoteLineItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
     },
     onError: (error: Error) => {
       showError(error.message || 'Failed to update line item');
@@ -534,6 +538,7 @@ export function useDeleteQuoteLineItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
     },
     onError: (error: Error) => {
       showError(error.message || 'Failed to delete line item');
