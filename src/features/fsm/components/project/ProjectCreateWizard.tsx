@@ -48,6 +48,13 @@ interface Client {
   default_qbo_class_id: string | null;
 }
 
+interface Community {
+  id: string;
+  name: string;
+  code: string | null;
+  status: string;
+}
+
 interface Property {
   id: string;
   address_line1: string;
@@ -93,6 +100,9 @@ export function ProjectCreateWizard({
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
 
+  // Community selection (for builder clients)
+  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
+
   // Property
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isNewProperty, setIsNewProperty] = useState(false);
@@ -130,13 +140,51 @@ export function ProjectCreateWizard({
     enabled: clientSearch.length >= 2,
   });
 
-  // Fetch properties for selected client (direct link OR via community)
-  const { data: clientProperties = [] } = useQuery({
-    queryKey: ['client-properties', selectedClient?.id],
+  // Fetch communities for selected client (for builders)
+  const { data: clientCommunities = [] } = useQuery({
+    queryKey: ['client-communities', selectedClient?.id],
     queryFn: async () => {
       if (!selectedClient?.id) return [];
 
-      // Get properties directly linked to client
+      const { data, error } = await supabase
+        .from('communities')
+        .select('id, name, code, status')
+        .eq('client_id', selectedClient.id)
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      return data as Community[];
+    },
+    enabled: !!selectedClient?.id,
+  });
+
+  // Fetch properties for selected client/community
+  const { data: clientProperties = [] } = useQuery({
+    queryKey: ['client-properties', selectedClient?.id, selectedCommunity?.id],
+    queryFn: async () => {
+      if (!selectedClient?.id) return [];
+
+      // If a community is selected, only show properties from that community
+      if (selectedCommunity?.id) {
+        const { data: commProps, error } = await supabase
+          .from('properties')
+          .select(`
+            id, address_line1, city, state, zip, community_id, client_id,
+            community:communities(name)
+          `)
+          .eq('community_id', selectedCommunity.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        return (commProps || []).map((prop: any) => ({
+          ...prop,
+          community: Array.isArray(prop.community) ? prop.community[0] : prop.community,
+        })) as Property[];
+      }
+
+      // No community selected - show properties directly linked to client (residential)
       const { data: directProps, error: directError } = await supabase
         .from('properties')
         .select(`
@@ -148,38 +196,8 @@ export function ProjectCreateWizard({
 
       if (directError) throw directError;
 
-      // Also get properties from communities linked to this client
-      const { data: communityData } = await supabase
-        .from('communities')
-        .select('id')
-        .eq('client_id', selectedClient.id);
-
-      const communityIds = (communityData || []).map(c => c.id);
-
-      let communityProps: any[] = [];
-      if (communityIds.length > 0) {
-        const { data: commProps, error: commError } = await supabase
-          .from('properties')
-          .select(`
-            id, address_line1, city, state, zip, community_id, client_id,
-            community:communities(name)
-          `)
-          .in('community_id', communityIds)
-          .order('created_at', { ascending: false });
-
-        if (!commError && commProps) {
-          communityProps = commProps;
-        }
-      }
-
-      // Combine and deduplicate
-      const allProps = [...(directProps || []), ...communityProps];
-      const uniqueProps = allProps.filter((prop, index, self) =>
-        index === self.findIndex(p => p.id === prop.id)
-      );
-
       // Transform community array to object
-      return uniqueProps.map((prop) => ({
+      return (directProps || []).map((prop: any) => ({
         ...prop,
         community: Array.isArray(prop.community) ? prop.community[0] : prop.community,
       })) as Property[];
@@ -211,6 +229,7 @@ export function ProjectCreateWizard({
       setCurrentStep('client');
       setFormData(initialData || {});
       setSelectedClient(null);
+      setSelectedCommunity(null);
       setSelectedProperty(null);
       setSelectedQboClass(null);
       setClientSearch('');
@@ -269,6 +288,10 @@ export function ProjectCreateWizard({
       case 'client':
         return !!selectedClient;
       case 'property':
+        // If client has communities, must select one first
+        if (clientCommunities.length > 0 && !selectedCommunity) {
+          return false;
+        }
         return selectedProperty || (isNewProperty && newPropertyAddress.address_line1);
       case 'business_unit':
         return !!selectedQboClass;
@@ -301,7 +324,7 @@ export function ProjectCreateWizard({
     if (!selectedClient) return;
 
     let propertyId = selectedProperty?.id;
-    let communityId = selectedProperty?.community_id;
+    let communityId = selectedCommunity?.id || selectedProperty?.community_id;
     let territoryId = formData.territory_id;
 
     // If new property, create it first
@@ -309,7 +332,8 @@ export function ProjectCreateWizard({
       const { data: newProp, error: propError } = await supabase
         .from('properties')
         .insert({
-          client_id: selectedClient.id,
+          client_id: selectedCommunity ? null : selectedClient.id, // Link to client only if no community
+          community_id: selectedCommunity?.id || null, // Link to community if selected
           address_line1: newPropertyAddress.address_line1,
           // Note: address_line2 column doesn't exist in properties table
           city: newPropertyAddress.city,
@@ -522,79 +546,127 @@ export function ProjectCreateWizard({
             {/* Step 2: Property Selection */}
             {currentStep === 'property' && (
               <div className="space-y-4">
-                <h3 className="font-medium text-gray-900">Select or Add Property</h3>
-
-                {/* Existing Properties */}
-                {clientProperties.length > 0 && !isNewProperty && (
-                  <div className="space-y-2">
+                {/* Community Selection for Builder Clients */}
+                {clientCommunities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="font-medium text-gray-900">Select Community</h3>
                     <p className="text-sm text-gray-500">
-                      Select an existing property ({clientProperties.length} found):
+                      {selectedClient?.company_name || selectedClient?.name} has {clientCommunities.length} {clientCommunities.length === 1 ? 'community' : 'communities'}
                     </p>
-                    <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
-                      {clientProperties.map((prop) => (
+                    <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                      {clientCommunities.map((comm) => (
                         <button
-                          key={prop.id}
-                          onClick={() => setSelectedProperty(prop)}
+                          key={comm.id}
+                          onClick={() => {
+                            setSelectedCommunity(comm);
+                            setSelectedProperty(null); // Reset property when community changes
+                            setIsNewProperty(false);
+                          }}
                           className={`w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left ${
-                            selectedProperty?.id === prop.id ? 'bg-blue-50' : ''
+                            selectedCommunity?.id === comm.id ? 'bg-blue-50' : ''
                           }`}
                         >
-                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <Building className="w-4 h-4 text-blue-600" />
                           <div className="flex-1">
-                            <p className="font-medium">{prop.address_line1}</p>
-                            <p className="text-sm text-gray-500">
-                              {prop.city}, {prop.state} {prop.zip}
-                            </p>
-                            {prop.community && (
-                              <p className="text-xs text-blue-600">
-                                {prop.community.name}
-                              </p>
-                            )}
+                            <p className="font-medium">{comm.name}</p>
+                            {comm.code && <p className="text-xs text-gray-400">{comm.code}</p>}
                           </div>
-                          {selectedProperty?.id === prop.id && (
+                          {selectedCommunity?.id === comm.id && (
                             <Check className="w-5 h-5 text-blue-600" />
                           )}
                         </button>
                       ))}
                     </div>
+
+                    {/* Divider after community selection */}
+                    {selectedCommunity && (
+                      <div className="border-t pt-4" />
+                    )}
                   </div>
                 )}
 
-                {/* Or Divider */}
-                {clientProperties.length > 0 && (
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 border-t" />
-                    <span className="text-sm text-gray-500">or</span>
-                    <div className="flex-1 border-t" />
-                  </div>
+                {/* Property Selection - show when community is selected OR no communities exist */}
+                {(selectedCommunity || clientCommunities.length === 0) && (
+                  <>
+                    <h3 className="font-medium text-gray-900">
+                      {clientCommunities.length > 0 ? 'Select Property in ' + selectedCommunity?.name : 'Select or Add Property'}
+                    </h3>
+
+                    {/* Existing Properties */}
+                    {clientProperties.length > 0 && !isNewProperty && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-500">
+                          {clientProperties.length} {clientProperties.length === 1 ? 'property' : 'properties'} found:
+                        </p>
+                        <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                          {clientProperties.map((prop) => (
+                            <button
+                              key={prop.id}
+                              onClick={() => setSelectedProperty(prop)}
+                              className={`w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left ${
+                                selectedProperty?.id === prop.id ? 'bg-blue-50' : ''
+                              }`}
+                            >
+                              <MapPin className="w-4 h-4 text-gray-400" />
+                              <div className="flex-1">
+                                <p className="font-medium">{prop.address_line1}</p>
+                                <p className="text-sm text-gray-500">
+                                  {prop.city}, {prop.state} {prop.zip}
+                                </p>
+                              </div>
+                              {selectedProperty?.id === prop.id && (
+                                <Check className="w-5 h-5 text-blue-600" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Or Divider */}
+                    {clientProperties.length > 0 && (
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 border-t" />
+                        <span className="text-sm text-gray-500">or</span>
+                        <div className="flex-1 border-t" />
+                      </div>
+                    )}
+
+                    {/* New Property Toggle */}
+                    <button
+                      onClick={() => {
+                        setIsNewProperty(!isNewProperty);
+                        setSelectedProperty(null);
+                      }}
+                      className={`w-full flex items-center gap-3 p-4 border rounded-lg ${
+                        isNewProperty ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-400'
+                      }`}
+                    >
+                      <Plus className="w-5 h-5 text-blue-600" />
+                      <span className="font-medium">Add New Property</span>
+                    </button>
+
+                    {/* New Property Form with SmartAddressInput */}
+                    {isNewProperty && (
+                      <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                        <SmartAddressInput
+                          value={newPropertyAddress}
+                          onChange={setNewPropertyAddress}
+                          label="Property Address"
+                          required
+                          restrictToTexas={true}
+                          placeholder="Start typing an address..."
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* New Property Toggle */}
-                <button
-                  onClick={() => {
-                    setIsNewProperty(!isNewProperty);
-                    setSelectedProperty(null);
-                  }}
-                  className={`w-full flex items-center gap-3 p-4 border rounded-lg ${
-                    isNewProperty ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-400'
-                  }`}
-                >
-                  <Plus className="w-5 h-5 text-blue-600" />
-                  <span className="font-medium">Add New Property</span>
-                </button>
-
-                {/* New Property Form with SmartAddressInput */}
-                {isNewProperty && (
-                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-                    <SmartAddressInput
-                      value={newPropertyAddress}
-                      onChange={setNewPropertyAddress}
-                      label="Property Address"
-                      required
-                      restrictToTexas={true}
-                      placeholder="Start typing an address..."
-                    />
-                  </div>
+                {/* Prompt to select community first */}
+                {clientCommunities.length > 0 && !selectedCommunity && (
+                  <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
+                    Select a community above to see its properties
+                  </p>
                 )}
               </div>
             )}
@@ -686,6 +758,12 @@ export function ProjectCreateWizard({
                       <span className="text-gray-500">Client:</span>{' '}
                       {selectedClient?.company_name || selectedClient?.name}
                     </p>
+                    {selectedCommunity && (
+                      <p>
+                        <span className="text-gray-500">Community:</span>{' '}
+                        {selectedCommunity.name}
+                      </p>
+                    )}
                     <p>
                       <span className="text-gray-500">Address:</span>{' '}
                       {selectedProperty?.address_line1 || newPropertyAddress.address_line1}
