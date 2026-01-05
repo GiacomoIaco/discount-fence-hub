@@ -32,6 +32,8 @@ export interface QboClass {
   bu_type: 'residential' | 'builders' | 'commercial' | null;
   location_code: 'ATX' | 'SA' | 'HOU' | null;
   labor_code: string | null;       // e.g., 'ATX-RES', 'ATX-HB', 'COM'
+  // Default pricing (Phase 211)
+  default_rate_sheet_id: string | null;  // Fallback rate sheet for this BU
 }
 
 // ============================================

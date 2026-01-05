@@ -15,20 +15,25 @@ export interface ResolvedPrice {
   price: number;
   laborPrice: number | null;
   materialPrice: number | null;
-  pricingMethod: PricingMethod | 'catalog' | 'default_formula';
+  pricingMethod: PricingMethod | 'catalog' | 'default_formula' | 'cost_only';
   rateSheetId: string | null;
   rateSheetName: string | null;
+  /** Where the rate sheet came from: community, client, bu, or null if no rate sheet */
+  source: 'community' | 'client' | 'bu' | null;
 }
 
-interface PricingContext {
+export interface PricingContext {
   communityId?: string | null;
   clientId?: string | null;
+  /** QBO Class ID for BU default rate sheet fallback */
+  qboClassId?: string | null;
 }
 
 // Get the effective rate sheet for a given context
 async function getEffectiveRateSheet(context: PricingContext): Promise<{
   rateSheetId: string | null;
   rateSheet: RateSheet | null;
+  source: 'community' | 'client' | 'bu' | null;
 }> {
   // First try community rate sheet
   if (context.communityId) {
@@ -47,7 +52,7 @@ async function getEffectiveRateSheet(context: PricingContext): Promise<{
         .single();
 
       if (rateSheet) {
-        return { rateSheetId: community.rate_sheet_id, rateSheet };
+        return { rateSheetId: community.rate_sheet_id, rateSheet, source: 'community' as const };
       }
     }
 
@@ -68,7 +73,7 @@ async function getEffectiveRateSheet(context: PricingContext): Promise<{
           .single();
 
         if (rateSheet) {
-          return { rateSheetId: client.default_rate_sheet_id, rateSheet };
+          return { rateSheetId: client.default_rate_sheet_id, rateSheet, source: 'client' as const };
         }
       }
     }
@@ -91,19 +96,42 @@ async function getEffectiveRateSheet(context: PricingContext): Promise<{
         .single();
 
       if (rateSheet) {
-        return { rateSheetId: client.default_rate_sheet_id, rateSheet };
+        return { rateSheetId: client.default_rate_sheet_id, rateSheet, source: 'client' as const };
       }
     }
   }
 
-  return { rateSheetId: null, rateSheet: null };
+  // Priority 3: QBO Class (BU) default rate sheet
+  if (context.qboClassId) {
+    const { data: qboClass } = await supabase
+      .from('qbo_classes')
+      .select('default_rate_sheet_id')
+      .eq('id', context.qboClassId)
+      .single();
+
+    if (qboClass?.default_rate_sheet_id) {
+      const { data: rateSheet } = await supabase
+        .from('rate_sheets')
+        .select('*')
+        .eq('id', qboClass.default_rate_sheet_id)
+        .eq('is_active', true)
+        .single();
+
+      if (rateSheet) {
+        return { rateSheetId: qboClass.default_rate_sheet_id, rateSheet, source: 'bu' as const };
+      }
+    }
+  }
+
+  return { rateSheetId: null, rateSheet: null, source: null };
 }
 
 // Calculate price based on pricing method
 function calculatePrice(
   baseCost: number,
   item: RateSheetItem | null,
-  rateSheet: RateSheet | null
+  rateSheet: RateSheet | null,
+  source: 'community' | 'client' | 'bu' | null = null
 ): ResolvedPrice {
   // If we have a specific item override
   if (item) {
@@ -115,6 +143,7 @@ function calculatePrice(
         pricingMethod: 'fixed',
         rateSheetId: item.rate_sheet_id,
         rateSheetName: null, // Will be filled by caller
+        source,
       };
     }
 
@@ -127,6 +156,7 @@ function calculatePrice(
         pricingMethod: 'markup',
         rateSheetId: item.rate_sheet_id,
         rateSheetName: null,
+        source,
       };
     }
 
@@ -140,6 +170,7 @@ function calculatePrice(
         pricingMethod: 'margin',
         rateSheetId: item.rate_sheet_id,
         rateSheetName: null,
+        source,
       };
     }
 
@@ -152,6 +183,7 @@ function calculatePrice(
         pricingMethod: 'fixed',
         rateSheetId: item.rate_sheet_id,
         rateSheetName: null,
+        source,
       };
     }
   }
@@ -167,6 +199,7 @@ function calculatePrice(
         pricingMethod: 'default_formula',
         rateSheetId: rateSheet.id,
         rateSheetName: rateSheet.name,
+        source,
       };
     }
 
@@ -179,18 +212,20 @@ function calculatePrice(
         pricingMethod: 'default_formula',
         rateSheetId: rateSheet.id,
         rateSheetName: rateSheet.name,
+        source,
       };
     }
   }
 
-  // Final fallback - use catalog/base price
+  // Final fallback - use cost as price (no rate sheet found)
   return {
     price: baseCost,
     laborPrice: null,
     materialPrice: null,
-    pricingMethod: 'catalog',
+    pricingMethod: 'cost_only',
     rateSheetId: null,
     rateSheetName: null,
+    source: null,
   };
 }
 
@@ -199,9 +234,9 @@ function calculatePrice(
  */
 export function useEffectiveRateSheet(context: PricingContext) {
   return useQuery({
-    queryKey: ['effective-rate-sheet', context.communityId, context.clientId],
+    queryKey: ['effective-rate-sheet', context.communityId, context.clientId, context.qboClassId],
     queryFn: () => getEffectiveRateSheet(context),
-    enabled: !!(context.communityId || context.clientId),
+    enabled: !!(context.communityId || context.clientId || context.qboClassId),
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 }
@@ -220,13 +255,13 @@ export function useResolvedPrice(
     queryKey: ['resolved-price', skuId, baseCost, rateSheetData?.rateSheetId],
     queryFn: async () => {
       if (!skuId) {
-        return calculatePrice(baseCost, null, null);
+        return calculatePrice(baseCost, null, null, null);
       }
 
-      const { rateSheetId, rateSheet } = rateSheetData || { rateSheetId: null, rateSheet: null };
+      const { rateSheetId, rateSheet, source } = rateSheetData || { rateSheetId: null, rateSheet: null, source: null };
 
       if (!rateSheetId) {
-        return calculatePrice(baseCost, null, null);
+        return calculatePrice(baseCost, null, null, null);
       }
 
       // Look up specific item override
@@ -237,7 +272,7 @@ export function useResolvedPrice(
         .eq('sku_id', skuId)
         .single();
 
-      const result = calculatePrice(baseCost, item as RateSheetItem | null, rateSheet);
+      const result = calculatePrice(baseCost, item as RateSheetItem | null, rateSheet, source);
       result.rateSheetName = rateSheet?.name || null;
       return result;
     },
@@ -256,10 +291,10 @@ export function useRateSheetPrices(context: PricingContext) {
   return useQuery({
     queryKey: ['rate-sheet-prices', rateSheetData?.rateSheetId],
     queryFn: async () => {
-      const { rateSheetId, rateSheet } = rateSheetData || { rateSheetId: null, rateSheet: null };
+      const { rateSheetId, rateSheet, source } = rateSheetData || { rateSheetId: null, rateSheet: null, source: null };
 
       if (!rateSheetId) {
-        return { items: new Map<string, RateSheetItem>(), rateSheet: null };
+        return { items: new Map<string, RateSheetItem>(), rateSheet: null, source: null };
       }
 
       const { data: items } = await supabase
@@ -272,7 +307,7 @@ export function useRateSheetPrices(context: PricingContext) {
         itemMap.set(item.sku_id, item as RateSheetItem);
       });
 
-      return { items: itemMap, rateSheet };
+      return { items: itemMap, rateSheet, source };
     },
     enabled: !!rateSheetData?.rateSheetId,
     staleTime: 5 * 60 * 1000,
@@ -286,10 +321,11 @@ export function resolvePrice(
   skuId: string,
   baseCost: number,
   itemMap: Map<string, RateSheetItem>,
-  rateSheet: RateSheet | null
+  rateSheet: RateSheet | null,
+  source: 'community' | 'client' | 'bu' | null = null
 ): ResolvedPrice {
   const item = itemMap.get(skuId) || null;
-  const result = calculatePrice(baseCost, item, rateSheet);
+  const result = calculatePrice(baseCost, item, rateSheet, source);
   result.rateSheetName = rateSheet?.name || null;
   return result;
 }

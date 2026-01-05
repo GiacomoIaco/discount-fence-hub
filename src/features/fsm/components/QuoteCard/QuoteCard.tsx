@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { XCircle } from 'lucide-react';
+import { XCircle, AlertTriangle } from 'lucide-react';
 import type { QuoteCardProps } from './types';
 import { useQuoteForm } from './useQuoteForm';
 import QuoteHeader from './QuoteHeader';
@@ -85,13 +85,17 @@ export default function QuoteCard({
     propertyId,
   });
 
-  // Rate sheet pricing context
+  // Rate sheet pricing context (includes QBO Class for BU default fallback)
   const pricingContext = {
     communityId: form.communityId || null,
     clientId: form.clientId || null,
+    qboClassId: quote?.qbo_class_id || null,
   };
-  useEffectiveRateSheet(pricingContext);
+  const { data: effectiveRateSheet } = useEffectiveRateSheet(pricingContext);
   const { data: rateSheetPrices } = useRateSheetPrices(pricingContext);
+
+  // Flag for warning UI: no rate sheet found
+  const hasNoRateSheet = !effectiveRateSheet?.rateSheetId && (form.clientId || form.communityId);
 
   // Mutations for quote actions
   const sendMutation = useSendQuote();
@@ -201,21 +205,32 @@ export default function QuoteCard({
       return;
     }
 
-    // Resolve price from rate sheet
-    let unitPrice = sku.standard_cost_per_foot || 0;
-    let unitCost = sku.standard_material_cost || 0;
-    let pricingSource = 'Catalog';
+    // Calculate total unit cost: material + labor
+    const materialCost = sku.standard_material_cost || 0;
+    const laborCost = sku.standard_labor_cost || 0;
+    const totalUnitCost = materialCost + laborCost;
 
+    // Default: use cost as price (only if no rate sheet - will show warning)
+    let unitPrice = totalUnitCost;
+    let pricingSource = 'No Rate Sheet - Using Cost';
+
+    // Resolve price from rate sheet (priority: community > client > BU default)
     if (rateSheetPrices?.items && rateSheetPrices.rateSheet) {
       const resolved = resolvePrice(
         sku.id,
-        sku.standard_cost_per_foot || 0,
+        totalUnitCost,
         rateSheetPrices.items,
-        rateSheetPrices.rateSheet
+        rateSheetPrices.rateSheet,
+        rateSheetPrices.source
       );
       unitPrice = resolved.price;
       if (resolved.rateSheetName) {
-        pricingSource = `Rate Sheet: ${resolved.rateSheetName}`;
+        const sourceLabel = resolved.source === 'bu' ? 'BU Default' :
+                           resolved.source === 'client' ? 'Client' :
+                           resolved.source === 'community' ? 'Community' : '';
+        pricingSource = `${sourceLabel} Rate Sheet: ${resolved.rateSheetName}`;
+      } else if (resolved.pricingMethod === 'cost_only') {
+        pricingSource = 'No Rate Sheet - Using Cost';
       }
     }
 
@@ -224,7 +239,7 @@ export default function QuoteCard({
       description: sku.sku_name,
       unit_type: 'LF',
       unit_price: unitPrice,
-      unit_cost: unitCost,
+      unit_cost: totalUnitCost,
       pricing_source: pricingSource,
       line_type: 'material',
     });
@@ -303,6 +318,23 @@ export default function QuoteCard({
               </p>
             )}
           </div>
+
+          {/* No Rate Sheet Warning */}
+          {hasNoRateSheet && mode !== 'view' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-amber-800">No Rate Sheet Found</h4>
+                <p className="text-sm text-amber-700 mt-1">
+                  No rate sheet is configured for this client or their Business Unit.
+                  Prices shown are at cost (0% margin).
+                </p>
+                <p className="text-sm text-amber-600 mt-2">
+                  Set a rate sheet in Client Settings, or configure a default rate sheet for the Business Unit in Settings.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Line Items - ALWAYS VISIBLE */}
           <QuoteLineItems
