@@ -41,21 +41,6 @@ const STEPS: { id: WizardStep; label: string; icon: typeof User }[] = [
   { id: 'details', label: 'Details', icon: Briefcase },
 ];
 
-interface Client {
-  id: string;
-  name: string;
-  company_name: string | null;
-  primary_contact_phone: string | null;
-  default_qbo_class_id: string | null;
-}
-
-interface Community {
-  id: string;
-  name: string;
-  code: string | null;
-  status: string;
-}
-
 interface Property {
   id: string;
   address_line1: string;
