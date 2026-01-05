@@ -9,7 +9,7 @@
  * - Save logic with proper mutation handling
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   useQuote,
   useCreateQuote,
@@ -104,6 +104,16 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   const [isDirty, setIsDirty] = useState(false);
   const [originalLineItemIds, setOriginalLineItemIds] = useState<string[]>([]);
 
+  // Track if we've initialized from props (to prevent re-initialization)
+  const hasInitializedFromProps = useRef(false);
+
+  // Reset initialization flag when mode changes to something other than create
+  useEffect(() => {
+    if (mode !== 'create') {
+      hasInitializedFromProps.current = false;
+    }
+  }, [mode]);
+
   // Initialize form from existing quote
   useEffect(() => {
     if (quote && mode !== 'create') {
@@ -144,13 +154,27 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   }, [quote, mode]);
 
   // Initialize form from request data or project context (create mode)
+  // This effect runs once when entering create mode with valid props
   useEffect(() => {
-    console.log('[useQuoteForm] Create effect check:', { mode, quote: !!quote, clientId, communityId, propertyId });
-    if (mode === 'create' && !quote) {
+    // Only initialize in create mode when we haven't already initialized
+    if (mode !== 'create' || hasInitializedFromProps.current) {
+      return;
+    }
+
+    // Check if we have meaningful props to initialize from
+    const hasPropsToInit = clientId || communityId || propertyId || requestData;
+
+    console.log('[useQuoteForm] Create mode init:', {
+      clientId, communityId, propertyId,
+      hasPropsToInit,
+      hasInitialized: hasInitializedFromProps.current
+    });
+
+    if (hasPropsToInit) {
       const validDate = new Date();
       validDate.setDate(validDate.getDate() + 30);
 
-      console.log('[useQuoteForm] Setting form from props:', { clientId, communityId, propertyId });
+      console.log('[useQuoteForm] Setting form from wizard/request data');
       setForm(prev => ({
         ...prev,
         clientId: clientId || requestData?.client_id || '',
@@ -161,8 +185,11 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
         scopeSummary: requestData?.description || '',
         validUntil: validDate.toISOString().split('T')[0],
       }));
+
+      // Mark as initialized so we don't re-run
+      hasInitializedFromProps.current = true;
     }
-  }, [mode, clientId, communityId, propertyId, requestData, quote]);
+  }, [mode, clientId, communityId, propertyId, requestData]);
 
   // Field setters
   const setField = useCallback(<K extends keyof QuoteFormState>(key: K, value: QuoteFormState[K]) => {
