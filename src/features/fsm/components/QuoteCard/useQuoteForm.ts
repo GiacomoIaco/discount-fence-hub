@@ -252,7 +252,9 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     const taxAmount = taxableAmount * taxRate / 100;
     const total = taxableAmount + taxAmount;
     const grossProfit = total - materialCost - laborCost;
-    const marginPercent = total > 0 ? (grossProfit / total * 100) : 0;
+    // Clamp margin to fit in database column (numeric(5,2) allows -999.99 to 999.99)
+    const rawMargin = total > 0 ? (grossProfit / total * 100) : 0;
+    const marginPercent = Math.max(-999.99, Math.min(999.99, rawMargin));
     const depositAmount = total * depositPercent / 100;
 
     return {
