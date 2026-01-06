@@ -14,14 +14,12 @@ import {
   ArrowRight,
   ChevronDown,
   MapPin,
-  User,
   CheckCircle,
   Clock,
   AlertTriangle,
-  DollarSign,
 } from 'lucide-react';
 import { useProjects } from '../../fsm/hooks/useProjects';
-import type { ProjectStatus, Project } from '../../fsm/types';
+import type { ProjectStatus } from '../../fsm/types';
 import {
   useListVariant,
   VariantToggle,
@@ -284,7 +282,7 @@ export default function ProjectsListView({
           </div>
           {/* Table Rows */}
           <div className="divide-y divide-gray-100">
-            {sortedProjects.map((project, index) => {
+            {sortedProjects.map((project) => {
               const statusConfig = PROJECT_STATUS_CONFIG[project.status];
               return (
                 <div

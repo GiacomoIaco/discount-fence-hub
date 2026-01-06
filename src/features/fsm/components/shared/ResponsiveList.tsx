@@ -20,7 +20,8 @@
  * ```
  */
 
-import { useState, useEffect, ReactNode, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 
 // =============================================================================
 // Types
