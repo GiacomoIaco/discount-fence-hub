@@ -45,9 +45,11 @@ export default function ProjectContextHeader({
       ? `${project.property.address_line1}, ${project.property.city || ''} ${project.property.state || ''} ${project.property.zip || ''}`
       : null);
   // QBO Class - view returns qbo_labor_code, qbo_class_name; fallback returns qbo_class.labor_code, qbo_class.name
-  const qboClassName = (project as Record<string, unknown>).qbo_class_name as string | undefined
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const projectAny = project as unknown as Record<string, unknown>;
+  const qboClassName = (projectAny.qbo_class_name as string | undefined)
     || project.qbo_class?.name;
-  const qboClassCode = (project as Record<string, unknown>).qbo_labor_code as string | undefined
+  const qboClassCode = (projectAny.qbo_labor_code as string | undefined)
     || project.qbo_class?.labor_code;
   const assignedRep = project.rep_name
     || project.assigned_rep_user?.name
