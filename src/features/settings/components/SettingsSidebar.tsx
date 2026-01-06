@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Settings,
   Smartphone,
@@ -11,12 +11,16 @@ import {
   SlidersHorizontal,
   ArrowLeft,
   ChevronRight,
-  PanelLeftClose,
-  PanelLeft,
+  Pin,
+  PinOff,
   MapPin,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { SidebarTooltip } from '../../../components/sidebar';
+
+// Hover timing constants (in ms)
+const EXPAND_DELAY = 300;
+const COLLAPSE_DELAY = 500;
 
 export type SettingsPage =
   | 'app'
@@ -62,16 +66,99 @@ interface SettingsSidebarProps {
 }
 
 export default function SettingsSidebar({ activePage, onPageChange, onBack }: SettingsSidebarProps) {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'true';
-  });
+  // Load initial state from localStorage
+  const getInitialState = () => {
+    if (typeof window === 'undefined') return { pinned: false, collapsed: true };
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          pinned: parsed.pinned ?? false,
+          collapsed: parsed.collapsed ?? true,
+        };
+      }
+    } catch {
+      // Legacy format (just boolean string) - migrate to new format
+      const legacy = localStorage.getItem(STORAGE_KEY);
+      if (legacy === 'true' || legacy === 'false') {
+        return { pinned: false, collapsed: legacy === 'true' };
+      }
+    }
+    return { pinned: false, collapsed: true };
+  };
 
-  // Persist collapsed state
+  const initial = getInitialState();
+  const [pinned, setPinned] = useState(initial.pinned);
+  const [collapsed, setCollapsed] = useState(initial.collapsed);
+  const [isPeeking, setIsPeeking] = useState(false);
+
+  // Refs for timeout management
+  const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isHoveringRef = useRef(false);
+
+  // Sidebar is expanded if pinned open OR peeking
+  const isExpanded = pinned || isPeeking || !collapsed;
+
+  const clearTimeouts = useCallback(() => {
+    if (expandTimeoutRef.current) {
+      clearTimeout(expandTimeoutRef.current);
+      expandTimeoutRef.current = null;
+    }
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Persist state to localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(collapsed));
-  }, [collapsed]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ pinned, collapsed }));
+  }, [pinned, collapsed]);
+
+  const handleMouseEnter = useCallback(() => {
+    isHoveringRef.current = true;
+    clearTimeouts();
+
+    // Only peek if collapsed and not pinned
+    if (collapsed && !pinned) {
+      expandTimeoutRef.current = setTimeout(() => {
+        if (isHoveringRef.current) {
+          setIsPeeking(true);
+        }
+      }, EXPAND_DELAY);
+    }
+  }, [collapsed, pinned, clearTimeouts]);
+
+  const handleMouseLeave = useCallback(() => {
+    isHoveringRef.current = false;
+    clearTimeouts();
+
+    // Only collapse if peeking (not pinned open)
+    if (isPeeking) {
+      collapseTimeoutRef.current = setTimeout(() => {
+        if (!isHoveringRef.current) {
+          setIsPeeking(false);
+        }
+      }, COLLAPSE_DELAY);
+    }
+  }, [isPeeking, clearTimeouts]);
+
+  const handleTogglePin = useCallback(() => {
+    clearTimeouts();
+    if (pinned) {
+      // Unpin - go to collapsed state
+      setPinned(false);
+      setCollapsed(true);
+      setIsPeeking(false);
+    } else {
+      // Pin open
+      setPinned(true);
+      setCollapsed(false);
+      setIsPeeking(false);
+    }
+  }, [pinned, clearTimeouts]);
 
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
@@ -81,14 +168,14 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
       <button
         key={item.id}
         onClick={() => onPageChange(item.id)}
-        className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg transition-colors text-left text-sm ${
+        className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg transition-colors text-left text-sm ${
           isActive
             ? 'bg-white text-slate-900 shadow-sm'
             : 'text-slate-200 hover:bg-slate-700/50'
         }`}
       >
         <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-slate-600' : ''}`} />
-        {!collapsed && (
+        {isExpanded && (
           <>
             <span className="flex-1 font-medium truncate">{item.label}</span>
             {isActive && <ChevronRight className="w-3 h-3 text-slate-600 flex-shrink-0" />}
@@ -98,14 +185,14 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
     );
 
     return (
-      <SidebarTooltip key={item.id} label={item.label} showTooltip={collapsed}>
+      <SidebarTooltip key={item.id} label={item.label} showTooltip={!isExpanded}>
         {button}
       </SidebarTooltip>
     );
   };
 
   const renderSectionHeader = (label: string) => {
-    if (collapsed) {
+    if (!isExpanded) {
       return (
         <SidebarTooltip label={label} showTooltip={true}>
           <div className="flex justify-center py-1">
@@ -124,11 +211,15 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
   };
 
   return (
-    <div className={`${collapsed ? 'w-14' : 'w-48'} bg-slate-800 flex flex-col h-full transition-all duration-300`}>
+    <div
+      className={`${isExpanded ? 'w-48' : 'w-14'} bg-slate-800 flex flex-col h-full transition-all duration-300`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       {/* Header */}
       <div className="px-3 py-3 border-b border-slate-700">
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
-          {!collapsed && (
+        <div className={`flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'}`}>
+          {isExpanded && (
             <>
               <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
                 <Settings className="w-5 h-5 text-white" />
@@ -139,15 +230,11 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
             </>
           )}
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded transition-colors"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={handleTogglePin}
+            className={`p-1.5 rounded transition-colors ${pinned ? 'text-blue-400 hover:text-blue-300' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'}`}
+            title={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
           >
-            {collapsed ? (
-              <PanelLeft className="w-4 h-4" />
-            ) : (
-              <PanelLeftClose className="w-4 h-4" />
-            )}
+            {pinned ? <Pin className="w-4 h-4" /> : <PinOff className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -171,13 +258,13 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
 
       {/* Back to Main App */}
       <div className="p-2 border-t border-slate-700">
-        <SidebarTooltip label="Back to Main App" showTooltip={collapsed}>
+        <SidebarTooltip label="Back to Main App" showTooltip={!isExpanded}>
           <button
             onClick={onBack}
-            className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors text-sm`}
+            className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors text-sm`}
           >
             <ArrowLeft className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span className="font-medium">Back</span>}
+            {isExpanded && <span className="font-medium">Back</span>}
           </button>
         </SidebarTooltip>
       </div>

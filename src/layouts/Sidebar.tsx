@@ -1,4 +1,5 @@
-import { Menu, X, User, LogOut } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Pin, PinOff, User, LogOut } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import CreateDropdown from '../components/CreateDropdown';
 import type { Section } from '../lib/routes';
@@ -36,6 +37,10 @@ interface SidebarProps {
   onCreateQuote?: () => void;
 }
 
+// Hover timing constants (in ms)
+const EXPAND_DELAY = 300;
+const COLLAPSE_DELAY = 500;
+
 export default function Sidebar({
   sidebarOpen,
   setSidebarOpen,
@@ -55,10 +60,75 @@ export default function Sidebar({
   onCreateRequest,
   onCreateQuote
 }: SidebarProps) {
+  // Hover-to-peek state
+  const [isPeeking, setIsPeeking] = useState(false);
+  const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isHoveringRef = useRef(false);
+
+  // Sidebar is expanded if pinned open OR peeking
+  const isExpanded = sidebarOpen || isPeeking;
+
+  const clearTimeouts = useCallback(() => {
+    if (expandTimeoutRef.current) {
+      clearTimeout(expandTimeoutRef.current);
+      expandTimeoutRef.current = null;
+    }
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    isHoveringRef.current = true;
+    clearTimeouts();
+
+    // Only peek if not already pinned open
+    if (!sidebarOpen) {
+      expandTimeoutRef.current = setTimeout(() => {
+        if (isHoveringRef.current) {
+          setIsPeeking(true);
+        }
+      }, EXPAND_DELAY);
+    }
+  }, [sidebarOpen, clearTimeouts]);
+
+  const handleMouseLeave = useCallback(() => {
+    isHoveringRef.current = false;
+    clearTimeouts();
+
+    // Only collapse if peeking (not pinned open)
+    if (isPeeking) {
+      collapseTimeoutRef.current = setTimeout(() => {
+        if (!isHoveringRef.current) {
+          setIsPeeking(false);
+        }
+      }, COLLAPSE_DELAY);
+    }
+  }, [isPeeking, clearTimeouts]);
+
+  const handleTogglePin = useCallback(() => {
+    clearTimeouts();
+    if (sidebarOpen) {
+      // Unpin - collapse
+      setSidebarOpen(false);
+      setIsPeeking(false);
+    } else {
+      // Pin open
+      setSidebarOpen(true);
+      setIsPeeking(false);
+    }
+  }, [sidebarOpen, setSidebarOpen, clearTimeouts]);
+
   return (
-    <div className={`${sidebarOpen ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col overflow-visible`}>
+    <div
+      className={`${isExpanded ? 'w-64' : 'w-20'} h-full bg-gray-900 text-white transition-all duration-300 flex flex-col overflow-visible`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="p-3 border-b border-gray-800">
-        {sidebarOpen ? (
+        {isExpanded ? (
           <div className="flex items-center justify-between">
             <img src="/logo-transparent.png" alt="Discount Fence USA" className="h-10 w-auto" />
             <div className="flex items-center gap-3">
@@ -75,17 +145,18 @@ export default function Sidebar({
                   }
                 })()}
               </p>
-              <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
+              <button
+                onClick={handleTogglePin}
+                className={`p-1 rounded transition-colors ${sidebarOpen ? 'text-blue-400 hover:text-blue-300' : 'text-gray-400 hover:text-white'}`}
+                title={sidebarOpen ? 'Unpin sidebar' : 'Pin sidebar open'}
+              >
+                {sidebarOpen ? <Pin className="w-4 h-4" /> : <PinOff className="w-4 h-4" />}
               </button>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <img src="/logo-transparent.png" alt="Logo" className="h-10 w-auto" />
-            <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-white">
-              <Menu className="w-6 h-6" />
-            </button>
           </div>
         )}
       </div>
@@ -94,7 +165,7 @@ export default function Sidebar({
       {onCreateRequest && (
         <div className="px-3 pt-3 pb-1">
           <CreateDropdown
-            sidebarOpen={sidebarOpen}
+            sidebarOpen={isExpanded}
             onCreateRequest={onCreateRequest}
             onCreateQuote={onCreateQuote}
           />
@@ -111,7 +182,7 @@ export default function Sidebar({
               {item.separator && <div className="my-2 border-t border-gray-700"></div>}
               <SidebarTooltip
                 label={item.name}
-                showTooltip={!sidebarOpen}
+                showTooltip={!isExpanded}
                 badge={item.badge}
               >
                 <button
@@ -126,10 +197,10 @@ export default function Sidebar({
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && (
+                  {isExpanded && (
                     <span className="font-medium text-sm flex-1 text-left">{item.name}</span>
                   )}
-                  {isDisabled && sidebarOpen && (
+                  {isDisabled && isExpanded && (
                     <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Soon</span>
                   )}
                   {!isDisabled && item.badge && item.badge > 0 && (
@@ -146,7 +217,7 @@ export default function Sidebar({
 
       <div className="p-4 border-t border-gray-800">
         {/* View Mode Switcher */}
-        {sidebarOpen && (
+        {isExpanded && (
           <div className="mb-3">
             <button
               onClick={() => setViewMode('mobile')}
@@ -158,7 +229,7 @@ export default function Sidebar({
         )}
 
         {/* Role Switcher for Admin Only - show based on authenticated profile, not current view */}
-        {sidebarOpen && profileRole === 'admin' && (
+        {isExpanded && profileRole === 'admin' && (
           <div className="mb-3">
             <p className="text-xs text-gray-400 mb-2">Switch View (Admin):</p>
             <select
@@ -182,7 +253,7 @@ export default function Sidebar({
         <div className="flex items-center gap-2">
           <SidebarTooltip
             label={profileFullName || userName}
-            showTooltip={!sidebarOpen}
+            showTooltip={!isExpanded}
           >
             <button
               onClick={() => setShowProfileView(true)}
@@ -199,7 +270,7 @@ export default function Sidebar({
                   <User className="w-5 h-5 text-white" />
                 </div>
               )}
-              {sidebarOpen && (
+              {isExpanded && (
                 <div className="flex-1 min-w-0 text-left">
                   <p className="font-medium text-xs text-white truncate">
                     {profileFullName || userName}
@@ -211,7 +282,7 @@ export default function Sidebar({
           </SidebarTooltip>
 
           {/* Logout Button */}
-          {user && sidebarOpen && (
+          {user && isExpanded && (
             <button
               onClick={() => signOut()}
               className="p-2 text-gray-300 hover:bg-gray-800 hover:text-red-400 rounded-lg transition-colors"

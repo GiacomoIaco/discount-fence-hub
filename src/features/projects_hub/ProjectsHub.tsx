@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -8,8 +8,8 @@ import {
   CreditCard,
   ChevronRight,
   Briefcase,
-  PanelLeftClose,
-  PanelLeft,
+  Pin,
+  PinOff,
   FolderKanban,
 } from 'lucide-react';
 import type { ProjectsHubView } from './types';
@@ -24,6 +24,10 @@ import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
 const STORAGE_KEY = 'sidebar-collapsed-projects-hub';
+
+// Hover timing constants (in ms)
+const EXPAND_DELAY = 300;
+const COLLAPSE_DELAY = 500;
 
 const NAV_ITEMS: { key: ProjectsHubView; label: string; icon: typeof LayoutDashboard; comingSoon?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -76,11 +80,52 @@ export default function ProjectsHub({
   };
 
   const [activeView, setActiveView] = useState<ProjectsHubView>(getInitialView);
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'true';
-  });
+
+  // Load initial state from localStorage (hover-to-expand pattern)
+  const getInitialSidebarState = () => {
+    if (typeof window === 'undefined') return { pinned: false, collapsed: true };
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          pinned: parsed.pinned ?? false,
+          collapsed: parsed.collapsed ?? true,
+        };
+      }
+    } catch {
+      // Legacy format (just boolean string) - migrate to new format
+      const legacy = localStorage.getItem(STORAGE_KEY);
+      if (legacy === 'true' || legacy === 'false') {
+        return { pinned: false, collapsed: legacy === 'true' };
+      }
+    }
+    return { pinned: false, collapsed: true };
+  };
+
+  const initialSidebar = getInitialSidebarState();
+  const [pinned, setPinned] = useState(initialSidebar.pinned);
+  const [collapsed, setCollapsed] = useState(initialSidebar.collapsed);
+  const [isPeeking, setIsPeeking] = useState(false);
+
+  // Refs for timeout management
+  const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isHoveringRef = useRef(false);
+
+  // Sidebar is expanded if pinned open OR peeking
+  const isExpanded = pinned || isPeeking || !collapsed;
+
+  const clearTimeouts = useCallback(() => {
+    if (expandTimeoutRef.current) {
+      clearTimeout(expandTimeoutRef.current);
+      expandTimeoutRef.current = null;
+    }
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+  }, []);
 
   // Project-First architecture state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -139,10 +184,53 @@ export default function ProjectsHub({
     }
   }, [externalClearEntity, navigateTo, activeView]);
 
-  // Persist collapsed state
+  // Persist sidebar state to localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(collapsed));
-  }, [collapsed]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ pinned, collapsed }));
+  }, [pinned, collapsed]);
+
+  const handleSidebarMouseEnter = useCallback(() => {
+    isHoveringRef.current = true;
+    clearTimeouts();
+
+    // Only peek if collapsed and not pinned
+    if (collapsed && !pinned) {
+      expandTimeoutRef.current = setTimeout(() => {
+        if (isHoveringRef.current) {
+          setIsPeeking(true);
+        }
+      }, EXPAND_DELAY);
+    }
+  }, [collapsed, pinned, clearTimeouts]);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    isHoveringRef.current = false;
+    clearTimeouts();
+
+    // Only collapse if peeking (not pinned open)
+    if (isPeeking) {
+      collapseTimeoutRef.current = setTimeout(() => {
+        if (!isHoveringRef.current) {
+          setIsPeeking(false);
+        }
+      }, COLLAPSE_DELAY);
+    }
+  }, [isPeeking, clearTimeouts]);
+
+  const handleTogglePin = useCallback(() => {
+    clearTimeouts();
+    if (pinned) {
+      // Unpin - go to collapsed state
+      setPinned(false);
+      setCollapsed(true);
+      setIsPeeking(false);
+    } else {
+      // Pin open
+      setPinned(true);
+      setCollapsed(false);
+      setIsPeeking(false);
+    }
+  }, [pinned, clearTimeouts]);
 
   // Get entity context for the current view's entity type
   const getViewEntityContext = (viewType: 'request' | 'quote' | 'job' | 'invoice'): EntityContext | null => {
@@ -314,25 +402,29 @@ export default function ProjectsHub({
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className={`${collapsed ? 'w-14' : 'w-56'} bg-gradient-to-b from-blue-800 to-indigo-900 text-white flex flex-col transition-all duration-300`}>
+      <div
+        className={`${isExpanded ? 'w-56' : 'w-14'} bg-gradient-to-b from-blue-800 to-indigo-900 text-white flex flex-col transition-all duration-300`}
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
+      >
         {/* Header */}
         <div className="p-3 border-b border-blue-700">
-          <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
-            {!collapsed && (
+          <div className={`flex items-center ${!isExpanded ? 'justify-center' : 'justify-between'}`}>
+            {isExpanded && (
               <h1 className="text-lg font-bold flex items-center gap-2">
                 <Briefcase className="w-5 h-5" />
                 Projects Hub
               </h1>
             )}
             <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 text-blue-200 hover:text-white hover:bg-white/10 rounded transition-colors"
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              onClick={handleTogglePin}
+              className={`p-1.5 rounded transition-colors ${pinned ? 'text-blue-300 hover:text-white' : 'text-blue-200 hover:text-white hover:bg-white/10'}`}
+              title={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
             >
-              {collapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+              {pinned ? <Pin className="w-4 h-4" /> : <PinOff className="w-4 h-4" />}
             </button>
           </div>
-          {!collapsed && <p className="text-xs text-blue-200 mt-1">Manage the full job lifecycle</p>}
+          {isExpanded && <p className="text-xs text-blue-200 mt-1">Manage the full job lifecycle</p>}
         </div>
 
         {/* Navigation */}
@@ -341,7 +433,7 @@ export default function ProjectsHub({
             const Icon = item.icon;
             const isActive = activeView === item.key;
             return (
-              <SidebarTooltip key={item.key} label={item.label} showTooltip={collapsed}>
+              <SidebarTooltip key={item.key} label={item.label} showTooltip={!isExpanded}>
                 <button
                   onClick={() => {
                     // Clear project selection when navigating via sidebar
@@ -360,7 +452,7 @@ export default function ProjectsHub({
                     navigateTo(route);
                     setActiveView(item.key);
                   }}
-                  className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? 'bg-white/20 text-white shadow-lg'
                       : item.comingSoon
@@ -369,7 +461,7 @@ export default function ProjectsHub({
                   }`}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  {!collapsed && (
+                  {isExpanded && (
                     <>
                       <span className="flex-1 text-left">{item.label}</span>
                       {item.comingSoon && (
