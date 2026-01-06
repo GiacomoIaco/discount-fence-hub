@@ -16,7 +16,6 @@ import {
   MapPin,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { SidebarTooltip } from '../../../components/sidebar';
 
 // Hover timing constants (in ms)
 const EXPAND_DELAY = 300;
@@ -184,21 +183,15 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
       </button>
     );
 
-    return (
-      <SidebarTooltip key={item.id} label={item.label} showTooltip={!isExpanded}>
-        {button}
-      </SidebarTooltip>
-    );
+    return button;
   };
 
   const renderSectionHeader = (label: string) => {
     if (!isExpanded) {
       return (
-        <SidebarTooltip label={label} showTooltip={true}>
-          <div className="flex justify-center py-1">
-            <div className="w-1 h-1 bg-slate-500 rounded-full" />
-          </div>
-        </SidebarTooltip>
+        <div className="flex justify-center py-1">
+          <div className="w-1 h-1 bg-slate-500 rounded-full" />
+        </div>
       );
     }
     return (
@@ -258,15 +251,13 @@ export default function SettingsSidebar({ activePage, onPageChange, onBack }: Se
 
       {/* Back to Main App */}
       <div className="p-2 border-t border-slate-700">
-        <SidebarTooltip label="Back to Main App" showTooltip={!isExpanded}>
-          <button
-            onClick={onBack}
-            className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors text-sm`}
-          >
-            <ArrowLeft className="w-4 h-4 flex-shrink-0" />
-            {isExpanded && <span className="font-medium">Back</span>}
-          </button>
-        </SidebarTooltip>
+        <button
+          onClick={onBack}
+          className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors text-sm`}
+        >
+          <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+          {isExpanded && <span className="font-medium">Back</span>}
+        </button>
       </div>
     </div>
   );

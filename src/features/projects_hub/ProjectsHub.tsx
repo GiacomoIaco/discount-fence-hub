@@ -19,7 +19,6 @@ import { ProjectPage, ProjectCreateWizard, ProjectContextHeader, type ProjectWiz
 import { QuoteCard } from '../fsm/components/QuoteCard';
 import { useProjectFull } from '../fsm/hooks/useProjects';
 import { useQuote } from '../fsm/hooks/useQuotes';
-import { SidebarTooltip } from '../../components/sidebar';
 import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
@@ -433,45 +432,44 @@ export default function ProjectsHub({
             const Icon = item.icon;
             const isActive = activeView === item.key;
             return (
-              <SidebarTooltip key={item.key} label={item.label} showTooltip={!isExpanded}>
-                <button
-                  onClick={() => {
-                    // Clear project selection when navigating via sidebar
-                    setSelectedProjectId(null);
-                    setCreatingQuoteForProjectId(null);
-                    setEditingQuoteId(null);
-                    setQuoteViewMode('create');
-                    setShowCreateWizard(false);
-                    // Navigate to the appropriate route (clears URL params)
-                    const route = item.key === 'dashboard' ? 'projects-hub' :
-                                  item.key === 'projects' ? 'projects-hub' :
-                                  item.key === 'requests' ? 'requests' :
-                                  item.key === 'quotes' ? 'quotes' :
-                                  item.key === 'jobs' ? 'jobs' :
-                                  item.key === 'invoices' ? 'invoices' : 'projects-hub';
-                    navigateTo(route);
-                    setActiveView(item.key);
-                  }}
-                  className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-white/20 text-white shadow-lg'
-                      : item.comingSoon
-                      ? 'text-blue-300/60 hover:bg-white/5'
-                      : 'text-blue-100 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {isExpanded && (
-                    <>
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {item.comingSoon && (
-                        <span className="text-[10px] bg-blue-600/50 px-1.5 py-0.5 rounded">Soon</span>
-                      )}
-                      {isActive && !item.comingSoon && <ChevronRight className="w-4 h-4" />}
-                    </>
-                  )}
-                </button>
-              </SidebarTooltip>
+              <button
+                key={item.key}
+                onClick={() => {
+                  // Clear project selection when navigating via sidebar
+                  setSelectedProjectId(null);
+                  setCreatingQuoteForProjectId(null);
+                  setEditingQuoteId(null);
+                  setQuoteViewMode('create');
+                  setShowCreateWizard(false);
+                  // Navigate to the appropriate route (clears URL params)
+                  const route = item.key === 'dashboard' ? 'projects-hub' :
+                                item.key === 'projects' ? 'projects-hub' :
+                                item.key === 'requests' ? 'requests' :
+                                item.key === 'quotes' ? 'quotes' :
+                                item.key === 'jobs' ? 'jobs' :
+                                item.key === 'invoices' ? 'invoices' : 'projects-hub';
+                  navigateTo(route);
+                  setActiveView(item.key);
+                }}
+                className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-white/20 text-white shadow-lg'
+                    : item.comingSoon
+                    ? 'text-blue-300/60 hover:bg-white/5'
+                    : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                {isExpanded && (
+                  <>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {item.comingSoon && (
+                      <span className="text-[10px] bg-blue-600/50 px-1.5 py-0.5 rounded">Soon</span>
+                    )}
+                    {isActive && !item.comingSoon && <ChevronRight className="w-4 h-4" />}
+                  </>
+                )}
+              </button>
             );
           })}
         </nav>

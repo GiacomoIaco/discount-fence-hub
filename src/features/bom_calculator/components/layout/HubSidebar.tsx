@@ -23,7 +23,6 @@ import {
   Palette,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { SidebarTooltip } from '../../../../components/sidebar';
 
 // Hover timing constants (in ms)
 const EXPAND_DELAY = 300;
@@ -192,11 +191,7 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
       </button>
     );
 
-    return (
-      <SidebarTooltip key={item.id} label={item.label} showTooltip={!isExpanded}>
-        {button}
-      </SidebarTooltip>
-    );
+    return button;
   };
 
   return (
@@ -243,11 +238,9 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
           </div>
         )}
         {!isExpanded && (
-          <SidebarTooltip label="Yard" showTooltip={true}>
-            <div className="flex justify-center py-1">
-              <Warehouse className="w-3 h-3 text-amber-400" />
-            </div>
-          </SidebarTooltip>
+          <div className="flex justify-center py-1">
+            <Warehouse className="w-3 h-3 text-amber-400" />
+          </div>
         )}
         {YARD_NAV_ITEMS.map(renderNavItem)}
 
@@ -263,32 +256,28 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
               </div>
             )}
             {!isExpanded && (
-              <SidebarTooltip label="Admin" showTooltip={true}>
-                <div className="flex justify-center py-1">
-                  <Settings2 className="w-3 h-3 text-blue-300" />
-                </div>
-              </SidebarTooltip>
+              <div className="flex justify-center py-1">
+                <Settings2 className="w-3 h-3 text-blue-300" />
+              </div>
             )}
             {ADMIN_NAV_ITEMS.map(renderNavItem)}
 
             {/* v2 Beta Button */}
             {onOpenV2 && (
-              <SidebarTooltip label="Try v2 Beta" showTooltip={!isExpanded}>
-                <button
-                  onClick={onOpenV2}
-                  className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 mt-2 rounded-lg bg-purple-600/20 text-purple-200 hover:bg-purple-600/30 transition-colors text-left text-sm border border-purple-500/30`}
-                >
-                  <FlaskConical className="w-4 h-4 flex-shrink-0" />
-                  {isExpanded && (
-                    <>
-                      <span className="flex-1 font-medium truncate">Try v2 Beta</span>
-                      <span className="px-1.5 py-0.5 text-[10px] bg-purple-500/40 text-purple-100 rounded">
-                        NEW
-                      </span>
-                    </>
-                  )}
-                </button>
-              </SidebarTooltip>
+              <button
+                onClick={onOpenV2}
+                className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 mt-2 rounded-lg bg-purple-600/20 text-purple-200 hover:bg-purple-600/30 transition-colors text-left text-sm border border-purple-500/30`}
+              >
+                <FlaskConical className="w-4 h-4 flex-shrink-0" />
+                {isExpanded && (
+                  <>
+                    <span className="flex-1 font-medium truncate">Try v2 Beta</span>
+                    <span className="px-1.5 py-0.5 text-[10px] bg-purple-500/40 text-purple-100 rounded">
+                      NEW
+                    </span>
+                  </>
+                )}
+              </button>
             )}
           </>
         )}
@@ -296,15 +285,13 @@ export default function HubSidebar({ activePage, onPageChange, onBack, isAdmin, 
 
       {/* Back to Main App */}
       <div className="p-2 border-t border-blue-800">
-        <SidebarTooltip label="Back to Main App" showTooltip={!isExpanded}>
-          <button
-            onClick={onBack}
-            className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-blue-200 hover:bg-blue-800/50 transition-colors text-sm`}
-          >
-            <ArrowLeft className="w-4 h-4 flex-shrink-0" />
-            {isExpanded && <span className="font-medium">Back</span>}
-          </button>
-        </SidebarTooltip>
+        <button
+          onClick={onBack}
+          className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-blue-200 hover:bg-blue-800/50 transition-colors text-sm`}
+        >
+          <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+          {isExpanded && <span className="font-medium">Back</span>}
+        </button>
       </div>
     </div>
   );

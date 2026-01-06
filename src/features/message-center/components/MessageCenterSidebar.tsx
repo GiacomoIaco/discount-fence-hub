@@ -11,7 +11,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { SidebarTooltip } from '../../../components/sidebar';
 import type { ConversationFilter, ConversationCounts } from '../types';
 
 // Hover timing constants (in ms)
@@ -172,11 +171,7 @@ export function MessageCenterSidebar({
       </button>
     );
 
-    return (
-      <SidebarTooltip key={item.id} label={`${item.label} (${count})`} showTooltip={!isExpanded}>
-        {button}
-      </SidebarTooltip>
-    );
+    return button;
   };
 
   return (
@@ -215,14 +210,12 @@ export function MessageCenterSidebar({
 
       {/* Service Phone Plan button like Workiz */}
       <div className="p-2 border-t border-blue-700">
-        <SidebarTooltip label="Connect Phone Service" showTooltip={!isExpanded}>
-          <button
-            className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-blue-200 hover:bg-blue-700/50 transition-colors text-sm`}
-          >
-            <Phone className="w-4 h-4 flex-shrink-0" />
-            {isExpanded && <span className="font-medium text-xs">Connect QUO Phone</span>}
-          </button>
-        </SidebarTooltip>
+        <button
+          className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-2'} px-3 py-2 rounded-lg text-blue-200 hover:bg-blue-700/50 transition-colors text-sm`}
+        >
+          <Phone className="w-4 h-4 flex-shrink-0" />
+          {isExpanded && <span className="font-medium text-xs">Connect QUO Phone</span>}
+        </button>
       </div>
     </div>
   );
