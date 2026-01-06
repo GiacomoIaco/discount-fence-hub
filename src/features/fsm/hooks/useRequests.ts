@@ -49,7 +49,7 @@ export function useRequests(filters?: RequestFilters) {
           client:clients(id, name),
           community:communities(id, name),
           property:properties(id, address_line1),
-          qbo_class:qbo_classes(id, name, bu_type, location_code)
+          qbo_class:qbo_classes(id, name, bu_type, location_code, labor_code)
         `)
         .order('created_at', { ascending: false });
 
@@ -123,7 +123,7 @@ export function useRequest(id: string | undefined) {
           community:communities(id, name),
           property:properties(id, address_line1, lot_number),
           territory:territories(id, name, code),
-          qbo_class:qbo_classes(id, name, bu_type, location_code)
+          qbo_class:qbo_classes(id, name, bu_type, location_code, labor_code)
         `)
         .eq('id', id)
         .single();

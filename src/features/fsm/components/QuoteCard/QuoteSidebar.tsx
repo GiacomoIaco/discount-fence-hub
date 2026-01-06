@@ -22,7 +22,12 @@ import {
 } from 'lucide-react';
 import type { QuoteCardMode, QuoteTotals, QuoteValidation } from './types';
 import { PAYMENT_TERMS_OPTIONS, PRODUCT_TYPE_OPTIONS } from './types';
-import { useSalesReps } from '../../hooks/useSalesReps';
+import { useRepsByQboClass } from '../../hooks/useSalesReps';
+
+// Currency formatter with commas
+const formatCurrency = (amount: number): string => {
+  return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 interface QuoteSidebarProps {
   mode: QuoteCardMode;
@@ -34,6 +39,8 @@ interface QuoteSidebarProps {
   discountPercent: string;
   taxRate: string;
   salesRepId: string;
+  /** QBO Class ID for filtering reps by Business Unit */
+  qboClassId?: string | null;
   totals: QuoteTotals;
   validation: QuoteValidation;
   onFieldChange: (field: string, value: string) => void;
@@ -84,12 +91,14 @@ export default function QuoteSidebar({
   discountPercent,
   taxRate,
   salesRepId,
+  qboClassId,
   totals,
   validation,
   onFieldChange,
 }: QuoteSidebarProps) {
   const isEditable = mode !== 'view';
-  const { data: salesReps } = useSalesReps();
+  // Filter reps by QBO class (Business Unit) when available
+  const { data: salesReps } = useRepsByQboClass(qboClassId);
   const selectedSalesRep = salesReps?.find(r => r.id === salesRepId);
 
   return (
@@ -252,47 +261,47 @@ export default function QuoteSidebar({
             <div className="text-xs text-gray-500 uppercase font-medium">Estimated Costs</div>
             <div className="flex justify-between">
               <span className="text-gray-600">Materials:</span>
-              <span>${totals.materialCost.toFixed(2)}</span>
+              <span>${formatCurrency(totals.materialCost)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Labor:</span>
-              <span>${totals.laborCost.toFixed(2)}</span>
+              <span>${formatCurrency(totals.laborCost)}</span>
             </div>
             <div className="flex justify-between border-t pt-2">
               <span className="text-gray-600">Total Cost:</span>
-              <span className="font-medium">${(totals.materialCost + totals.laborCost).toFixed(2)}</span>
+              <span className="font-medium">${formatCurrency(totals.materialCost + totals.laborCost)}</span>
             </div>
 
             <div className="text-xs text-gray-500 uppercase font-medium mt-4">Pricing</div>
             <div className="flex justify-between">
               <span className="text-gray-600">Subtotal:</span>
-              <span>${totals.subtotal.toFixed(2)}</span>
+              <span>${formatCurrency(totals.subtotal)}</span>
             </div>
             {totals.discountAmount > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Discount:</span>
-                <span className="text-green-600">-${totals.discountAmount.toFixed(2)}</span>
+                <span className="text-green-600">-${formatCurrency(totals.discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between">
               <span className="text-gray-600">Tax:</span>
-              <span>${totals.taxAmount.toFixed(2)}</span>
+              <span>${formatCurrency(totals.taxAmount)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Quote Total:</span>
-              <span className="font-semibold">${totals.total.toFixed(2)}</span>
+              <span className="font-semibold">${formatCurrency(totals.total)}</span>
             </div>
             {totals.depositAmount > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Deposit Due:</span>
-                <span className="text-purple-600">${totals.depositAmount.toFixed(2)}</span>
+                <span className="text-purple-600">${formatCurrency(totals.depositAmount)}</span>
               </div>
             )}
 
             <div className="text-xs text-gray-500 uppercase font-medium mt-4">Margin</div>
             <div className="flex justify-between">
               <span className="text-gray-600">Gross Profit:</span>
-              <span>${totals.grossProfit.toFixed(2)}</span>
+              <span>${formatCurrency(totals.grossProfit)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Gross Margin:</span>

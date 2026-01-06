@@ -23,7 +23,7 @@ export function useJobs(filters?: JobFilters) {
           client:clients(id, name, code),
           community:communities(id, name),
           assigned_crew:crews(id, name, code),
-          qbo_class:qbo_classes(id, name, bu_type, location_code)
+          qbo_class:qbo_classes(id, name, bu_type, location_code, labor_code)
         `)
         .order('created_at', { ascending: false });
 
@@ -80,7 +80,7 @@ export function useJob(id: string | undefined) {
           assigned_crew:crews(id, name, code, crew_size),
           quote:quotes(id, quote_number, total),
           visits:job_visits(*),
-          qbo_class:qbo_classes(id, name, bu_type, location_code)
+          qbo_class:qbo_classes(id, name, bu_type, location_code, labor_code)
         `)
         .eq('id', id)
         .single();

@@ -1,14 +1,21 @@
 /**
  * QuoteHeader - Header component for QuoteCard
  *
- * Shows quote number, status badge, and action buttons.
+ * Shows quote number, status badge, BU badge, and action buttons.
  * Actions change based on mode and quote status.
  */
 
-import { ArrowLeft, FileText, Save, Send, Check, Briefcase, Edit2, XCircle } from 'lucide-react';
+import { ArrowLeft, FileText, Save, Send, Check, Briefcase, Edit2, XCircle, Building2 } from 'lucide-react';
 import type { Quote, QuoteStatus } from '../../types';
 import type { QuoteCardMode, QuoteValidation } from './types';
 import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS } from '../../types';
+
+// BU type colors
+const BU_TYPE_COLORS: Record<string, string> = {
+  residential: 'bg-blue-100 text-blue-700 border-blue-200',
+  builders: 'bg-orange-100 text-orange-700 border-orange-200',
+  commercial: 'bg-green-100 text-green-700 border-green-200',
+};
 
 interface QuoteHeaderProps {
   mode: QuoteCardMode;
@@ -42,6 +49,12 @@ export default function QuoteHeader({
   const status = quote?.status as QuoteStatus | undefined;
   const statusLabel = status ? QUOTE_STATUS_LABELS[status] : 'Draft';
   const statusColor = status ? QUOTE_STATUS_COLORS[status] : 'bg-gray-100 text-gray-700';
+
+  // QBO Class / Business Unit info
+  const qboClass = quote?.qbo_class;
+  const buLabel = qboClass?.labor_code || qboClass?.name;
+  const buType = qboClass?.bu_type || 'residential';
+  const buColor = BU_TYPE_COLORS[buType] || BU_TYPE_COLORS.residential;
 
   // Determine available actions based on mode and status
   const showSaveButton = mode !== 'view';
@@ -77,6 +90,12 @@ export default function QuoteHeader({
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColor}`}>
                     {statusLabel}
                   </span>
+                  {buLabel && (
+                    <span className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${buColor}`}>
+                      <Building2 className="w-3 h-3" />
+                      {buLabel}
+                    </span>
+                  )}
                   {validation.needsApproval && (
                     <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">
                       Needs Approval

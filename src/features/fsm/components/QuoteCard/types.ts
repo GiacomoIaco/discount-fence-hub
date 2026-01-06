@@ -52,6 +52,9 @@ export interface LineItemFormState {
   unit_price: number;
   unit_cost: number;
   sku_id?: string | null;
+  sku_code?: string | null;
+  /** Product type code from SKU (e.g., "WV" for Wood Vertical) */
+  product_type_code?: string | null;
   pricing_source?: string | null;
   isNew?: boolean;
   isDeleted?: boolean;

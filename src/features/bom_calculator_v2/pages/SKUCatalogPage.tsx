@@ -53,6 +53,37 @@ interface SKUCatalogPageProps {
   isAdmin?: boolean;
 }
 
+/**
+ * Helper to calculate total labor cost from labor_codes JSONB and a BU's labor rates
+ * @param laborCodes - JSONB object mapping labor group codes to labor SKU(s)
+ * @param laborSkuToRateMap - Map of labor_sku -> rate for a specific BU
+ * @param standardLength - Standard length for calculation (100 LF)
+ * @returns Total labor cost for the standard length
+ */
+function calculateLaborCostFromCodes(
+  laborCodes: Record<string, string | string[]> | null,
+  laborSkuToRateMap: Record<string, number>,
+  standardLength: number
+): number {
+  if (!laborCodes) return 0;
+
+  let totalLaborCost = 0;
+  for (const value of Object.values(laborCodes)) {
+    if (Array.isArray(value)) {
+      // Multiple labor codes (e.g., other_labor group)
+      for (const laborSku of value) {
+        const rate = laborSkuToRateMap[laborSku] || 0;
+        totalLaborCost += standardLength * rate;
+      }
+    } else if (value) {
+      // Single labor code
+      const rate = laborSkuToRateMap[value] || 0;
+      totalLaborCost += standardLength * rate;
+    }
+  }
+  return totalLaborCost;
+}
+
 export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPageProps) {
   const queryClient = useQueryClient();
 
@@ -124,6 +155,33 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
       return data as { id: string; labor_sku: string }[];
     },
   });
+
+  // Fetch ALL labor rates for ALL business units (for recalculation to populate sku_labor_costs_v2)
+  const { data: allLaborRates = [] } = useQuery({
+    queryKey: ['all-labor-rates'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('labor_rates')
+        .select('business_unit_id, labor_code_id, rate');
+      if (error) throw error;
+      return data as { business_unit_id: string; labor_code_id: string; rate: number }[];
+    },
+  });
+
+  // Build a nested map: business_unit_id -> labor_sku -> rate
+  const allLaborRatesByBU = useMemo(() => {
+    const byBU: Record<string, Record<string, number>> = {};
+    for (const bu of businessUnits) {
+      byBU[bu.id] = {};
+    }
+    for (const lr of allLaborRates) {
+      const laborCode = laborCodes.find(lc => lc.id === lr.labor_code_id);
+      if (laborCode && byBU[lr.business_unit_id]) {
+        byBU[lr.business_unit_id][laborCode.labor_sku] = lr.rate;
+      }
+    }
+    return byBU;
+  }, [businessUnits, allLaborRates, laborCodes]);
 
   // Build labor SKU to rate lookup based on selected BU
   const laborSkuToRate = useMemo(() => {
@@ -395,12 +453,49 @@ export function SKUCatalogPage({ onEditSKU, isAdmin = false }: SKUCatalogPagePro
         return false;
       }
 
+      // =============================================================================
+      // NEW: Populate sku_labor_costs_v2 for ALL Business Units
+      // =============================================================================
+      const laborCostRows = [];
+      const calculatedAt = new Date().toISOString();
+
+      for (const buId of Object.keys(allLaborRatesByBU)) {
+        const buRates = allLaborRatesByBU[buId];
+        const laborCostForBU = calculateLaborCostFromCodes(
+          laborCodesSelected,
+          buRates,
+          STANDARD_LENGTH
+        );
+
+        laborCostRows.push({
+          sku_id: sku.id,
+          business_unit_id: buId,
+          labor_cost: laborCostForBU,
+          labor_cost_per_foot: laborCostForBU / STANDARD_LENGTH,
+          calculated_at: calculatedAt,
+        });
+      }
+
+      if (laborCostRows.length > 0) {
+        // Upsert labor costs for all BUs
+        const { error: laborError } = await supabase
+          .from('sku_labor_costs_v2')
+          .upsert(laborCostRows, {
+            onConflict: 'sku_id,business_unit_id',
+          });
+
+        if (laborError) {
+          console.error(`Failed to update labor costs for SKU ${sku.sku_code}:`, laborError);
+          // Don't fail the whole operation, just log the error
+        }
+      }
+
       return true;
     } catch (err) {
       console.error(`Error recalculating SKU ${sku.sku_code}:`, err);
       return false;
     }
-  }, [laborRates]);
+  }, [laborRates, allLaborRatesByBU]);
 
   /**
    * Recalculate costs for all filtered SKUs

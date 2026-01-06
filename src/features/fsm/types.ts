@@ -361,7 +361,7 @@ export interface ServiceRequest {
   assessment_rep_user?: RepUser;     // Joined from user_profiles
   territory?: { id: string; name: string; code: string };
   project?: { id: string; project_number: string };
-  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
+  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null; labor_code: string | null };
 }
 
 export interface Quote {
@@ -461,7 +461,7 @@ export interface Quote {
   line_items?: QuoteLineItem[];
   sales_rep_user?: RepUser;          // Joined from user_profiles
   request?: { id: string; request_number: string };
-  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
+  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null; labor_code: string | null };
 }
 
 export interface QuoteLineItem {
@@ -600,7 +600,7 @@ export interface Job {
   assigned_rep_user?: RepUser;
   depends_on_job?: { id: string; job_number: string; name: string | null };
   visits?: JobVisit[];
-  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null };
+  qbo_class?: { id: string; name: string; bu_type: string; location_code: string | null; labor_code: string | null };
 
   // Variance calculations (from view)
   labor_hours_variance_pct?: number;

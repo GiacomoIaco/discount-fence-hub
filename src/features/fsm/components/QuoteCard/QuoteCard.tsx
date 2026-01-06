@@ -21,6 +21,7 @@ import QuoteSidebar from './QuoteSidebar';
 import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote } from '../../hooks/useQuotes';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
+import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -192,8 +193,8 @@ export default function QuoteCard({
     setMode('edit');
   }, []);
 
-  // Handle SKU selection with rate sheet resolution
-  const handleSkuSelect = useCallback((index: number, sku: SkuSearchResult | null) => {
+  // Handle SKU selection with rate sheet resolution and BU-specific labor cost
+  const handleSkuSelect = useCallback(async (index: number, sku: SkuSearchResult | null) => {
     if (!sku) {
       updateLineItem(index, {
         sku_id: null,
@@ -205,9 +206,25 @@ export default function QuoteCard({
       return;
     }
 
-    // Calculate total unit cost: material + labor
-    const materialCost = sku.standard_material_cost || 0;
-    const laborCost = sku.standard_labor_cost || 0;
+    // Material cost: standard_cost_per_foot is already per 1 LF (pre-computed)
+    const materialCost = sku.standard_cost_per_foot || 0;
+
+    // Labor cost: Fetch from sku_labor_costs_v2 based on quote's QBO class
+    // This ensures we get the correct labor rate for the Business Unit
+    let laborCost = 0;
+    const qboClassId = quote?.qbo_class_id;
+
+    if (qboClassId) {
+      // Fetch BU-specific labor cost from sku_labor_costs_v2
+      laborCost = await fetchSkuLaborCostPerFoot(sku.id, qboClassId);
+    }
+
+    // Fallback: If no QBO class or no labor cost found, use the stored labor cost
+    // (divided by 100 since it's stored per 100 LF)
+    if (laborCost === 0 && sku.standard_labor_cost) {
+      laborCost = sku.standard_labor_cost / 100;
+    }
+
     const totalUnitCost = materialCost + laborCost;
 
     // Default: use cost as price (only if no rate sheet - will show warning)
@@ -236,6 +253,8 @@ export default function QuoteCard({
 
     updateLineItem(index, {
       sku_id: sku.id,
+      sku_code: sku.sku_code,
+      product_type_code: sku.product_type_code,
       description: sku.sku_name,
       unit_type: 'LF',
       unit_price: unitPrice,
@@ -243,7 +262,7 @@ export default function QuoteCard({
       pricing_source: pricingSource,
       line_type: 'material',
     });
-  }, [updateLineItem, rateSheetPrices]);
+  }, [updateLineItem, rateSheetPrices, quote?.qbo_class_id]);
 
   // Handle sidebar field changes
   const handleSidebarFieldChange = useCallback((field: string, value: string) => {
@@ -406,6 +425,7 @@ export default function QuoteCard({
           discountPercent={form.discountPercent}
           taxRate={form.taxRate}
           salesRepId={form.salesRepId}
+          qboClassId={quote?.qbo_class_id || null}
           totals={totals}
           validation={validation}
           onFieldChange={handleSidebarFieldChange}

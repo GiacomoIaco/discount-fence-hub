@@ -12,6 +12,11 @@ import { LINE_TYPE_OPTIONS, UNIT_TYPE_OPTIONS } from './types';
 import SkuSearchCombobox from '../SkuSearchCombobox';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 
+// Currency formatter with commas
+const formatCurrency = (amount: number): string => {
+  return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 interface QuoteLineItemsProps {
   mode: QuoteCardMode;
   lineItems: LineItemFormState[];
@@ -43,18 +48,28 @@ export default function QuoteLineItems({
   const activeItems = lineItems.filter(li => !li.isDeleted);
 
   // Handle SKU selection with price resolution
+  // NOTE: This is the fallback handler. QuoteCard overrides this with onSkuSelect
+  // to use BU-specific labor costs from sku_labor_costs_v2.
   const handleSkuSelect = (index: number, sku: SkuSearchResult | null) => {
     if (onSkuSelect) {
       onSkuSelect(index, sku);
     } else if (sku) {
-      // Default behavior: populate from SKU
+      // Fallback behavior: populate from SKU using stored values
+      // Material: standard_cost_per_foot is already per 1 LF (pre-computed)
+      // Labor: standard_labor_cost is stored per 100 LF, so divide by 100
+      // NOTE: This won't be BU-specific. Use onSkuSelect for proper BU lookup.
+      const materialCost = sku.standard_cost_per_foot || 0;
+      const laborCost = (sku.standard_labor_cost || 0) / 100;
+      const totalCost = materialCost + laborCost;
       onUpdateItem(index, {
         sku_id: sku.id,
+        sku_code: sku.sku_code,
+        product_type_code: sku.product_type_code,
         description: sku.sku_name,
         unit_type: 'LF',
-        unit_price: sku.standard_cost_per_foot || 0,
-        unit_cost: sku.standard_material_cost || 0,
-        pricing_source: 'Catalog',
+        unit_price: totalCost,  // Default to cost as price (no rate sheet)
+        unit_cost: totalCost,
+        pricing_source: 'Catalog (No Rate Sheet)',
         line_type: 'material',
       });
     } else {
@@ -103,7 +118,7 @@ export default function QuoteLineItems({
         <div className="divide-y">
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-2 px-6 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
-            <div className="col-span-1">Type</div>
+            <div className="col-span-1">Product</div>
             <div className="col-span-3">Description</div>
             <div className="col-span-1 text-right">Qty</div>
             <div className="col-span-1">Unit</div>
@@ -123,14 +138,22 @@ export default function QuoteLineItems({
                 key={item.id || `new-${index}`}
                 className="grid grid-cols-12 gap-2 px-6 py-3 items-center hover:bg-gray-50"
               >
-                {/* Type */}
+                {/* Product Type */}
                 <div className="col-span-1">
-                  {isEditable ? (
+                  {item.product_type_code ? (
+                    // Show product type code with icon for SKU items
+                    <div className="flex items-center gap-1 text-xs" title={item.product_type_code}>
+                      <Icon className="w-3 h-3 text-gray-400" />
+                      <span className="font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
+                        {item.product_type_code}
+                      </span>
+                    </div>
+                  ) : isEditable ? (
+                    // For custom items, show line type selector
                     <select
                       value={item.line_type}
                       onChange={(e) => onUpdateItem(index, { line_type: e.target.value as LineItemFormState['line_type'] })}
                       className="w-full px-1.5 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
-                      disabled={!!item.sku_id}
                     >
                       {LINE_TYPE_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -165,6 +188,11 @@ export default function QuoteLineItems({
                               + Enter custom item
                             </button>
                           )}
+                          {item.sku_code && (
+                            <div className="text-xs text-gray-500">
+                              <span className="font-mono bg-gray-100 px-1 rounded">{item.sku_code}</span>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <>
@@ -193,7 +221,12 @@ export default function QuoteLineItems({
                       )}
                     </div>
                   ) : (
-                    <span className="text-sm text-gray-900">{item.description}</span>
+                    <div>
+                      {item.sku_code && (
+                        <div className="text-xs text-gray-500 font-mono">{item.sku_code}</div>
+                      )}
+                      <span className="text-sm text-gray-900">{item.description}</span>
+                    </div>
                   )}
                 </div>
 
@@ -241,7 +274,7 @@ export default function QuoteLineItems({
                     />
                   ) : (
                     <span className={`text-sm text-right block ${item.sku_id ? 'text-gray-500 bg-gray-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
-                      ${item.unit_price.toFixed(2)}
+                      ${formatCurrency(item.unit_price)}
                     </span>
                   )}
                 </div>
@@ -258,14 +291,14 @@ export default function QuoteLineItems({
                     />
                   ) : (
                     <span className={`text-sm text-right block ${item.sku_id ? 'text-gray-500 bg-gray-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
-                      ${item.unit_cost.toFixed(2)}
+                      ${formatCurrency(item.unit_cost)}
                     </span>
                   )}
                 </div>
 
                 {/* Line Total */}
                 <div className="col-span-1 text-right font-medium text-sm">
-                  ${lineTotal.toFixed(2)}
+                  ${formatCurrency(lineTotal)}
                 </div>
 
                 {/* Delete Button */}
@@ -288,21 +321,21 @@ export default function QuoteLineItems({
             <div className="flex justify-end gap-8 text-sm">
               <div className="text-right">
                 <div className="text-gray-500">Subtotal</div>
-                <div className="font-medium">${totals.subtotal.toFixed(2)}</div>
+                <div className="font-medium">${formatCurrency(totals.subtotal)}</div>
               </div>
               {totals.discountAmount > 0 && (
                 <div className="text-right">
                   <div className="text-gray-500">Discount</div>
-                  <div className="font-medium text-green-600">-${totals.discountAmount.toFixed(2)}</div>
+                  <div className="font-medium text-green-600">-${formatCurrency(totals.discountAmount)}</div>
                 </div>
               )}
               <div className="text-right">
                 <div className="text-gray-500">Tax</div>
-                <div className="font-medium">${totals.taxAmount.toFixed(2)}</div>
+                <div className="font-medium">${formatCurrency(totals.taxAmount)}</div>
               </div>
               <div className="text-right">
                 <div className="text-gray-500">Total</div>
-                <div className="text-xl font-bold">${totals.total.toFixed(2)}</div>
+                <div className="text-xl font-bold">${formatCurrency(totals.total)}</div>
               </div>
             </div>
           </div>

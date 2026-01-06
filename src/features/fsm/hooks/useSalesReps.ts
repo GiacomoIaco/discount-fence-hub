@@ -196,5 +196,85 @@ export function useAvailableSalesReps(territoryId?: string, productType?: string
   });
 }
 
+/**
+ * Fetch reps filtered by QBO Class (Business Unit).
+ *
+ * Uses fsm_team_profiles.assigned_qbo_class_ids to filter.
+ * When no qboClassId is provided, returns all reps.
+ */
+export function useRepsByQboClass(qboClassId?: string | null) {
+  return useQuery({
+    queryKey: ['sales_reps', 'by_qbo_class', qboClassId],
+    queryFn: async () => {
+      // First get FSM team profiles with 'rep' role
+      let teamQuery = supabase
+        .from('fsm_team_profiles')
+        .select('user_id, assigned_qbo_class_ids')
+        .eq('is_active', true)
+        .contains('fsm_roles', ['rep']);
+
+      const { data: teamProfiles, error: teamError } = await teamQuery;
+      if (teamError) throw teamError;
+
+      // Filter by QBO class if specified
+      let eligibleUserIds: string[];
+      if (qboClassId) {
+        // Filter to profiles that have this QBO class assigned
+        eligibleUserIds = (teamProfiles || [])
+          .filter(p => {
+            const assignedClasses = p.assigned_qbo_class_ids || [];
+            return assignedClasses.includes(qboClassId);
+          })
+          .map(p => p.user_id);
+      } else {
+        // No filter, return all rep users
+        eligibleUserIds = (teamProfiles || []).map(p => p.user_id);
+      }
+
+      // Also include Sales users that might not have FSM profiles
+      const { data: salesUsers, error: salesError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, phone, role')
+        .eq('role', 'Sales');
+
+      if (salesError) throw salesError;
+
+      // Combine: FSM reps (filtered by BU) + Sales users
+      const allUserIds = new Set([
+        ...eligibleUserIds,
+        ...(salesUsers || []).map(u => u.id),
+      ]);
+
+      // If QBO filter is active, remove Sales users not in filtered set
+      // Actually, if no QBO class assigned to sales user, we might want to include them
+      // For now, include all Sales users plus filtered FSM team members
+
+      // Fetch user profiles for all
+      if (allUserIds.size === 0) {
+        return [] as RepUser[];
+      }
+
+      const { data: users, error: usersError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, phone')
+        .in('id', Array.from(allUserIds));
+
+      if (usersError) throw usersError;
+
+      // Transform to RepUser structure
+      const reps: RepUser[] = (users || []).map(u => ({
+        id: u.id,
+        name: u.full_name || u.email || 'Unknown',
+        full_name: u.full_name,
+        email: u.email,
+        phone: u.phone,
+        is_active: true,
+      }));
+
+      return reps.sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
+}
+
 // Note: Create/Update/Delete mutations removed - use FSM Team Management instead
 // Manage reps through Settings > Team Management.
