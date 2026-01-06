@@ -2,6 +2,7 @@
  * ProjectsListView - List of projects with search/filter and navigation
  *
  * Part of the Project-First architecture (Phase 3H)
+ * Updated with responsive table/cards variant switching (Part 0.1)
  */
 
 import { useState } from 'react';
@@ -17,9 +18,15 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
+  DollarSign,
 } from 'lucide-react';
 import { useProjects } from '../../fsm/hooks/useProjects';
-import type { ProjectStatus } from '../../fsm/types';
+import type { ProjectStatus, Project } from '../../fsm/types';
+import {
+  useListVariant,
+  VariantToggle,
+  type ListVariant,
+} from '../../fsm/components/shared/ResponsiveList';
 
 const PROJECT_STATUS_CONFIG: Record<
   ProjectStatus,
@@ -60,15 +67,20 @@ const PROJECT_STATUS_CONFIG: Record<
 interface ProjectsListViewProps {
   onSelectProject: (projectId: string) => void;
   onCreateProject: () => void;
+  /** Initial list variant - defaults to 'auto' (switches at md breakpoint) */
+  initialVariant?: ListVariant;
 }
 
 export default function ProjectsListView({
   onSelectProject,
   onCreateProject,
+  initialVariant = 'auto',
 }: ProjectsListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [userVariant, setUserVariant] = useState<ListVariant>(initialVariant);
+  const effectiveVariant = useListVariant(userVariant);
 
   const { data: projects = [], isLoading } = useProjects();
 
@@ -160,8 +172,8 @@ export default function ProjectsListView({
       </div>
 
       {/* Search and Filters */}
-      <div className="flex gap-4">
-        <div className="flex-1 relative">
+      <div className="flex flex-wrap gap-4">
+        <div className="flex-1 min-w-[200px] relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
@@ -224,6 +236,13 @@ export default function ProjectsListView({
             </div>
           )}
         </div>
+        {/* Variant Toggle - hidden on mobile (auto switches anyway) */}
+        <div className="hidden md:block">
+          <VariantToggle
+            variant={effectiveVariant}
+            onChange={(v) => setUserVariant(v)}
+          />
+        </div>
       </div>
 
       {/* Projects List */}
@@ -250,7 +269,79 @@ export default function ProjectsListView({
             </button>
           )}
         </div>
+      ) : effectiveVariant === 'table' ? (
+        /* =============== TABLE VIEW =============== */
+        <div className="bg-white rounded-lg border overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-[1fr_180px_100px_100px_120px_80px_40px] gap-4 px-4 py-3 bg-gray-50 border-b font-medium text-sm text-gray-600">
+            <div>Client / Address</div>
+            <div className="hidden lg:block">Community</div>
+            <div>Status</div>
+            <div className="text-center">Quotes</div>
+            <div className="text-center">Jobs</div>
+            <div className="text-right">Value</div>
+            <div></div>
+          </div>
+          {/* Table Rows */}
+          <div className="divide-y divide-gray-100">
+            {sortedProjects.map((project, index) => {
+              const statusConfig = PROJECT_STATUS_CONFIG[project.status];
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => onSelectProject(project.id)}
+                  className="grid grid-cols-[1fr_180px_100px_100px_120px_80px_40px] gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors text-sm items-center"
+                >
+                  {/* Client / Address */}
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900 truncate">
+                      {project.client_display_name || project.name || 'Unnamed'}
+                    </div>
+                    <div className="text-gray-500 text-xs truncate flex items-center gap-1">
+                      <MapPin className="w-3 h-3 flex-shrink-0" />
+                      {project.property_address || 'No address'}
+                    </div>
+                  </div>
+                  {/* Community - hidden on smaller screens */}
+                  <div className="hidden lg:block text-gray-600 truncate">
+                    {project.community_name || '-'}
+                  </div>
+                  {/* Status */}
+                  <div>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}>
+                      {statusConfig.label}
+                    </span>
+                    {project.has_rework && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px]">
+                        !
+                      </span>
+                    )}
+                  </div>
+                  {/* Quotes */}
+                  <div className="text-center text-gray-600">
+                    {project.quote_count || 0}
+                  </div>
+                  {/* Jobs */}
+                  <div className="text-center text-gray-600">
+                    {project.job_count || 0}
+                  </div>
+                  {/* Value */}
+                  <div className="text-right font-medium text-gray-900">
+                    {(project.total_job_value ?? 0) > 0
+                      ? formatCurrency(project.total_job_value || 0)
+                      : '-'}
+                  </div>
+                  {/* Arrow */}
+                  <div className="text-right">
+                    <ArrowRight className="w-4 h-4 text-gray-400 inline-block" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : (
+        /* =============== CARD VIEW =============== */
         <div className="space-y-3">
           {sortedProjects.map((project) => {
             const statusConfig = PROJECT_STATUS_CONFIG[project.status];
@@ -287,7 +378,7 @@ export default function ProjectsListView({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="font-semibold text-gray-900 truncate">
-                        {project.project_number || project.name || 'Unnamed Project'}
+                        {project.client_display_name || project.name || 'Unnamed Project'}
                       </h3>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}
@@ -301,13 +392,7 @@ export default function ProjectsListView({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      {project.client_display_name && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          {project.client_display_name}
-                        </span>
-                      )}
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                       {project.property_address && (
                         <span className="flex items-center gap-1 truncate max-w-[200px]">
                           <MapPin className="w-4 h-4" />
@@ -323,12 +408,12 @@ export default function ProjectsListView({
                     </div>
 
                     {/* Stats row */}
-                    <div className="flex items-center gap-6 mt-2 text-sm">
+                    <div className="flex items-center gap-4 mt-2 text-sm">
                       <span className="text-gray-500">
-                        {project.quote_count || 0} quote(s)
+                        {project.quote_count || 0} quotes
                       </span>
                       <span className="text-gray-500">
-                        {project.job_count || 0} job(s)
+                        {project.job_count || 0} jobs
                       </span>
                       {(project.total_job_value ?? 0) > 0 && (
                         <span className="font-medium text-gray-900">
