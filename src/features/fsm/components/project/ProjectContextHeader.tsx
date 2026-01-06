@@ -12,7 +12,7 @@
  * - Assigned rep
  */
 
-import { Building2, MapPin, Briefcase, User, ChevronLeft, ExternalLink } from 'lucide-react';
+import { Building2, MapPin, Briefcase, User, ChevronLeft } from 'lucide-react';
 import type { Project } from '../../types';
 
 interface ProjectContextHeaderProps {
