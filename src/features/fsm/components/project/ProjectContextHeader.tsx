@@ -32,15 +32,26 @@ export default function ProjectContextHeader({
 }: ProjectContextHeaderProps) {
   if (!project) return null;
 
-  // Get display values
-  const clientName = project.client?.company_name || project.client?.name || 'Unknown Client';
-  const communityName = project.community?.name;
-  const propertyAddress = project.property?.address_line1
-    ? `${project.property.address_line1}, ${project.property.city || ''} ${project.property.state || ''} ${project.property.zip || ''}`
-    : null;
-  const qboClassName = project.qbo_class?.name;
-  const qboClassCode = project.qbo_class?.labor_code;
-  const assignedRep = project.assigned_rep_user?.name || project.assigned_rep_user?.full_name;
+  // Get display values - prefer flattened view properties, fallback to nested objects
+  // v_projects_full returns: client_display_name, property_address, community_name, rep_name
+  // Fallback queries return: client.name, property.address_line1, etc.
+  const clientName = project.client_display_name
+    || project.client?.company_name
+    || project.client?.name
+    || 'Unknown Client';
+  const communityName = project.community_name || project.community?.name;
+  const propertyAddress = project.property_address
+    || (project.property?.address_line1
+      ? `${project.property.address_line1}, ${project.property.city || ''} ${project.property.state || ''} ${project.property.zip || ''}`
+      : null);
+  // QBO Class - view returns qbo_labor_code, qbo_class_name; fallback returns qbo_class.labor_code, qbo_class.name
+  const qboClassName = (project as Record<string, unknown>).qbo_class_name as string | undefined
+    || project.qbo_class?.name;
+  const qboClassCode = (project as Record<string, unknown>).qbo_labor_code as string | undefined
+    || project.qbo_class?.labor_code;
+  const assignedRep = project.rep_name
+    || project.assigned_rep_user?.name
+    || project.assigned_rep_user?.full_name;
 
   // Format BU display
   const buDisplay = qboClassCode || qboClassName;
