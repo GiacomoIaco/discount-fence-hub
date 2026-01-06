@@ -31,6 +31,13 @@ import {
   JOB_STATUS_LABELS,
   JOB_STATUS_COLORS,
 } from '../types';
+
+// BU type colors (same as QuoteHeader)
+const BU_TYPE_COLORS: Record<string, string> = {
+  residential: 'bg-blue-100 text-blue-700 border-blue-200',
+  builders: 'bg-orange-100 text-orange-700 border-orange-200',
+  commercial: 'bg-green-100 text-green-700 border-green-200',
+};
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 import { EntityHeader } from '../components/shared/EntityHeader';
 import { JobProgress } from '../components/shared/WorkflowProgress';
@@ -214,6 +221,14 @@ export default function JobDetailPage({
           label: JOB_STATUS_LABELS[job.status],
           colorClass: JOB_STATUS_COLORS[job.status],
         }}
+        extraBadges={
+          job.qbo_class?.labor_code || job.qbo_class?.name
+            ? [{
+                label: job.qbo_class.labor_code || job.qbo_class.name,
+                colorClass: `${BU_TYPE_COLORS[job.qbo_class.bu_type || 'residential']} border`,
+              }]
+            : undefined
+        }
         subtitle={
           <span className="flex items-center gap-4">
             {job.client && (

@@ -2,6 +2,7 @@
 
 export { ProjectPage } from './ProjectPage';
 export { ProjectCreateWizard, type ProjectWizardResult } from './ProjectCreateWizard';
+export { default as ProjectContextHeader } from './ProjectContextHeader';
 
 // Tab components
 export { EstimatesTab } from './tabs/EstimatesTab';

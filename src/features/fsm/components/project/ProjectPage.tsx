@@ -60,6 +60,13 @@ const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
   warranty: 'bg-purple-100 text-purple-700',
 };
 
+// BU type colors (same as QuoteHeader)
+const BU_TYPE_COLORS: Record<string, string> = {
+  residential: 'bg-blue-100 text-blue-700 border-blue-200',
+  builders: 'bg-orange-100 text-orange-700 border-orange-200',
+  commercial: 'bg-green-100 text-green-700 border-green-200',
+};
+
 // Tab configuration
 const TABS: { id: ProjectTab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -188,6 +195,15 @@ export function ProjectPage({
   };
 
   const extraBadges: Badge[] = [];
+  // Add BU badge prominently (QBO Class)
+  if (project.qbo_class?.labor_code || project.qbo_class?.name) {
+    const buType = project.qbo_class.bu_type || 'residential';
+    const buColor = BU_TYPE_COLORS[buType] || BU_TYPE_COLORS.residential;
+    extraBadges.push({
+      label: project.qbo_class.labor_code || project.qbo_class.name,
+      colorClass: `${buColor} border`,
+    });
+  }
   if (project.has_rework) {
     extraBadges.push({
       label: 'Has Rework',
@@ -201,7 +217,7 @@ export function ProjectPage({
     });
   }
 
-  // Subtitle content
+  // Subtitle content (BU badge now shown in extraBadges, not here)
   const subtitleContent = (
     <>
       {project.client_display_name || project.client?.name || 'No client'}
@@ -213,14 +229,6 @@ export function ProjectPage({
           {project.property_address}
           {project.property_city && `, ${project.property_city}`}
         </span>
-      )}
-      {project.qbo_class?.labor_code && (
-        <>
-          <span className="text-gray-400">|</span>
-          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">
-            {project.qbo_class.labor_code}
-          </span>
-        </>
       )}
     </>
   );
@@ -475,6 +483,15 @@ function OverviewTab({ project, quotes, jobs, invoices, childProjects }: Overvie
               <div>
                 <span className="text-gray-500">Community:</span>{' '}
                 <span className="font-medium">{project.community_name}</span>
+              </div>
+            )}
+            {project.qbo_class?.name && (
+              <div>
+                <span className="text-gray-500">Business Unit:</span>{' '}
+                <span className="font-medium">
+                  {project.qbo_class.name}
+                  {project.qbo_class.labor_code && ` (${project.qbo_class.labor_code})`}
+                </span>
               </div>
             )}
             {project.rep_name && (

@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useQuote,
   useCreateQuote,
@@ -85,6 +86,9 @@ const initialFormState: QuoteFormState = {
 
 export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   const { mode, quoteId, projectId, requestId, requestData, clientId, communityId, propertyId } = options;
+
+  // Query client for explicit invalidation
+  const queryClient = useQueryClient();
 
   // Load existing quote for edit/view modes
   const { data: quote, isLoading: isLoadingQuote } = useQuote(mode !== 'create' ? quoteId : undefined);
@@ -465,6 +469,16 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
 
       console.log('[QuoteForm] Save completed:', savedQuoteId);
       setIsDirty(false);
+
+      // Explicitly invalidate and refetch project_quotes to ensure list updates
+      // before the parent component changes state (fixes timing issue)
+      if (projectId) {
+        await queryClient.invalidateQueries({ queryKey: ['project_quotes', projectId] });
+        await queryClient.refetchQueries({ queryKey: ['project_quotes', projectId] });
+      }
+      // Also invalidate general quotes list
+      await queryClient.invalidateQueries({ queryKey: ['quotes'] });
+
       return savedQuoteId;
     } catch (error) {
       console.error('[QuoteForm] Save failed:', error);
@@ -474,6 +488,7 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     mode, quoteId, projectId, requestId, form, totals, validation,
     originalLineItemIds, createMutation, updateMutation,
     addLineItemMutation, updateLineItemMutation, deleteLineItemMutation,
+    queryClient,
   ]);
 
   const isSaving = createMutation.isPending || updateMutation.isPending ||

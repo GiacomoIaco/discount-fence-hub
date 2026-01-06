@@ -308,17 +308,19 @@ export default function QuoteCard({
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content */}
         <main className="flex-1 p-6 overflow-auto space-y-6">
-          {/* Client & Property Section - locked when project-linked */}
-          <QuoteClientSection
-            mode={mode}
-            clientId={form.clientId}
-            communityId={form.communityId}
-            propertyId={form.propertyId}
-            projectId={projectId}
-            onClientChange={handleClientChange}
-            onCommunityChange={(id) => setFields({ communityId: id, propertyId: '' })}
-            onPropertyChange={(id) => setField('propertyId', id)}
-          />
+          {/* Client & Property Section - HIDDEN when project-linked (shown in ProjectContextHeader instead) */}
+          {!projectId && (
+            <QuoteClientSection
+              mode={mode}
+              clientId={form.clientId}
+              communityId={form.communityId}
+              propertyId={form.propertyId}
+              projectId={projectId}
+              onClientChange={handleClientChange}
+              onCommunityChange={(id) => setFields({ communityId: id, propertyId: '' })}
+              onPropertyChange={(id) => setField('propertyId', id)}
+            />
+          )}
 
           {/* Scope Summary (editable in create/edit modes) */}
           <div className="bg-white rounded-xl border p-6">

@@ -15,9 +15,10 @@ import {
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder, ProjectsListView } from './components';
 import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
-import { ProjectPage, ProjectCreateWizard, type ProjectWizardResult } from '../fsm/components/project';
+import { ProjectPage, ProjectCreateWizard, ProjectContextHeader, type ProjectWizardResult } from '../fsm/components/project';
 import { QuoteCard } from '../fsm/components/QuoteCard';
 import { useProjectFull } from '../fsm/hooks/useProjects';
+import { useQuote } from '../fsm/hooks/useQuotes';
 import { SidebarTooltip } from '../../components/sidebar';
 import { useAppNavigation, type EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
@@ -96,6 +97,9 @@ export default function ProjectsHub({
     (creatingQuoteForProjectId || editingQuoteId) && selectedProjectId ? selectedProjectId : undefined
   );
 
+  // Fetch quote data for display label when editing
+  const { data: editingQuoteData } = useQuote(editingQuoteId || undefined);
+
   // Update view when entity context changes
   useEffect(() => {
     if (entityContext && ENTITY_TO_VIEW[entityContext.type]) {
@@ -156,33 +160,50 @@ export default function ProjectsHub({
       case 'projects':
         // Show QuoteCard if creating/editing/viewing a quote within project context
         if ((creatingQuoteForProjectId || editingQuoteId) && projectForQuote) {
+          // Get quote label for header
+          const quoteLabel = editingQuoteId && editingQuoteData
+            ? `Quote #${editingQuoteData.quote_number || editingQuoteId.slice(0, 8)}`
+            : 'New Quote';
+
           return (
-            <QuoteCard
-              mode={quoteViewMode}
-              projectId={selectedProjectId || undefined}
-              clientId={projectForQuote.client_id || undefined}
-              communityId={projectForQuote.community_id || undefined}
-              propertyId={projectForQuote.property_id || undefined}
-              quoteId={editingQuoteId || undefined}
-              onBack={() => {
-                setCreatingQuoteForProjectId(null);
-                setEditingQuoteId(null);
-                setQuoteViewMode('create');
-              }}
-              onSave={() => {
-                setCreatingQuoteForProjectId(null);
-                setEditingQuoteId(null);
-                setQuoteViewMode('create');
-                // Project queries auto-refresh via React Query
-              }}
-              onConvertToJob={(quoteId) => {
-                // Navigate to work tab after conversion
-                setCreatingQuoteForProjectId(null);
-                setEditingQuoteId(null);
-                setQuoteViewMode('create');
-                console.log('Quote converted to job:', quoteId);
-              }}
-            />
+            <div className="h-full flex flex-col">
+              {/* Persistent Project Context Header */}
+              <ProjectContextHeader
+                project={projectForQuote}
+                onBack={() => {
+                  setCreatingQuoteForProjectId(null);
+                  setEditingQuoteId(null);
+                  setQuoteViewMode('create');
+                }}
+                childEntityType="quote"
+                childEntityLabel={quoteLabel}
+              />
+              {/* QuoteCard without its own back button / client section */}
+              <div className="flex-1 overflow-auto">
+                <QuoteCard
+                  mode={quoteViewMode}
+                  projectId={selectedProjectId || undefined}
+                  clientId={projectForQuote.client_id || undefined}
+                  communityId={projectForQuote.community_id || undefined}
+                  propertyId={projectForQuote.property_id || undefined}
+                  quoteId={editingQuoteId || undefined}
+                  onBack={undefined} // Header handles back navigation
+                  onSave={() => {
+                    setCreatingQuoteForProjectId(null);
+                    setEditingQuoteId(null);
+                    setQuoteViewMode('create');
+                    // Project queries auto-refresh via React Query
+                  }}
+                  onConvertToJob={(quoteId) => {
+                    // Navigate to work tab after conversion
+                    setCreatingQuoteForProjectId(null);
+                    setEditingQuoteId(null);
+                    setQuoteViewMode('create');
+                    console.log('Quote converted to job:', quoteId);
+                  }}
+                />
+              </div>
+            </div>
           );
         }
 
