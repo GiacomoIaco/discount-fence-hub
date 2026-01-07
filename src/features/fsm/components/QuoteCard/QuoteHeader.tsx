@@ -3,9 +3,31 @@
  *
  * Shows quote number, status badge, BU badge, and action buttons.
  * Actions change based on mode and quote status.
+ *
+ * Follows Jobber pattern:
+ * - Primary actions as buttons (Save, Send, Create Job)
+ * - Secondary actions in "More" dropdown (Clone, Archive, Request Changes, etc.)
  */
 
-import { ArrowLeft, FileText, Save, Send, Check, Briefcase, Edit2, XCircle, Building2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import {
+  ArrowLeft,
+  FileText,
+  Save,
+  Send,
+  Check,
+  Briefcase,
+  Edit2,
+  XCircle,
+  Building2,
+  MoreVertical,
+  Copy,
+  Archive,
+  Clock,
+  DollarSign,
+  MessageSquare,
+  Bell,
+} from 'lucide-react';
 import type { Quote, QuoteStatus } from '../../types';
 import type { QuoteCardMode, QuoteValidation } from './types';
 import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS } from '../../types';
@@ -30,6 +52,13 @@ interface QuoteHeaderProps {
   onMarkLost?: () => void;
   onConvertToJob?: () => void;
   onEdit?: () => void;
+  // New Jobber-style actions
+  onClone?: () => void;
+  onArchive?: () => void;
+  onRequestChanges?: () => void;
+  onScheduleFollowUp?: () => void;
+  onRequestDeposit?: () => void;
+  onSendReminder?: () => void;
 }
 
 export default function QuoteHeader({
@@ -45,7 +74,27 @@ export default function QuoteHeader({
   onMarkLost,
   onConvertToJob,
   onEdit,
+  onClone,
+  onArchive,
+  onRequestChanges,
+  onScheduleFollowUp,
+  onRequestDeposit,
+  onSendReminder,
 }: QuoteHeaderProps) {
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const status = quote?.status as QuoteStatus | undefined;
   const statusLabel = status ? QUOTE_STATUS_LABELS[status] : 'Draft';
   const statusColor = status ? QUOTE_STATUS_COLORS[status] : 'bg-gray-100 text-gray-700';
@@ -63,6 +112,79 @@ export default function QuoteHeader({
   const showMarkLostButton = mode === 'view' && ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval'].includes(status || '');
   const showConvertButton = mode === 'view' && status === 'approved';
   const showEditButton = mode === 'view';
+
+  // More menu actions - show in view mode when quote exists
+  const showMoreMenu_ = mode === 'view' && quote;
+
+  // Build more menu items based on status
+  const moreMenuItems: Array<{
+    label: string;
+    icon: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    danger?: boolean;
+    divider?: boolean;
+  }> = [];
+
+  if (showMoreMenu_) {
+    // Request Changes - when sent or follow_up
+    if (['sent', 'follow_up'].includes(status || '') && onRequestChanges) {
+      moreMenuItems.push({
+        label: 'Request Changes',
+        icon: <MessageSquare className="w-4 h-4" />,
+        onClick: onRequestChanges,
+      });
+    }
+
+    // Schedule Follow-up - when sent
+    if (['sent', 'follow_up'].includes(status || '') && onScheduleFollowUp) {
+      moreMenuItems.push({
+        label: 'Schedule Follow-up',
+        icon: <Clock className="w-4 h-4" />,
+        onClick: onScheduleFollowUp,
+      });
+    }
+
+    // Send Reminder - when sent
+    if (['sent', 'follow_up'].includes(status || '') && onSendReminder) {
+      moreMenuItems.push({
+        label: 'Send Reminder',
+        icon: <Bell className="w-4 h-4" />,
+        onClick: onSendReminder,
+      });
+    }
+
+    // Request Deposit - when approved
+    if (status === 'approved' && onRequestDeposit) {
+      moreMenuItems.push({
+        label: 'Request Deposit',
+        icon: <DollarSign className="w-4 h-4" />,
+        onClick: onRequestDeposit,
+      });
+    }
+
+    // Clone - always available (view mode)
+    if (onClone) {
+      if (moreMenuItems.length > 0) {
+        moreMenuItems.push({ label: '', icon: null, divider: true });
+      }
+      moreMenuItems.push({
+        label: 'Clone Quote',
+        icon: <Copy className="w-4 h-4" />,
+        onClick: onClone,
+      });
+    }
+
+    // Archive - when not already archived/lost/converted
+    if (!['lost', 'converted', 'archived'].includes(status || '') && onArchive) {
+      moreMenuItems.push({
+        label: 'Archive',
+        icon: <Archive className="w-4 h-4" />,
+        onClick: onArchive,
+        danger: true,
+      });
+    }
+  }
 
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
@@ -184,6 +306,46 @@ export default function QuoteHeader({
                 <Briefcase className="w-4 h-4" />
                 Create Job
               </button>
+            )}
+
+            {/* More Actions dropdown (view mode) */}
+            {showMoreMenu_ && moreMenuItems.length > 0 && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+                {showMoreMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                    <div className="py-1">
+                      {moreMenuItems.map((item, index) =>
+                        item.divider ? (
+                          <div key={index} className="my-1 border-t border-gray-100" />
+                        ) : (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              item.onClick?.();
+                            }}
+                            disabled={item.disabled}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-2 text-sm text-left
+                              ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}
+                              ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                            `}
+                          >
+                            {item.icon}
+                            {item.label}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
