@@ -121,8 +121,8 @@ export default function QuoteCard({
     }
   }, [save, onSave, quote]);
 
-  // Handle save and send
-  const handleSaveAndSend = useCallback(async () => {
+  // Handle save and send via email
+  const handleSaveAndSendEmail = useCallback(async () => {
     try {
       const savedId = await save();
       if (savedId) {
@@ -138,6 +138,72 @@ export default function QuoteCard({
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }, [save, sendMutation, onSend, onBack]);
+
+  // Handle save and send via text
+  // TODO: Implement SMS sending when backend supports it
+  const handleSaveAndSendText = useCallback(async () => {
+    try {
+      const savedId = await save();
+      if (savedId) {
+        // For now, SMS shows a message - actual SMS integration TBD
+        alert('SMS sending is not yet implemented. The quote has been saved. Use email to send for now.');
+        onSend?.(savedId);
+      }
+    } catch (error) {
+      console.error('Failed to save quote:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [save, onSend]);
+
+  // Handle send text (view mode - no save)
+  // TODO: Implement SMS sending when backend supports it
+  const handleSendText = useCallback(async () => {
+    if (!quoteId) return;
+    // For now, SMS shows a message - actual SMS integration TBD
+    alert('SMS sending is not yet implemented. Use email to send for now.');
+  }, [quoteId]);
+
+  // Handle send email (view mode - no save)
+  const handleSendEmail = useCallback(async () => {
+    if (!quoteId) return;
+    try {
+      await sendMutation.mutateAsync({
+        id: quoteId,
+        method: 'email',
+      });
+      onSend?.(quoteId);
+    } catch (error) {
+      console.error('Failed to send quote:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, sendMutation, onSend]);
+
+  // Handle mark awaiting response
+  const handleMarkAwaitingResponse = useCallback(async () => {
+    if (!quoteId) return;
+    try {
+      await updateStatusMutation.mutateAsync({
+        id: quoteId,
+        status: 'follow_up',
+        notes: 'Marked as awaiting response',
+      });
+    } catch (error) {
+      console.error('Failed to mark quote as awaiting response:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, updateStatusMutation]);
+
+  // Handle cancel editing
+  const handleCancel = useCallback(() => {
+    if (mode === 'edit') {
+      // Switch back to view mode
+      setMode('view');
+    } else if (_onCancel) {
+      _onCancel();
+    } else if (onBack) {
+      onBack();
+    }
+  }, [mode, _onCancel, onBack]);
 
   // Handle approve
   const handleApprove = useCallback(async () => {
@@ -301,12 +367,24 @@ export default function QuoteCard({
         isSaving={isSaving || sendMutation.isPending || updateStatusMutation.isPending}
         isDirty={isDirty}
         onBack={onBack}
+        onCancel={handleCancel}
         onSave={handleSave}
-        onSend={handleSaveAndSend}
+        // Edit mode: Save And... dropdown actions
+        onSendEmail={mode !== 'view' ? handleSaveAndSendEmail : handleSendEmail}
+        onSendText={mode !== 'view' ? handleSaveAndSendText : handleSendText}
+        onMarkAwaitingResponse={handleMarkAwaitingResponse}
+        // View mode actions
         onApprove={handleApprove}
         onMarkLost={() => setShowLostModal(true)}
         onConvertToJob={handleConvertToJob}
         onEdit={handleEdit}
+        // TODO: Implement these handlers
+        // onClone={() => { /* Clone quote */ }}
+        // onArchive={() => { /* Archive quote */ }}
+        // onPreviewAsClient={() => { /* Open preview */ }}
+        // onCollectSignature={() => { /* Signature flow */ }}
+        // onDownloadPdf={() => { /* Generate PDF */ }}
+        // onPrint={() => { /* Print quote */ }}
       />
 
       {/* Main Layout: Content + Sidebar */}

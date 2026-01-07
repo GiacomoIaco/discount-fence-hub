@@ -5,8 +5,8 @@
  * Actions change based on mode and quote status.
  *
  * Follows Jobber pattern:
- * - Primary actions as buttons (Save, Send, Create Job)
- * - Secondary actions in "More" dropdown (Clone, Archive, Request Changes, etc.)
+ * - Edit Mode: Cancel | Save Quote | Save And... dropdown
+ * - View Mode: Send Text (primary) | Edit | More Actions dropdown
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -14,19 +14,22 @@ import {
   ArrowLeft,
   FileText,
   Save,
-  Send,
   Check,
   Briefcase,
   Edit2,
   XCircle,
   Building2,
-  MoreVertical,
+  MoreHorizontal,
   Copy,
   Archive,
   Clock,
-  DollarSign,
   MessageSquare,
-  Bell,
+  Mail,
+  ChevronDown,
+  Eye,
+  Download,
+  Printer,
+  FileSignature,
 } from 'lucide-react';
 import type { Quote, QuoteStatus } from '../../types';
 import type { QuoteCardMode, QuoteValidation } from './types';
@@ -46,19 +49,21 @@ interface QuoteHeaderProps {
   isSaving: boolean;
   isDirty: boolean;
   onBack?: () => void;
+  onCancel?: () => void;
   onSave?: () => void;
-  onSend?: () => void;
+  onSendEmail?: () => void;
+  onSendText?: () => void;
   onApprove?: () => void;
   onMarkLost?: () => void;
+  onMarkAwaitingResponse?: () => void;
   onConvertToJob?: () => void;
   onEdit?: () => void;
-  // New Jobber-style actions
   onClone?: () => void;
   onArchive?: () => void;
-  onRequestChanges?: () => void;
-  onScheduleFollowUp?: () => void;
-  onRequestDeposit?: () => void;
-  onSendReminder?: () => void;
+  onPreviewAsClient?: () => void;
+  onCollectSignature?: () => void;
+  onDownloadPdf?: () => void;
+  onPrint?: () => void;
 }
 
 export default function QuoteHeader({
@@ -68,26 +73,34 @@ export default function QuoteHeader({
   isSaving,
   isDirty,
   onBack,
+  onCancel,
   onSave,
-  onSend,
+  onSendEmail,
+  onSendText,
   onApprove,
   onMarkLost,
+  onMarkAwaitingResponse,
   onConvertToJob,
   onEdit,
   onClone,
   onArchive,
-  onRequestChanges,
-  onScheduleFollowUp,
-  onRequestDeposit,
-  onSendReminder,
+  onPreviewAsClient,
+  onCollectSignature,
+  onDownloadPdf,
+  onPrint,
 }: QuoteHeaderProps) {
+  const [showSaveAndMenu, setShowSaveAndMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const saveAndMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (saveAndMenuRef.current && !saveAndMenuRef.current.contains(event.target as Node)) {
+        setShowSaveAndMenu(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
         setShowMoreMenu(false);
       }
     }
@@ -105,86 +118,15 @@ export default function QuoteHeader({
   const buType = qboClass?.bu_type || 'residential';
   const buColor = BU_TYPE_COLORS[buType] || BU_TYPE_COLORS.residential;
 
-  // Determine available actions based on mode and status
-  const showSaveButton = mode !== 'view';
-  const showSendButton = mode !== 'view' && (status === 'draft' || status === 'pending_approval');
-  const showApproveButton = mode === 'view' && status === 'sent';
-  const showMarkLostButton = mode === 'view' && ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval'].includes(status || '');
-  const showConvertButton = mode === 'view' && status === 'approved';
-  const showEditButton = mode === 'view';
+  const isEditMode = mode === 'create' || mode === 'edit';
+  const isViewMode = mode === 'view';
 
-  // More menu actions - show in view mode when quote exists
-  const showMoreMenu_ = mode === 'view' && quote;
-
-  // Build more menu items based on status
-  const moreMenuItems: Array<{
-    label: string;
-    icon: React.ReactNode;
-    onClick?: () => void;
-    disabled?: boolean;
-    danger?: boolean;
-    divider?: boolean;
-  }> = [];
-
-  if (showMoreMenu_) {
-    // Request Changes - when sent or follow_up
-    if (['sent', 'follow_up'].includes(status || '') && onRequestChanges) {
-      moreMenuItems.push({
-        label: 'Request Changes',
-        icon: <MessageSquare className="w-4 h-4" />,
-        onClick: onRequestChanges,
-      });
-    }
-
-    // Schedule Follow-up - when sent
-    if (['sent', 'follow_up'].includes(status || '') && onScheduleFollowUp) {
-      moreMenuItems.push({
-        label: 'Schedule Follow-up',
-        icon: <Clock className="w-4 h-4" />,
-        onClick: onScheduleFollowUp,
-      });
-    }
-
-    // Send Reminder - when sent
-    if (['sent', 'follow_up'].includes(status || '') && onSendReminder) {
-      moreMenuItems.push({
-        label: 'Send Reminder',
-        icon: <Bell className="w-4 h-4" />,
-        onClick: onSendReminder,
-      });
-    }
-
-    // Request Deposit - when approved
-    if (status === 'approved' && onRequestDeposit) {
-      moreMenuItems.push({
-        label: 'Request Deposit',
-        icon: <DollarSign className="w-4 h-4" />,
-        onClick: onRequestDeposit,
-      });
-    }
-
-    // Clone - always available (view mode)
-    if (onClone) {
-      if (moreMenuItems.length > 0) {
-        moreMenuItems.push({ label: '', icon: null, divider: true });
-      }
-      moreMenuItems.push({
-        label: 'Clone Quote',
-        icon: <Copy className="w-4 h-4" />,
-        onClick: onClone,
-      });
-    }
-
-    // Archive - when not already archived/lost/converted
-    if (!['lost', 'converted', 'archived'].includes(status || '') && onArchive) {
-      moreMenuItems.push({
-        label: 'Archive',
-        icon: <Archive className="w-4 h-4" />,
-        onClick: onArchive,
-        danger: true,
-      });
-    }
-  }
+  // Can convert to job only when approved
+  const canConvertToJob = status === 'approved' || status === 'converted';
+  // Can mark approved when sent or awaiting
+  const canMarkApproved = ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
+  // Can mark lost when not already lost/converted/archived
+  const canMarkLost = !['lost', 'converted', 'archived'].includes(status || '');
 
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
@@ -240,112 +182,297 @@ export default function QuoteHeader({
               </span>
             )}
 
-            {/* Edit button (view mode) */}
-            {showEditButton && onEdit && (
-              <button
-                onClick={onEdit}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </button>
-            )}
+            {/* ========== EDIT MODE BUTTONS (Jobber Image #5) ========== */}
+            {isEditMode && (
+              <>
+                {/* Cancel button */}
+                {onCancel && (
+                  <button
+                    onClick={onCancel}
+                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                )}
 
-            {/* Save button (create/edit mode) */}
-            {showSaveButton && onSave && (
-              <button
-                onClick={onSave}
-                disabled={isSaving || !validation.isValid}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {isSaving ? 'Saving...' : 'Save Draft'}
-              </button>
-            )}
+                {/* Save Quote button */}
+                {onSave && (
+                  <button
+                    onClick={onSave}
+                    disabled={isSaving || !validation.isValid}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSaving ? 'Saving...' : 'Save Quote'}
+                  </button>
+                )}
 
-            {/* Send button (create/edit mode, draft status) */}
-            {showSendButton && onSend && (
-              <button
-                onClick={onSend}
-                disabled={isSaving || !validation.isValid}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                {isSaving ? 'Saving...' : 'Save & Send'}
-              </button>
-            )}
-
-            {/* Approve button (view mode, sent status) */}
-            {showApproveButton && onApprove && (
-              <button
-                onClick={onApprove}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <Check className="w-4 h-4" />
-                Mark Approved
-              </button>
-            )}
-
-            {/* Mark Lost button (view mode, certain statuses) */}
-            {showMarkLostButton && onMarkLost && (
-              <button
-                onClick={onMarkLost}
-                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-              >
-                <XCircle className="w-4 h-4" />
-                Mark Lost
-              </button>
-            )}
-
-            {/* Convert to Job button (view mode, approved status) */}
-            {showConvertButton && onConvertToJob && (
-              <button
-                onClick={onConvertToJob}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Briefcase className="w-4 h-4" />
-                Create Job
-              </button>
-            )}
-
-            {/* More Actions dropdown (view mode) */}
-            {showMoreMenu_ && moreMenuItems.length > 0 && (
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  <MoreVertical className="w-5 h-5" />
-                </button>
-                {showMoreMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
-                    <div className="py-1">
-                      {moreMenuItems.map((item, index) =>
-                        item.divider ? (
-                          <div key={index} className="my-1 border-t border-gray-100" />
-                        ) : (
+                {/* Save And... dropdown */}
+                <div className="relative" ref={saveAndMenuRef}>
+                  <button
+                    onClick={() => setShowSaveAndMenu(!showSaveAndMenu)}
+                    disabled={isSaving || !validation.isValid}
+                    className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Save And...
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  {showSaveAndMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                      <div className="py-1">
+                        <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase">
+                          Save and...
+                        </div>
+                        {onSendText && (
                           <button
-                            key={index}
+                            onClick={() => {
+                              setShowSaveAndMenu(false);
+                              onSendText();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Send as Text Message
+                          </button>
+                        )}
+                        {onSendEmail && (
+                          <button
+                            onClick={() => {
+                              setShowSaveAndMenu(false);
+                              onSendEmail();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Mail className="w-4 h-4" />
+                            Send as Email
+                          </button>
+                        )}
+                        {onConvertToJob && (
+                          <button
+                            onClick={() => {
+                              setShowSaveAndMenu(false);
+                              onConvertToJob();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Briefcase className="w-4 h-4" />
+                            Convert to Job
+                          </button>
+                        )}
+                        {onMarkAwaitingResponse && (
+                          <button
+                            onClick={() => {
+                              setShowSaveAndMenu(false);
+                              onMarkAwaitingResponse();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Clock className="w-4 h-4" />
+                            Mark as Awaiting Response
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ========== VIEW MODE BUTTONS (Jobber Image #6) ========== */}
+            {isViewMode && (
+              <>
+                {/* Send Text Message - Primary action */}
+                {onSendText && (
+                  <button
+                    onClick={onSendText}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Send Text Message
+                  </button>
+                )}
+
+                {/* Edit button */}
+                {onEdit && (
+                  <button
+                    onClick={onEdit}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Edit
+                  </button>
+                )}
+
+                {/* More Actions dropdown */}
+                <div className="relative" ref={moreMenuRef}>
+                  <button
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                    More Actions
+                  </button>
+                  {showMoreMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                      <div className="py-1">
+                        {/* Primary actions */}
+                        {onConvertToJob && canConvertToJob && (
+                          <button
                             onClick={() => {
                               setShowMoreMenu(false);
-                              item.onClick?.();
+                              onConvertToJob();
                             }}
-                            disabled={item.disabled}
-                            className={`
-                              w-full flex items-center gap-3 px-4 py-2 text-sm text-left
-                              ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}
-                              ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}
-                            `}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
-                            {item.icon}
-                            {item.label}
+                            <Briefcase className="w-4 h-4" />
+                            Convert to Job
                           </button>
-                        )
-                      )}
+                        )}
+                        {onClone && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onClone();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Create Similar Quote
+                          </button>
+                        )}
+
+                        {/* Send as... section */}
+                        <div className="my-1 border-t border-gray-100" />
+                        <div className="px-4 py-2 text-xs font-medium text-gray-500">
+                          Send as...
+                        </div>
+                        {onSendEmail && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onSendEmail();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Mail className="w-4 h-4" />
+                            Email
+                          </button>
+                        )}
+
+                        {/* Mark as... section */}
+                        <div className="my-1 border-t border-gray-100" />
+                        <div className="px-4 py-2 text-xs font-medium text-gray-500">
+                          Mark as...
+                        </div>
+                        {onMarkAwaitingResponse && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onMarkAwaitingResponse();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Clock className="w-4 h-4" />
+                            Awaiting Response
+                          </button>
+                        )}
+                        {onApprove && canMarkApproved && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onApprove();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Check className="w-4 h-4" />
+                            Approved
+                          </button>
+                        )}
+                        {onMarkLost && canMarkLost && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onMarkLost();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Lost
+                          </button>
+                        )}
+
+                        {/* Other actions */}
+                        <div className="my-1 border-t border-gray-100" />
+                        {onPreviewAsClient && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onPreviewAsClient();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Preview as Client
+                          </button>
+                        )}
+                        {onCollectSignature && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onCollectSignature();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <FileSignature className="w-4 h-4" />
+                            Collect Signature
+                          </button>
+                        )}
+                        {onDownloadPdf && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onDownloadPdf();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download PDF
+                          </button>
+                        )}
+                        {onPrint && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onPrint();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Printer className="w-4 h-4" />
+                            Print
+                          </button>
+                        )}
+
+                        {/* Archive */}
+                        {onArchive && !['lost', 'converted', 'archived'].includes(status || '') && (
+                          <>
+                            <div className="my-1 border-t border-gray-100" />
+                            <button
+                              onClick={() => {
+                                setShowMoreMenu(false);
+                                onArchive();
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                            >
+                              <Archive className="w-4 h-4" />
+                              Archive
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
