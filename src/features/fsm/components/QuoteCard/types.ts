@@ -66,6 +66,14 @@ export interface LineItemFormState {
   isCustom?: boolean;
 }
 
+/** Custom field for Additional Info section */
+export interface CustomField {
+  id: string;
+  label: string;
+  value: string;
+  isNew?: boolean;
+}
+
 export interface QuoteFormState {
   // Client/Property
   clientId: string;
@@ -94,6 +102,9 @@ export interface QuoteFormState {
 
   // Line items
   lineItems: LineItemFormState[];
+
+  // Custom fields
+  customFields: CustomField[];
 }
 
 export interface QuoteTotals {

@@ -25,6 +25,7 @@ import type {
   LineItemFormState,
   QuoteTotals,
   QuoteValidation,
+  CustomField,
 } from './types';
 import { DEFAULT_LINE_ITEM } from './types';
 interface UseQuoteFormOptions {
@@ -46,6 +47,10 @@ interface UseQuoteFormReturn {
   addLineItem: () => void;
   updateLineItem: (index: number, updates: Partial<LineItemFormState>) => void;
   removeLineItem: (index: number) => void;
+  // Custom fields
+  addCustomField: () => void;
+  updateCustomField: (id: string, field: 'label' | 'value', value: string) => void;
+  removeCustomField: (id: string) => void;
   // Calculations
   totals: QuoteTotals;
   validation: QuoteValidation;
@@ -74,6 +79,7 @@ const initialFormState: QuoteFormState = {
   clientFacingNotes: '',
   internalNotes: '',
   lineItems: [],
+  customFields: [],
 };
 export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   const { mode, quoteId, projectId, requestId, requestData, clientId, communityId, propertyId } = options;
@@ -209,6 +215,40 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     });
     setIsDirty(true);
   }, []);
+
+  // Custom field operations
+  const addCustomField = useCallback(() => {
+    const newField: CustomField = {
+      id: crypto.randomUUID(),
+      label: '',
+      value: '',
+      isNew: true,
+    };
+    setForm(prev => ({
+      ...prev,
+      customFields: [...prev.customFields, newField],
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const updateCustomField = useCallback((id: string, field: 'label' | 'value', value: string) => {
+    setForm(prev => ({
+      ...prev,
+      customFields: prev.customFields.map(cf =>
+        cf.id === id ? { ...cf, [field]: value } : cf
+      ),
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const removeCustomField = useCallback((id: string) => {
+    setForm(prev => ({
+      ...prev,
+      customFields: prev.customFields.filter(cf => cf.id !== id),
+    }));
+    setIsDirty(true);
+  }, []);
+
   // Calculate totals
   const totals = useMemo((): QuoteTotals => {
     const activeItems = form.lineItems.filter(li => !li.isDeleted);
@@ -455,6 +495,9 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     addLineItem,
     updateLineItem,
     removeLineItem,
+    addCustomField,
+    updateCustomField,
+    removeCustomField,
     totals,
     validation,
     save,

@@ -23,8 +23,11 @@ import {
   Eye,
   CheckCircle,
   Send,
+  Plus,
+  Trash2,
+  List,
 } from 'lucide-react';
-import type { QuoteCardMode, QuoteTotals, QuoteValidation } from './types';
+import type { QuoteCardMode, QuoteTotals, QuoteValidation, CustomField } from './types';
 import { PAYMENT_TERMS_OPTIONS, PRODUCT_TYPE_OPTIONS } from './types';
 import { useRepsByQboClass } from '../../hooks/useSalesReps';
 
@@ -68,6 +71,11 @@ interface QuoteSidebarProps {
     client_approved_at?: string | null;
     expires_at?: string | null;
   };
+  /** Custom fields for Additional Info section */
+  customFields?: CustomField[];
+  onAddCustomField?: () => void;
+  onUpdateCustomField?: (id: string, field: 'label' | 'value', value: string) => void;
+  onRemoveCustomField?: (id: string) => void;
 }
 
 // Collapsible Section Component
@@ -148,6 +156,10 @@ export default function QuoteSidebar({
   validation,
   onFieldChange,
   quoteDates,
+  customFields = [],
+  onAddCustomField,
+  onUpdateCustomField,
+  onRemoveCustomField,
 }: QuoteSidebarProps) {
   const isEditable = mode !== 'view';
   // Filter reps by QBO class (Business Unit) when available
@@ -368,6 +380,64 @@ export default function QuoteSidebar({
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+        </CollapsibleSection>
+      </div>
+
+      {/* Additional Info Section - Custom Fields */}
+      <div className="bg-white rounded-lg p-4 mt-4 border">
+        <CollapsibleSection title="ADDITIONAL INFO" icon={List} defaultOpen={customFields.length > 0 || isEditable}>
+          <div className="space-y-3">
+            {customFields.length === 0 && !isEditable ? (
+              <p className="text-sm text-gray-400 italic">No custom fields</p>
+            ) : (
+              <>
+                {customFields.map((field) => (
+                  <div key={field.id} className="space-y-1">
+                    {isEditable ? (
+                      <div className="flex gap-2">
+                        <div className="flex-1 space-y-1">
+                          <input
+                            type="text"
+                            value={field.label}
+                            onChange={(e) => onUpdateCustomField?.(field.id, 'label', e.target.value)}
+                            placeholder="Label"
+                            className="w-full px-2 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500 font-medium"
+                          />
+                          <input
+                            type="text"
+                            value={field.value}
+                            onChange={(e) => onUpdateCustomField?.(field.id, 'value', e.target.value)}
+                            placeholder="Value"
+                            className="w-full px-2 py-1.5 text-sm border rounded focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+                        <button
+                          onClick={() => onRemoveCustomField?.(field.id)}
+                          className="self-center p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="text-xs font-medium text-gray-500">{field.label}</div>
+                        <div className="text-sm text-gray-900">{field.value || '-'}</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {isEditable && (
+                  <button
+                    onClick={onAddCustomField}
+                    className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-800"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Field
+                  </button>
+                )}
+              </>
             )}
           </div>
         </CollapsibleSection>

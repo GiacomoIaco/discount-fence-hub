@@ -68,6 +68,9 @@ export default function QuoteCard({
     addLineItem,
     updateLineItem,
     removeLineItem,
+    addCustomField,
+    updateCustomField,
+    removeCustomField,
     totals,
     validation,
     save,
@@ -440,6 +443,10 @@ export default function QuoteCard({
             client_approved_at: quote.client_approved_at,
             expires_at: quote.valid_until,
           } : undefined}
+          customFields={form.customFields}
+          onAddCustomField={addCustomField}
+          onUpdateCustomField={updateCustomField}
+          onRemoveCustomField={removeCustomField}
         />
       </div>
 
