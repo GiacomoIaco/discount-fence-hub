@@ -21,9 +21,10 @@ import {
   Calendar,
   User,
 } from 'lucide-react';
-import { useQuotes } from '../hooks/useQuotes';
+import { useQuotes, useQuote } from '../hooks/useQuotes';
+import { useProjectFull } from '../hooks/useProjects';
 import { QuoteCard } from '../components/QuoteCard';
-import { ProjectCreateWizard, type ProjectWizardResult } from '../components/project';
+import { ProjectCreateWizard, ProjectContextHeader, type ProjectWizardResult } from '../components/project';
 import {
   QUOTE_STATUS_LABELS,
   QUOTE_STATUS_COLORS,
@@ -57,6 +58,14 @@ export default function QuotesHub({
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: quotes, isLoading, error } = useQuotes(filters);
+
+  // Fetch selected quote to check if it has a linked project
+  const { data: selectedQuote } = useQuote(
+    entityContext?.type === 'quote' && entityContext.id !== 'new' ? entityContext.id : undefined
+  );
+
+  // Fetch linked project if quote has one
+  const { data: linkedProject } = useProjectFull(selectedQuote?.project_id);
 
   // Filter quotes by search query
   const filteredQuotes = quotes?.filter(quote => {
@@ -149,18 +158,30 @@ export default function QuotesHub({
   // Show QuoteCard for viewing/editing existing quote
   if (entityContext?.type === 'quote' && entityContext.id !== 'new') {
     return (
-      <QuoteCard
-        mode={quoteMode}
-        quoteId={entityContext.id}
-        onBack={handleQuoteCardBack}
-        onSave={() => {
-          setQuoteMode('view');
-          // Quote stays open in view mode after save
-        }}
-        onConvertToJob={(quoteId) => {
-          handleNavigateToJob(quoteId);
-        }}
-      />
+      <div className="flex flex-col min-h-screen">
+        {/* Show ProjectContextHeader if quote is linked to a project */}
+        {linkedProject && (
+          <ProjectContextHeader
+            project={linkedProject}
+            onBack={handleQuoteCardBack}
+            childEntityType="quote"
+            childEntityLabel={selectedQuote?.quote_number || `Quote ${entityContext.id.slice(0, 8)}`}
+          />
+        )}
+        <QuoteCard
+          mode={quoteMode}
+          quoteId={entityContext.id}
+          projectId={selectedQuote?.project_id}
+          onBack={linkedProject ? undefined : handleQuoteCardBack}
+          onSave={() => {
+            setQuoteMode('view');
+            // Quote stays open in view mode after save
+          }}
+          onConvertToJob={(quoteId) => {
+            handleNavigateToJob(quoteId);
+          }}
+        />
+      </div>
     );
   }
 
