@@ -318,13 +318,15 @@ export default function ProjectsHub({
             <ProjectPage
               projectId={selectedProjectId}
               onBack={() => {
-                // Force navigation using window.location to ensure state reset
-                window.location.href = '/projects';
+                // Clear project selection and navigate to projects list
+                setSelectedProjectId(null);
+                setActiveView('projects');
+                navigateTo('projects-hub');
               }}
               onNavigateToQuote={(quoteId) => {
-                // Open quote in QuoteCard within project context (edit mode)
+                // Open quote in QuoteCard within project context (view mode first)
                 setEditingQuoteId(quoteId);
-                setQuoteViewMode('edit');
+                setQuoteViewMode('view');
               }}
               onNavigateToJob={(jobId) =>
                 handleNavigateToEntity('job', { id: jobId })
