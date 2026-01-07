@@ -431,6 +431,13 @@ export default function QuoteCard({
           totals={totals}
           validation={validation}
           onFieldChange={handleSidebarFieldChange}
+          quoteDates={quote ? {
+            created_at: quote.created_at,
+            sent_at: quote.sent_at,
+            viewed_at: quote.viewed_at,
+            client_approved_at: quote.client_approved_at,
+            expires_at: quote.valid_until,
+          } : undefined}
         />
       </div>
 

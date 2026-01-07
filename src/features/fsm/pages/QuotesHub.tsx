@@ -64,8 +64,8 @@ export default function QuotesHub({
     entityContext?.type === 'quote' && entityContext.id !== 'new' ? entityContext.id : undefined
   );
 
-  // Fetch linked project if quote has one
-  const { data: linkedProject } = useProjectFull(selectedQuote?.project_id);
+  // Fetch linked project if quote has one (convert null to undefined for hook)
+  const { data: linkedProject } = useProjectFull(selectedQuote?.project_id ?? undefined);
 
   // Filter quotes by search query
   const filteredQuotes = quotes?.filter(quote => {
@@ -171,7 +171,7 @@ export default function QuotesHub({
         <QuoteCard
           mode={quoteMode}
           quoteId={entityContext.id}
-          projectId={selectedQuote?.project_id}
+          projectId={selectedQuote?.project_id ?? undefined}
           onBack={linkedProject ? undefined : handleQuoteCardBack}
           onSave={() => {
             setQuoteMode('view');

@@ -2,12 +2,11 @@
  * QuoteSidebar - Right sidebar with metadata and profitability
  *
  * Contains:
+ * - Quote Details (lifecycle dates)
  * - Sales rep assignment
- * - Valid until date
- * - Payment terms
- * - Deposit/discount settings
- * - Profitability metrics
- * - Approval status
+ * - Project info
+ * - Terms (payment, deposit, discount)
+ * - Profitability metrics (costs & margin only - totals moved to body)
  */
 
 import { useState } from 'react';
@@ -19,6 +18,11 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Clock,
+  FileText,
+  Eye,
+  CheckCircle,
+  Send,
 } from 'lucide-react';
 import type { QuoteCardMode, QuoteTotals, QuoteValidation } from './types';
 import { PAYMENT_TERMS_OPTIONS, PRODUCT_TYPE_OPTIONS } from './types';
@@ -27,6 +31,18 @@ import { useRepsByQboClass } from '../../hooks/useSalesReps';
 // Currency formatter with commas
 const formatCurrency = (amount: number): string => {
   return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Date formatter helper
+const formatDateTime = (date: string | null | undefined): string => {
+  if (!date) return '-';
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 interface QuoteSidebarProps {
@@ -44,6 +60,14 @@ interface QuoteSidebarProps {
   totals: QuoteTotals;
   validation: QuoteValidation;
   onFieldChange: (field: string, value: string) => void;
+  /** Quote lifecycle dates (view mode only) */
+  quoteDates?: {
+    created_at?: string | null;
+    sent_at?: string | null;
+    viewed_at?: string | null;
+    client_approved_at?: string | null;
+    expires_at?: string | null;
+  };
 }
 
 // Collapsible Section Component
@@ -81,6 +105,34 @@ function CollapsibleSection({
   );
 }
 
+// Date Row Component for Quote Details section
+function DateRow({
+  icon: Icon,
+  label,
+  date,
+  highlight = false,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  date: string | null | undefined;
+  highlight?: boolean;
+}) {
+  const formattedDate = formatDateTime(date);
+  const hasDate = date && formattedDate !== '-';
+
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <div className="flex items-center gap-2 text-gray-600">
+        <Icon className={`w-3.5 h-3.5 ${hasDate && highlight ? 'text-green-500' : 'text-gray-400'}`} />
+        <span className="text-sm">{label}</span>
+      </div>
+      <span className={`text-sm ${hasDate ? (highlight ? 'text-green-600 font-medium' : 'text-gray-900') : 'text-gray-400'}`}>
+        {formattedDate}
+      </span>
+    </div>
+  );
+}
+
 export default function QuoteSidebar({
   mode,
   productType,
@@ -95,6 +147,7 @@ export default function QuoteSidebar({
   totals,
   validation,
   onFieldChange,
+  quoteDates,
 }: QuoteSidebarProps) {
   const isEditable = mode !== 'view';
   // Filter reps by QBO class (Business Unit) when available
@@ -103,6 +156,23 @@ export default function QuoteSidebar({
 
   return (
     <aside className="w-80 min-w-[280px] max-w-[400px] h-full overflow-y-auto bg-gray-50 border-l border-gray-200 p-4">
+      {/* Quote Details Section - Lifecycle dates (view mode only) */}
+      {mode === 'view' && quoteDates && (
+        <div className="bg-white rounded-lg p-4 mb-4 border">
+          <CollapsibleSection title="QUOTE DETAILS" icon={FileText} defaultOpen={true}>
+            <div className="space-y-0.5">
+              <DateRow icon={Clock} label="Created" date={quoteDates.created_at} />
+              <DateRow icon={Send} label="Sent" date={quoteDates.sent_at} />
+              <DateRow icon={Eye} label="Viewed" date={quoteDates.viewed_at} />
+              <DateRow icon={CheckCircle} label="Approved" date={quoteDates.client_approved_at} highlight={true} />
+              {quoteDates.expires_at && (
+                <DateRow icon={Calendar} label="Expires" date={quoteDates.expires_at} />
+              )}
+            </div>
+          </CollapsibleSection>
+        </div>
+      )}
+
       {/* Assignment Section */}
       <div className="bg-white rounded-lg p-4 mb-4 border">
         <CollapsibleSection title="ASSIGNMENT" icon={Users}>
@@ -254,7 +324,7 @@ export default function QuoteSidebar({
         </CollapsibleSection>
       </div>
 
-      {/* Profitability Section */}
+      {/* Profitability Section - Costs & Margin only */}
       <div className="bg-white rounded-lg p-4 border">
         <CollapsibleSection title="PROFITABILITY" icon={DollarSign}>
           <div className="space-y-2 text-sm">
@@ -272,33 +342,7 @@ export default function QuoteSidebar({
               <span className="font-medium">${formatCurrency(totals.materialCost + totals.laborCost)}</span>
             </div>
 
-            <div className="text-xs text-gray-500 uppercase font-medium mt-4">Pricing</div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Subtotal:</span>
-              <span>${formatCurrency(totals.subtotal)}</span>
-            </div>
-            {totals.discountAmount > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Discount:</span>
-                <span className="text-green-600">-${formatCurrency(totals.discountAmount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-gray-600">Tax:</span>
-              <span>${formatCurrency(totals.taxAmount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Quote Total:</span>
-              <span className="font-semibold">${formatCurrency(totals.total)}</span>
-            </div>
-            {totals.depositAmount > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Deposit Due:</span>
-                <span className="text-purple-600">${formatCurrency(totals.depositAmount)}</span>
-              </div>
-            )}
-
-            <div className="text-xs text-gray-500 uppercase font-medium mt-4">Margin</div>
+            <div className="text-xs text-gray-500 uppercase font-medium mt-4">Margin Analysis</div>
             <div className="flex justify-between">
               <span className="text-gray-600">Gross Profit:</span>
               <span>${formatCurrency(totals.grossProfit)}</span>
