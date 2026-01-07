@@ -137,6 +137,7 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
         clientFacingNotes: '',
         internalNotes: '',
         lineItems,
+        customFields: [],
       });
       setOriginalLineItemIds(lineItems.filter(li => li.id).map(li => li.id!));
       setIsDirty(false);
