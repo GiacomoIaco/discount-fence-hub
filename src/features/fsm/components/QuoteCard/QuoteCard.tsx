@@ -371,6 +371,10 @@ export default function QuoteCard({
             onUpdateItem={updateLineItem}
             onRemoveItem={removeLineItem}
             onSkuSelect={handleSkuSelect}
+            discountPercent={form.discountPercent}
+            depositPercent={form.depositPercent}
+            onDiscountChange={(value) => setField('discountPercent', value)}
+            onDepositChange={(value) => setField('depositPercent', value)}
           />
 
           {/* Notes Section */}
@@ -428,8 +432,6 @@ export default function QuoteCard({
           linearFeet={form.linearFeet}
           validUntil={form.validUntil}
           paymentTerms={form.paymentTerms}
-          depositPercent={form.depositPercent}
-          discountPercent={form.discountPercent}
           taxRate={form.taxRate}
           salesRepId={form.salesRepId}
           qboClassId={quote?.qbo_class_id || null}

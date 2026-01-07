@@ -6,7 +6,8 @@
  * - View mode: Read-only table display
  */
 
-import { Plus, Trash2, Package, Wrench, User, DollarSign } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Trash2, Package, Wrench, User, DollarSign, Percent, Tag } from 'lucide-react';
 import type { LineItemFormState, QuoteCardMode, QuoteTotals } from './types';
 import { LINE_TYPE_OPTIONS, UNIT_TYPE_OPTIONS } from './types';
 import SkuSearchCombobox from '../SkuSearchCombobox';
@@ -25,6 +26,11 @@ interface QuoteLineItemsProps {
   onUpdateItem: (index: number, updates: Partial<LineItemFormState>) => void;
   onRemoveItem: (index: number) => void;
   onSkuSelect?: (index: number, sku: SkuSearchResult | null) => void;
+  /** Discount and deposit props (Jobber style in totals area) */
+  discountPercent?: string;
+  depositPercent?: string;
+  onDiscountChange?: (value: string) => void;
+  onDepositChange?: (value: string) => void;
 }
 
 const LINE_TYPE_ICONS = {
@@ -43,9 +49,17 @@ export default function QuoteLineItems({
   onUpdateItem,
   onRemoveItem,
   onSkuSelect,
+  discountPercent = '0',
+  depositPercent = '0',
+  onDiscountChange,
+  onDepositChange,
 }: QuoteLineItemsProps) {
   const isEditable = mode !== 'view';
   const activeItems = lineItems.filter(li => !li.isDeleted);
+
+  // Local state for showing/hiding discount and deposit inputs
+  const [showDiscount, setShowDiscount] = useState(parseFloat(discountPercent) > 0);
+  const [showDeposit, setShowDeposit] = useState(parseFloat(depositPercent) > 0);
 
   // Handle SKU selection with price resolution
   // NOTE: This is the fallback handler. QuoteCard overrides this with onSkuSelect
@@ -325,27 +339,124 @@ export default function QuoteLineItems({
             );
           })}
 
-          {/* Totals Row */}
-          <div className="px-6 py-4 bg-gray-50">
-            <div className="flex justify-end gap-8 text-sm">
-              <div className="text-right">
-                <div className="text-gray-500">Subtotal</div>
-                <div className="font-medium">${formatCurrency(totals.subtotal)}</div>
+          {/* Totals Section - Jobber style */}
+          <div className="px-6 py-4 bg-gray-50 border-t">
+            <div className="max-w-xs ml-auto space-y-2">
+              {/* Subtotal */}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-medium">${formatCurrency(totals.subtotal)}</span>
               </div>
-              {totals.discountAmount > 0 && (
-                <div className="text-right">
-                  <div className="text-gray-500">Discount</div>
-                  <div className="font-medium text-green-600">-${formatCurrency(totals.discountAmount)}</div>
+
+              {/* Discount - Jobber style */}
+              {isEditable ? (
+                showDiscount ? (
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-green-600" />
+                      <span className="text-gray-600">Discount</span>
+                      <input
+                        type="number"
+                        value={discountPercent}
+                        onChange={(e) => onDiscountChange?.(e.target.value)}
+                        className="w-16 px-2 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500 text-right"
+                        min="0"
+                        max="100"
+                        step="1"
+                      />
+                      <span className="text-xs text-gray-500">%</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-green-600">-${formatCurrency(totals.discountAmount)}</span>
+                      <button
+                        onClick={() => {
+                          onDiscountChange?.('0');
+                          setShowDiscount(false);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Discount</span>
+                    <button
+                      onClick={() => setShowDiscount(true)}
+                      className="text-green-600 hover:text-green-700 font-medium"
+                    >
+                      Add Discount
+                    </button>
+                  </div>
+                )
+              ) : totals.discountAmount > 0 ? (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Discount ({discountPercent}%)</span>
+                  <span className="font-medium text-green-600">-${formatCurrency(totals.discountAmount)}</span>
                 </div>
-              )}
-              <div className="text-right">
-                <div className="text-gray-500">Tax</div>
-                <div className="font-medium">${formatCurrency(totals.taxAmount)}</div>
+              ) : null}
+
+              {/* Tax */}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Tax</span>
+                <span className="font-medium">${formatCurrency(totals.taxAmount)}</span>
               </div>
-              <div className="text-right">
-                <div className="text-gray-500">Total</div>
-                <div className="text-xl font-bold">${formatCurrency(totals.total)}</div>
+
+              {/* Total */}
+              <div className="flex justify-between text-base font-semibold pt-2 border-t">
+                <span>Total</span>
+                <span className="text-lg">${formatCurrency(totals.total)}</span>
               </div>
+
+              {/* Required Deposit - Jobber style */}
+              {isEditable ? (
+                showDeposit ? (
+                  <div className="flex justify-between items-center text-sm pt-2">
+                    <div className="flex items-center gap-2">
+                      <Percent className="w-4 h-4 text-purple-600" />
+                      <span className="text-gray-600">Required Deposit</span>
+                      <input
+                        type="number"
+                        value={depositPercent}
+                        onChange={(e) => onDepositChange?.(e.target.value)}
+                        className="w-16 px-2 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500 text-right"
+                        min="0"
+                        max="100"
+                        step="5"
+                      />
+                      <span className="text-xs text-gray-500">%</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-purple-600">${formatCurrency(totals.depositAmount)}</span>
+                      <button
+                        onClick={() => {
+                          onDepositChange?.('0');
+                          setShowDeposit(false);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm pt-2">
+                    <span className="text-gray-600">Required Deposit</span>
+                    <button
+                      onClick={() => setShowDeposit(true)}
+                      className="text-purple-600 hover:text-purple-700 font-medium"
+                    >
+                      Add Deposit
+                    </button>
+                  </div>
+                )
+              ) : totals.depositAmount > 0 ? (
+                <div className="flex justify-between text-sm pt-2">
+                  <span className="text-gray-600">Required Deposit ({depositPercent}%)</span>
+                  <span className="font-medium text-purple-600">${formatCurrency(totals.depositAmount)}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

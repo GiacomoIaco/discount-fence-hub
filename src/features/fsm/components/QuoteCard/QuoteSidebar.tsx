@@ -2,18 +2,19 @@
  * QuoteSidebar - Right sidebar with metadata and profitability
  *
  * Contains:
- * - Quote Details (lifecycle dates)
+ * - Quote Details (lifecycle dates + valid until + payment terms)
  * - Sales rep assignment
  * - Project info
- * - Terms (payment, deposit, discount)
  * - Profitability metrics (costs & margin only - totals moved to body)
+ * - Additional Info (custom fields)
+ *
+ * NOTE: Discount % and Deposit % moved to main body (Jobber pattern)
  */
 
 import { useState } from 'react';
 import {
   Users,
   Calendar,
-  Percent,
   DollarSign,
   AlertTriangle,
   ChevronDown,
@@ -26,6 +27,7 @@ import {
   Plus,
   Trash2,
   List,
+  CreditCard,
 } from 'lucide-react';
 import type { QuoteCardMode, QuoteTotals, QuoteValidation, CustomField } from './types';
 import { PAYMENT_TERMS_OPTIONS, PRODUCT_TYPE_OPTIONS } from './types';
@@ -54,8 +56,7 @@ interface QuoteSidebarProps {
   linearFeet: string;
   validUntil: string;
   paymentTerms: string;
-  depositPercent: string;
-  discountPercent: string;
+  // NOTE: depositPercent and discountPercent moved to QuoteLineItems (Jobber pattern)
   taxRate: string;
   salesRepId: string;
   /** QBO Class ID for filtering reps by Business Unit */
@@ -147,8 +148,6 @@ export default function QuoteSidebar({
   linearFeet,
   validUntil,
   paymentTerms,
-  depositPercent,
-  discountPercent,
   taxRate,
   salesRepId,
   qboClassId,
@@ -168,22 +167,76 @@ export default function QuoteSidebar({
 
   return (
     <aside className="w-80 min-w-[280px] max-w-[400px] h-full overflow-y-auto bg-gray-50 border-l border-gray-200 p-4">
-      {/* Quote Details Section - Lifecycle dates (view mode only) */}
-      {mode === 'view' && quoteDates && (
-        <div className="bg-white rounded-lg p-4 mb-4 border">
-          <CollapsibleSection title="QUOTE DETAILS" icon={FileText} defaultOpen={true}>
-            <div className="space-y-0.5">
-              <DateRow icon={Clock} label="Created" date={quoteDates.created_at} />
-              <DateRow icon={Send} label="Sent" date={quoteDates.sent_at} />
-              <DateRow icon={Eye} label="Viewed" date={quoteDates.viewed_at} />
-              <DateRow icon={CheckCircle} label="Approved" date={quoteDates.client_approved_at} highlight={true} />
-              {quoteDates.expires_at && (
-                <DateRow icon={Calendar} label="Expires" date={quoteDates.expires_at} />
+      {/* Quote Details Section - Lifecycle dates + Valid Until + Payment Terms */}
+      <div className="bg-white rounded-lg p-4 mb-4 border">
+        <CollapsibleSection title="QUOTE DETAILS" icon={FileText} defaultOpen={true}>
+          <div className="space-y-3">
+            {/* Lifecycle dates (view mode only) */}
+            {mode === 'view' && quoteDates && (
+              <div className="space-y-0.5 pb-3 border-b">
+                <DateRow icon={Clock} label="Created" date={quoteDates.created_at} />
+                <DateRow icon={Send} label="Sent" date={quoteDates.sent_at} />
+                <DateRow icon={Eye} label="Viewed" date={quoteDates.viewed_at} />
+                <DateRow icon={CheckCircle} label="Approved" date={quoteDates.client_approved_at} highlight={true} />
+              </div>
+            )}
+
+            {/* Valid Until - editable in edit mode */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Valid Until</label>
+              {isEditable ? (
+                <input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => onFieldChange('validUntil', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                />
+              ) : (
+                <div className="text-sm text-gray-900">
+                  {validUntil ? new Date(validUntil).toLocaleDateString() : 'Not set'}
+                </div>
               )}
             </div>
-          </CollapsibleSection>
-        </div>
-      )}
+
+            {/* Payment Terms - editable in edit mode */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Payment Terms</label>
+              {isEditable ? (
+                <select
+                  value={paymentTerms}
+                  onChange={(e) => onFieldChange('paymentTerms', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                >
+                  {PAYMENT_TERMS_OPTIONS.map((term) => (
+                    <option key={term} value={term}>{term}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-gray-900">
+                  <CreditCard className="w-4 h-4 text-gray-400" />
+                  {paymentTerms}
+                </div>
+              )}
+            </div>
+
+            {/* Tax Rate - editable in edit mode */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Tax Rate %</label>
+              {isEditable ? (
+                <input
+                  type="number"
+                  value={taxRate}
+                  onChange={(e) => onFieldChange('taxRate', e.target.value)}
+                  step="0.01"
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                />
+              ) : (
+                <div className="text-sm text-gray-900">{taxRate}%</div>
+              )}
+            </div>
+          </div>
+        </CollapsibleSection>
+      </div>
 
       {/* Assignment Section */}
       <div className="bg-white rounded-lg p-4 mb-4 border">
@@ -251,90 +304,6 @@ export default function QuoteSidebar({
         </CollapsibleSection>
       </div>
 
-      {/* Terms Section */}
-      <div className="bg-white rounded-lg p-4 mb-4 border">
-        <CollapsibleSection title="TERMS" icon={Percent}>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Valid Until</label>
-              {isEditable ? (
-                <input
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => onFieldChange('validUntil', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                />
-              ) : (
-                <div className="text-sm text-gray-900">
-                  {validUntil ? new Date(validUntil).toLocaleDateString() : 'Not set'}
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Payment Terms</label>
-              {isEditable ? (
-                <select
-                  value={paymentTerms}
-                  onChange={(e) => onFieldChange('paymentTerms', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                >
-                  {PAYMENT_TERMS_OPTIONS.map((term) => (
-                    <option key={term} value={term}>{term}</option>
-                  ))}
-                </select>
-              ) : (
-                <div className="text-sm text-gray-900">{paymentTerms}</div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Deposit %</label>
-                {isEditable ? (
-                  <input
-                    type="number"
-                    value={depositPercent}
-                    onChange={(e) => onFieldChange('depositPercent', e.target.value)}
-                    min="0"
-                    max="100"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                  />
-                ) : (
-                  <div className="text-sm text-gray-900">{depositPercent}%</div>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Discount %</label>
-                {isEditable ? (
-                  <input
-                    type="number"
-                    value={discountPercent}
-                    onChange={(e) => onFieldChange('discountPercent', e.target.value)}
-                    min="0"
-                    max="100"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                  />
-                ) : (
-                  <div className="text-sm text-gray-900">{discountPercent}%</div>
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Tax Rate %</label>
-              {isEditable ? (
-                <input
-                  type="number"
-                  value={taxRate}
-                  onChange={(e) => onFieldChange('taxRate', e.target.value)}
-                  step="0.01"
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                />
-              ) : (
-                <div className="text-sm text-gray-900">{taxRate}%</div>
-              )}
-            </div>
-          </div>
-        </CollapsibleSection>
-      </div>
 
       {/* Profitability Section - Costs & Margin only */}
       <div className="bg-white rounded-lg p-4 border">
