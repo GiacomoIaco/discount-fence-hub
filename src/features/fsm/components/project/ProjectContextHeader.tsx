@@ -31,6 +31,7 @@ import {
 interface ProjectWithViewFields extends Project {
   // Flattened fields from v_projects_full
   client_display_name?: string;
+  client_phone?: string;
   property_address?: string;
   community_name?: string;
   rep_name?: string;
