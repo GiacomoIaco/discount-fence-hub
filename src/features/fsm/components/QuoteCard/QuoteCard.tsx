@@ -108,12 +108,16 @@ export default function QuoteCard({
   const updateStatusMutation = useUpdateQuoteStatus();
   const updateQuoteMutation = useUpdateQuote();
 
-  // Handle save
+  // Handle save - switches to view mode after successful save
   const handleSave = useCallback(async () => {
     try {
       const savedId = await save();
-      if (savedId && onSave) {
-        onSave(quote as any);
+      if (savedId) {
+        // Switch to view mode after successful save
+        setMode('view');
+        if (onSave) {
+          onSave(quote as any);
+        }
       }
     } catch (error) {
       console.error('Failed to save quote:', error);
