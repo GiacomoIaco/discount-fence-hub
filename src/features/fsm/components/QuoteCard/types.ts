@@ -51,6 +51,10 @@ export interface LineItemFormState {
   unit_type: string;
   unit_price: number;
   unit_cost: number;
+  /** Material cost per unit (what we pay for materials) */
+  material_unit_cost?: number;
+  /** Labor cost per unit (what we pay for labor) */
+  labor_unit_cost?: number;
   sku_id?: string | null;
   sku_code?: string | null;
   /** Product type code from SKU (e.g., "WV" for Wood Vertical) */
@@ -119,6 +123,8 @@ export const DEFAULT_LINE_ITEM: LineItemFormState = {
   unit_type: 'LF',
   unit_price: 0,
   unit_cost: 0,
+  material_unit_cost: 0,
+  labor_unit_cost: 0,
   sku_id: null,
   pricing_source: null,
   isNew: true,

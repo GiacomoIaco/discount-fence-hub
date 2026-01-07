@@ -259,6 +259,8 @@ export default function QuoteCard({
       unit_type: 'LF',
       unit_price: unitPrice,
       unit_cost: totalUnitCost,
+      material_unit_cost: materialCost,
+      labor_unit_cost: laborCost,
       pricing_source: pricingSource,
       line_type: 'material',
     });

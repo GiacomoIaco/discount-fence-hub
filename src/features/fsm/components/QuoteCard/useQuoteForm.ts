@@ -8,7 +8,6 @@
  * - Validation
  * - Save logic with proper mutation handling
  */
-
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -28,7 +27,6 @@ import type {
   QuoteValidation,
 } from './types';
 import { DEFAULT_LINE_ITEM } from './types';
-
 interface UseQuoteFormOptions {
   mode: QuoteCardMode;
   quoteId?: string;
@@ -39,32 +37,26 @@ interface UseQuoteFormOptions {
   communityId?: string;
   propertyId?: string;
 }
-
 interface UseQuoteFormReturn {
   // Form state
   form: QuoteFormState;
   setField: <K extends keyof QuoteFormState>(key: K, value: QuoteFormState[K]) => void;
   setFields: (updates: Partial<QuoteFormState>) => void;
-
   // Line items
   addLineItem: () => void;
   updateLineItem: (index: number, updates: Partial<LineItemFormState>) => void;
   removeLineItem: (index: number) => void;
-
   // Calculations
   totals: QuoteTotals;
   validation: QuoteValidation;
-
   // Save
   save: () => Promise<string | null>;
   isSaving: boolean;
   isDirty: boolean;
-
   // Quote data
   quote: ReturnType<typeof useQuote>['data'];
   isLoading: boolean;
 }
-
 const initialFormState: QuoteFormState = {
   clientId: '',
   communityId: '',
@@ -83,38 +75,30 @@ const initialFormState: QuoteFormState = {
   internalNotes: '',
   lineItems: [],
 };
-
 export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   const { mode, quoteId, projectId, requestId, requestData, clientId, communityId, propertyId } = options;
-
   // Query client for explicit invalidation
   const queryClient = useQueryClient();
-
   // Load existing quote for edit/view modes
   const { data: quote, isLoading: isLoadingQuote } = useQuote(mode !== 'create' ? quoteId : undefined);
-
   // Mutations
   const createMutation = useCreateQuote();
   const updateMutation = useUpdateQuote();
   const addLineItemMutation = useAddQuoteLineItem();
   const updateLineItemMutation = useUpdateQuoteLineItem();
   const deleteLineItemMutation = useDeleteQuoteLineItem();
-
   // Form state
   const [form, setForm] = useState<QuoteFormState>(initialFormState);
   const [isDirty, setIsDirty] = useState(false);
   const [originalLineItemIds, setOriginalLineItemIds] = useState<string[]>([]);
-
   // Track if we've initialized from props (to prevent re-initialization)
   const hasInitializedFromProps = useRef(false);
-
   // Reset initialization flag when mode changes to something other than create
   useEffect(() => {
     if (mode !== 'create') {
       hasInitializedFromProps.current = false;
     }
   }, [mode]);
-
   // Initialize form from existing quote
   useEffect(() => {
     if (quote && mode !== 'create') {
@@ -130,7 +114,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
         pricing_source: null,
         isNew: false,
       }));
-
       setForm({
         clientId: quote.client_id || '',
         communityId: quote.community_id || '',
@@ -153,7 +136,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       setIsDirty(false);
     }
   }, [quote, mode]);
-
   // Initialize form from request data or project context (create mode)
   // This effect runs once when entering create mode with valid props
   useEffect(() => {
@@ -161,14 +143,11 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     if (mode !== 'create' || hasInitializedFromProps.current) {
       return;
     }
-
     // Check if we have meaningful props to initialize from
     const hasPropsToInit = clientId || communityId || propertyId || requestData;
-
     if (hasPropsToInit) {
       const validDate = new Date();
       validDate.setDate(validDate.getDate() + 30);
-
       setForm(prev => ({
         ...prev,
         clientId: clientId || requestData?.client_id || '',
@@ -179,23 +158,19 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
         scopeSummary: requestData?.description || '',
         validUntil: validDate.toISOString().split('T')[0],
       }));
-
       // Mark as initialized so we don't re-run
       hasInitializedFromProps.current = true;
     }
   }, [mode, clientId, communityId, propertyId, requestData]);
-
   // Field setters
   const setField = useCallback(<K extends keyof QuoteFormState>(key: K, value: QuoteFormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
     setIsDirty(true);
   }, []);
-
   const setFields = useCallback((updates: Partial<QuoteFormState>) => {
     setForm(prev => ({ ...prev, ...updates }));
     setIsDirty(true);
   }, []);
-
   // Line item operations
   const addLineItem = useCallback(() => {
     setForm(prev => ({
@@ -204,7 +179,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     }));
     setIsDirty(true);
   }, []);
-
   const updateLineItem = useCallback((index: number, updates: Partial<LineItemFormState>) => {
     setForm(prev => ({
       ...prev,
@@ -214,7 +188,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     }));
     setIsDirty(true);
   }, []);
-
   const removeLineItem = useCallback((index: number) => {
     setForm(prev => {
       const item = prev.lineItems[index];
@@ -236,21 +209,24 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     });
     setIsDirty(true);
   }, []);
-
   // Calculate totals
   const totals = useMemo((): QuoteTotals => {
     const activeItems = form.lineItems.filter(li => !li.isDeleted);
-
     const subtotal = activeItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-    const materialCost = activeItems.reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0);
+    const materialCost = activeItems.reduce((sum, item) => {
+      // Use separate material cost if available, otherwise fallback to unit_cost
+      const matCost = item.material_unit_cost ?? item.unit_cost;
+      return sum + (item.quantity * matCost);
+    }, 0);
+    // Use separate labor cost field which properly tracks labor component
     const laborCost = activeItems
-      .filter(item => item.line_type === 'labor')
-      .reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0);
-
+      .reduce((sum, item) => {
+      const labCost = item.labor_unit_cost ?? 0;
+      return sum + (item.quantity * labCost);
+    }, 0);
     const discountPercent = parseFloat(form.discountPercent) || 0;
     const taxRate = parseFloat(form.taxRate) || 0;
     const depositPercent = parseFloat(form.depositPercent) || 0;
-
     const discountAmount = subtotal * discountPercent / 100;
     const taxableAmount = subtotal - discountAmount;
     const taxAmount = taxableAmount * taxRate / 100;
@@ -260,7 +236,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     const rawMargin = total > 0 ? (grossProfit / total * 100) : 0;
     const marginPercent = Math.max(-999.99, Math.min(999.99, rawMargin));
     const depositAmount = total * depositPercent / 100;
-
     return {
       subtotal,
       materialCost,
@@ -273,22 +248,18 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       depositAmount,
     };
   }, [form.lineItems, form.discountPercent, form.taxRate, form.depositPercent]);
-
   // Validation
   const validation = useMemo((): QuoteValidation => {
     const errors: string[] = [];
     const warnings: string[] = [];
     const approvalReasons: string[] = [];
-
     if (!form.clientId) {
       errors.push('Client is required');
     }
-
     const activeItems = form.lineItems.filter(li => !li.isDeleted);
     if (activeItems.length === 0) {
       warnings.push('No line items added');
     }
-
     // Approval thresholds
     if (totals.marginPercent < 15 && activeItems.length > 0) {
       approvalReasons.push(`Margin (${totals.marginPercent.toFixed(1)}%) below 15%`);
@@ -299,7 +270,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     if (totals.total > 25000) {
       approvalReasons.push(`Total ($${totals.total.toLocaleString()}) exceeds $25,000`);
     }
-
     return {
       isValid: errors.length === 0,
       errors,
@@ -308,20 +278,16 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       approvalReasons,
     };
   }, [form.clientId, form.lineItems, form.discountPercent, totals]);
-
   // Save function
   const save = useCallback(async (): Promise<string | null> => {
     if (!validation.isValid) {
       console.error('[QuoteForm] Validation failed:', validation.errors);
       return null;
     }
-
     const activeItems = form.lineItems.filter(li => !li.isDeleted);
     console.log('[QuoteForm] Starting save with', activeItems.length, 'active line items');
-
     try {
       let savedQuoteId: string;
-
       if (mode === 'create') {
         // Create new quote
         const result = await createMutation.mutateAsync({
@@ -339,10 +305,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
           deposit_required: totals.depositAmount,
           sales_rep_id: form.salesRepId || undefined,
         });
-
         savedQuoteId = result.id;
         console.log('[QuoteForm] Created quote:', savedQuoteId);
-
         // Add line items
         for (let i = 0; i < activeItems.length; i++) {
           const item = activeItems[i];
@@ -364,7 +328,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
             sku_id: item.sku_id || null,
           });
         }
-
         // Update totals
         await updateMutation.mutateAsync({
           id: savedQuoteId,
@@ -385,7 +348,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       } else {
         // Update existing quote
         savedQuoteId = quoteId!;
-
         await updateMutation.mutateAsync({
           id: savedQuoteId,
           data: {
@@ -413,20 +375,16 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
             approval_reason: validation.needsApproval ? validation.approvalReasons.join('; ') : null,
           },
         });
-
         // Handle line items: delete, update, add
         const currentIds = form.lineItems.filter(li => li.id && !li.isDeleted).map(li => li.id!);
-
         // Delete removed items
         for (const id of originalLineItemIds.filter(id => !currentIds.includes(id))) {
           await deleteLineItemMutation.mutateAsync(id);
         }
-
         // Delete marked-for-deletion items
         for (const item of form.lineItems.filter(li => li.id && li.isDeleted)) {
           await deleteLineItemMutation.mutateAsync(item.id!);
         }
-
         // Update existing and add new items
         let sortOrder = 0;
         for (const item of activeItems) {
@@ -466,10 +424,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
           sortOrder++;
         }
       }
-
       console.log('[QuoteForm] Save completed:', savedQuoteId);
       setIsDirty(false);
-
       // Explicitly invalidate and refetch project_quotes to ensure list updates
       // before the parent component changes state (fixes timing issue)
       if (projectId) {
@@ -478,7 +434,6 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       }
       // Also invalidate general quotes list
       await queryClient.invalidateQueries({ queryKey: ['quotes'] });
-
       return savedQuoteId;
     } catch (error) {
       console.error('[QuoteForm] Save failed:', error);
@@ -490,11 +445,9 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     addLineItemMutation, updateLineItemMutation, deleteLineItemMutation,
     queryClient,
   ]);
-
   const isSaving = createMutation.isPending || updateMutation.isPending ||
     addLineItemMutation.isPending || updateLineItemMutation.isPending ||
     deleteLineItemMutation.isPending;
-
   return {
     form,
     setField,
