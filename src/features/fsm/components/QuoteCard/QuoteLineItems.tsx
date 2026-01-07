@@ -132,13 +132,13 @@ export default function QuoteLineItems({
         </div>
       ) : (
         <div className="divide-y">
-          {/* Table Header */}
+          {/* Table Header - Redesigned layout */}
           <div className="grid grid-cols-12 gap-2 px-6 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
             <div className="col-span-1">SKU</div>
-            <div className="col-span-3">Description</div>
-            <div className="col-span-1 text-right">Qty</div>
-            <div className="col-span-1">Unit</div>
-            <div className="col-span-2 text-right">Price</div>
+            <div className="col-span-4">Product/Service</div>
+            <div className="col-span-1 text-center">Qty</div>
+            <div className="col-span-1 text-center">Unit</div>
+            <div className="col-span-1 text-right">Price</div>
             <div className="col-span-2 text-right">Cost</div>
             <div className="col-span-1 text-right">Total</div>
             {isEditable && <div className="col-span-1"></div>}
@@ -152,24 +152,28 @@ export default function QuoteLineItems({
             return (
               <div
                 key={item.id || `new-${index}`}
-                className="grid grid-cols-12 gap-2 px-6 py-3 items-center hover:bg-gray-50"
+                className="grid grid-cols-12 gap-2 px-6 py-3 items-start hover:bg-gray-50"
               >
-                {/* Product Type */}
-                <div className="col-span-1">
+                {/* SKU Column - Product Type + SKU ID */}
+                <div className="col-span-1 pt-1">
                   {item.sku_code ? (
-                    // Show product type code with icon for SKU items
-                    <div className="flex items-center gap-1 text-xs" title={item.sku_code}>
-                      <Icon className="w-3 h-3 text-gray-400" />
-                      <span className="font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
-                        {item.product_type_code}
-                      </span>
+                    // Show product type code + SKU ID for catalog items
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1" title={`SKU: ${item.sku_code}`}>
+                        <span className="font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded text-xs">
+                          {item.product_type_code || 'SKU'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 font-mono truncate" title={item.sku_code}>
+                        {item.sku_code}
+                      </div>
                     </div>
                   ) : isEditable ? (
                     // For custom items, show line type selector
                     <select
                       value={item.line_type}
                       onChange={(e) => onUpdateItem(index, { line_type: e.target.value as LineItemFormState['line_type'] })}
-                      className="w-full px-1.5 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-1 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
                     >
                       {LINE_TYPE_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -183,17 +187,17 @@ export default function QuoteLineItems({
                   )}
                 </div>
 
-                {/* Description - SKU search OR manual entry */}
-                <div className="col-span-3">
+                {/* Product/Service - SKU combobox + Description field */}
+                <div className="col-span-4">
                   {isEditable ? (
-                    <div className="space-y-1">
-                      {/* Show SKU search for material/labor if no custom description yet */}
+                    <div className="space-y-2">
+                      {/* Row 1: SKU search combobox or Product Name input */}
                       {(item.line_type === 'material' || item.line_type === 'labor') && !item.isCustom ? (
                         <>
                           <SkuSearchCombobox
                             value={item.sku_id ? { id: item.sku_id, sku_name: item.description } as SkuSearchResult : null}
                             onChange={(sku) => handleSkuSelect(index, sku)}
-                            placeholder="Search SKU or type custom..."
+                            placeholder="Search SKU catalog..."
                           />
                           {!item.sku_id && (
                             <button
@@ -204,11 +208,6 @@ export default function QuoteLineItems({
                               + Enter custom item
                             </button>
                           )}
-                          {item.sku_code && (
-                            <div className="text-xs text-gray-500">
-                              <span className="font-mono bg-gray-100 px-1 rounded">{item.sku_code}</span>
-                            </div>
-                          )}
                         </>
                       ) : (
                         <>
@@ -216,8 +215,8 @@ export default function QuoteLineItems({
                             type="text"
                             value={item.description}
                             onChange={(e) => onUpdateItem(index, { description: e.target.value })}
-                            placeholder="Description"
-                            className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
+                            placeholder="Product/Service name"
+                            className="w-full px-2 py-1.5 text-sm border rounded focus:ring-2 focus:ring-purple-500"
                           />
                           {(item.line_type === 'material' || item.line_type === 'labor') && item.isCustom && (
                             <button
@@ -230,6 +229,17 @@ export default function QuoteLineItems({
                           )}
                         </>
                       )}
+
+                      {/* Row 2: Additional description textarea */}
+                      <input
+                        type="text"
+                        value={item.additional_description || ''}
+                        onChange={(e) => onUpdateItem(index, { additional_description: e.target.value })}
+                        placeholder="Description (optional)"
+                        className="w-full px-2 py-1 text-xs border border-dashed rounded focus:ring-2 focus:ring-purple-500 text-gray-600"
+                      />
+
+                      {/* Pricing source indicator */}
                       {item.pricing_source && (
                         <div className="text-xs text-gray-400 truncate" title={item.pricing_source}>
                           {item.pricing_source}
@@ -237,36 +247,36 @@ export default function QuoteLineItems({
                       )}
                     </div>
                   ) : (
-                    <div>
-                      {item.sku_code && (
-                        <div className="text-xs text-gray-500 font-mono">{item.sku_code}</div>
+                    <div className="space-y-1">
+                      <div className="text-sm text-gray-900 font-medium">{item.description}</div>
+                      {item.additional_description && (
+                        <div className="text-xs text-gray-500">{item.additional_description}</div>
                       )}
-                      <span className="text-sm text-gray-900">{item.description}</span>
                     </div>
                   )}
                 </div>
 
                 {/* Quantity */}
-                <div className="col-span-1">
+                <div className="col-span-1 pt-1">
                   {isEditable ? (
                     <input
                       type="number"
                       value={item.quantity}
                       onChange={(e) => onUpdateItem(index, { quantity: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-2 py-1 text-sm text-center border rounded focus:ring-2 focus:ring-purple-500"
                     />
                   ) : (
-                    <span className="text-sm text-gray-900 text-right block">{item.quantity}</span>
+                    <span className="text-sm text-gray-900 text-center block">{item.quantity}</span>
                   )}
                 </div>
 
                 {/* Unit Type */}
-                <div className="col-span-1">
+                <div className="col-span-1 pt-1">
                   {isEditable ? (
                     <select
                       value={item.unit_type}
                       onChange={(e) => onUpdateItem(index, { unit_type: e.target.value })}
-                      className="w-full px-1 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-1 py-1 text-xs border rounded focus:ring-2 focus:ring-purple-500 text-center"
                       disabled={!!item.sku_id}
                     >
                       {UNIT_TYPE_OPTIONS.map(unit => (
@@ -274,35 +284,35 @@ export default function QuoteLineItems({
                       ))}
                     </select>
                   ) : (
-                    <span className="text-sm text-gray-600">{item.unit_type}</span>
+                    <span className="text-sm text-gray-600 text-center block">{item.unit_type}</span>
                   )}
                 </div>
 
-                {/* Unit Price */}
-                <div className="col-span-2">
+                {/* Unit Price - Reduced width */}
+                <div className="col-span-1 pt-1">
                   {isEditable && !item.sku_id ? (
                     <input
                       type="number"
                       value={item.unit_price}
                       onChange={(e) => onUpdateItem(index, { unit_price: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-1 py-1 text-xs text-right border rounded focus:ring-2 focus:ring-purple-500"
                       step="0.01"
                     />
                   ) : (
-                    <span className={`text-sm text-right block ${item.sku_id ? 'text-gray-500 bg-gray-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
+                    <span className={`text-sm text-right block ${item.sku_id ? 'text-gray-500' : 'text-gray-900'}`}>
                       ${formatCurrency(item.unit_price)}
                     </span>
                   )}
                 </div>
 
-                {/* Unit Cost */}
-                <div className="col-span-2">
+                {/* Unit Cost - With M/L breakdown */}
+                <div className="col-span-2 pt-1">
                   {isEditable && !item.sku_id ? (
                     <input
                       type="number"
                       value={item.unit_cost}
                       onChange={(e) => onUpdateItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 text-sm text-right border rounded focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-1 py-1 text-xs text-right border rounded focus:ring-2 focus:ring-purple-500"
                       step="0.01"
                     />
                   ) : (
@@ -320,13 +330,13 @@ export default function QuoteLineItems({
                 </div>
 
                 {/* Line Total */}
-                <div className="col-span-1 text-right font-medium text-sm">
+                <div className="col-span-1 text-right font-medium text-sm pt-1">
                   ${formatCurrency(lineTotal)}
                 </div>
 
                 {/* Delete Button */}
                 {isEditable && (
-                  <div className="col-span-1 text-right">
+                  <div className="col-span-1 text-right pt-1">
                     <button
                       onClick={() => onRemoveItem(index)}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"

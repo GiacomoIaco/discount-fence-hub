@@ -46,7 +46,10 @@ export interface QuoteCardProps {
 export interface LineItemFormState {
   id?: string;
   line_type: 'material' | 'labor' | 'service' | 'adjustment' | 'discount';
+  /** Product/SKU name - the main identifier shown in the combobox */
   description: string;
+  /** Additional description/notes for this line item (shown below product name) */
+  additional_description?: string;
   quantity: number;
   unit_type: string;
   unit_price: number;
