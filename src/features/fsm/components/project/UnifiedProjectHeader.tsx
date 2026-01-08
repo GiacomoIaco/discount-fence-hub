@@ -23,6 +23,7 @@ import {
   Phone,
   Edit2,
   MoreVertical,
+  ExternalLink,
 } from 'lucide-react';
 import type { Project, ProjectStatus } from '../../types';
 import {
@@ -112,6 +113,10 @@ interface UnifiedProjectHeaderProps {
   pipelineData?: ProjectPipelineData;
   /** Callback when pipeline stage is clicked */
   onPipelineStageClick?: (stageId: string) => void;
+  /** Callback when clicking on client name to navigate to client detail */
+  onNavigateToClient?: (clientId: string) => void;
+  /** Callback when clicking on community name to navigate to community detail */
+  onNavigateToCommunity?: (communityId: string) => void;
 }
 
 export default function UnifiedProjectHeader({
@@ -127,6 +132,8 @@ export default function UnifiedProjectHeader({
   childEntityLabel,
   pipelineData: externalPipelineData,
   onPipelineStageClick,
+  onNavigateToClient,
+  onNavigateToCommunity,
 }: UnifiedProjectHeaderProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -223,11 +230,33 @@ export default function UnifiedProjectHeader({
         {/* Client / Community - Most prominent */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0" />
-          <h1 className="text-xl font-bold text-gray-900 truncate">{clientName}</h1>
+          {/* Client name - clickable to navigate to client detail */}
+          {onNavigateToClient && project.client_id ? (
+            <button
+              onClick={() => onNavigateToClient(project.client_id!)}
+              className="text-xl font-bold text-blue-600 hover:text-blue-800 hover:underline truncate transition-colors"
+              title={`View ${clientName} details`}
+            >
+              {clientName}
+            </button>
+          ) : (
+            <h1 className="text-xl font-bold text-gray-900 truncate">{clientName}</h1>
+          )}
           {communityName && (
             <>
               <span className="text-gray-300">—</span>
-              <span className="text-gray-600 truncate">{communityName}</span>
+              {/* Community name - clickable to navigate to community detail */}
+              {onNavigateToCommunity && project.community_id ? (
+                <button
+                  onClick={() => onNavigateToCommunity(project.community_id!)}
+                  className="text-gray-600 hover:text-blue-600 hover:underline truncate transition-colors"
+                  title={`View ${communityName} details`}
+                >
+                  {communityName}
+                </button>
+              ) : (
+                <span className="text-gray-600 truncate">{communityName}</span>
+              )}
             </>
           )}
           {/* Project name/title if set */}
@@ -252,18 +281,34 @@ export default function UnifiedProjectHeader({
         <div className="text-sm text-gray-400 font-mono ml-2">{projectId}</div>
       </div>
 
-      {/* Row 1.5: Full Address - More prominent display */}
-      <div className="px-6 py-2 flex items-center gap-2 bg-blue-50 border-t border-blue-100">
-        <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
-        <span className="text-sm font-medium text-blue-900">
-          {propertyAddress}
-        </span>
-        {project.property_city && (
-          <span className="text-sm text-blue-700">
-            {project.property_city}, {project.property_state} {project.property_zip}
-          </span>
-        )}
-      </div>
+      {/* Row 1.5: Full Address - Clickable to open Google Maps */}
+      {(() => {
+        // Build full address for Google Maps link
+        const fullAddress = project.property_city
+          ? `${propertyAddress}, ${project.property_city}, ${project.property_state} ${project.property_zip}`
+          : propertyAddress;
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+
+        return (
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-2 flex items-center gap-2 bg-blue-50 border-t border-blue-100 hover:bg-blue-100 transition-colors group"
+          >
+            <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <span className="text-sm font-medium text-blue-900 group-hover:underline">
+              {propertyAddress}
+            </span>
+            {project.property_city && (
+              <span className="text-sm text-blue-700">
+                {project.property_city}, {project.property_state} {project.property_zip}
+              </span>
+            )}
+            <ExternalLink className="w-3.5 h-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+          </a>
+        );
+      })()}
 
       {/* Row 2: Meta - BU, Rep, Phone, Value, Date + Actions */}
       <div className="px-6 py-2 flex items-center gap-6 text-sm bg-gray-50 border-t border-gray-100">
@@ -373,7 +418,25 @@ export default function UnifiedProjectHeader({
           data={pipelineData}
           compact
           showDetails
-          onStageClick={onPipelineStageClick}
+          onStageClick={(stageId: string) => {
+            // Call external handler if provided
+            if (onPipelineStageClick) {
+              onPipelineStageClick(stageId);
+            }
+            // Default behavior: navigate to corresponding tab
+            if (onTabChange) {
+              const stageToTab: Record<string, ProjectTab> = {
+                quote: 'estimates',
+                job: 'work',
+                invoice: 'billing',
+                paid: 'billing',
+              };
+              const targetTab = stageToTab[stageId];
+              if (targetTab) {
+                onTabChange(targetTab);
+              }
+            }
+          }}
         />
       </div>
 

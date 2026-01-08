@@ -259,12 +259,13 @@ export default function ProjectsListView({
         /* =============== TABLE VIEW with horizontal scroll =============== */
         <div className="bg-white rounded-lg border overflow-x-auto">
           {/* Table Header - fixed minimum widths */}
-          <div className="min-w-[1200px]">
-            <div className="grid grid-cols-[180px_150px_120px_100px_90px_80px_60px_60px_90px_80px_40px] gap-3 px-4 py-3 bg-gray-50 border-b font-medium text-sm text-gray-600">
+          <div className="min-w-[1350px]">
+            <div className="grid grid-cols-[180px_150px_120px_100px_120px_90px_80px_60px_60px_90px_80px_40px] gap-3 px-4 py-3 bg-gray-50 border-b font-medium text-sm text-gray-600">
               <div>Client</div>
               <div>Address</div>
               <div>Title</div>
               <div>Stage</div>
+              <div>Next Action</div>
               <div>BU</div>
               <div>Rep</div>
               <div className="text-center">Q</div>
@@ -293,7 +294,7 @@ export default function ProjectsListView({
                   <div
                     key={project.id}
                     onClick={() => onSelectProject(project.id)}
-                    className="grid grid-cols-[180px_150px_120px_100px_90px_80px_60px_60px_90px_80px_40px] gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors text-sm items-center"
+                    className="grid grid-cols-[180px_150px_120px_100px_120px_90px_80px_60px_60px_90px_80px_40px] gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors text-sm items-center"
                   >
                     {/* Client */}
                     <div className="min-w-0">
@@ -326,6 +327,23 @@ export default function ProjectsListView({
                         )}
                         {computed.stage.shortLabel}
                       </span>
+                    </div>
+                    {/* Next Action */}
+                    <div className="min-w-0">
+                      {computed.nextAction && (
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium truncate ${
+                            computed.nextAction.priority === 'high'
+                              ? 'bg-orange-100 text-orange-700'
+                              : computed.nextAction.priority === 'low'
+                              ? 'bg-gray-100 text-gray-500'
+                              : 'bg-blue-50 text-blue-700'
+                          }`}
+                          title={computed.nextAction.description}
+                        >
+                          {computed.nextAction.action}
+                        </span>
+                      )}
                     </div>
                     {/* BU */}
                     <div className="text-gray-600 truncate">
@@ -466,7 +484,19 @@ export default function ProjectsListView({
                       )}
                     </div>
 
-                    {/* Row 4: Stats + Rep + Date */}
+                    {/* Row 4: Next Action (if high priority) */}
+                    {computed.nextAction && computed.nextAction.priority === 'high' && (
+                      <div className="mb-2">
+                        <span
+                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700"
+                          title={computed.nextAction.description}
+                        >
+                          → {computed.nextAction.action}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Row 5: Stats + Rep + Date */}
                     <div className="flex flex-wrap items-center gap-4 text-sm">
                       <span className="text-gray-500">
                         {quoteCount} quote{quoteCount !== 1 ? 's' : ''}

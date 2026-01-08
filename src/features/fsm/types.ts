@@ -311,6 +311,16 @@ export interface Project {
   sum_invoiced?: number;
   sum_paid?: number;
   sum_balance_due?: number;
+
+  // Lifecycle date fields from v_projects_full (migration 213)
+  first_quote_sent_at?: string | null;
+  quote_accepted_at?: string | null;
+  first_job_created_at?: string | null;
+  work_started_at?: string | null;
+  work_completed_at?: string | null;
+  first_invoice_sent_at?: string | null;
+  last_payment_at?: string | null;
+  days_in_stage?: number | null;
 }
 
 export interface ServiceRequest {

@@ -178,6 +178,20 @@ interface ProjectWithViewFields extends Project {
 }
 
 /**
+ * Suggested next action for the project
+ */
+export interface NextAction {
+  /** Short action verb (e.g., "Send Quote", "Schedule Job") */
+  action: string;
+  /** Longer description */
+  description: string;
+  /** Priority: high = needs attention, normal = routine */
+  priority: 'high' | 'normal' | 'low';
+  /** Icon hint for UI rendering */
+  iconHint: 'send' | 'schedule' | 'create' | 'invoice' | 'collect' | 'complete' | 'followup' | 'none';
+}
+
+/**
  * Result of computing the project stage
  */
 export interface ComputedStage {
@@ -190,6 +204,8 @@ export interface ComputedStage {
   hasWarning?: boolean;
   /** Warning message if applicable */
   warningMessage?: string;
+  /** Suggested next action for the project */
+  nextAction?: NextAction;
 }
 
 /**
@@ -234,6 +250,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
     return {
       stage: PIPELINE_STAGES.paid,
       detail: `$${totalPaid.toLocaleString()} collected`,
+      nextAction: {
+        action: 'Close Project',
+        description: 'Mark project as complete',
+        priority: 'low',
+        iconHint: 'complete',
+      },
     };
   }
 
@@ -247,6 +269,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
       progress: paidPercent,
       hasWarning,
       warningMessage: hasWarning ? 'Awaiting significant payment' : undefined,
+      nextAction: {
+        action: 'Collect Payment',
+        description: `$${balanceDue.toLocaleString()} outstanding`,
+        priority: hasWarning ? 'high' : 'normal',
+        iconHint: 'collect',
+      },
     };
   }
 
@@ -257,6 +285,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
       detail: `${jobCount} job${jobCount > 1 ? 's' : ''} complete`,
       hasWarning: true,
       warningMessage: 'Ready to invoice',
+      nextAction: {
+        action: 'Create Invoice',
+        description: 'Work complete, ready to bill',
+        priority: 'high',
+        iconHint: 'invoice',
+      },
     };
   }
 
@@ -268,6 +302,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
       stage: PIPELINE_STAGES.working,
       detail: completedJobs > 0 ? `${completedJobs}/${jobCount} done` : `${activeJobCount} active`,
       progress,
+      nextAction: {
+        action: 'Monitor Progress',
+        description: `${activeJobCount} job${activeJobCount > 1 ? 's' : ''} in progress`,
+        priority: 'normal',
+        iconHint: 'none',
+      },
     };
   }
 
@@ -278,6 +318,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
     return {
       stage: PIPELINE_STAGES.scheduled,
       detail: `${jobCount} job${jobCount > 1 ? 's' : ''}`,
+      nextAction: {
+        action: 'Prepare Materials',
+        description: 'Jobs scheduled, prep for work',
+        priority: 'normal',
+        iconHint: 'none',
+      },
     };
   }
 
@@ -288,6 +334,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
       detail: 'Ready to schedule',
       hasWarning: true,
       warningMessage: 'Create job to continue',
+      nextAction: {
+        action: 'Create Job',
+        description: 'Quote accepted, schedule work',
+        priority: 'high',
+        iconHint: 'create',
+      },
     };
   }
 
@@ -296,6 +348,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
     return {
       stage: PIPELINE_STAGES.quoting,
       detail: `${quoteCount} quote${quoteCount > 1 ? 's' : ''} pending`,
+      nextAction: {
+        action: 'Follow Up',
+        description: 'Quote sent, awaiting approval',
+        priority: 'normal',
+        iconHint: 'followup',
+      },
     };
   }
 
@@ -303,6 +361,12 @@ export function computeProjectStage(project: ProjectWithViewFields): ComputedSta
   return {
     stage: PIPELINE_STAGES.new,
     detail: 'No quotes',
+    nextAction: {
+      action: 'Create Quote',
+      description: 'No quotes yet',
+      priority: 'high',
+      iconHint: 'create',
+    },
   };
 }
 
