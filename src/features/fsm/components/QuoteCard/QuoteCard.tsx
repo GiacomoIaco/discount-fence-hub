@@ -272,6 +272,7 @@ export default function QuoteCard({
       updateLineItem(index, {
         sku_id: null,
         description: '',
+        additional_description: '',
         unit_price: 0,
         unit_cost: 0,
         pricing_source: null,
@@ -329,6 +330,7 @@ export default function QuoteCard({
       sku_code: sku.sku_code,
       product_type_code: sku.product_type_code,
       description: sku.sku_name,
+      additional_description: sku.product_description || '',
       unit_type: 'LF',
       unit_price: unitPrice,
       unit_cost: totalUnitCost,

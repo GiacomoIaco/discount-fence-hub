@@ -29,6 +29,8 @@ export interface SkuSearchResult {
   standard_material_cost: number | null;
   standard_labor_cost: number | null;
   standard_cost_per_foot: number | null;
+  /** Description for line items (from SKU catalog) */
+  product_description: string | null;
 }
 
 interface UseSkuSearchOptions {
@@ -84,6 +86,7 @@ export function useSkuSearch(query: string, options: UseSkuSearchOptions = {}) {
           standard_material_cost,
           standard_labor_cost,
           standard_cost_per_foot,
+          product_description,
           product_type:product_types_v2(id, code, name),
           product_style:product_styles_v2(id, code, name)
         `)
@@ -127,6 +130,7 @@ export function useSkuSearch(query: string, options: UseSkuSearchOptions = {}) {
             standard_material_cost: item.standard_material_cost as number | null,
             standard_labor_cost: item.standard_labor_cost as number | null,
             standard_cost_per_foot: item.standard_cost_per_foot as number | null,
+            product_description: item.product_description as string | null,
           };
         });
 
@@ -162,6 +166,7 @@ export function useRecentSkus(options: UseSkuSearchOptions = {}) {
           standard_material_cost,
           standard_labor_cost,
           standard_cost_per_foot,
+          product_description,
           product_type:product_types_v2(id, code, name),
           product_style:product_styles_v2(id, code, name)
         `)
@@ -196,6 +201,7 @@ export function useRecentSkus(options: UseSkuSearchOptions = {}) {
             standard_material_cost: item.standard_material_cost as number | null,
             standard_labor_cost: item.standard_labor_cost as number | null,
             standard_cost_per_foot: item.standard_cost_per_foot as number | null,
+            product_description: item.product_description as string | null,
           };
         })
         .sort((a, b) => recentIds.indexOf(a.id) - recentIds.indexOf(b.id));
