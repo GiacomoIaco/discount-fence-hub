@@ -48,15 +48,10 @@ export function useProjects(filters?: ProjectFilters) {
   return useQuery({
     queryKey: ['projects', filters],
     queryFn: async () => {
+      // Use v_projects_full view for aggregated data (quote_count, job_count, etc.)
       let query = supabase
-        .from('projects')
-        .select(`
-          *,
-          client:clients(id, name),
-          community:communities(id, name),
-          property:properties(id, address_line1),
-          territory:territories(id, name, code)
-        `)
+        .from('v_projects_full')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (filters?.status) {
@@ -82,26 +77,93 @@ export function useProjects(filters?: ProjectFilters) {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        // Fallback to base projects table if view doesn't exist
+        if (error.code === '42P01') {
+          console.warn('v_projects_full view not found, falling back to projects table');
+          return useProjectsFromBaseTable(filters);
+        }
+        throw error;
+      }
 
-      // Collect unique user IDs for rep lookups
-      const userIds = new Set<string>();
-      (data || []).forEach(project => {
-        if (project.assigned_rep_user_id) userIds.add(project.assigned_rep_user_id);
-      });
-
-      // Fetch user profiles
-      const userMap = await fetchUserProfiles(Array.from(userIds));
-
-      // Merge user profiles into projects
-      const projectsWithUsers = (data || []).map(project => ({
-        ...project,
-        assigned_rep_user: project.assigned_rep_user_id ? userMap.get(project.assigned_rep_user_id) : undefined,
-      }));
-
-      return projectsWithUsers as Project[];
+      return (data || []) as Project[];
     },
   });
+}
+
+// Fallback function to query base projects table
+async function useProjectsFromBaseTable(filters?: ProjectFilters): Promise<Project[]> {
+  let query = supabase
+    .from('projects')
+    .select(`
+      *,
+      client:clients(id, name, company_name),
+      community:communities(id, name),
+      property:properties(id, address_line1, city, state, zip),
+      territory:territories(id, name, code),
+      qbo_class:qbo_classes(id, name, labor_code, bu_type)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (filters?.status) {
+    if (Array.isArray(filters.status)) {
+      query = query.in('status', filters.status);
+    } else {
+      query = query.eq('status', filters.status);
+    }
+  }
+
+  if (filters?.clientId) {
+    query = query.eq('client_id', filters.clientId);
+  }
+
+  if (filters?.assignedRepId) {
+    query = query.eq('assigned_rep_user_id', filters.assignedRepId);
+  }
+
+  if (filters?.territoryId) {
+    query = query.eq('territory_id', filters.territoryId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  // Collect unique user IDs for rep lookups
+  const userIds = new Set<string>();
+  (data || []).forEach(project => {
+    if (project.assigned_rep_user_id) userIds.add(project.assigned_rep_user_id);
+  });
+
+  // Fetch user profiles
+  const userMap = await fetchUserProfiles(Array.from(userIds));
+
+  // Transform to match view format with flattened fields
+  const projectsWithUsers = (data || []).map(project => ({
+    ...project,
+    // Flatten client info
+    client_display_name: project.client?.company_name || project.client?.name || null,
+    // Flatten property info
+    property_address: project.property?.address_line1 || null,
+    property_city: project.property?.city || null,
+    // Flatten community info
+    community_name: project.community?.name || null,
+    // Rep info
+    assigned_rep_user: project.assigned_rep_user_id ? userMap.get(project.assigned_rep_user_id) : undefined,
+    rep_name: project.assigned_rep_user_id ? userMap.get(project.assigned_rep_user_id)?.name : null,
+    // Default aggregates (will be 0 in fallback mode)
+    quote_count: 0,
+    cnt_quotes: 0,
+    job_count: 0,
+    cnt_jobs: 0,
+    invoice_count: 0,
+    cnt_invoices: 0,
+    total_job_value: 0,
+    sum_invoiced: 0,
+    has_rework: false,
+  }));
+
+  return projectsWithUsers as Project[];
 }
 
 export function useProject(id: string | undefined) {

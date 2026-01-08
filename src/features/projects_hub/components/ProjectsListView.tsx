@@ -17,6 +17,8 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
+  User,
+  Calendar,
 } from 'lucide-react';
 import { useProjects } from '../../fsm/hooks/useProjects';
 import type { ProjectStatus } from '../../fsm/types';
@@ -271,63 +273,82 @@ export default function ProjectsListView({
         /* =============== TABLE VIEW =============== */
         <div className="bg-white rounded-lg border overflow-hidden">
           {/* Table Header */}
-          <div className="grid grid-cols-[1fr_180px_100px_100px_120px_80px_40px] gap-4 px-4 py-3 bg-gray-50 border-b font-medium text-sm text-gray-600">
+          <div className="grid grid-cols-[1.5fr_120px_80px_80px_60px_60px_80px_90px_40px] gap-3 px-4 py-3 bg-gray-50 border-b font-medium text-sm text-gray-600">
             <div>Client / Address</div>
-            <div className="hidden lg:block">Community</div>
+            <div>BU</div>
+            <div>Rep</div>
             <div>Status</div>
-            <div className="text-center">Quotes</div>
-            <div className="text-center">Jobs</div>
+            <div className="text-center">Q</div>
+            <div className="text-center">J</div>
             <div className="text-right">Value</div>
+            <div className="text-right">Created</div>
             <div></div>
           </div>
           {/* Table Rows */}
           <div className="divide-y divide-gray-100">
             {sortedProjects.map((project) => {
               const statusConfig = PROJECT_STATUS_CONFIG[project.status];
+              // Handle both view field names (cnt_quotes vs quote_count)
+              const quoteCount = project.cnt_quotes ?? project.quote_count ?? 0;
+              const jobCount = project.cnt_jobs ?? project.job_count ?? 0;
+              const totalValue = project.sum_invoiced ?? project.total_job_value ?? 0;
+              // BU code - view returns qbo_labor_code, fallback returns qbo_class.labor_code
+              const buCode = project.qbo_labor_code || project.qbo_class?.labor_code;
+              // Rep name - view returns rep_name, fallback returns assigned_rep_user.name
+              const repName = project.rep_name || project.assigned_rep_user?.name;
+
               return (
                 <div
                   key={project.id}
                   onClick={() => onSelectProject(project.id)}
-                  className="grid grid-cols-[1fr_180px_100px_100px_120px_80px_40px] gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors text-sm items-center"
+                  className="grid grid-cols-[1.5fr_120px_80px_80px_60px_60px_80px_90px_40px] gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors text-sm items-center"
                 >
                   {/* Client / Address */}
                   <div className="min-w-0">
                     <div className="font-medium text-gray-900 truncate">
-                      {project.client_display_name || 'No client'}
+                      {project.client_display_name || project.client?.company_name || project.client?.name || 'No client'}
                     </div>
                     <div className="text-gray-500 text-xs truncate flex items-center gap-1">
                       <MapPin className="w-3 h-3 flex-shrink-0" />
-                      {project.property_address || 'No address'}
+                      {project.property_address || project.property?.address_line1 || 'No address'}
                     </div>
                   </div>
-                  {/* Community - hidden on smaller screens */}
-                  <div className="hidden lg:block text-gray-600 truncate">
-                    {project.community_name || '-'}
+                  {/* BU */}
+                  <div className="text-gray-600 truncate">
+                    {buCode ? (
+                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-medium">
+                        {buCode}
+                      </span>
+                    ) : '-'}
+                  </div>
+                  {/* Rep */}
+                  <div className="text-gray-600 truncate text-xs">
+                    {repName || '-'}
                   </div>
                   {/* Status */}
                   <div>
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}>
                       {statusConfig.label}
                     </span>
-                    {project.has_rework && (
-                      <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px]">
-                        !
-                      </span>
-                    )}
                   </div>
                   {/* Quotes */}
                   <div className="text-center text-gray-600">
-                    {project.quote_count || 0}
+                    {quoteCount}
                   </div>
                   {/* Jobs */}
                   <div className="text-center text-gray-600">
-                    {project.job_count || 0}
+                    {jobCount}
                   </div>
                   {/* Value */}
                   <div className="text-right font-medium text-gray-900">
-                    {(project.total_job_value ?? 0) > 0
-                      ? formatCurrency(project.total_job_value || 0)
-                      : '-'}
+                    {totalValue > 0 ? formatCurrency(totalValue) : '-'}
+                  </div>
+                  {/* Created Date */}
+                  <div className="text-right text-gray-500 text-xs">
+                    {new Date(project.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
                   </div>
                   {/* Arrow */}
                   <div className="text-right">
@@ -343,6 +364,15 @@ export default function ProjectsListView({
         <div className="space-y-3">
           {sortedProjects.map((project) => {
             const statusConfig = PROJECT_STATUS_CONFIG[project.status];
+            // Handle both view field names
+            const quoteCount = project.cnt_quotes ?? project.quote_count ?? 0;
+            const jobCount = project.cnt_jobs ?? project.job_count ?? 0;
+            const totalValue = project.sum_invoiced ?? project.total_job_value ?? 0;
+            const buCode = project.qbo_labor_code || project.qbo_class?.labor_code;
+            const repName = project.rep_name || project.assigned_rep_user?.name;
+            const clientName = project.client_display_name || project.client?.company_name || project.client?.name;
+            const propertyAddress = project.property_address || project.property?.address_line1;
+            const propertyCity = project.property_city || project.property?.city;
 
             return (
               <div
@@ -374,9 +404,10 @@ export default function ProjectsListView({
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
+                    {/* Row 1: Client + Status */}
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="font-semibold text-gray-900 truncate">
-                        {project.client_display_name || 'No client'}
+                        {clientName || 'No client'}
                       </h3>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}
@@ -385,39 +416,53 @@ export default function ProjectsListView({
                       </span>
                       {project.has_rework && (
                         <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs">
-                          Has Rework
+                          Rework
                         </span>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                      {project.property_address && (
-                        <span className="flex items-center gap-1 truncate max-w-[200px]">
-                          <MapPin className="w-4 h-4" />
-                          {project.property_address}
-                          {project.property_city && `, ${project.property_city}`}
+                    {/* Row 2: Address + BU */}
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-1">
+                      {propertyAddress && (
+                        <span className="flex items-center gap-1 truncate max-w-[240px]">
+                          <MapPin className="w-4 h-4 flex-shrink-0" />
+                          {propertyAddress}
+                          {propertyCity && `, ${propertyCity}`}
                         </span>
                       )}
-                      {project.qbo_class?.labor_code && (
-                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">
-                          {project.qbo_class.labor_code}
+                      {buCode && (
+                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">
+                          {buCode}
                         </span>
                       )}
                     </div>
 
-                    {/* Stats row */}
-                    <div className="flex items-center gap-4 mt-2 text-sm">
+                    {/* Row 3: Stats + Rep + Date */}
+                    <div className="flex flex-wrap items-center gap-4 text-sm">
                       <span className="text-gray-500">
-                        {project.quote_count || 0} quotes
+                        {quoteCount} quote{quoteCount !== 1 ? 's' : ''}
                       </span>
                       <span className="text-gray-500">
-                        {project.job_count || 0} jobs
+                        {jobCount} job{jobCount !== 1 ? 's' : ''}
                       </span>
-                      {(project.total_job_value ?? 0) > 0 && (
+                      {totalValue > 0 && (
                         <span className="font-medium text-gray-900">
-                          {formatCurrency(project.total_job_value || 0)}
+                          {formatCurrency(totalValue)}
                         </span>
                       )}
+                      {repName && (
+                        <span className="flex items-center gap-1 text-gray-400 text-xs">
+                          <User className="w-3 h-3" />
+                          {repName}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 text-gray-400 text-xs">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(project.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
                     </div>
                   </div>
 

@@ -41,6 +41,8 @@ interface ProjectWithViewFields extends Project {
   client_phone?: string;
   property_address?: string;
   property_city?: string;
+  property_state?: string;
+  property_zip?: string;
   community_name?: string;
   rep_name?: string;
   qbo_class_name?: string;
@@ -205,7 +207,7 @@ export default function UnifiedProjectHeader({
 
   return (
     <div className="bg-white border-b shadow-sm">
-      {/* Row 1: Identity - Back, Client/Community, Address, Project ID */}
+      {/* Row 1: Identity - Back, Client/Community + Project Name, Project ID */}
       <div className="px-6 py-3 flex items-center gap-4">
         {/* Back button */}
         {onBack && (
@@ -228,14 +230,15 @@ export default function UnifiedProjectHeader({
               <span className="text-gray-600 truncate">{communityName}</span>
             </>
           )}
-        </div>
-
-        {/* Property Address */}
-        <div className="flex items-center gap-2 text-gray-600">
-          <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <span className="text-sm truncate max-w-[300px]" title={propertyAddress}>
-            {propertyAddress}
-          </span>
+          {/* Project name/title if set */}
+          {project.name && (
+            <>
+              <span className="text-gray-300">•</span>
+              <span className="text-gray-500 italic truncate" title={project.name}>
+                {project.name}
+              </span>
+            </>
+          )}
         </div>
 
         {/* Status badge */}
@@ -247,6 +250,19 @@ export default function UnifiedProjectHeader({
 
         {/* Project ID - Right corner */}
         <div className="text-sm text-gray-400 font-mono ml-2">{projectId}</div>
+      </div>
+
+      {/* Row 1.5: Full Address - More prominent display */}
+      <div className="px-6 py-2 flex items-center gap-2 bg-blue-50 border-t border-blue-100">
+        <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
+        <span className="text-sm font-medium text-blue-900">
+          {propertyAddress}
+        </span>
+        {project.property_city && (
+          <span className="text-sm text-blue-700">
+            {project.property_city}, {project.property_state} {project.property_zip}
+          </span>
+        )}
       </div>
 
       {/* Row 2: Meta - BU, Rep, Phone, Value, Date + Actions */}
