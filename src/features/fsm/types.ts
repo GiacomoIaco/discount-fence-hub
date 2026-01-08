@@ -290,12 +290,27 @@ export interface Project {
 
   // Derived display fields (from v_projects_full view)
   client_display_name?: string;
+  client_phone?: string;
   property_address?: string;
   property_city?: string;
+  property_state?: string;
+  property_zip?: string;
   community_name?: string;
   rep_name?: string;
+  qbo_class_name?: string;
+  qbo_labor_code?: string;
   accepted_quote_total?: number;
   total_job_value?: number;
+
+  // Aggregate fields from v_projects_full (alternative naming)
+  cnt_quotes?: number;
+  cnt_jobs?: number;
+  cnt_active_jobs?: number;
+  cnt_invoices?: number;
+  cnt_unpaid_invoices?: number;
+  sum_invoiced?: number;
+  sum_paid?: number;
+  sum_balance_due?: number;
 }
 
 export interface ServiceRequest {
