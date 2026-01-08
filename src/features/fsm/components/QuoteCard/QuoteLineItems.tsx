@@ -154,19 +154,12 @@ export default function QuoteLineItems({
                 key={item.id || `new-${index}`}
                 className="grid grid-cols-12 gap-2 px-6 py-3 items-start hover:bg-gray-50"
               >
-                {/* SKU Column - Product Type + SKU ID */}
+                {/* SKU Column - SKU ID only */}
                 <div className="col-span-1 pt-1">
                   {item.sku_code ? (
-                    // Show product type code + SKU ID for catalog items
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1" title={`SKU: ${item.sku_code}`}>
-                        <span className="font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded text-xs">
-                          {item.product_type_code || 'SKU'}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 font-mono truncate" title={item.sku_code}>
-                        {item.sku_code}
-                      </div>
+                    // Show SKU ID code for catalog items
+                    <div className="text-xs text-gray-700 font-mono" title={item.sku_code}>
+                      {item.sku_code}
                     </div>
                   ) : isEditable ? (
                     // For custom items, show line type selector
