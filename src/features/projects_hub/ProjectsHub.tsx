@@ -275,10 +275,15 @@ export default function ProjectsHub({
                   propertyId={projectForQuote.property_id || undefined}
                   quoteId={editingQuoteId || undefined}
                   onBack={undefined} // Header handles back navigation
-                  onSave={() => {
-                    setCreatingQuoteForProjectId(null);
-                    setEditingQuoteId(null);
-                    setQuoteViewMode('create');
+                  onSave={(savedQuote) => {
+                    // For new quotes: switch from "creating" to "viewing" the saved quote
+                    if (creatingQuoteForProjectId && savedQuote?.id) {
+                      setCreatingQuoteForProjectId(null);
+                      setEditingQuoteId(savedQuote.id);
+                      setQuoteViewMode('view');
+                    }
+                    // For existing quotes: QuoteCard already switched to view mode internally
+                    // Just keep the current state - don't close the QuoteCard
                     // Project queries auto-refresh via React Query
                   }}
                   onConvertToJob={(quoteId) => {
