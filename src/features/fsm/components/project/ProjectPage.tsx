@@ -13,17 +13,10 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Briefcase,
-  LayoutDashboard,
-  FileText,
-  Wrench,
-  Receipt,
   FolderOpen,
   Clock,
   Plus,
-  Edit2,
   AlertTriangle,
-  MoreVertical,
 } from 'lucide-react';
 import {
   useProjectFull,
@@ -32,50 +25,16 @@ import {
   useProjectInvoices,
   useChildProjects,
 } from '../../hooks/useProjects';
-import { EntityHeader, type Badge } from '../shared/EntityHeader';
 import { TotalsDisplay } from '../shared/TotalsDisplay';
-import { WorkflowProgress, type WorkflowStep } from '../shared/WorkflowProgress';
+import UnifiedProjectHeader, { type ProjectTab } from './UnifiedProjectHeader';
 import { EstimatesTab } from './tabs/EstimatesTab';
 import { WorkTab } from './tabs/WorkTab';
 import { BillingTab } from './tabs/BillingTab';
 import QuoteToJobsModal from '../QuoteToJobsModal';
-import type { Project, ProjectStatus, Quote } from '../../types';
+import type { Project, Quote } from '../../types';
 
-// Tab types
-type ProjectTab = 'overview' | 'estimates' | 'work' | 'billing' | 'files' | 'activity';
-
-const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
-  active: 'Active',
-  complete: 'Complete',
-  on_hold: 'On Hold',
-  cancelled: 'Cancelled',
-  warranty: 'Warranty',
-};
-
-const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
-  active: 'bg-blue-100 text-blue-700',
-  complete: 'bg-green-100 text-green-700',
-  on_hold: 'bg-amber-100 text-amber-700',
-  cancelled: 'bg-gray-100 text-gray-500',
-  warranty: 'bg-purple-100 text-purple-700',
-};
-
-// BU type colors (same as QuoteHeader)
-const BU_TYPE_COLORS: Record<string, string> = {
-  residential: 'bg-blue-100 text-blue-700 border-blue-200',
-  builders: 'bg-orange-100 text-orange-700 border-orange-200',
-  commercial: 'bg-green-100 text-green-700 border-green-200',
-};
-
-// Tab configuration
-const TABS: { id: ProjectTab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'estimates', label: 'Estimates', icon: FileText },
-  { id: 'work', label: 'Work', icon: Wrench },
-  { id: 'billing', label: 'Billing', icon: Receipt },
-  { id: 'files', label: 'Files', icon: FolderOpen },
-  { id: 'activity', label: 'Activity', icon: Clock },
-];
+// Tab IDs for URL sync
+const VALID_TABS: ProjectTab[] = ['overview', 'estimates', 'work', 'billing', 'files', 'activity'];
 
 interface ProjectPageProps {
   projectId: string;
@@ -108,7 +67,7 @@ export function ProjectPage({
   // Sync tab with URL
   useEffect(() => {
     const urlTab = searchParams.get('tab') as ProjectTab;
-    if (urlTab && TABS.some((t) => t.id === urlTab)) {
+    if (urlTab && VALID_TABS.includes(urlTab)) {
       setActiveTab(urlTab);
     }
   }, [searchParams]);
@@ -124,42 +83,6 @@ export function ProjectPage({
   const { data: jobs = [] } = useProjectJobs(projectId);
   const { data: invoices = [] } = useProjectInvoices(projectId);
   const { data: childProjects = [] } = useChildProjects(projectId);
-
-  // Compute workflow steps based on project state
-  const getWorkflowSteps = (): WorkflowStep[] => {
-    const hasAcceptedQuote = quotes.some((q) => q.acceptance_status === 'accepted');
-    const hasActiveJobs = jobs.some((j) => !['completed', 'cancelled'].includes(j.status));
-    const hasCompletedJobs = jobs.some((j) => j.status === 'completed');
-    const hasPaidInvoices = invoices.some((i) => i.status === 'paid');
-    const allInvoicesPaid = invoices.length > 0 && invoices.every((i) => i.status === 'paid');
-
-    return [
-      {
-        id: 'quote',
-        label: 'Quote',
-        completed: hasAcceptedQuote,
-        current: !hasAcceptedQuote && quotes.length > 0,
-      },
-      {
-        id: 'jobs',
-        label: 'Jobs',
-        completed: hasCompletedJobs && !hasActiveJobs,
-        current: hasActiveJobs,
-      },
-      {
-        id: 'invoice',
-        label: 'Invoice',
-        completed: hasPaidInvoices,
-        current: invoices.length > 0 && !hasPaidInvoices,
-      },
-      {
-        id: 'paid',
-        label: 'Paid',
-        completed: allInvoicesPaid,
-        current: false,
-      },
-    ];
-  };
 
   // Loading state
   if (isLoading) {
@@ -188,58 +111,13 @@ export function ProjectPage({
     );
   }
 
-  // Build header content
-  const statusBadge: Badge = {
-    label: PROJECT_STATUS_LABELS[project.status],
-    colorClass: PROJECT_STATUS_COLORS[project.status],
-  };
-
-  const extraBadges: Badge[] = [];
-  // Add BU badge prominently (QBO Class)
-  if (project.qbo_class?.labor_code || project.qbo_class?.name) {
-    const buType = project.qbo_class.bu_type || 'residential';
-    const buColor = BU_TYPE_COLORS[buType] || BU_TYPE_COLORS.residential;
-    extraBadges.push({
-      label: project.qbo_class.labor_code || project.qbo_class.name,
-      colorClass: `${buColor} border`,
-    });
-  }
-  if (project.has_rework) {
-    extraBadges.push({
-      label: 'Has Rework',
-      colorClass: 'bg-red-100 text-red-700',
-    });
-  }
-  if (project.parent_project_id) {
-    extraBadges.push({
-      label: project.relationship_type || 'Related',
-      colorClass: 'bg-purple-100 text-purple-700',
-    });
-  }
-
-  // Subtitle content (BU badge now shown in extraBadges, not here)
-  const subtitleContent = (
-    <>
-      {project.client_display_name || project.client?.name || 'No client'}
-      {project.property_address && (
-        <span className="text-gray-400">|</span>
-      )}
-      {project.property_address && (
-        <span>
-          {project.property_address}
-          {project.property_city && `, ${project.property_city}`}
-        </span>
-      )}
-    </>
-  );
-
-  // Actions
-  const headerActions = (
+  // Tab-specific actions
+  const tabActions = (
     <>
       {activeTab === 'estimates' && onCreateQuote && (
         <button
           onClick={onCreateQuote}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
         >
           <Plus className="w-4 h-4" />
           New Quote
@@ -248,80 +126,31 @@ export function ProjectPage({
       {activeTab === 'work' && onCreateJob && (
         <button
           onClick={onCreateJob}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
         >
           <Plus className="w-4 h-4" />
           Add Job
         </button>
       )}
-      {onEditProject && (
-        <button
-          onClick={onEditProject}
-          className="p-2 hover:bg-gray-100 rounded-lg"
-          title="Edit Project"
-        >
-          <Edit2 className="w-5 h-5 text-gray-500" />
-        </button>
-      )}
-      <button className="p-2 hover:bg-gray-100 rounded-lg">
-        <MoreVertical className="w-5 h-5 text-gray-500" />
-      </button>
     </>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <EntityHeader
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Unified Project Header */}
+      <UnifiedProjectHeader
+        project={project}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        tabCounts={{
+          estimates: quotes.length,
+          work: jobs.length,
+          billing: invoices.length,
+        }}
         onBack={onBack}
-        icon={Briefcase}
-        iconBgClass="bg-blue-100"
-        iconColorClass="text-blue-600"
-        title={project.project_number || project.name || 'Project'}
-        statusBadge={statusBadge}
-        extraBadges={extraBadges}
-        subtitle={subtitleContent}
-        workflowProgress={<WorkflowProgress steps={getWorkflowSteps()} compact />}
-        actions={headerActions}
-      >
-        {/* Tabs */}
-        <div className="flex items-center gap-1 mt-4 border-t pt-4 -mx-6 px-6 overflow-x-auto">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-
-            // Count badges for certain tabs
-            let count: number | null = null;
-            if (tab.id === 'estimates') count = quotes.length;
-            if (tab.id === 'work') count = jobs.length;
-            if (tab.id === 'billing') count = invoices.length;
-
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-                  isActive
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {tab.label}
-                {count !== null && count > 0 && (
-                  <span
-                    className={`px-1.5 py-0.5 text-xs rounded-full ${
-                      isActive ? 'bg-blue-200 text-blue-700' : 'bg-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </EntityHeader>
+        onEdit={onEditProject}
+        tabActions={tabActions}
+      />
 
       {/* Tab Content */}
       <div className="p-6">

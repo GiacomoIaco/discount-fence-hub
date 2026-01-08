@@ -12,6 +12,7 @@ export type Section =
   | 'schedule'
   | 'client-hub'
   | 'projects-hub'
+  | 'projects-list'
   | 'sales-hub'
   | 'bom-calculator'
   | 'bom-calculator-v2'
@@ -59,6 +60,7 @@ export const ROUTE_CONFIG: Record<Section, string> = {
   // Client & Projects
   'client-hub': 'clients',
   'projects-hub': 'projects',
+  'projects-list': 'projects/list',
 
   // Sales
   'sales-hub': 'sales',

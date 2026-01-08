@@ -293,7 +293,7 @@ export default function ProjectsListView({
                   {/* Client / Address */}
                   <div className="min-w-0">
                     <div className="font-medium text-gray-900 truncate">
-                      {project.client_display_name || project.name || 'Unnamed'}
+                      {project.client_display_name || 'No client'}
                     </div>
                     <div className="text-gray-500 text-xs truncate flex items-center gap-1">
                       <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -376,7 +376,7 @@ export default function ProjectsListView({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="font-semibold text-gray-900 truncate">
-                        {project.client_display_name || project.name || 'Unnamed Project'}
+                        {project.client_display_name || 'No client'}
                       </h3>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}

@@ -600,11 +600,11 @@ function App() {
         </ErrorBoundary>
       );
     }
-    if (activeSection === 'projects-hub') {
+    if (activeSection === 'projects-hub' || activeSection === 'projects-list') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <ProjectsHub />
+            <ProjectsHub initialView={activeSection === 'projects-list' ? 'projects' : 'dashboard'} />
           </Suspense>
         </ErrorBoundary>
       );

@@ -15,7 +15,7 @@ import {
 import type { ProjectsHubView } from './types';
 import { ProjectsDashboard, ComingSoonPlaceholder, ProjectsListView } from './components';
 import { RequestsHub, QuotesHub, JobsHub, InvoicesHub } from '../fsm/pages';
-import { ProjectPage, ProjectCreateWizard, ProjectContextHeader, type ProjectWizardResult } from '../fsm/components/project';
+import { ProjectPage, ProjectCreateWizard, UnifiedProjectHeader, type ProjectWizardResult } from '../fsm/components/project';
 import { QuoteCard } from '../fsm/components/QuoteCard';
 import { useProjectFull } from '../fsm/hooks/useProjects';
 import { useQuote } from '../fsm/hooks/useQuotes';
@@ -175,7 +175,7 @@ export default function ProjectsHub({
       externalClearEntity();
     } else {
       // Navigate back to the section list
-      navigateTo(activeView === 'projects' ? 'projects-hub' :
+      navigateTo(activeView === 'projects' ? 'projects-list' :
                  activeView === 'requests' ? 'requests' :
                  activeView === 'quotes' ? 'quotes' :
                  activeView === 'jobs' ? 'jobs' :
@@ -254,14 +254,15 @@ export default function ProjectsHub({
 
           return (
             <div className="h-full flex flex-col">
-              {/* Persistent Project Context Header */}
-              <ProjectContextHeader
+              {/* Unified Project Header with Quote Breadcrumb */}
+              <UnifiedProjectHeader
                 project={projectForQuote}
                 onBack={() => {
                   setCreatingQuoteForProjectId(null);
                   setEditingQuoteId(null);
                   setQuoteViewMode('create');
                 }}
+                showTabs={false}
                 childEntityType="quote"
                 childEntityLabel={quoteLabel}
               />
@@ -326,7 +327,7 @@ export default function ProjectsHub({
                 // Clear project selection and navigate to projects list
                 setSelectedProjectId(null);
                 setActiveView('projects');
-                navigateTo('projects-hub');
+                navigateTo('projects-list');
               }}
               onNavigateToQuote={(quoteId) => {
                 // Open quote in QuoteCard within project context (view mode first)
@@ -450,7 +451,7 @@ export default function ProjectsHub({
                   setShowCreateWizard(false);
                   // Navigate to the appropriate route (clears URL params)
                   const route = item.key === 'dashboard' ? 'projects-hub' :
-                                item.key === 'projects' ? 'projects-hub' :
+                                item.key === 'projects' ? 'projects-list' :
                                 item.key === 'requests' ? 'requests' :
                                 item.key === 'quotes' ? 'quotes' :
                                 item.key === 'jobs' ? 'jobs' :
