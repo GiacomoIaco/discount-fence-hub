@@ -244,6 +244,12 @@ export function parseEntityUrl(path: string): {
 } | null {
   const cleanPath = path.replace(/^\/+|\/+$/g, '');
 
+  // First check if this is an exact section route (e.g., /projects/list)
+  // This prevents entity routes from incorrectly matching section sub-routes
+  if (PATH_TO_SECTION[cleanPath]) {
+    return null;
+  }
+
   for (const [entityType, config] of Object.entries(ENTITY_ROUTES)) {
     const pattern = config.pattern.replace(/^\/+/, '');
     const params = matchPattern(cleanPath, pattern);
