@@ -270,6 +270,19 @@ export function useUpdateProjectStatus() {
   });
 }
 
+/** Editable project fields for ProjectEditorModal */
+export interface UpdateProjectData {
+  name?: string | null;
+  description?: string | null;
+  status?: ProjectStatus;
+  client_id?: string | null;
+  community_id?: string | null;
+  property_id?: string | null;
+  qbo_class_id?: string | null;
+  assigned_rep_user_id?: string | null;
+  territory_id?: string | null;
+}
+
 export function useUpdateProject() {
   const queryClient = useQueryClient();
 
@@ -279,7 +292,7 @@ export function useUpdateProject() {
       data,
     }: {
       id: string;
-      data: Partial<Pick<Project, 'name' | 'description' | 'status'>>;
+      data: UpdateProjectData;
     }) => {
       const { error } = await supabase
         .from('projects')
@@ -293,6 +306,7 @@ export function useUpdateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['project_full'] });
       showSuccess('Project updated');
     },
     onError: (error: Error) => {

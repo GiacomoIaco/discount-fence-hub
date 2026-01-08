@@ -4,6 +4,7 @@ export { ProjectPage } from './ProjectPage';
 export { ProjectCreateWizard, type ProjectWizardResult } from './ProjectCreateWizard';
 export { default as ProjectContextHeader } from './ProjectContextHeader';
 export { default as UnifiedProjectHeader, type ProjectTab } from './UnifiedProjectHeader';
+export { default as ProjectEditorModal } from './ProjectEditorModal';
 
 // Tab components
 export { EstimatesTab } from './tabs/EstimatesTab';

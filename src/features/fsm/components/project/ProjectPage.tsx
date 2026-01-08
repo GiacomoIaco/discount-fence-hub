@@ -27,6 +27,7 @@ import {
 } from '../../hooks/useProjects';
 import { TotalsDisplay } from '../shared/TotalsDisplay';
 import UnifiedProjectHeader, { type ProjectTab } from './UnifiedProjectHeader';
+import ProjectEditorModal from './ProjectEditorModal';
 import { EstimatesTab } from './tabs/EstimatesTab';
 import { WorkTab } from './tabs/WorkTab';
 import { BillingTab } from './tabs/BillingTab';
@@ -63,6 +64,8 @@ export function ProjectPage({
   );
   // State for QuoteToJobsModal
   const [convertingQuote, setConvertingQuote] = useState<Quote | null>(null);
+  // State for ProjectEditorModal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Sync tab with URL
   useEffect(() => {
@@ -148,7 +151,7 @@ export function ProjectPage({
           billing: invoices.length,
         }}
         onBack={onBack}
-        onEdit={onEditProject}
+        onEdit={() => setIsEditModalOpen(true)}
         tabActions={tabActions}
       />
 
@@ -211,6 +214,14 @@ export function ProjectPage({
               onNavigateToJob(result.jobIds[0]);
             }
           }}
+        />
+      )}
+
+      {/* ProjectEditorModal for editing project details */}
+      {isEditModalOpen && (
+        <ProjectEditorModal
+          project={project}
+          onClose={() => setIsEditModalOpen(false)}
         />
       )}
     </div>
