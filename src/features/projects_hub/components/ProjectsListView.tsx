@@ -303,10 +303,15 @@ export default function ProjectsListView({
                   onClick={() => onSelectProject(project.id)}
                   className="grid grid-cols-[1.5fr_120px_80px_80px_60px_60px_80px_90px_40px] gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors text-sm items-center"
                 >
-                  {/* Client / Address */}
+                  {/* Client / Address / Title */}
                   <div className="min-w-0">
                     <div className="font-medium text-gray-900 truncate">
                       {project.client_display_name || project.client?.company_name || project.client?.name || 'No client'}
+                      {project.name && (
+                        <span className="ml-2 text-gray-500 font-normal italic">
+                          — {project.name}
+                        </span>
+                      )}
                     </div>
                     <div className="text-gray-500 text-xs truncate flex items-center gap-1">
                       <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -404,10 +409,15 @@ export default function ProjectsListView({
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    {/* Row 1: Client + Status */}
+                    {/* Row 1: Client + Title + Status */}
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="font-semibold text-gray-900 truncate">
                         {clientName || 'No client'}
+                        {project.name && (
+                          <span className="ml-2 text-gray-500 font-normal italic">
+                            — {project.name}
+                          </span>
+                        )}
                       </h3>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}

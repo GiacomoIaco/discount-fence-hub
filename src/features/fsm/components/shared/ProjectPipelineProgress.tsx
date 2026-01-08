@@ -351,10 +351,10 @@ export function ProjectPipelineProgress({
                 >
                   {stage.label}
                 </span>
-                {showDetails && stage.detail && !compact && (
+                {showDetails && stage.detail && (
                   <span
                     className={`
-                      text-[10px] leading-tight
+                      ${compact ? 'text-[9px]' : 'text-[10px]'} leading-tight
                       ${darkMode ? 'text-slate-500' : 'text-gray-500'}
                     `}
                   >
