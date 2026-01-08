@@ -23,8 +23,6 @@ import {
   Phone,
   Edit2,
   MoreVertical,
-  Plus,
-  X,
 } from 'lucide-react';
 import type { Project, ProjectStatus } from '../../types';
 import {
@@ -170,7 +168,8 @@ export default function UnifiedProjectHeader({
     project.assigned_rep_user?.name ||
     project.assigned_rep_user?.full_name;
 
-  const clientPhone = project.client_phone || project.client?.primary_contact_phone || null;
+  // Client phone - only use the flattened view field (client join doesn't include phone)
+  const clientPhone = project.client_phone || null;
 
   // Format BU display - prefer code (shorter), fallback to name
   const buDisplay = qboClassCode || qboClassName;

@@ -45,7 +45,6 @@ interface ProjectPageProps {
   onNavigateToInvoice?: (invoiceId: string) => void;
   onCreateQuote?: () => void;
   onCreateJob?: () => void;
-  onEditProject?: () => void;
 }
 
 export function ProjectPage({
@@ -56,7 +55,6 @@ export function ProjectPage({
   onNavigateToInvoice,
   onCreateQuote,
   onCreateJob,
-  onEditProject,
 }: ProjectPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<ProjectTab>(

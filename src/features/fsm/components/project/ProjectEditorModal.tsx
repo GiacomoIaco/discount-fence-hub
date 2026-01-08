@@ -286,7 +286,7 @@ export default function ProjectEditorModal({
             >
               <option value="">No rep assigned</option>
               {reps.map(rep => (
-                <option key={rep.user_id} value={rep.user_id}>
+                <option key={rep.id} value={rep.id}>
                   {rep.name}
                 </option>
               ))}
