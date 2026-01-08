@@ -18,15 +18,11 @@ import {
   ArrowRight,
   ChevronDown,
   MapPin,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
   User,
   Calendar,
   AlertCircle,
 } from 'lucide-react';
 import { useProjects } from '../../fsm/hooks/useProjects';
-import type { ProjectStatus } from '../../fsm/types';
 import {
   useListVariant,
   VariantToggle,
@@ -37,43 +33,6 @@ import {
   PIPELINE_STAGES,
   type PipelineStageId,
 } from '../../fsm/utils/computeProjectStage';
-
-// For filtering by the original project status
-const PROJECT_STATUS_CONFIG: Record<
-  ProjectStatus,
-  { label: string; bgClass: string; textClass: string; icon: typeof CheckCircle }
-> = {
-  active: {
-    label: 'Active',
-    bgClass: 'bg-blue-100',
-    textClass: 'text-blue-700',
-    icon: Clock,
-  },
-  complete: {
-    label: 'Complete',
-    bgClass: 'bg-green-100',
-    textClass: 'text-green-700',
-    icon: CheckCircle,
-  },
-  on_hold: {
-    label: 'On Hold',
-    bgClass: 'bg-amber-100',
-    textClass: 'text-amber-700',
-    icon: AlertTriangle,
-  },
-  cancelled: {
-    label: 'Cancelled',
-    bgClass: 'bg-gray-100',
-    textClass: 'text-gray-500',
-    icon: AlertTriangle,
-  },
-  warranty: {
-    label: 'Warranty',
-    bgClass: 'bg-purple-100',
-    textClass: 'text-purple-700',
-    icon: Clock,
-  },
-};
 
 // Pipeline stage filter options (computed stages)
 const STAGE_FILTER_OPTIONS: { id: PipelineStageId | 'all'; label: string }[] = [

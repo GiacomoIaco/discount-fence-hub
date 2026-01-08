@@ -9,7 +9,7 @@
  * Each stage is derived from the actual data (quotes, jobs, invoices, payments).
  */
 
-import type { Project, ProjectStatus } from '../types';
+import type { Project } from '../types';
 
 export type PipelineStageId =
   | 'new'
@@ -174,7 +174,7 @@ interface ProjectWithViewFields extends Project {
   sum_invoiced?: number;
   sum_paid?: number;
   sum_balance_due?: number;
-  accepted_quote_id?: string | null;
+  // accepted_quote_id is inherited from Project (string | null)
 }
 
 /**
