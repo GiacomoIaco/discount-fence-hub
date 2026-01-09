@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Mail, Shield, Trash2, Ban, CheckCircle, X, Search, Filter, Pencil, Phone } from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Trash2, Ban, CheckCircle, X, Search, Filter, Pencil, Phone, Clock, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { showInfo, showSuccess, showError } from '../../../lib/toast';
 
 type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
+type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 interface TeamMember {
   id: string;
@@ -15,6 +16,15 @@ interface TeamMember {
   created_at: string;
   last_login?: string;
   is_active: boolean;
+  approval_status?: ApprovalStatus;
+}
+
+interface PendingUser {
+  id: string;
+  email: string;
+  full_name: string;
+  phone?: string;
+  created_at: string;
 }
 
 interface Invitation {
@@ -36,12 +46,17 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
   const { profile } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approvingUser, setApprovingUser] = useState<PendingUser | null>(null);
+  const [approveRole, setApproveRole] = useState<UserRole>('sales');
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editForm, setEditForm] = useState({ full_name: '', email: '', phone: '' });
   const [inviteEmail, setInviteEmail] = useState('');
+  const [_invitePhone, _setInvitePhone] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('sales');
   const [inviting, setInviting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,6 +69,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
     if (canManageUsers) {
       loadTeamMembers();
       loadInvitations();
+      loadPendingUsers();
     }
   }, [canManageUsers]);
 
@@ -63,6 +79,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
+        .or('approval_status.eq.approved,approval_status.is.null')
         .order('full_name', { ascending: true });
 
       if (error) throw error;
@@ -71,6 +88,101 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       console.error('Error loading team members:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPendingUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, email, full_name, phone, created_at')
+        .eq('approval_status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPendingUsers(data || []);
+    } catch (error) {
+      console.error('Error loading pending users:', error);
+    }
+  };
+
+  const handleApproveClick = (user: PendingUser) => {
+    setApprovingUser(user);
+    setApproveRole('sales');
+    setShowApproveModal(true);
+  };
+
+  const handleApproveUser = async () => {
+    if (!approvingUser || !profile) return;
+
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc('approve_user', {
+        p_user_id: approvingUser.id,
+        p_approving_user_id: profile.id,
+        p_role: approveRole
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error);
+      }
+
+      // Send approval notification (email + SMS)
+      try {
+        await fetch('/.netlify/functions/send-approval-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: approvingUser.id,
+            email: data.email,
+            name: data.name,
+            phone: approvingUser.phone,
+            role: data.role,
+            approvedBy: profile.full_name
+          }),
+        });
+      } catch (notifyError) {
+        console.error('Error sending approval notification:', notifyError);
+        // Don't fail if notification fails
+      }
+
+      showSuccess(`${approvingUser.full_name} has been approved as ${approveRole}`);
+      setShowApproveModal(false);
+      setApprovingUser(null);
+      loadPendingUsers();
+      loadTeamMembers();
+    } catch (error) {
+      console.error('Error approving user:', error);
+      showError(error instanceof Error ? error.message : 'Failed to approve user');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRejectUser = async (user: PendingUser) => {
+    if (!profile) return;
+    if (!confirm(`Reject ${user.full_name}'s access request? They will not be able to use the app.`)) return;
+
+    try {
+      const { data, error } = await supabase.rpc('reject_user', {
+        p_user_id: user.id,
+        p_rejecting_user_id: profile.id,
+        p_reason: 'Not approved by administrator'
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error);
+      }
+
+      showSuccess(`${user.full_name}'s request has been rejected`);
+      loadPendingUsers();
+    } catch (error) {
+      console.error('Error rejecting user:', error);
+      showError(error instanceof Error ? error.message : 'Failed to reject user');
     }
   };
 
@@ -359,6 +471,67 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
         </div>
       </div>
 
+      {/* Pending Approvals Section */}
+      {pendingUsers.length > 0 && (
+        <div className="bg-amber-50 rounded-lg border border-amber-200 overflow-hidden">
+          <div className="px-4 py-2 border-b border-amber-200 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-600" />
+            <span className="font-medium text-gray-900 text-sm">Pending Approvals ({pendingUsers.length})</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-amber-100/50">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium text-gray-700">Name</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-700">Email</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-700">Phone</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-700">Requested</th>
+                  <th className="text-center px-4 py-2 font-medium text-gray-700 w-32">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-amber-100">
+                {pendingUsers.map(user => (
+                  <tr key={user.id} className="hover:bg-amber-50/50">
+                    <td className="px-4 py-2 font-medium text-gray-900">{user.full_name}</td>
+                    <td className="px-4 py-2 text-gray-600">{user.email}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      {user.phone ? (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {user.phone}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-gray-600">{new Date(user.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleApproveClick(user)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded flex items-center gap-1"
+                          title="Approve"
+                        >
+                          <UserCheck className="w-4 h-4" />
+                          <span className="text-xs">Approve</span>
+                        </button>
+                        <button
+                          onClick={() => handleRejectUser(user)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                          title="Reject"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Pending Invitations Table */}
       {invitations.length > 0 && (
         <div className="bg-blue-50 rounded-lg border border-blue-200 overflow-hidden">
@@ -641,6 +814,67 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                 </button>
                 <button
                   onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve User Modal */}
+      {showApproveModal && approvingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Approve User</h3>
+              <button onClick={() => setShowApproveModal(false)}>
+                <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-800">
+                  Approve <strong>{approvingUser.full_name}</strong> ({approvingUser.email}) to access the app.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Role</label>
+                <select
+                  value={approveRole}
+                  onChange={(e) => setApproveRole(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="sales">Sales</option>
+                  <option value="operations">Operations</option>
+                  <option value="yard">Yard</option>
+                  <option value="sales-manager">Sales Manager</option>
+                  {userRole === 'admin' && <option value="admin">Admin</option>}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">This determines what features they can access</p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleApproveUser}
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {saving ? (
+                    'Approving...'
+                  ) : (
+                    <>
+                      <UserCheck className="w-4 h-4" />
+                      Approve & Notify
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowApproveModal(false)}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
                 >
                   Cancel

@@ -17,6 +17,12 @@ import {
   Clock,
   Plus,
   AlertTriangle,
+  FileText,
+  CheckCircle,
+  Wrench,
+  Receipt,
+  DollarSign,
+  Calendar,
 } from 'lucide-react';
 import {
   useProjectFull,
@@ -353,6 +359,9 @@ function OverviewTab({ project, quotes, jobs, invoices, childProjects }: Overvie
           </div>
         </div>
 
+        {/* Project Timeline */}
+        <ProjectTimeline project={project} />
+
         {/* Related Projects */}
         {childProjects.length > 0 && (
           <div className="bg-white rounded-lg border p-4">
@@ -394,6 +403,147 @@ function ActivityTabPlaceholder({ projectId }: { projectId: string }) {
       <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
       <p className="text-gray-500">Activity tab coming soon</p>
       <p className="text-xs text-gray-400 mt-2">Project ID: {projectId}</p>
+    </div>
+  );
+}
+
+/**
+ * ProjectTimeline - Displays lifecycle dates from v_projects_full
+ */
+interface TimelineEvent {
+  label: string;
+  date: string | null | undefined;
+  icon: React.ReactNode;
+  color: string;
+}
+
+function ProjectTimeline({ project }: { project: Project }) {
+  // Build timeline events from lifecycle dates
+  const events: TimelineEvent[] = [
+    {
+      label: 'Created',
+      date: project.created_at,
+      icon: <Calendar className="w-4 h-4" />,
+      color: 'text-gray-500 bg-gray-100',
+    },
+    {
+      label: 'First Quote Sent',
+      date: project.first_quote_sent_at,
+      icon: <FileText className="w-4 h-4" />,
+      color: 'text-blue-600 bg-blue-100',
+    },
+    {
+      label: 'Quote Accepted',
+      date: project.quote_accepted_at,
+      icon: <CheckCircle className="w-4 h-4" />,
+      color: 'text-green-600 bg-green-100',
+    },
+    {
+      label: 'Work Started',
+      date: project.work_started_at,
+      icon: <Wrench className="w-4 h-4" />,
+      color: 'text-orange-600 bg-orange-100',
+    },
+    {
+      label: 'Work Completed',
+      date: project.work_completed_at,
+      icon: <CheckCircle className="w-4 h-4" />,
+      color: 'text-teal-600 bg-teal-100',
+    },
+    {
+      label: 'First Invoice Sent',
+      date: project.first_invoice_sent_at,
+      icon: <Receipt className="w-4 h-4" />,
+      color: 'text-purple-600 bg-purple-100',
+    },
+    {
+      label: 'Last Payment',
+      date: project.last_payment_at,
+      icon: <DollarSign className="w-4 h-4" />,
+      color: 'text-emerald-600 bg-emerald-100',
+    },
+  ];
+
+  // Filter to only show events that have dates, or show "Created" always
+  const completedEvents = events.filter((e, idx) => idx === 0 || e.date);
+  const pendingEvents = events.filter((e, idx) => idx !== 0 && !e.date);
+
+  // Format date helper
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    });
+  };
+
+  // Only show if there's at least one lifecycle event beyond creation
+  const hasLifecycleEvents = completedEvents.length > 1;
+
+  if (!hasLifecycleEvents && pendingEvents.length === events.length - 1) {
+    // Project just created, no lifecycle events yet
+    return null;
+  }
+
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <Clock className="w-4 h-4 text-gray-400" />
+        Project Timeline
+      </h3>
+
+      {/* Completed Events */}
+      <div className="space-y-3">
+        {completedEvents.map((event, idx) => (
+          <div key={event.label} className="flex items-center gap-3">
+            {/* Timeline connector */}
+            <div className="relative flex flex-col items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${event.color}`}>
+                {event.icon}
+              </div>
+              {idx < completedEvents.length - 1 && (
+                <div className="absolute top-8 w-0.5 h-3 bg-gray-200" />
+              )}
+            </div>
+            {/* Event details */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">{event.label}</p>
+              <p className="text-xs text-gray-500">{formatDate(event.date)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pending Events (dimmed) */}
+      {pendingEvents.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-dashed">
+          <p className="text-xs text-gray-400 mb-2">Upcoming</p>
+          <div className="space-y-2">
+            {pendingEvents.map((event) => (
+              <div key={event.label} className="flex items-center gap-3 opacity-40">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 text-gray-400">
+                  {event.icon}
+                </div>
+                <p className="text-sm text-gray-500">{event.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Days in current stage */}
+      {project.days_in_stage != null && project.days_in_stage > 0 && (
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Days in current stage:</span>
+            <span className={`font-medium ${project.days_in_stage > 7 ? 'text-amber-600' : 'text-gray-900'}`}>
+              {project.days_in_stage} day{project.days_in_stage !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
