@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FolderOpen,
   Clock,
@@ -63,6 +63,7 @@ export function ProjectPage({
   onCreateJob,
 }: ProjectPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ProjectTab>(
     (searchParams.get('tab') as ProjectTab) || 'overview'
   );
@@ -70,6 +71,18 @@ export function ProjectPage({
   const [convertingQuote, setConvertingQuote] = useState<Quote | null>(null);
   // State for ProjectEditorModal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Navigation handlers for metalinks
+  const handleNavigateToClient = (clientId: string) => {
+    navigate(`/clients/${clientId}`);
+  };
+
+  const handleNavigateToCommunity = (communityId: string) => {
+    // Community pages are nested under a client - need the client_id from project
+    if (project?.client_id) {
+      navigate(`/clients/${project.client_id}/communities/${communityId}`);
+    }
+  };
 
   // Sync tab with URL
   useEffect(() => {
@@ -157,6 +170,8 @@ export function ProjectPage({
         onBack={onBack}
         onEdit={() => setIsEditModalOpen(true)}
         tabActions={tabActions}
+        onNavigateToClient={handleNavigateToClient}
+        onNavigateToCommunity={handleNavigateToCommunity}
       />
 
       {/* Tab Content */}
