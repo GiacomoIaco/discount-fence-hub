@@ -6,6 +6,7 @@
  * Tabs:
  * - Overview: Job summary, schedule, crew assignment
  * - Visits: Multi-visit tracking for complex jobs
+ * - Issues: Job issues with accountability tracking
  * - Activity: Status history, workflow tracking
  */
 
@@ -25,8 +26,11 @@ import {
   Wrench,
   Receipt,
   ArrowLeft,
+  AlertTriangle,
 } from 'lucide-react';
 import { useJob, useScheduleJob, useCompleteJob, useCreateInvoiceFromJob } from '../hooks/useJobs';
+import { useJobIssues } from '../hooks/useJobIssues';
+import JobIssuesList from '../components/JobIssuesList';
 import {
   JOB_STATUS_LABELS,
   JOB_STATUS_COLORS,
@@ -42,7 +46,7 @@ import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection
 import { EntityHeader } from '../components/shared/EntityHeader';
 import { JobProgress } from '../components/shared/WorkflowProgress';
 
-type Tab = 'overview' | 'visits' | 'activity';
+type Tab = 'overview' | 'visits' | 'issues' | 'activity';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -63,6 +67,7 @@ export default function JobDetailPage({
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   const { data: job, isLoading, error } = useJob(jobId);
+  const { data: jobIssues } = useJobIssues(jobId);
   const scheduleJob = useScheduleJob();
   const completeJob = useCompleteJob();
   const createInvoice = useCreateInvoiceFromJob();
@@ -254,7 +259,7 @@ export default function JobDetailPage({
       >
         {/* Tabs */}
         <div className="px-6 pt-4 -mx-6 flex gap-1 border-t">
-          {(['overview', 'visits', 'activity'] as Tab[]).map((tab) => (
+          {(['overview', 'visits', 'issues', 'activity'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -266,6 +271,12 @@ export default function JobDetailPage({
             >
               {tab === 'overview' && 'Overview'}
               {tab === 'visits' && `Visits${job.visits?.length ? ` (${job.visits.length})` : ''}`}
+              {tab === 'issues' && (
+                <span className="flex items-center gap-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  Issues{jobIssues?.length ? ` (${jobIssues.length})` : ''}
+                </span>
+              )}
               {tab === 'activity' && 'Activity'}
             </button>
           ))}
@@ -530,6 +541,10 @@ export default function JobDetailPage({
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'issues' && (
+          <JobIssuesList jobId={jobId} />
         )}
 
         {activeTab === 'activity' && (
