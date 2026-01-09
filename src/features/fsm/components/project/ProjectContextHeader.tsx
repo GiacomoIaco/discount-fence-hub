@@ -22,6 +22,9 @@ import {
   Phone,
   Edit2,
   Share2,
+  Inbox,
+  Link2,
+  Shield,
 } from 'lucide-react';
 import type { Project } from '../../types';
 import {
@@ -49,6 +52,12 @@ interface ProjectWithViewFields extends Project {
   sum_invoiced?: number;
   sum_paid?: number;
   sum_balance_due?: number;
+  // Request-Project lifecycle fields
+  request_id?: string | null;
+  request_number?: string;  // From joined request
+  // Warranty child project fields
+  parent_project_id?: string | null;
+  parent_project_number?: string;  // From joined parent project
 }
 
 interface ProjectContextHeaderProps {
@@ -66,6 +75,10 @@ interface ProjectContextHeaderProps {
   onEdit?: () => void;
   /** Callback when Share/Invite button is clicked */
   onShare?: () => void;
+  /** Callback when "From Request" badge is clicked */
+  onNavigateToRequest?: (requestId: string) => void;
+  /** Callback when "Warranty of" badge is clicked */
+  onNavigateToParentProject?: (projectId: string) => void;
 }
 
 export default function ProjectContextHeader({
@@ -77,6 +90,8 @@ export default function ProjectContextHeader({
   onPipelineStageClick,
   onEdit,
   onShare,
+  onNavigateToRequest,
+  onNavigateToParentProject,
 }: ProjectContextHeaderProps) {
   if (!project) return null;
 
@@ -224,6 +239,36 @@ export default function ProjectContextHeader({
               Created {new Date(project.created_at).toLocaleDateString()}
             </span>
           </div>
+        )}
+
+        {/* From Request badge - shows source request when project was created from a request */}
+        {project.request_id && (
+          <button
+            onClick={() => onNavigateToRequest?.(project.request_id!)}
+            className="flex items-center gap-1.5 px-2 py-0.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-200 rounded transition-colors"
+            title="View source request"
+          >
+            <Inbox className="w-3.5 h-3.5" />
+            <span className="text-xs">
+              From: {project.request_number || 'Request'}
+            </span>
+            <Link2 className="w-3 h-3 opacity-60" />
+          </button>
+        )}
+
+        {/* Warranty of badge - shows parent project for warranty child projects */}
+        {project.parent_project_id && project.project_type === 'warranty' && (
+          <button
+            onClick={() => onNavigateToParentProject?.(project.parent_project_id!)}
+            className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 rounded transition-colors"
+            title="View original project"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span className="text-xs">
+              Warranty of: {project.parent_project_number || 'Project'}
+            </span>
+            <Link2 className="w-3 h-3 opacity-60" />
+          </button>
         )}
 
         {/* Spacer */}

@@ -24,6 +24,8 @@ import {
   History,
   Clipboard,
   Navigation,
+  FolderOpen,
+  ExternalLink,
 } from 'lucide-react';
 import { useRequest, useScheduleAssessment, useCompleteAssessment, useConvertRequestToJob } from '../hooks/useRequests';
 import {
@@ -44,6 +46,7 @@ interface RequestDetailPageProps {
   onBack: () => void;
   onNavigateToQuote?: (quoteId: string) => void;
   onNavigateToJob?: (jobId: string) => void;
+  onNavigateToProject?: (projectId: string) => void;
   onCreateQuote?: (requestId: string) => void;
   onEdit?: (requestId: string) => void;
 }
@@ -53,6 +56,7 @@ export default function RequestDetailPage({
   onBack,
   onNavigateToQuote,
   onNavigateToJob,
+  onNavigateToProject,
   onCreateQuote,
   onEdit,
 }: RequestDetailPageProps) {
@@ -397,6 +401,22 @@ export default function RequestDetailPage({
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500">Territory</span>
                       <span className="text-sm font-medium">{request.territory.name}</span>
+                    </div>
+                  )}
+                  {/* Show linked project when request has been converted */}
+                  {request.project_id && (
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t">
+                      <span className="text-sm text-gray-500 flex items-center gap-1">
+                        <FolderOpen className="w-4 h-4" />
+                        Created Project
+                      </span>
+                      <button
+                        onClick={() => onNavigateToProject?.(request.project_id!)}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      >
+                        View Project
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
                     </div>
                   )}
                 </div>
