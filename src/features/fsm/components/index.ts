@@ -21,6 +21,9 @@ export * from './project';
 // Shared components
 export * from './shared';
 
+// Job Issues with Penalization (Request-Project Lifecycle)
+export { default as JobIssuesList } from './JobIssuesList';
+
 // QuoteCard folder contains the unified quote component (Phase 3F)
 // Not exported here to avoid conflict with project/QuoteCard.tsx
 // Import directly from './QuoteCard' when ready to replace the old QuoteCard

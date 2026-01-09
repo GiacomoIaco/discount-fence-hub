@@ -23,3 +23,6 @@ export * from './useCrewRouting';
 
 // Project-First Architecture (Phase 6)
 export * from './useAcceptQuote';
+
+// Job Issues & Penalization (Request-Project Lifecycle)
+export * from './useJobIssues';
