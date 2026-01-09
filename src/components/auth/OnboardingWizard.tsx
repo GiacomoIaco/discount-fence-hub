@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Camera, Mic, Bell, ChevronRight, ChevronLeft, Check, SkipForward, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Camera, Mic, Bell, Phone, ChevronRight, ChevronLeft, Check, SkipForward, Sparkles, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfilePictureUpload from '../../features/user-profile/components/ProfilePictureUpload';
@@ -10,9 +10,21 @@ interface OnboardingWizardProps {
   onComplete: () => void;
 }
 
-type OnboardingStep = 'welcome' | 'photo' | 'voice' | 'notifications' | 'complete';
+type OnboardingStep = 'welcome' | 'photo' | 'phone' | 'voice' | 'notifications' | 'complete';
 
-const STEPS: OnboardingStep[] = ['welcome', 'photo', 'voice', 'notifications', 'complete'];
+const STEPS: OnboardingStep[] = ['welcome', 'photo', 'phone', 'voice', 'notifications', 'complete'];
+
+// Format phone for display: (512) 555-1234
+function formatPhoneDisplay(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return phone;
+}
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const { user, profile } = useAuth();
@@ -23,10 +35,32 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [voiceSampleUrl, setVoiceSampleUrl] = useState<string | null>(profile?.voice_sample_url || null);
   const [completing, setCompleting] = useState(false);
 
+  // Phone verification state
+  const [phoneNumber, setPhoneNumber] = useState(profile?.phone || '');
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [canResend, setCanResend] = useState(true);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   const { isSupported: pushSupported, permissionState, enable: enablePush, isLoading: pushLoading } = usePushNotifications();
 
   const currentStepIndex = STEPS.indexOf(currentStep);
   const progressPercent = ((currentStepIndex) / (STEPS.length - 1)) * 100;
+
+  // Countdown timer for resend
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (resendCountdown === 0 && !canResend) {
+      setCanResend(true);
+    }
+  }, [resendCountdown, canResend]);
 
   const goToNextStep = () => {
     const nextIndex = currentStepIndex + 1;
@@ -79,6 +113,128 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const handleEnablePush = async () => {
     await enablePush();
     goToNextStep();
+  };
+
+  // Phone verification handlers
+  const handleSendOtp = async () => {
+    if (!user || !phoneNumber.trim()) {
+      setPhoneError('Please enter a phone number');
+      return;
+    }
+
+    // Basic validation - must be 10 digits
+    const digits = phoneNumber.replace(/\D/g, '');
+    if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith('1'))) {
+      setPhoneError('Please enter a valid 10-digit US phone number');
+      return;
+    }
+
+    try {
+      setSendingOtp(true);
+      setPhoneError(null);
+
+      const response = await fetch('/.netlify/functions/send-phone-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          phone: phoneNumber,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
+      }
+
+      setOtpSent(true);
+      setCanResend(false);
+      setResendCountdown(60); // 60 second countdown
+      // Focus first OTP input
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : 'Failed to send code');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    // Only allow digits
+    const digit = value.replace(/\D/g, '').slice(-1);
+
+    const newOtp = [...otpCode];
+    newOtp[index] = digit;
+    setOtpCode(newOtp);
+    setPhoneError(null);
+
+    // Auto-advance to next input
+    if (digit && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-verify when all 6 digits entered
+    if (digit && index === 5 && newOtp.every(d => d)) {
+      handleVerifyOtp(newOtp.join(''));
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otpCode[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pastedData.length === 6) {
+      const newOtp = pastedData.split('');
+      setOtpCode(newOtp);
+      handleVerifyOtp(pastedData);
+    }
+  };
+
+  const handleVerifyOtp = async (code: string) => {
+    if (!user) return;
+
+    try {
+      setVerifyingOtp(true);
+      setPhoneError(null);
+
+      const response = await fetch('/.netlify/functions/verify-phone-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          phone: phoneNumber,
+          code,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Verification failed');
+      }
+
+      setPhoneVerified(true);
+      // Auto-advance after short delay
+      setTimeout(() => goToNextStep(), 1500);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : 'Verification failed');
+      setOtpCode(['', '', '', '', '', '']);
+      otpInputRefs.current[0]?.focus();
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleChangeNumber = () => {
+    setOtpSent(false);
+    setOtpCode(['', '', '', '', '', '']);
+    setPhoneError(null);
   };
 
   const renderStepContent = () => {
@@ -160,6 +316,160 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 <span>{avatarUrl ? 'Continue' : 'Skip for Now'}</span>
               </button>
             </div>
+          </div>
+        );
+
+      case 'phone':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <Phone className="w-10 h-10 text-green-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Verify Your Phone Number</h2>
+              <p className="text-gray-600 text-sm">
+                We'll send you a 6-digit code to verify your phone for SMS notifications.
+              </p>
+            </div>
+
+            {phoneVerified ? (
+              // Verified state
+              <div className="flex flex-col items-center space-y-4">
+                <div className="flex items-center space-x-3 px-6 py-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                    <Check className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-green-700 font-medium block">Phone verified!</span>
+                    <span className="text-green-600 text-sm">{formatPhoneDisplay(phoneNumber)}</span>
+                  </div>
+                </div>
+              </div>
+            ) : !otpSent ? (
+              // Enter phone number
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={phoneNumber}
+                    onChange={(e) => {
+                      setPhoneNumber(e.target.value);
+                      setPhoneError(null);
+                    }}
+                    placeholder="(512) 555-1234"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-center text-lg"
+                  />
+                </div>
+
+                {phoneError && (
+                  <div className="flex items-center space-x-2 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{phoneError}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSendOtp}
+                  disabled={sendingOtp || !phoneNumber.trim()}
+                  className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                  {sendingOtp ? (
+                    <span>Sending code...</span>
+                  ) : (
+                    <>
+                      <Phone className="w-5 h-5" />
+                      <span>Send Verification Code</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={goToNextStep}
+                  className="w-full flex items-center justify-center space-x-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>Skip for Now</span>
+                </button>
+              </div>
+            ) : (
+              // Enter OTP
+              <div className="space-y-4">
+                <p className="text-center text-sm text-gray-600">
+                  Enter the 6-digit code sent to<br />
+                  <span className="font-medium">{formatPhoneDisplay(phoneNumber)}</span>
+                </p>
+
+                {/* OTP Input */}
+                <div className="flex justify-center space-x-2">
+                  {otpCode.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => { otpInputRefs.current[index] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={index === 0 ? handleOtpPaste : undefined}
+                      disabled={verifyingOtp}
+                      className={`w-12 h-14 text-center text-2xl font-bold border-2 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                        phoneError ? 'border-red-300' : 'border-gray-300'
+                      } disabled:opacity-50`}
+                    />
+                  ))}
+                </div>
+
+                {phoneError && (
+                  <div className="flex items-center justify-center space-x-2 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{phoneError}</span>
+                  </div>
+                )}
+
+                {verifyingOtp && (
+                  <p className="text-center text-sm text-gray-600">Verifying...</p>
+                )}
+
+                {/* Resend and Change Number */}
+                <div className="flex items-center justify-center space-x-4 text-sm">
+                  <button
+                    onClick={handleChangeNumber}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    Change number
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  {canResend ? (
+                    <button
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp}
+                      className="text-green-600 hover:text-green-700 font-medium"
+                    >
+                      Resend code
+                    </button>
+                  ) : (
+                    <span className="text-gray-500">Resend in {resendCountdown}s</span>
+                  )}
+                </div>
+
+                <button
+                  onClick={goToNextStep}
+                  className="w-full flex items-center justify-center space-x-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>Skip for Now</span>
+                </button>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 text-center">
+              Your phone number will be used for SMS notifications and account recovery.
+            </p>
           </div>
         );
 
@@ -315,6 +625,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 {avatarUrl ? (
                   <span className="flex items-center text-green-600 text-sm">
                     <Check className="w-4 h-4 mr-1" /> Added
+                  </span>
+                ) : (
+                  <span className="text-gray-400 text-sm">Skipped</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Phone Verification</span>
+                {phoneVerified ? (
+                  <span className="flex items-center text-green-600 text-sm">
+                    <Check className="w-4 h-4 mr-1" /> Verified
                   </span>
                 ) : (
                   <span className="text-gray-400 text-sm">Skipped</span>
