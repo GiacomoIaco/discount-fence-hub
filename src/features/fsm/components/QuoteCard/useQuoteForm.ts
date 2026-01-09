@@ -367,6 +367,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
             material_id: null,
             labor_code_id: null,
             sku_id: item.sku_id || null,
+            is_optional: false,
+            is_selected: true,
           });
         }
         // Update totals
@@ -460,6 +462,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
               material_id: null,
               labor_code_id: null,
               sku_id: item.sku_id || null,
+              is_optional: false,
+              is_selected: true,
             });
           }
           sortOrder++;

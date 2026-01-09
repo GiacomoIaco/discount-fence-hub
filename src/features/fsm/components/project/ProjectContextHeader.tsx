@@ -34,7 +34,7 @@ import {
 } from '../shared/ProjectPipelineProgress';
 
 // Extended project type that includes v_projects_full computed fields
-interface ProjectWithViewFields extends Project {
+interface ProjectWithViewFields extends Omit<Project, 'request_id' | 'parent_project_id'> {
   // Flattened fields from v_projects_full
   client_display_name?: string;
   client_phone?: string;
@@ -52,10 +52,10 @@ interface ProjectWithViewFields extends Project {
   sum_invoiced?: number;
   sum_paid?: number;
   sum_balance_due?: number;
-  // Request-Project lifecycle fields
+  // Request-Project lifecycle fields - allow undefined from view
   request_id?: string | null;
   request_number?: string;  // From joined request
-  // Warranty child project fields
+  // Warranty child project fields - allow undefined from view
   parent_project_id?: string | null;
   parent_project_number?: string;  // From joined parent project
 }

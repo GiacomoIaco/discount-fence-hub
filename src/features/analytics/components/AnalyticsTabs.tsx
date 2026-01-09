@@ -1,12 +1,13 @@
-import { BarChart, TrendingUp, Camera } from 'lucide-react';
+import { BarChart, TrendingUp, Camera, Briefcase } from 'lucide-react';
 import { OverviewTab } from './OverviewTab';
 import { RequestsTab } from './RequestsTab';
+import FsmAnalyticsTab from './FsmAnalyticsTab';
 import PhotoAnalytics from '../../photos/components/PhotoAnalytics';
 import { DateRangePicker } from './DateRangePicker';
 import type { AnalyticsData, DateRange } from '../hooks/useAnalytics';
 import type { UserRole } from '../../../types';
 
-type TabId = 'overview' | 'requests' | 'photos';
+type TabId = 'overview' | 'requests' | 'sales' | 'photos';
 
 interface AnalyticsTabsProps {
   data: AnalyticsData | null;
@@ -23,6 +24,7 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview', icon: TrendingUp },
     { id: 'requests' as TabId, label: 'Requests', icon: BarChart },
+    { id: 'sales' as TabId, label: 'Sales & Ops', icon: Briefcase },
     { id: 'photos' as TabId, label: 'Photos', icon: Camera },
   ];
 
@@ -32,8 +34,8 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
 
-        {/* Date Range Picker - Hide for Photos tab since it has its own */}
-        {activeTab !== 'photos' && (
+        {/* Date Range Picker - Hide for Photos and Sales tabs since they have their own data loading */}
+        {activeTab !== 'photos' && activeTab !== 'sales' && (
           <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
         )}
       </div>
@@ -65,7 +67,12 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
 
       {/* Tab Content */}
       <div className="min-h-[600px]">
-        {loading ? (
+        {/* Sales and Photos tabs load their own data, so show them regardless of main loading state */}
+        {activeTab === 'sales' ? (
+          <FsmAnalyticsTab />
+        ) : activeTab === 'photos' ? (
+          <PhotoAnalytics onBack={() => onTabChange('overview')} />
+        ) : loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -86,10 +93,6 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
 
             {activeTab === 'requests' && (
               <RequestsTab data={data} />
-            )}
-
-            {activeTab === 'photos' && (
-              <PhotoAnalytics onBack={() => onTabChange('overview')} />
             )}
           </>
         )}

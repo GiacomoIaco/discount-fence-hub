@@ -25,8 +25,6 @@ import {
 import {
   useJobIssues,
   useCreateJobIssue,
-  useUpdateJobIssue,
-  useResolveJobIssue,
   ISSUE_TYPE_LABELS,
   ISSUE_TYPE_COLORS,
   ISSUE_STATUS_LABELS,
@@ -54,7 +52,6 @@ const STATUS_ICONS: Record<JobIssueStatus, React.ElementType> = {
 export default function JobIssuesList({ jobId, onSelectIssue }: JobIssuesListProps) {
   const { data: issues, isLoading } = useJobIssues(jobId);
   const createIssue = useCreateJobIssue();
-  const updateIssue = useUpdateJobIssue();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newIssue, setNewIssue] = useState({

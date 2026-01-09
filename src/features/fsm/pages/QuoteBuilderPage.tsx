@@ -482,6 +482,8 @@ export default function QuoteBuilderPage({
               material_id: null,
               labor_code_id: null,
               sku_id: item.sku_id || null, // O-036: SKU-based pricing
+              is_optional: false,
+              is_selected: true,
             });
           }
         }
@@ -528,6 +530,8 @@ export default function QuoteBuilderPage({
               material_id: null,
               labor_code_id: null,
               sku_id: item.sku_id || null, // O-036: SKU-based pricing
+              is_optional: false,
+              is_selected: true,
             });
             console.log('[QuoteSave] Line item', i + 1, 'saved successfully');
           } catch (lineError) {
