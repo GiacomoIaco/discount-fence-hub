@@ -232,8 +232,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
         throw new Error(result.error || 'Failed to send invitation');
       }
 
-      const message = `Invitation created! Share this link with ${inviteEmail}:\n\n${result.invitationLink}`;
-      showInfo(message, 10000);
+      showInfo(`Invitation sent to ${inviteEmail}`);
 
       setInviteEmail('');
       setInviteRole('sales');
