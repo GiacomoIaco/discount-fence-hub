@@ -48,18 +48,17 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Verify the requesting user is an admin or sales-manager
+    // Verify the requesting user is an admin
     const { data: inviter, error: inviterError } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', invitedBy)
       .single();
 
-    const canInvite = inviter?.role === 'admin' || inviter?.role === 'sales-manager';
-    if (inviterError || !canInvite) {
+    if (inviterError || inviter?.role !== 'admin') {
       return {
         statusCode: 403,
-        body: JSON.stringify({ error: 'Unauthorized: Only admins and sales managers can send invitations' }),
+        body: JSON.stringify({ error: 'Unauthorized: Only admins can send invitations' }),
       };
     }
 
