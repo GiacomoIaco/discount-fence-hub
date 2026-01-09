@@ -50,6 +50,7 @@ const MyRequestsView = lazy(() => import('./features/requests').then(module => (
 const OperationsQueue = lazy(() => import('./features/requests').then(module => ({ default: module.RequestQueue })));
 const RequestDetail = lazy(() => import('./features/requests').then(module => ({ default: module.RequestDetail })));
 const Login = lazy(() => import('./components/auth/Login'));
+const OnboardingWizard = lazy(() => import('./components/auth/OnboardingWizard'));
 const BOMCalculatorHub = lazy(() => import('./features/bom_calculator/BOMCalculatorHub'));
 const BOMCalculatorHub2 = lazy(() => import('./features/bom_calculator_v2/BOMCalculatorHub2'));
 const LeadershipHub = lazy(() => import('./features/leadership/LeadershipHub'));
@@ -118,6 +119,16 @@ function App() {
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check if user needs onboarding (first login, never completed onboarding)
+  useEffect(() => {
+    if (profile && !profile.onboarding_completed_at && profile.approval_status !== 'pending') {
+      setShowOnboarding(true);
+    } else {
+      setShowOnboarding(false);
+    }
+  }, [profile]);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, etc.)
   const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'message-center';
@@ -713,6 +724,21 @@ function App() {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <Login />
+      </Suspense>
+    );
+  }
+
+  // Show onboarding wizard for new users who haven't completed onboarding
+  if (showOnboarding) {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <OnboardingWizard
+          onComplete={() => {
+            setShowOnboarding(false);
+            // Refresh the page to reload profile with updated onboarding_completed_at
+            window.location.reload();
+          }}
+        />
       </Suspense>
     );
   }

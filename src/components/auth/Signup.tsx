@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, AlertCircle, ArrowLeft } from 'lucide-react';
+import { UserPlus, AlertCircle, ArrowLeft, Clock, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 interface SignupProps {
   onBackToLogin: () => void;
 }
+
+type SignupMode = 'invitation' | 'self-signup';
 
 const Signup = ({ onBackToLogin }: SignupProps) => {
   const [email, setEmail] = useState('');
@@ -19,6 +21,7 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [invitationRole, setInvitationRole] = useState<string>('sales');
   const [validatingInvitation, setValidatingInvitation] = useState(true);
+  const [signupMode, setSignupMode] = useState<SignupMode>('self-signup');
   const { user } = useAuth();
 
   // Check for invitation token in URL
@@ -35,12 +38,14 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
         return;
       }
 
+      setSignupMode('invitation');
       setInvitationToken(token);
       setEmail(inviteEmail);
       validateInvitation(inviteEmail, token);
     } else {
+      // No invitation token - allow self-signup
+      setSignupMode('self-signup');
       setValidatingInvitation(false);
-      setError('This app requires an invitation to sign up. Please contact an administrator for an invitation link.');
     }
   }, [user]);
 
@@ -83,12 +88,6 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
     e.preventDefault();
     setError('');
 
-    // Check if invitation is valid
-    if (!invitationToken) {
-      setError('A valid invitation is required to sign up.');
-      return;
-    }
-
     // Validation
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -100,9 +99,17 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
       return;
     }
 
+    if (!fullName.trim()) {
+      setError('Please enter your full name');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Determine role and approval status based on signup mode
+      const isInvited = signupMode === 'invitation' && invitationToken;
+
       // Sign up the user
       const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email,
@@ -110,8 +117,11 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
         options: {
           data: {
             full_name: fullName,
-            role: invitationRole,
-            phone: phone || undefined
+            // Invited users get their role; self-signup users get 'pending' until approved
+            role: isInvited ? invitationRole : 'sales',
+            phone: phone || undefined,
+            // Self-signup users need approval
+            approval_status: isInvited ? 'approved' : 'pending'
           }
         }
       });
@@ -131,16 +141,28 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
         return;
       }
 
-      // Mark invitation as accepted with the new user's ID
-      const { error: acceptError } = await supabase.rpc('accept_invitation', {
-        p_email: email,
-        p_token: invitationToken,
-        p_user_id: newUserId
-      });
+      // If this was an invitation, mark it as accepted
+      if (isInvited) {
+        const { error: acceptError } = await supabase.rpc('accept_invitation', {
+          p_email: email,
+          p_token: invitationToken,
+          p_user_id: newUserId
+        });
 
-      if (acceptError) {
-        console.error('Error accepting invitation:', acceptError);
-        // Don't fail the signup if this fails, just log it
+        if (acceptError) {
+          console.error('Error accepting invitation:', acceptError);
+          // Don't fail the signup if this fails, just log it
+        }
+      } else {
+        // Self-signup: Update profile to pending approval status
+        // The trigger creates the profile, but we need to set approval_status
+        await supabase
+          .from('user_profiles')
+          .update({
+            approval_status: 'pending',
+            phone: phone || null
+          })
+          .eq('id', newUserId);
       }
 
       setSuccess(true);
@@ -153,17 +175,43 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
   };
 
   if (success) {
+    const isPendingApproval = signupMode === 'self-signup';
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <UserPlus className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
-            <p className="text-gray-600 mb-4">
-              We've sent a confirmation link to <strong>{email}</strong>. Please check your email to verify your account.
-            </p>
+            {isPendingApproval ? (
+              <>
+                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-amber-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Pending Approval</h2>
+                <p className="text-gray-600 mb-4">
+                  Your account has been created! An administrator will review and approve your access shortly.
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left mb-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>What happens next:</strong>
+                  </p>
+                  <ul className="text-sm text-amber-700 mt-2 space-y-1">
+                    <li>• Check your email to verify your address</li>
+                    <li>• An admin will review your request</li>
+                    <li>• You'll receive a notification when approved</li>
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-8 h-8 text-green-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+                <p className="text-gray-600 mb-4">
+                  We've sent a confirmation link to <strong>{email}</strong>. Please check your email to verify your account.
+                </p>
+              </>
+            )}
           </div>
 
           {/* App Installation Instructions */}
@@ -243,13 +291,21 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
           </div>
         )}
 
-        {/* Show invitation info if valid */}
-        {invitationToken && !error && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-sm text-green-800">
-              ✓ Valid invitation for <strong>{email}</strong> as <strong>{invitationRole}</strong>
-            </p>
-          </div>
+        {/* Show signup mode info */}
+        {!error && (
+          signupMode === 'invitation' && invitationToken ? (
+            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm text-green-800">
+                ✓ Valid invitation for <strong>{email}</strong> as <strong>{invitationRole}</strong>
+              </p>
+            </div>
+          ) : (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                Create your account and an administrator will approve your access.
+              </p>
+            </div>
+          )
         )}
 
         {/* Signup Form */}
@@ -343,17 +399,15 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
 
           <button
             type="submit"
-            disabled={loading || !invitationToken}
+            disabled={loading}
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 mt-6"
           >
             {loading ? (
               <span>Creating account...</span>
-            ) : !invitationToken ? (
-              <span>Valid Invitation Required</span>
             ) : (
               <>
                 <UserPlus className="w-5 h-5" />
-                <span>Create Account</span>
+                <span>{signupMode === 'invitation' ? 'Create Account' : 'Request Access'}</span>
               </>
             )}
           </button>

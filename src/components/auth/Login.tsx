@@ -1,18 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Signup from './Signup';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
+
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'reset-password';
 
 const Login = () => {
-  const [showSignup, setShowSignup] = useState(false);
+  const [view, setView] = useState<AuthView>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
-  if (showSignup) {
-    return <Signup onBackToLogin={() => setShowSignup(false)} />;
+  // Check if this is a password reset callback
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/reset-password') {
+      setView('reset-password');
+    }
+  }, []);
+
+  if (view === 'signup') {
+    return <Signup onBackToLogin={() => setView('login')} />;
+  }
+
+  if (view === 'forgot-password') {
+    return <ForgotPassword onBackToLogin={() => setView('login')} />;
+  }
+
+  if (view === 'reset-password') {
+    return <ResetPassword onBackToLogin={() => {
+      setView('login');
+      // Clean up URL
+      window.history.replaceState({}, '', '/');
+    }} />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,9 +99,18 @@ const Login = () => {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={() => setView('forgot-password')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Forgot password?
+              </button>
+            </div>
             <input
               id="password"
               type="password"
@@ -111,7 +144,7 @@ const Login = () => {
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
             <button
-              onClick={() => setShowSignup(true)}
+              onClick={() => setView('signup')}
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Sign up

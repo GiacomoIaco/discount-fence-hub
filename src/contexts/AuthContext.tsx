@@ -11,8 +11,11 @@ interface UserProfile {
   role: UserRole;
   phone?: string;
   avatar_url?: string;
+  voice_sample_url?: string;
   created_at: string;
   is_super_admin?: boolean;
+  onboarding_completed_at?: string;
+  approval_status?: 'pending' | 'approved' | 'rejected';
 }
 
 interface AuthContextType {

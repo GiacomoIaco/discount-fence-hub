@@ -6,11 +6,17 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 // ✅ SUPABASE_SERVICE_ROLE_KEY is correct (NO VITE_ prefix) - this is a secret!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// Twilio config for SMS
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
 // Create Supabase client with service role for admin operations
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 interface InvitationEmailRequest {
   email: string;
+  phone?: string;
   role: string;
   invitedBy: string;
   invitedByName: string;
@@ -28,11 +34,11 @@ export const handler: Handler = async (event) => {
   try {
     console.log('Starting invitation email function...');
 
-    const { email, role, invitedBy, invitedByName }: InvitationEmailRequest = JSON.parse(
+    const { email, phone, role, invitedBy, invitedByName }: InvitationEmailRequest = JSON.parse(
       event.body || '{}'
     );
 
-    console.log('Parsed request:', { email, role, invitedBy, invitedByName });
+    console.log('Parsed request:', { email, phone: phone?.substring(0, 6), role, invitedBy, invitedByName });
 
     // Validate required fields
     if (!email || !role || !invitedBy || !invitedByName) {
@@ -165,13 +171,57 @@ export const handler: Handler = async (event) => {
       if (!sendGridResponse.ok) {
         const errorText = await sendGridResponse.text();
         console.error('SendGrid error:', errorText);
-        throw new Error(`SendGrid API error: ${errorText}`);
+        // Don't throw - try SMS as backup
       } else {
         console.log('Invitation email sent successfully to:', email);
       }
     } catch (emailError) {
       console.error('Error sending email:', emailError);
-      // Don't fail the whole request if email fails, still return the link
+      // Don't fail the whole request if email fails, try SMS
+    }
+
+    // Send SMS invitation if phone provided
+    let smsSent = false;
+    if (phone && twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+      try {
+        // Format phone number
+        let formattedPhone = phone.replace(/[^\d+]/g, '');
+        if (!formattedPhone.startsWith('+')) {
+          if (formattedPhone.length === 10) {
+            formattedPhone = '+1' + formattedPhone;
+          } else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) {
+            formattedPhone = '+' + formattedPhone;
+          }
+        }
+
+        const smsBody = `${invitedByName} invited you to Discount Fence Hub! Create your account: ${invitationLink}`;
+
+        const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
+        const twilioResponse = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Basic ${auth}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              To: formattedPhone,
+              From: twilioPhoneNumber,
+              Body: smsBody,
+            }),
+          }
+        );
+
+        smsSent = twilioResponse.ok;
+        if (!twilioResponse.ok) {
+          console.error('Twilio error:', await twilioResponse.text());
+        } else {
+          console.log('Invitation SMS sent successfully to:', formattedPhone.substring(0, 6) + '...');
+        }
+      } catch (smsError) {
+        console.error('Error sending SMS:', smsError);
+      }
     }
 
     console.log('Invitation created:', {
@@ -179,6 +229,7 @@ export const handler: Handler = async (event) => {
       role,
       token,
       link: invitationLink,
+      smsSent,
     });
 
     return {
@@ -186,8 +237,9 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({
         success: true,
         message: 'Invitation created successfully',
-        invitationLink, // Return link until email sending is implemented
+        invitationLink, // Return link as fallback
         invitation,
+        smsSent,
       }),
     };
   } catch (error) {
