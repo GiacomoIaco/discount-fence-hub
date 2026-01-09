@@ -32,7 +32,7 @@ interface Invitation {
   email: string;
   role: UserRole;
   invited_by: string;
-  invited_at: string;
+  sent_at: string;
   expires_at: string;
   is_used: boolean;
   inviter_name?: string;
@@ -195,7 +195,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
           inviter:invited_by(full_name)
         `)
         .eq('is_used', false)
-        .order('invited_at', { ascending: false });
+        .order('sent_at', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
 
