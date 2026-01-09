@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   DollarSign,
   Target,
-  Award,
   Wrench,
   Shield,
   ChevronDown,

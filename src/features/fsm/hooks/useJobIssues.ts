@@ -23,7 +23,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import { showError, showSuccess } from '../../../utils/toast';
+import { showError, showSuccess } from '../../../lib/toast';
 import type {
   JobIssue,
   JobIssueType,
