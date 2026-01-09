@@ -4,7 +4,7 @@
  * Types for the unified JobCard component (create/edit/view modes)
  */
 
-import type { Job, JobStatus, JobVisit, VisitType, Crew, RepUser, AddressSnapshot } from '../../types';
+import type { Job, JobStatus, JobVisit, JobVisitType, Crew, AddressSnapshot, VisitType } from '../../types';
 
 // Component mode
 export type JobCardMode = 'create' | 'edit' | 'view';
@@ -217,11 +217,10 @@ export const JOB_STATUS_COLORS: Record<JobStatus, { bg: string; text: string; la
   in_progress: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'In Progress' },
   completed: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Completed' },
   requires_invoicing: { bg: 'bg-red-100', text: 'text-red-700', label: 'Requires Invoicing' },
-  cancelled: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Cancelled' },
 };
 
-// Visit type labels
-export const VISIT_TYPE_LABELS: Record<VisitType, string> = {
+// Visit type labels (for JobVisitType from job_visits table)
+export const VISIT_TYPE_LABELS: Record<JobVisitType, string> = {
   initial: 'Initial Installation',
   continuation: 'Continuation',
   inspection: 'Inspection',
@@ -230,7 +229,7 @@ export const VISIT_TYPE_LABELS: Record<VisitType, string> = {
   warranty: 'Warranty',
 };
 
-export const VISIT_TYPE_COLORS: Record<VisitType, { bg: string; text: string }> = {
+export const VISIT_TYPE_COLORS: Record<JobVisitType, { bg: string; text: string }> = {
   initial: { bg: 'bg-blue-100', text: 'text-blue-700' },
   continuation: { bg: 'bg-purple-100', text: 'text-purple-700' },
   inspection: { bg: 'bg-cyan-100', text: 'text-cyan-700' },

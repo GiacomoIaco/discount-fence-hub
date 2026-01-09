@@ -9,8 +9,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import type { JobCardProps, JobCardMode, VisitFormState } from './types';
+import type { JobCardProps, JobCardMode } from './types';
 import { useJobForm } from './useJobForm';
 import JobHeader from './JobHeader';
 import JobVisitsSection from './JobVisitsSection';
@@ -21,7 +20,6 @@ import {
   useUpdateJobStatus,
   useCreateInvoiceFromJob,
   useAddJobVisit,
-  useUpdateJobVisit,
   useCompleteJobVisit,
 } from '../../hooks/useJobs';
 import { useCrews } from '../../hooks/useCrews';
@@ -80,7 +78,7 @@ export default function JobCard({
   const completeMutation = useCompleteJob();
   const statusMutation = useUpdateJobStatus();
   const invoiceMutation = useCreateInvoiceFromJob();
-  const addVisitMutation = useAddJobVisit();
+  useAddJobVisit(); // Available for future use
   const completeVisitMutation = useCompleteJobVisit();
 
   // Handle save
@@ -170,7 +168,7 @@ export default function JobCard({
   }, []);
 
   // Handle start visit
-  const handleStartVisit = useCallback(async (visitId: string) => {
+  const handleStartVisit = useCallback(async (_visitId: string) => {
     // TODO: Implement start visit
     alert('Start visit functionality coming soon');
   }, []);
@@ -219,7 +217,7 @@ export default function JobCard({
       {/* Header */}
       <JobHeader
         mode={mode}
-        job={job}
+        job={job ?? null}
         validation={validation}
         isSaving={isSaving || completeMutation.isPending || invoiceMutation.isPending}
         isDirty={isDirty}
@@ -477,7 +475,7 @@ export default function JobCard({
         <JobSidebar
           mode={mode}
           form={form}
-          job={job}
+          job={job ?? null}
           crews={crews}
           isLoadingCrews={isLoadingCrews}
           validation={validation}

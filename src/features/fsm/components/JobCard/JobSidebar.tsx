@@ -13,16 +13,13 @@ import {
   Calendar,
   Clock,
   Users,
-  User,
   Package,
   ChevronDown,
   ChevronRight,
-  MapPin,
   ExternalLink,
-  Hash,
   Layers,
 } from 'lucide-react';
-import type { JobSidebarProps, JobFormState } from './types';
+import type { JobSidebarProps } from './types';
 import { JOB_STATUS_COLORS } from './types';
 import { useSalesReps } from '../../hooks/useSalesReps';
 
@@ -222,7 +219,7 @@ export default function JobSidebar({
               >
                 <option value="">Select PM...</option>
                 {salesReps.map((rep) => (
-                  <option key={rep.user_id} value={rep.user_id}>
+                  <option key={rep.id} value={rep.id}>
                     {rep.name}
                   </option>
                 ))}

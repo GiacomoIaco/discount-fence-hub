@@ -33,7 +33,7 @@ export default function JobHeader({
   job,
   validation,
   isSaving,
-  isDirty,
+  isDirty: _isDirty,
   onBack,
   onCancel,
   onSave,

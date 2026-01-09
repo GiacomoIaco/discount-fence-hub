@@ -12,9 +12,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  Clock,
-  DollarSign,
-  Package,
   BarChart3,
 } from 'lucide-react';
 import type { JobBudgetSectionProps } from './types';
@@ -92,7 +89,6 @@ function VarianceDisplay({
 }
 
 export default function JobBudgetSection({
-  mode,
   totals,
   hasRework,
   reworkReason,

@@ -28,9 +28,12 @@ import { VISIT_TYPE_LABELS, VISIT_TYPE_COLORS } from './types';
 // Visit status styling
 const VISIT_STATUS_CONFIG: Record<VisitStatus, { bg: string; text: string; label: string }> = {
   scheduled: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Scheduled' },
+  confirmed: { bg: 'bg-indigo-100', text: 'text-indigo-700', label: 'Confirmed' },
   in_progress: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'In Progress' },
   completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed' },
   cancelled: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Cancelled' },
+  rescheduled: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Rescheduled' },
+  no_show: { bg: 'bg-red-100', text: 'text-red-700', label: 'No Show' },
 };
 
 interface VisitCardProps {
@@ -133,12 +136,12 @@ function VisitCard({ visit, isLast, mode, onEdit, onStart, onComplete }: VisitCa
                   : 'Not scheduled'}
               </span>
             </div>
-            {(visit.scheduled_time_start || visit.scheduled_time_end) && (
+            {(visit.scheduled_start_time || visit.scheduled_end_time) && (
               <div className="flex items-center gap-2 text-gray-600">
                 <Clock className="w-4 h-4 text-gray-400" />
                 <span>
-                  {visit.scheduled_time_start && formatTime(visit.scheduled_time_start)}
-                  {visit.scheduled_time_end && ` - ${formatTime(visit.scheduled_time_end)}`}
+                  {visit.scheduled_start_time && formatTime(visit.scheduled_start_time)}
+                  {visit.scheduled_end_time && ` - ${formatTime(visit.scheduled_end_time)}`}
                 </span>
               </div>
             )}
@@ -156,12 +159,12 @@ function VisitCard({ visit, isLast, mode, onEdit, onStart, onComplete }: VisitCa
           )}
 
           {/* Actual hours (if completed) */}
-          {visit.status === 'completed' && visit.actual_hours !== undefined && (
+          {visit.status === 'completed' && visit.labor_hours !== undefined && (
             <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
               <Clock className="w-4 h-4 text-gray-400" />
               <span>
-                {visit.actual_hours} hours actual
-                {visit.estimated_hours && ` (estimated: ${visit.estimated_hours}h)`}
+                {visit.labor_hours} hours actual
+                {visit.scheduled_duration_hours && ` (estimated: ${visit.scheduled_duration_hours}h)`}
               </span>
             </div>
           )}
@@ -207,7 +210,7 @@ function formatTime(time: string): string {
 
 export default function JobVisitsSection({
   mode,
-  jobId,
+  jobId: _jobId,
   visits,
   isLoading,
   onAddVisit,
@@ -220,7 +223,7 @@ export default function JobVisitsSection({
 
   // Summary stats
   const completedCount = visits.filter(v => v.status === 'completed').length;
-  const totalHours = visits.reduce((sum, v) => sum + (v.actual_hours || 0), 0);
+  const totalHours = visits.reduce((sum, v) => sum + (v.labor_hours || 0), 0);
 
   if (isLoading) {
     return (
