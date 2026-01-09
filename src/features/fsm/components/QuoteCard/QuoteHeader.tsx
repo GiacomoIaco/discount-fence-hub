@@ -42,6 +42,20 @@ const BU_TYPE_COLORS: Record<string, string> = {
   commercial: 'bg-green-100 text-green-700 border-green-200',
 };
 
+// Quote type labels and colors (from migration 217c)
+const QUOTE_TYPE_LABELS: Record<string, string> = {
+  original: '',  // Don't show badge for original quotes
+  change_order: 'Change Order',
+  warranty: 'Warranty',
+  revision: 'Revision',
+};
+
+const QUOTE_TYPE_COLORS: Record<string, string> = {
+  change_order: 'bg-amber-100 text-amber-700 border-amber-200',
+  warranty: 'bg-red-100 text-red-700 border-red-200',
+  revision: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+};
+
 interface QuoteHeaderProps {
   mode: QuoteCardMode;
   quote?: Quote | null;
@@ -59,6 +73,7 @@ interface QuoteHeaderProps {
   onConvertToJob?: () => void;
   onEdit?: () => void;
   onClone?: () => void;
+  onCreateAlternative?: () => void;  // Create alternative quote in same group
   onArchive?: () => void;
   onPreviewAsClient?: () => void;
   onCollectSignature?: () => void;
@@ -83,6 +98,7 @@ export default function QuoteHeader({
   onConvertToJob,
   onEdit,
   onClone,
+  onCreateAlternative,
   onArchive,
   onPreviewAsClient,
   onCollectSignature,
@@ -111,6 +127,12 @@ export default function QuoteHeader({
   const status = quote?.status as QuoteStatus | undefined;
   const statusLabel = status ? QUOTE_STATUS_LABELS[status] : 'Draft';
   const statusColor = status ? QUOTE_STATUS_COLORS[status] : 'bg-gray-100 text-gray-700';
+
+  // Quote type badge (change orders, warranty, etc.)
+  const quoteType = quote?.quote_type || 'original';
+  const quoteTypeLabel = QUOTE_TYPE_LABELS[quoteType] || '';
+  const quoteTypeColor = QUOTE_TYPE_COLORS[quoteType] || '';
+  const isAlternative = quote?.is_alternative || false;
 
   // QBO Class / Business Unit info
   const qboClass = quote?.qbo_class;
@@ -154,6 +176,18 @@ export default function QuoteHeader({
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColor}`}>
                     {statusLabel}
                   </span>
+                  {/* Quote type badge (Change Order, Warranty, etc.) */}
+                  {quoteTypeLabel && (
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${quoteTypeColor}`}>
+                      {quoteTypeLabel}
+                    </span>
+                  )}
+                  {/* Alternative quote indicator */}
+                  {isAlternative && (
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                      Alternative
+                    </span>
+                  )}
                   {buLabel && (
                     <span className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${buColor}`}>
                       <Building2 className="w-3 h-3" />
@@ -338,6 +372,18 @@ export default function QuoteHeader({
                           >
                             <Copy className="w-4 h-4" />
                             Create Similar Quote
+                          </button>
+                        )}
+                        {onCreateAlternative && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onCreateAlternative();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Create Alternative Option
                           </button>
                         )}
 

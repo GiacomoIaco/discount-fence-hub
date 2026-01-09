@@ -67,6 +67,12 @@ export interface LineItemFormState {
   isDeleted?: boolean;
   /** When true, user entered custom description instead of selecting SKU */
   isCustom?: boolean;
+
+  // Optional line items (from migration 217c)
+  /** True if this is an upgrade/add-on that the customer can optionally select */
+  is_optional?: boolean;
+  /** Whether the optional item is currently selected (included in totals) */
+  is_selected?: boolean;
 }
 
 /** Custom field for Additional Info section */
@@ -142,6 +148,8 @@ export const DEFAULT_LINE_ITEM: LineItemFormState = {
   sku_id: null,
   pricing_source: null,
   isNew: true,
+  is_optional: false,
+  is_selected: true,
 };
 
 export const PRODUCT_TYPE_OPTIONS = [

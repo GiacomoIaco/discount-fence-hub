@@ -192,6 +192,11 @@ interface CreateQuoteData {
   deposit_required?: number;
   deposit_percent?: number;
   sales_rep_id?: string;  // Accepts user_id for backwards compatibility
+
+  // Quote type for change orders/alternatives (migration 217c)
+  quote_type?: 'original' | 'change_order' | 'warranty' | 'revision';
+  quote_group?: string;      // Groups alternative quotes together
+  is_alternative?: boolean;  // True if this is an alternative to another quote
 }
 
 export function useCreateQuote() {
@@ -219,6 +224,10 @@ export function useCreateQuote() {
           deposit_percent: data.deposit_percent || 0,
           sales_rep_user_id: data.sales_rep_id || null,  // Write to user_id column
           status: 'draft',
+          // Quote type for change orders/alternatives (migration 217c)
+          quote_type: data.quote_type || 'original',
+          quote_group: data.quote_group || null,
+          is_alternative: data.is_alternative || false,
         })
         .select()
         .single();
@@ -524,6 +533,33 @@ export function useUpdateQuoteLineItem() {
   });
 }
 
+/**
+ * Toggle the selection of an optional line item.
+ * Optional items (is_optional=true) can be selected/deselected by the customer.
+ * Only selected items are included in the quote total.
+ */
+export function useToggleOptionalLineItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, is_selected }: { id: string; is_selected: boolean }) => {
+      const { error } = await supabase
+        .from('quote_line_items')
+        .update({ is_selected })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to toggle optional item');
+    },
+  });
+}
+
 export function useDeleteQuoteLineItem() {
   const queryClient = useQueryClient();
 
@@ -542,6 +578,136 @@ export function useDeleteQuoteLineItem() {
     },
     onError: (error: Error) => {
       showError(error.message || 'Failed to delete line item');
+    },
+  });
+}
+
+// =============================================
+// Change Order & Alternative Quote Helpers
+// (From migration 217c - Request-Project Lifecycle)
+// =============================================
+
+interface CreateChangeOrderData {
+  project_id: string;
+  client_id: string;
+  community_id?: string;
+  property_id?: string;
+  billing_address?: Quote['billing_address'];
+  job_address?: Quote['job_address'];
+  scope_summary?: string;
+  sales_rep_id?: string;
+}
+
+/**
+ * Creates a change order quote on an existing project.
+ * Change orders skip the Request step - they go directly to Quote.
+ */
+export function useCreateChangeOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateChangeOrderData) => {
+      const { data: result, error } = await supabase
+        .from('quotes')
+        .insert({
+          project_id: data.project_id,
+          client_id: data.client_id,
+          community_id: data.community_id || null,
+          property_id: data.property_id || null,
+          billing_address: data.billing_address || null,
+          job_address: data.job_address || null,
+          scope_summary: data.scope_summary || null,
+          sales_rep_user_id: data.sales_rep_id || null,
+          status: 'draft',
+          quote_type: 'change_order',  // Mark as change order
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
+      showSuccess(`Change Order ${data.quote_number} created`);
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to create change order');
+    },
+  });
+}
+
+interface CreateAlternativeQuoteData {
+  original_quote_id: string;  // The quote to create an alternative for
+  scope_summary?: string;     // Different scope for this alternative
+}
+
+/**
+ * Creates an alternative quote in the same quote_group as the original.
+ * When one alternative is accepted, the trigger auto-declines the others.
+ */
+export function useCreateAlternativeQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateAlternativeQuoteData) => {
+      // First, get the original quote to copy from
+      const { data: original, error: fetchError } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('id', data.original_quote_id)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!original) throw new Error('Original quote not found');
+
+      // Use original quote's ID as the group if not already set
+      const quoteGroup = original.quote_group || original.id;
+
+      // Update original to have quote_group if it didn't have one
+      if (!original.quote_group) {
+        await supabase
+          .from('quotes')
+          .update({ quote_group: quoteGroup })
+          .eq('id', original.id);
+      }
+
+      // Create the alternative
+      const { data: result, error } = await supabase
+        .from('quotes')
+        .insert({
+          project_id: original.project_id,
+          request_id: original.request_id,
+          client_id: original.client_id,
+          community_id: original.community_id,
+          property_id: original.property_id,
+          billing_address: original.billing_address,
+          job_address: original.job_address,
+          product_type: original.product_type,
+          linear_feet: original.linear_feet,
+          scope_summary: data.scope_summary || original.scope_summary,
+          valid_until: original.valid_until,
+          payment_terms: original.payment_terms,
+          sales_rep_user_id: original.sales_rep_user_id,
+          status: 'draft',
+          quote_type: original.quote_type,
+          quote_group: quoteGroup,       // Same group as original
+          is_alternative: true,          // Mark as alternative
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
+      showSuccess(`Alternative Quote ${data.quote_number} created`);
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to create alternative quote');
     },
   });
 }

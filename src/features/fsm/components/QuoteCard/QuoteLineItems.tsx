@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { Plus, Trash2, Package, Wrench, User, DollarSign, Percent, Tag } from 'lucide-react';
+import { Plus, Trash2, Package, Wrench, User, DollarSign, Percent, Tag, Star, CheckSquare, Square } from 'lucide-react';
 import type { LineItemFormState, QuoteCardMode, QuoteTotals } from './types';
 import { LINE_TYPE_OPTIONS, UNIT_TYPE_OPTIONS } from './types';
 import SkuSearchCombobox from '../SkuSearchCombobox';
@@ -148,11 +148,15 @@ export default function QuoteLineItems({
           {activeItems.map((item, index) => {
             const Icon = LINE_TYPE_ICONS[item.line_type] || Package;
             const lineTotal = item.quantity * item.unit_price;
+            const isOptional = item.is_optional === true;
+            const isSelected = item.is_selected !== false; // Default to selected
 
             return (
               <div
                 key={item.id || `new-${index}`}
-                className="grid grid-cols-12 gap-2 px-6 py-3 items-start hover:bg-gray-50"
+                className={`grid grid-cols-12 gap-2 px-6 py-3 items-start hover:bg-gray-50 ${
+                  isOptional && !isSelected ? 'opacity-50 bg-gray-50' : ''
+                }`}
               >
                 {/* SKU Column - SKU ID only */}
                 <div className="col-span-1 pt-1">
@@ -327,15 +331,53 @@ export default function QuoteLineItems({
                   ${formatCurrency(lineTotal)}
                 </div>
 
-                {/* Delete Button */}
+                {/* Actions (Optional toggle + Delete) */}
                 {isEditable && (
-                  <div className="col-span-1 text-right pt-1">
+                  <div className="col-span-1 text-right pt-1 flex items-center justify-end gap-1">
+                    {/* Optional toggle */}
+                    <button
+                      onClick={() => {
+                        if (isOptional) {
+                          // Toggle selection for optional items
+                          onUpdateItem(index, { is_selected: !isSelected });
+                        } else {
+                          // Mark as optional (and selected by default)
+                          onUpdateItem(index, { is_optional: true, is_selected: true });
+                        }
+                      }}
+                      className={`p-1.5 rounded ${
+                        isOptional
+                          ? isSelected
+                            ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
+                            : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'
+                          : 'text-gray-300 hover:text-amber-600 hover:bg-amber-50'
+                      }`}
+                      title={isOptional ? (isSelected ? 'Deselect optional item' : 'Select optional item') : 'Mark as optional'}
+                    >
+                      {isOptional ? (
+                        isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />
+                      ) : (
+                        <Star className="w-4 h-4" />
+                      )}
+                    </button>
                     <button
                       onClick={() => onRemoveItem(index)}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                  </div>
+                )}
+                {/* View mode: Show optional badge */}
+                {!isEditable && isOptional && (
+                  <div className="col-span-1 text-right pt-1">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      isSelected
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-gray-100 text-gray-500 line-through'
+                    }`}>
+                      {isSelected ? 'Optional ✓' : 'Not Selected'}
+                    </span>
                   </div>
                 )}
               </div>

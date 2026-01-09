@@ -444,11 +444,51 @@ export function useConvertRequestToQuote() {
         zip: request.client.zip || '',
       } : null;
 
-      // Create quote from request
+      // === Phase 2: Create Project with bidirectional Request↔Project link ===
+      let projectId = request.project_id;
+
+      if (!projectId) {
+        // Create new project with request_id link (bidirectional)
+        const { data: project, error: projectError } = await supabase
+          .from('projects')
+          .insert({
+            client_id: request.client_id,
+            community_id: request.community_id,
+            property_id: request.property_id,
+            qbo_class_id: request.qbo_class_id || null,
+            address_line1: request.address_line1,
+            city: request.city,
+            state: request.state,
+            zip: request.zip,
+            territory_id: request.territory_id,
+            assigned_rep_user_id: request.assigned_rep_user_id,
+            request_id: requestId,  // Bidirectional: Project → Request
+            project_type: 'standard',
+            source: request.source,
+          })
+          .select('id, project_number')
+          .single();
+
+        if (projectError) throw projectError;
+        projectId = project.id;
+
+        // Update request with project_id link (bidirectional: Request → Project)
+        const { error: linkError } = await supabase
+          .from('service_requests')
+          .update({ project_id: projectId })
+          .eq('id', requestId);
+
+        if (linkError) {
+          console.warn('Failed to link request to project:', linkError);
+        }
+      }
+
+      // Create quote from request with project context
       // Note: status is auto-computed by trigger, request auto-converts via cascade trigger
       const { data: quote, error: quoteError } = await supabase
         .from('quotes')
         .insert({
+          project_id: projectId,  // Link to project for lifecycle tracking
           request_id: requestId,  // This triggers cascade: Request → converted
           client_id: request.client_id,
           community_id: request.community_id,
@@ -458,7 +498,8 @@ export function useConvertRequestToQuote() {
           product_type: request.product_type,
           linear_feet: request.linear_feet_estimate,
           scope_summary: request.description,
-          sales_rep_id: request.assigned_rep_id,
+          sales_rep_user_id: request.assigned_rep_user_id,
+          quote_type: 'original',  // First quote from request is always 'original'
           // status: computed by trigger (will be 'draft')
         })
         .select()
@@ -472,6 +513,7 @@ export function useConvertRequestToQuote() {
     onSuccess: (quote) => {
       queryClient.invalidateQueries({ queryKey: ['service_requests'] });
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       showSuccess(`Quote ${quote.quote_number} created from request`);
     },
     onError: (error: Error) => {
@@ -483,7 +525,7 @@ export function useConvertRequestToQuote() {
 /**
  * Convert a Request directly to a Job (skipping Quote)
  * Used for builders without PO process or simple repeat work
- * Creates a Project to group the Request and Job
+ * Creates a Project with bidirectional Request↔Project link
  */
 export function useConvertRequestToJob() {
   const queryClient = useQueryClient();
@@ -516,35 +558,44 @@ export function useConvertRequestToJob() {
         zip: request.zip || '',
       };
 
-      // Create project first (if not already linked to one)
+      // === Phase 2: Create Project with bidirectional Request↔Project link ===
       let projectId = request.project_id;
 
       if (!projectId) {
+        // Create new project with request_id link (bidirectional)
         const { data: project, error: projectError } = await supabase
           .from('projects')
           .insert({
             client_id: request.client_id,
             community_id: request.community_id,
             property_id: request.property_id,
+            qbo_class_id: request.qbo_class_id || null,
             product_type: request.product_type,
             address_line1: request.address_line1,
             city: request.city,
             state: request.state,
             zip: request.zip,
             territory_id: request.territory_id,
-            assigned_rep_id: request.assigned_rep_id,
+            assigned_rep_user_id: request.assigned_rep_user_id,
+            request_id: requestId,  // Bidirectional: Project → Request
+            project_type: 'standard',
+            source: request.source,
           })
-          .select('id')
+          .select('id, project_number')
           .single();
 
         if (projectError) throw projectError;
         projectId = project.id;
 
-        // Link request to project
-        await supabase
+        // Update request with project_id link (bidirectional: Request → Project)
+        const { error: linkError } = await supabase
           .from('service_requests')
           .update({ project_id: projectId })
           .eq('id', requestId);
+
+        if (linkError) {
+          console.warn('Failed to link request to project:', linkError);
+        }
       }
 
       // Create job directly from request
@@ -562,6 +613,7 @@ export function useConvertRequestToJob() {
           linear_feet: request.linear_feet_estimate,
           description: request.description,
           territory_id: request.territory_id,
+          assigned_rep_user_id: request.assigned_rep_user_id,
           // status: computed by trigger (will be 'won')
         })
         .select()

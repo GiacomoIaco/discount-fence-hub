@@ -208,6 +208,15 @@ export interface Project {
   // Source tracking
   source: ProjectSource | null;
   source_request_id: string | null;
+  request_id: string | null;  // Bidirectional link to source Request (Phase 2)
+
+  // Project type (Phase 2)
+  project_type: 'standard' | 'warranty' | 'follow_up' | 'service_call';
+
+  // Warranty tracking (Phase 2)
+  warranty_months: number | null;
+  warranty_expires_at: string | null;
+  warranty_type: string | null;  // 'standard', 'extended', 'builder'
 
   // Warranty/Follow-up linking
   parent_project_id: string | null;
@@ -326,8 +335,9 @@ export interface Project {
 export interface ServiceRequest {
   id: string;
   request_number: string;
-  // Project
-  project_id: string | null;
+  // Project (Phase 2 bidirectional link)
+  project_id: string | null;  // Project created from this request
+  related_project_id: string | null;  // For warranty/repair requests on existing projects
   // Customer
   client_id: string | null;
   community_id: string | null;
@@ -454,6 +464,11 @@ export interface Quote {
   declined_at: string | null;
   declined_reason: string | null;
 
+  // Quote type (Phase 2 - change orders, alternatives)
+  quote_type: 'original' | 'change_order' | 'warranty' | 'revision';
+  quote_group: string | null;  // Groups alternative quotes together
+  is_alternative: boolean;  // True if this is an alternative to another quote
+
   // Version tracking
   version_number: number;
   is_revision_of_quote_id: string | null;
@@ -506,6 +521,11 @@ export interface QuoteLineItem {
   sort_order: number;
   is_visible_to_client: boolean;
   group_name: string | null;
+
+  // Optional line items (for upgrades/add-ons within single quote)
+  is_optional: boolean;      // True = this is an upgrade/add-on
+  is_selected: boolean;      // Customer can toggle selection
+
   created_at: string;
   // Joined fields from SKU
   sku_code?: string;
@@ -687,6 +707,81 @@ export interface JobVisit {
     job_number: string;
     project_id: string | null;
   };
+}
+
+// Job Issues with Penalization (from migration 217d)
+export type JobIssueType =
+  | 'rework_crew'
+  | 'rework_material'
+  | 'existing_condition'
+  | 'customer_caused'
+  | 'scope_change'
+  | 'weather_damage'
+  | 'other';
+
+export type JobIssueStatus =
+  | 'identified'
+  | 'assessing'
+  | 'approved'
+  | 'in_progress'
+  | 'resolved'
+  | 'cancelled';
+
+export type PenalizationType =
+  | 'backcharge_crew'
+  | 'commission_reduction'
+  | 'formal_warning'
+  | 'supplier_claim'
+  | 'none';
+
+export interface JobIssue {
+  id: string;
+  job_id: string;
+  ticket_id: string | null;  // Link to Ticket Hub if applicable
+
+  // Classification
+  issue_type: JobIssueType;
+
+  // Details
+  title: string;
+  description: string | null;
+  discovered_at: string;
+  discovered_by: string | null;
+
+  // Financial impact
+  is_billable: boolean;
+  estimated_cost: number | null;
+  estimated_price: number | null;
+  actual_cost: number | null;
+
+  // Resolution
+  status: JobIssueStatus;
+  resolution_notes: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+
+  // Accountability (who caused it)
+  responsible_crew_id: string | null;
+  responsible_user_id: string | null;
+
+  // Penalization Tracking
+  penalization_type: PenalizationType | null;
+  penalization_amount: number | null;     // Dollar amount for backcharge/claim
+  penalization_percent: number | null;    // Percentage for commission reduction
+  penalization_target_id: string | null;  // crew_id or user_id being penalized
+  penalization_notes: string | null;
+  penalization_approved_by: string | null;
+  penalization_approved_at: string | null;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+
+  // Joined
+  job?: { id: string; job_number: string };
+  responsible_crew?: { id: string; name: string };
+  responsible_user?: { id: string; full_name: string };
+  penalization_approver?: { id: string; full_name: string };
 }
 
 export interface Invoice {
