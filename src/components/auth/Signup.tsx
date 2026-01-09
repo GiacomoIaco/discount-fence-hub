@@ -156,13 +156,46 @@ const Signup = ({ onBackToLogin }: SignupProps) => {
       } else {
         // Self-signup: Update profile to pending approval status
         // The trigger creates the profile, but we need to set approval_status
-        await supabase
-          .from('user_profiles')
-          .update({
-            approval_status: 'pending',
-            phone: phone || null
-          })
-          .eq('id', newUserId);
+        // Wait a moment for the trigger to create the profile
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Try to update the profile with retry logic
+        let retries = 3;
+        let updated = false;
+
+        while (retries > 0 && !updated) {
+          const { error: updateError, data: updateData } = await supabase
+            .from('user_profiles')
+            .update({
+              approval_status: 'pending',
+              phone: phone || null
+            })
+            .eq('id', newUserId)
+            .select();
+
+          if (updateError) {
+            console.error('Error updating profile to pending:', updateError);
+            retries--;
+            if (retries > 0) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          } else if (updateData && updateData.length > 0) {
+            updated = true;
+            console.log('Profile updated to pending approval status');
+          } else {
+            // Profile might not exist yet, wait and retry
+            console.log('Profile not found, retrying...');
+            retries--;
+            if (retries > 0) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+        }
+
+        if (!updated) {
+          console.error('Failed to update profile to pending status after retries');
+          // Don't fail the signup, but log the issue
+        }
       }
 
       setSuccess(true);
