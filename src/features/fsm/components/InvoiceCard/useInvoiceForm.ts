@@ -305,7 +305,8 @@ export function useInvoiceForm({
         });
 
         // Add line items
-        for (const item of form.lineItems) {
+        for (let i = 0; i < form.lineItems.length; i++) {
+          const item = form.lineItems[i];
           if (item.description) {
             await addLineItemMutation.mutateAsync({
               invoice_id: result.id,
@@ -313,6 +314,8 @@ export function useInvoiceForm({
               quantity: item.quantity,
               unit_price: item.unitPrice,
               total: item.amount,
+              sort_order: i,
+              quote_line_item_id: null,
             });
           }
         }
@@ -365,7 +368,8 @@ export function useInvoiceForm({
         }
 
         // Update or create items
-        for (const item of form.lineItems) {
+        for (let i = 0; i < form.lineItems.length; i++) {
+          const item = form.lineItems[i];
           if (!item.description) continue;
 
           if (item.id) {
@@ -377,6 +381,7 @@ export function useInvoiceForm({
                 quantity: item.quantity,
                 unit_price: item.unitPrice,
                 total: item.amount,
+                sort_order: i,
               },
             });
           } else {
@@ -387,6 +392,8 @@ export function useInvoiceForm({
               quantity: item.quantity,
               unit_price: item.unitPrice,
               total: item.amount,
+              sort_order: i,
+              quote_line_item_id: null,
             });
           }
         }
