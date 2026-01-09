@@ -11,9 +11,9 @@
 
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import type { Invoice, Payment, PaymentMethod } from '../../types';
+import type { PaymentMethod } from '../../types';
 import type { InvoiceCardProps, InvoiceCardMode, PaymentFormState } from './types';
-import { PAYMENT_METHODS, PAYMENT_TERMS_OPTIONS } from './types';
+import { PAYMENT_METHODS } from './types';
 import { useInvoiceForm } from './useInvoiceForm';
 import { useSendInvoice, useRecordPayment, useUpdateInvoiceStatus } from '../../hooks/useInvoices';
 import InvoiceHeader from './InvoiceHeader';
@@ -201,7 +201,7 @@ export default function InvoiceCard({
   const {
     form,
     setField,
-    setFields,
+    setFields: _setFields,
     addLineItem,
     updateLineItem,
     removeLineItem,

@@ -11,7 +11,6 @@
 import { useState } from 'react';
 import {
   Calendar,
-  FileText,
   MapPin,
   MessageSquare,
   ChevronDown,
@@ -21,7 +20,7 @@ import {
   AlertTriangle,
   ExternalLink,
 } from 'lucide-react';
-import type { InvoiceSidebarProps, InvoiceFormState } from './types';
+import type { InvoiceSidebarProps } from './types';
 import { PAYMENT_TERMS_OPTIONS, INVOICE_STATUS_COLORS } from './types';
 
 interface CollapsibleSectionProps {
@@ -64,8 +63,8 @@ export default function InvoiceSidebar({
   mode,
   form,
   invoice,
-  validation,
-  totals,
+  validation: _validation,
+  totals: _totals,
   onFieldChange,
 }: InvoiceSidebarProps) {
   const isEditable = mode !== 'view';

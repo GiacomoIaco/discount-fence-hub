@@ -8,7 +8,7 @@
  */
 
 import { Plus, Trash2 } from 'lucide-react';
-import type { InvoiceLineItemsProps, LineItemFormState } from './types';
+import type { InvoiceLineItemsProps } from './types';
 
 export default function InvoiceLineItems({
   mode,

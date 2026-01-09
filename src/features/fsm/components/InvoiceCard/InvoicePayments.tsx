@@ -17,8 +17,7 @@ import {
   Trash2,
   Check,
 } from 'lucide-react';
-import type { InvoicePaymentsProps, PaymentFormState } from './types';
-import type { Payment } from '../../types';
+import type { InvoicePaymentsProps } from './types';
 
 // Payment method icons
 const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
@@ -39,7 +38,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export default function InvoicePayments({
   mode,
-  invoiceId,
+  invoiceId: _invoiceId,
   payments,
   amountPaid,
   balanceDue,

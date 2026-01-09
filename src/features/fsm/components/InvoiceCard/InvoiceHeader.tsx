@@ -25,7 +25,6 @@ import {
   AlertTriangle,
   Copy,
 } from 'lucide-react';
-import type { Invoice } from '../../types';
 import type { InvoiceHeaderProps } from './types';
 import { INVOICE_STATUS_COLORS } from './types';
 
@@ -34,7 +33,7 @@ export default function InvoiceHeader({
   invoice,
   validation,
   isSaving,
-  isDirty,
+  isDirty: _isDirty,
   onBack,
   onCancel,
   onSave,
@@ -62,7 +61,6 @@ export default function InvoiceHeader({
   const statusColors = INVOICE_STATUS_COLORS[status];
   const isPaid = status === 'paid';
   const isBadDebt = status === 'bad_debt';
-  const isEditable = mode !== 'view' && !isPaid && !isBadDebt;
   const canSend = status === 'draft' && mode === 'view';
   const canRecordPayment = ['sent', 'past_due'].includes(status);
 

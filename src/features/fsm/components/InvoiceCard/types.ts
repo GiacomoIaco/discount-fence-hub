@@ -4,7 +4,7 @@
  * Types for the unified InvoiceCard component (create/edit/view modes)
  */
 
-import type { Invoice, InvoiceStatus, InvoiceLineItem, Payment, AddressSnapshot } from '../../types';
+import type { Invoice, InvoiceStatus, Payment, AddressSnapshot } from '../../types';
 
 // Component mode
 export type InvoiceCardMode = 'create' | 'edit' | 'view';
@@ -64,7 +64,6 @@ export interface LineItemFormState {
   quantity: number;
   unitPrice: number;
   amount: number;
-  jobId?: string;
 }
 
 // Computed totals
@@ -133,7 +132,7 @@ export interface InvoiceSidebarProps {
   invoice: Invoice | null;
   validation: InvoiceValidation;
   totals: InvoiceTotals;
-  onFieldChange: (field: keyof InvoiceFormState, value: string | number) => void;
+  onFieldChange: (field: keyof InvoiceFormState, value: string | number | AddressSnapshot) => void;
 }
 
 // Payment form for recording payments

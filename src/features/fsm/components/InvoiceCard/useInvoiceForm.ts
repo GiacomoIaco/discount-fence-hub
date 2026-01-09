@@ -17,7 +17,7 @@ import type {
   InvoiceTotals,
   InvoiceValidation,
 } from './types';
-import type { Invoice, InvoiceLineItem, Payment } from '../../types';
+import type { Invoice, InvoiceLineItem, Payment, AddressSnapshot } from '../../types';
 import {
   useInvoice,
   useCreateInvoice,
@@ -40,7 +40,7 @@ interface UseInvoiceFormParams {
 interface UseInvoiceFormReturn {
   // Form state
   form: InvoiceFormState;
-  setField: (field: keyof InvoiceFormState, value: string | number | LineItemFormState[]) => void;
+  setField: (field: keyof InvoiceFormState, value: string | number | LineItemFormState[] | AddressSnapshot) => void;
   setFields: (fields: Partial<InvoiceFormState>) => void;
 
   // Line items
@@ -154,8 +154,7 @@ export function useInvoiceForm({
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unit_price,
-          amount: item.amount,
-          jobId: item.job_id,
+          amount: item.total,
         })) || [{ ...emptyLineItem }];
 
       const loadedForm: InvoiceFormState = {
@@ -186,7 +185,7 @@ export function useInvoiceForm({
 
   // Set a single field
   const setField = useCallback(
-    (field: keyof InvoiceFormState, value: string | number | LineItemFormState[]) => {
+    (field: keyof InvoiceFormState, value: string | number | LineItemFormState[] | AddressSnapshot) => {
       setForm((prev) => ({ ...prev, [field]: value }));
     },
     []
@@ -313,8 +312,7 @@ export function useInvoiceForm({
               description: item.description,
               quantity: item.quantity,
               unit_price: item.unitPrice,
-              amount: item.amount,
-              job_id: item.jobId || null,
+              total: item.amount,
             });
           }
         }
@@ -378,8 +376,7 @@ export function useInvoiceForm({
                 description: item.description,
                 quantity: item.quantity,
                 unit_price: item.unitPrice,
-                amount: item.amount,
-                job_id: item.jobId || null,
+                total: item.amount,
               },
             });
           } else {
@@ -389,8 +386,7 @@ export function useInvoiceForm({
               description: item.description,
               quantity: item.quantity,
               unit_price: item.unitPrice,
-              amount: item.amount,
-              job_id: item.jobId || null,
+              total: item.amount,
             });
           }
         }
