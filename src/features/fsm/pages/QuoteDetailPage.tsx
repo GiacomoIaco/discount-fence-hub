@@ -25,8 +25,11 @@ import {
   ChevronDown,
   Layers,
   Clock,
+  AlertTriangle,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
-import { useQuote, useUpdateQuoteStatus, useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuote } from '../hooks/useQuotes';
+import { useQuote, useUpdateQuoteStatus, useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote } from '../hooks/useQuotes';
 import QuoteToJobsModal from '../components/QuoteToJobsModal';
 import {
   QUOTE_STATUS_LABELS,
@@ -92,6 +95,15 @@ export default function QuoteDetailPage({
   const sendQuoteMutation = useSendQuote();
   const approveQuoteMutation = useApproveQuote();
   const convertToJobMutation = useConvertQuoteToJob();
+  const requestManagerApprovalMutation = useRequestManagerApproval();
+  const managerApproveMutation = useManagerApproveQuote();
+  const managerRejectMutation = useManagerRejectQuote();
+
+  // Manager approval states
+  const [showManagerApprovalModal, setShowManagerApprovalModal] = useState(false);
+  const [managerApprovalNotes, setManagerApprovalNotes] = useState('');
+  const [showManagerRejectModal, setShowManagerRejectModal] = useState(false);
+  const [managerRejectReason, setManagerRejectReason] = useState('');
 
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount == null) return '$0.00';
@@ -237,6 +249,52 @@ export default function QuoteDetailPage({
     }
   };
 
+  // Handler: Request manager approval (rep submits for approval)
+  const handleRequestManagerApproval = async () => {
+    if (!quote) return;
+    try {
+      await requestManagerApprovalMutation.mutateAsync({ id: quote.id });
+      alert('Quote submitted for manager approval');
+    } catch (err) {
+      console.error('Request approval error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to request approval');
+    }
+  };
+
+  // Handler: Manager approves the quote
+  const handleManagerApprove = async () => {
+    if (!quote) return;
+    try {
+      await managerApproveMutation.mutateAsync({
+        id: quote.id,
+        notes: managerApprovalNotes || undefined,
+      });
+      setShowManagerApprovalModal(false);
+      setManagerApprovalNotes('');
+      alert('Quote approved! It can now be sent to the client.');
+    } catch (err) {
+      console.error('Manager approve error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to approve quote');
+    }
+  };
+
+  // Handler: Manager rejects the quote (back to draft)
+  const handleManagerReject = async () => {
+    if (!quote || !managerRejectReason) return;
+    try {
+      await managerRejectMutation.mutateAsync({
+        id: quote.id,
+        notes: managerRejectReason,
+      });
+      setShowManagerRejectModal(false);
+      setManagerRejectReason('');
+      alert('Quote rejected and returned to draft for revision.');
+    } catch (err) {
+      console.error('Manager reject error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to reject quote');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -262,9 +320,18 @@ export default function QuoteDetailPage({
     );
   }
 
-  const canSend = quote.status === 'draft' || quote.status === 'changes_requested';
+  // Manager approval workflow state
+  const needsManagerApproval = quote.margin_percent != null && quote.margin_percent < 15 && !quote.manager_approved_at;
+  const isPendingManagerApproval = quote.status === 'pending_manager_approval';
+  const hasManagerApproval = !!quote.manager_approved_at;
+  // For now, assume current user is a manager (can be refined with role check later)
+  const isManager = true;
+
+  // Button visibility conditions
+  const canSend = (quote.status === 'draft' || quote.status === 'changes_requested') && !needsManagerApproval;
+  const canSendForApproval = (quote.status === 'draft' || quote.status === 'changes_requested') && needsManagerApproval;
   const canApprove = quote.status === 'sent' || quote.status === 'follow_up';
-  const canMarkLost = ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval'].includes(quote.status);
+  const canMarkLost = ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval', 'pending_manager_approval'].includes(quote.status);
   const canConvertToJob = quote.status === 'approved';
   const lineItems = quote.line_items || [];
 
@@ -279,14 +346,47 @@ export default function QuoteDetailPage({
 
   // Build extra badges
   const extraBadges = [];
+  if (needsManagerApproval && !isPendingManagerApproval) {
+    extraBadges.push({ label: 'Needs Approval', colorClass: 'bg-orange-100 text-orange-700' });
+  }
+  if (hasManagerApproval) {
+    extraBadges.push({ label: 'Manager Approved', colorClass: 'bg-green-100 text-green-700' });
+  }
   if (quote.requires_approval && quote.approval_status === 'pending') {
-    extraBadges.push({ label: 'Needs Approval', colorClass: 'bg-amber-100 text-amber-700' });
+    extraBadges.push({ label: 'Pending Client Approval', colorClass: 'bg-amber-100 text-amber-700' });
   }
 
   // Action buttons
   const actionButtons = (
     <>
-      {onEditQuote && (
+      {/* Manager approval buttons - shown when pending_manager_approval status */}
+      {isPendingManagerApproval && isManager && (
+        <>
+          <button
+            onClick={() => setShowManagerRejectModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
+          >
+            <ThumbsDown className="w-4 h-4" />
+            Reject
+          </button>
+          <button
+            onClick={() => setShowManagerApprovalModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            <ThumbsUp className="w-4 h-4" />
+            Approve
+          </button>
+        </>
+      )}
+      {/* Non-manager view when pending approval */}
+      {isPendingManagerApproval && !isManager && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
+          <Clock className="w-4 h-4" />
+          <span className="text-sm font-medium">Awaiting Manager Approval</span>
+        </div>
+      )}
+      {/* Edit button - not shown during pending approval */}
+      {onEditQuote && !isPendingManagerApproval && (
         <button
           onClick={() => onEditQuote(quote.id)}
           className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -295,6 +395,18 @@ export default function QuoteDetailPage({
           Edit
         </button>
       )}
+      {/* Send for Approval - when quote needs manager approval */}
+      {canSendForApproval && (
+        <button
+          onClick={handleRequestManagerApproval}
+          disabled={requestManagerApprovalMutation.isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+        >
+          <AlertTriangle className="w-4 h-4" />
+          {requestManagerApprovalMutation.isPending ? 'Submitting...' : 'Send for Approval'}
+        </button>
+      )}
+      {/* Regular Send Quote - when no approval needed */}
       {canSend && (
         <button
           onClick={() => setShowSendModal(true)}
@@ -1059,6 +1171,117 @@ export default function QuoteDetailPage({
             }
           }}
         />
+      )}
+
+      {/* Manager Approve Modal */}
+      {showManagerApprovalModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Approve Quote</h3>
+            <p className="text-gray-600 mb-4">
+              This quote has a low margin ({quote?.margin_percent?.toFixed(1)}%) which required approval.
+              Approving will allow it to be sent to the client.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Approval Notes <span className="text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={managerApprovalNotes}
+                  onChange={(e) => setManagerApprovalNotes(e.target.value)}
+                  placeholder="Reason for approving the low margin..."
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowManagerApprovalModal(false);
+                  setManagerApprovalNotes('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={managerApproveMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleManagerApprove}
+                disabled={managerApproveMutation.isPending}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {managerApproveMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <ThumbsUp className="w-4 h-4" />
+                    Approve Quote
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manager Reject Modal */}
+      {showManagerRejectModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Reject Quote</h3>
+            <p className="text-gray-600 mb-4">
+              The quote will be returned to draft status for the rep to revise.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rejection Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={managerRejectReason}
+                  onChange={(e) => setManagerRejectReason(e.target.value)}
+                  placeholder="Why is this quote being rejected? What changes are needed?"
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowManagerRejectModal(false);
+                  setManagerRejectReason('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={managerRejectMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleManagerReject}
+                disabled={managerRejectMutation.isPending || !managerRejectReason}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {managerRejectMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <ThumbsDown className="w-4 h-4" />
+                    Reject Quote
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
