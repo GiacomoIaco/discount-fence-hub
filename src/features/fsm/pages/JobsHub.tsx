@@ -3,11 +3,12 @@
  *
  * Routes:
  * - /jobs → JobsList (list view)
- * - /jobs/:id → JobDetailPage (detail view)
+ * - /jobs/:id → JobCard (unified view/edit)
  *
  * Flow:
- * - "New Job" → ProjectCreateWizard → JobDetailPage (after creation)
- * - Click job → JobDetailPage
+ * - "New Job" → ProjectCreateWizard → Project Detail (add job there)
+ * - Click job → JobCard (view mode with collapsible sections)
+ * - Edit button → JobCard (edit mode)
  */
 
 import { useState } from 'react';
@@ -21,7 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
-import { JobDetailPage } from '../pages';
+import { JobCard } from '../components/JobCard';
 import { ProjectCreateWizard } from '../components/project';
 import {
   JOB_STATUS_LABELS,
@@ -128,14 +129,23 @@ export default function JobsHub({
     );
   }
 
-  // If viewing a specific job, render the detail page
+  // If viewing a specific job, render JobCard in view mode
   if (entityContext?.type === 'job') {
     return (
-      <JobDetailPage
+      <JobCard
+        mode="view"
         jobId={entityContext.id}
         onBack={handleJobClose}
-        onNavigateToQuote={handleNavigateToQuote}
-        onNavigateToInvoice={handleNavigateToInvoice}
+        onCancel={handleJobClose}
+        onComplete={(jobId) => {
+          // Stay on the job detail after completion
+          console.log('Job completed:', jobId);
+        }}
+        onCreateInvoice={(jobId) => {
+          // Navigate to invoice after creation
+          // TODO: Get invoice ID from job after refresh
+          console.log('Invoice created for job:', jobId);
+        }}
       />
     );
   }

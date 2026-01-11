@@ -3,11 +3,12 @@
  *
  * Routes:
  * - /invoices → InvoicesList (list view)
- * - /invoices/:id → InvoiceDetailPage (detail view)
+ * - /invoices/:id → InvoiceCard (unified view/edit)
  *
  * Flow:
  * - "New Invoice" → Job selection modal → Create invoice from job
- * - Click invoice → InvoiceDetailPage
+ * - Click invoice → InvoiceCard (view mode)
+ * - Edit button → InvoiceCard (edit mode)
  */
 
 import { useState } from 'react';
@@ -25,7 +26,7 @@ import {
 import { useInvoices, useCreateInvoice } from '../hooks/useInvoices';
 import { useJobs } from '../hooks/useJobs';
 import type { Job } from '../types';
-import { InvoiceDetailPage } from '../pages';
+import { InvoiceCard } from '../components/InvoiceCard';
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_COLORS,
@@ -240,14 +241,18 @@ export default function InvoicesHub({
     );
   };
 
-  // If viewing a specific invoice, render the detail page
+  // If viewing a specific invoice, render InvoiceCard in view mode
   if (entityContext?.type === 'invoice') {
     return (
-      <InvoiceDetailPage
+      <InvoiceCard
+        mode="view"
         invoiceId={entityContext.id}
         onBack={handleInvoiceClose}
-        onNavigateToJob={handleNavigateToJob}
-        onNavigateToQuote={handleNavigateToQuote}
+        onCancel={handleInvoiceClose}
+        onSave={() => {
+          // Stay on the invoice after save
+          console.log('Invoice saved');
+        }}
       />
     );
   }
