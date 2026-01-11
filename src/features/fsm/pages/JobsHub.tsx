@@ -82,19 +82,6 @@ export default function JobsHub({
     }
   };
 
-  // Handle navigation to related entities
-  const handleNavigateToQuote = (quoteId: string) => {
-    if (onNavigateToEntity) {
-      onNavigateToEntity('quote', { id: quoteId });
-    }
-  };
-
-  const handleNavigateToInvoice = (invoiceId: string) => {
-    if (onNavigateToEntity) {
-      onNavigateToEntity('invoice', { id: invoiceId });
-    }
-  };
-
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount == null) return '$0.00';
     return new Intl.NumberFormat('en-US', {

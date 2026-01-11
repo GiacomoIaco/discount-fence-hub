@@ -133,19 +133,6 @@ export default function InvoicesHub({
     }
   };
 
-  // Handle navigation to related entities
-  const handleNavigateToJob = (jobId: string) => {
-    if (onNavigateToEntity) {
-      onNavigateToEntity('job', { id: jobId });
-    }
-  };
-
-  const handleNavigateToQuote = (quoteId: string) => {
-    if (onNavigateToEntity) {
-      onNavigateToEntity('quote', { id: quoteId });
-    }
-  };
-
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount == null) return '$0.00';
     return new Intl.NumberFormat('en-US', {
