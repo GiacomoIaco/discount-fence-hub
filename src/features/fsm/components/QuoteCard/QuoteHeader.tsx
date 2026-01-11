@@ -149,8 +149,7 @@ export default function QuoteHeader({
   const canMarkClientApproved = ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
   // Can mark lost when not already lost/converted/archived
   const canMarkLost = !['lost', 'converted', 'archived'].includes(status || '');
-  // Manager approval needed (separate from client approval)
-  const needsManagerApproval = validation.needsApproval;
+  // Note: validation.needsApproval indicates manager approval needed (shown via badge in header)
 
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-20">

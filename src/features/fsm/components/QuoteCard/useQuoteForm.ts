@@ -315,7 +315,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     }
 
     // Check if manager has already approved this quote (internal approval)
-    const hasManagerApproval = !!(quote?.internal_approved_at || quote?.requires_approval === false);
+    // requires_approval=false means manager has approved OR thresholds weren't violated
+    const hasManagerApproval = quote?.requires_approval === false;
 
     return {
       isValid: errors.length === 0,
