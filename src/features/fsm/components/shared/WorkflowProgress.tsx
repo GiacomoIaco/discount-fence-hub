@@ -175,17 +175,20 @@ interface QuoteProgressProps {
 }
 
 /**
- * Quote workflow: Draft -> Sent -> Approved -> Converted
+ * Quote workflow: Draft -> Sent -> Accepted -> Converted
+ * Note: "Sent" = awaiting_response status, "Accepted" = client accepted
  */
 export function QuoteProgress({
   status,
   sentAt,
-  approvedAt,
+  approvedAt,  // This is client_accepted_at (renamed from client_approved_at)
   convertedToJobId,
   compact = false,
 }: QuoteProgressProps) {
   const isLost = status === 'lost';
+  const isExpired = status === 'expired';
   const isConverted = !!convertedToJobId || status === 'converted';
+  const isTerminal = isLost || isExpired;
 
   const steps: WorkflowStep[] = [
     {
@@ -196,20 +199,20 @@ export function QuoteProgress({
     {
       id: 'sent',
       label: 'Sent',
-      completed: !!sentAt && !isLost,
-      current: !!sentAt && !approvedAt && !isConverted && !isLost,
+      completed: !!sentAt && !isTerminal,
+      current: !!sentAt && !approvedAt && !isConverted && !isTerminal,
     },
     {
-      id: 'approved',
-      label: 'Approved',
-      completed: !!approvedAt && !isLost,
-      current: !!approvedAt && !isConverted && !isLost,
+      id: 'accepted',
+      label: 'Accepted',
+      completed: !!approvedAt && !isTerminal,
+      current: !!approvedAt && !isConverted && !isTerminal,
     },
     {
       id: 'converted',
-      label: isLost ? 'Lost' : 'Job Created',
-      completed: isConverted || isLost,
-      current: isConverted || isLost,
+      label: isLost ? 'Lost' : isExpired ? 'Expired' : 'Job Created',
+      completed: isConverted || isTerminal,
+      current: isConverted || isTerminal,
     },
   ];
 

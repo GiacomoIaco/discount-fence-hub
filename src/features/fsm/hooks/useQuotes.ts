@@ -381,7 +381,7 @@ export function useApproveQuote() {
         .from('quotes')
         .update({
           approval_status: 'approved',
-          client_approved_at: new Date().toISOString(), // Triggers computed status
+          client_accepted_at: new Date().toISOString(), // Triggers computed status
           approval_notes: notes || null,
           updated_at: new Date().toISOString(),
         })
@@ -709,6 +709,39 @@ export function useCreateAlternativeQuote() {
     onError: (error: Error) => {
       showError(error.message || 'Failed to create alternative quote');
     },
+  });
+}
+
+/**
+ * Fetch all quotes in the same quote_group (alternatives).
+ * Returns all quotes including the current one.
+ */
+export function useQuoteAlternatives(quoteGroup: string | null | undefined) {
+  return useQuery({
+    queryKey: ['quote_alternatives', quoteGroup],
+    queryFn: async () => {
+      if (!quoteGroup) return [];
+
+      const { data, error } = await supabase
+        .from('quotes')
+        .select(`
+          id,
+          quote_number,
+          status,
+          total,
+          is_alternative,
+          scope_summary,
+          created_at,
+          client_accepted_at,
+          archived_at
+        `)
+        .eq('quote_group', quoteGroup)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!quoteGroup,
   });
 }
 

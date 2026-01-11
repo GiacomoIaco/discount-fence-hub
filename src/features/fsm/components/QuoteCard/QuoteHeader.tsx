@@ -161,15 +161,15 @@ export default function QuoteHeader({
 
   // Manager approval state
   const needsManagerApproval = validation.needsApproval && !quote?.manager_approved_at;
-  const isPendingManagerApproval = status === 'pending_manager_approval';
+  const isPendingManagerApproval = status === 'pending_approval';
   const hasManagerApproval = !!quote?.manager_approved_at;
 
-  // Can convert to job only when approved by client
-  const canConvertToJob = status === 'approved' || status === 'converted';
-  // Can mark CLIENT approved only after quote has been sent
-  const canMarkClientApproved = ['sent', 'follow_up', 'changes_requested'].includes(status || '');
-  // Can mark lost when not already lost/converted/archived
-  const canMarkLost = !['lost', 'converted', 'archived'].includes(status || '');
+  // Can convert to job only when accepted by client
+  const canConvertToJob = status === 'accepted' || status === 'converted';
+  // Can mark CLIENT accepted only after quote has been sent (awaiting_response)
+  const canMarkClientAccepted = ['awaiting_response', 'changes_requested'].includes(status || '');
+  // Can mark lost when not already lost/converted/archived/expired
+  const canMarkLost = !['lost', 'converted', 'archived', 'expired', 'accepted'].includes(status || '');
 
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
@@ -511,7 +511,7 @@ export default function QuoteHeader({
                             Awaiting Response
                           </button>
                         )}
-                        {onApprove && canMarkClientApproved && (
+                        {onApprove && canMarkClientAccepted && (
                           <button
                             onClick={() => {
                               setShowMoreMenu(false);
@@ -520,7 +520,7 @@ export default function QuoteHeader({
                             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             <Check className="w-4 h-4" />
-                            Approved
+                            Accepted
                           </button>
                         )}
                         {onMarkLost && canMarkLost && (

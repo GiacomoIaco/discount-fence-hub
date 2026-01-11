@@ -322,17 +322,17 @@ export default function QuoteDetailPage({
 
   // Manager approval workflow state
   const needsManagerApproval = quote.margin_percent != null && quote.margin_percent < 15 && !quote.manager_approved_at;
-  const isPendingManagerApproval = quote.status === 'pending_manager_approval';
+  const isPendingManagerApproval = quote.status === 'pending_approval';
   const hasManagerApproval = !!quote.manager_approved_at;
   // For now, assume current user is a manager (can be refined with role check later)
   const isManager = true;
 
-  // Button visibility conditions
-  const canSend = (quote.status === 'draft' || quote.status === 'changes_requested') && !needsManagerApproval;
+  // Button visibility conditions (using new status names)
+  const canSend = (quote.status === 'draft' || quote.status === 'approved' || quote.status === 'changes_requested') && !needsManagerApproval;
   const canSendForApproval = (quote.status === 'draft' || quote.status === 'changes_requested') && needsManagerApproval;
-  const canApprove = quote.status === 'sent' || quote.status === 'follow_up';
-  const canMarkLost = ['draft', 'sent', 'follow_up', 'changes_requested', 'pending_approval', 'pending_manager_approval'].includes(quote.status);
-  const canConvertToJob = quote.status === 'approved';
+  const canAccept = quote.status === 'awaiting_response' || quote.status === 'changes_requested';
+  const canMarkLost = ['draft', 'awaiting_response', 'changes_requested', 'pending_approval', 'approved'].includes(quote.status);
+  const canConvertToJob = quote.status === 'accepted';
   const lineItems = quote.line_items || [];
 
   // Calculate totals from line items
@@ -416,13 +416,13 @@ export default function QuoteDetailPage({
           Send Quote
         </button>
       )}
-      {canApprove && (
+      {canAccept && (
         <button
           onClick={() => setShowApproveModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
         >
           <CheckCircle className="w-4 h-4" />
-          Mark Approved
+          Mark Accepted
         </button>
       )}
       {canMarkLost && (

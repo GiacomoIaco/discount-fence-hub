@@ -17,6 +17,7 @@ import {
   useAddQuoteLineItem,
   useUpdateQuoteLineItem,
   useDeleteQuoteLineItem,
+  useQuoteApprovalSettings,
 } from '../../hooks/useQuotes';
 import type {
   QuoteCardMode,
@@ -87,6 +88,10 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   const queryClient = useQueryClient();
   // Load existing quote for edit/view modes
   const { data: quote, isLoading: isLoadingQuote } = useQuote(mode !== 'create' ? quoteId : undefined);
+
+  // Get approval settings (uses BU-specific or global default)
+  const { data: approvalSettings } = useQuoteApprovalSettings(quote?.qbo_class_id);
+
   // Mutations
   const createMutation = useCreateQuote();
   const updateMutation = useUpdateQuote();
@@ -255,14 +260,20 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
   // Calculate totals
   const totals = useMemo((): QuoteTotals => {
     const activeItems = form.lineItems.filter(li => !li.isDeleted);
-    const subtotal = activeItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-    const materialCost = activeItems.reduce((sum, item) => {
+    // Only include items that are either:
+    // 1. Not optional (required items always included)
+    // 2. Optional AND selected (is_selected !== false defaults to true)
+    const selectedItems = activeItems.filter(li =>
+      !li.is_optional || li.is_selected !== false
+    );
+    const subtotal = selectedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    const materialCost = selectedItems.reduce((sum, item) => {
       // Use separate material cost if available, otherwise fallback to unit_cost
       const matCost = item.material_unit_cost ?? item.unit_cost;
       return sum + (item.quantity * matCost);
     }, 0);
     // Use separate labor cost field which properly tracks labor component
-    const laborCost = activeItems
+    const laborCost = selectedItems
       .reduce((sum, item) => {
       const labCost = item.labor_unit_cost ?? 0;
       return sum + (item.quantity * labCost);
@@ -303,15 +314,24 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     if (activeItems.length === 0) {
       warnings.push('No line items added');
     }
-    // Manager approval thresholds (internal policy check - before sending to client)
-    if (totals.marginPercent < 15 && activeItems.length > 0) {
-      approvalReasons.push(`Margin (${totals.marginPercent.toFixed(1)}%) below 15%`);
-    }
-    if (parseFloat(form.discountPercent) > 10) {
-      approvalReasons.push(`Discount (${form.discountPercent}%) exceeds 10%`);
-    }
-    if (totals.total > 25000) {
-      approvalReasons.push(`Total ($${totals.total.toLocaleString()}) exceeds $25,000`);
+
+    // Manager approval thresholds from settings (or fallback defaults if settings not loaded)
+    const marginThreshold = approvalSettings?.margin_below_percent ?? 15;
+    const discountThreshold = approvalSettings?.discount_above_percent ?? 10;
+    const totalThreshold = approvalSettings?.total_above_amount ?? 25000;
+    const approvalEnabled = approvalSettings?.enabled ?? true;
+
+    // Only check thresholds if approval is enabled
+    if (approvalEnabled && activeItems.length > 0) {
+      if (totals.marginPercent < marginThreshold) {
+        approvalReasons.push(`Margin (${totals.marginPercent.toFixed(1)}%) below ${marginThreshold}%`);
+      }
+      if (parseFloat(form.discountPercent) > discountThreshold) {
+        approvalReasons.push(`Discount (${form.discountPercent}%) exceeds ${discountThreshold}%`);
+      }
+      if (totals.total > totalThreshold) {
+        approvalReasons.push(`Total ($${totals.total.toLocaleString()}) exceeds $${totalThreshold.toLocaleString()}`);
+      }
     }
 
     // Check if manager has already approved this quote (internal approval)
@@ -326,7 +346,7 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       needsApproval: approvalReasons.length > 0 && !hasManagerApproval,
       approvalReasons: hasManagerApproval ? [] : approvalReasons,
     };
-  }, [form.clientId, form.lineItems, form.discountPercent, totals, quote]);
+  }, [form.clientId, form.lineItems, form.discountPercent, totals, quote, approvalSettings]);
   // Save function
   const save = useCallback(async (): Promise<string | null> => {
     if (!validation.isValid) {

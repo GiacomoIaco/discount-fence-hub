@@ -17,14 +17,16 @@ export type RequestStatus =
   | 'archived';         // Closed without conversion
 
 export type QuoteStatus =
-  | 'draft'             // Being prepared
-  | 'pending_manager_approval'   // Waiting for manager approval (before sent)
-  | 'sent'              // Sent to client
-  | 'follow_up'         // Follow-up needed (3+ days since sent)
-  | 'changes_requested' // Client requested changes
-  | 'approved'          // Client approved
-  | 'converted'         // Converted to job
-  | 'lost';             // Deal lost
+  | 'draft'               // Being prepared
+  | 'pending_approval'    // Waiting for manager approval (before sent)
+  | 'approved'            // Manager approved, ready to send
+  | 'awaiting_response'   // Sent to client, waiting for response
+  | 'changes_requested'   // Client requested changes (via portal)
+  | 'accepted'            // Client accepted the quote
+  | 'converted'           // Converted to job
+  | 'lost'                // Actively lost (client said no)
+  | 'expired'             // No response after X days
+  | 'archived';           // Superseded/duplicate/cancelled
 
 export type JobStatus =
   | 'won'               // Job created from quote
@@ -458,11 +460,20 @@ export interface Quote {
   sent_to_email: string | null;
   viewed_at: string | null;
   // Client response
-  client_approved_at: string | null;
+  client_accepted_at: string | null;   // Renamed from client_approved_at
   client_signature: string | null;
   client_po_number: string | null;
+  changes_requested_at: string | null;  // Client requested changes via portal
+  changes_requested_notes: string | null;
   lost_reason: string | null;
   lost_to_competitor: string | null;
+  // Expiry & Archive
+  expired_at: string | null;            // Auto-expired after X days no response
+  archived_at: string | null;           // Manually archived
+  archive_reason: 'alternative_selected' | 'superseded' | 'duplicate' | 'cancelled' | 'other' | null;
+  // Follow-up tracking
+  follow_up_assigned_at: string | null;
+  follow_up_owner_id: string | null;
 
   // Quote acceptance (multi-quote per project)
   acceptance_status: QuoteAcceptanceStatus;
@@ -1065,24 +1076,28 @@ export const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
 
 export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
   draft: 'Draft',
-  pending_manager_approval: 'Awaiting Manager Approval',
-  sent: 'Sent',
-  follow_up: 'Follow-up Needed',
+  pending_approval: 'Pending Approval',
+  approved: 'Approved',              // Manager approved, ready to send
+  awaiting_response: 'Awaiting Response',
   changes_requested: 'Changes Requested',
-  approved: 'Approved',
+  accepted: 'Accepted',              // Client accepted
   converted: 'Converted to Job',
   lost: 'Lost',
+  expired: 'Expired',
+  archived: 'Archived',
 };
 
 export const QUOTE_STATUS_COLORS: Record<QuoteStatus, string> = {
   draft: 'bg-gray-100 text-gray-700',
-  pending_manager_approval: 'bg-amber-100 text-amber-700',
-  sent: 'bg-blue-100 text-blue-700',
-  follow_up: 'bg-orange-100 text-orange-700',
+  pending_approval: 'bg-amber-100 text-amber-700',
+  approved: 'bg-teal-100 text-teal-700',          // Manager approved - teal to differentiate
+  awaiting_response: 'bg-blue-100 text-blue-700',
   changes_requested: 'bg-yellow-100 text-yellow-700',
-  approved: 'bg-green-100 text-green-700',
+  accepted: 'bg-green-100 text-green-700',        // Client accepted - green
   converted: 'bg-purple-100 text-purple-700',
   lost: 'bg-red-100 text-red-700',
+  expired: 'bg-orange-100 text-orange-700',
+  archived: 'bg-gray-100 text-gray-500',
 };
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
@@ -1250,14 +1265,16 @@ export const REQUEST_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
 };
 
 export const QUOTE_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
-  draft: ['pending_manager_approval', 'sent', 'lost'],
-  pending_manager_approval: ['sent', 'draft', 'lost'],
-  sent: ['follow_up', 'changes_requested', 'approved', 'lost'],
-  follow_up: ['sent', 'changes_requested', 'approved', 'lost'],
-  changes_requested: ['draft', 'sent', 'lost'],
-  approved: ['converted', 'lost'],
-  converted: [], // Terminal
-  lost: ['draft'], // Can revive
+  draft: ['pending_approval', 'approved', 'archived'],              // Can skip approval if not needed
+  pending_approval: ['approved', 'draft'],                          // Manager approves or rejects
+  approved: ['awaiting_response', 'archived'],                      // Send to client or archive
+  awaiting_response: ['changes_requested', 'accepted', 'lost', 'expired', 'archived'],
+  changes_requested: ['draft', 'awaiting_response', 'lost', 'archived'],
+  accepted: ['converted', 'archived'],                              // Convert to job
+  converted: [],                                                    // Terminal
+  lost: ['draft'],                                                  // Can revive
+  expired: ['draft', 'archived'],                                   // Can revive or archive
+  archived: ['draft'],                                              // Can revive
 };
 
 export const JOB_TRANSITIONS: Record<JobStatus, JobStatus[]> = {

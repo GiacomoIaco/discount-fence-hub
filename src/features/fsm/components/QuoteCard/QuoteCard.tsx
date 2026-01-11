@@ -11,14 +11,14 @@
  */
 
 import { useState, useCallback } from 'react';
-import { XCircle, AlertTriangle } from 'lucide-react';
+import { XCircle, AlertTriangle, Layers, CheckCircle, Archive, FileText } from 'lucide-react';
 import type { QuoteCardProps } from './types';
 import { useQuoteForm } from './useQuoteForm';
 import QuoteHeader from './QuoteHeader';
 import QuoteClientSection from './QuoteClientSection';
 import QuoteLineItems from './QuoteLineItems';
 import QuoteSidebar from './QuoteSidebar';
-import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote } from '../../hooks/useQuotes';
+import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
@@ -101,6 +101,10 @@ export default function QuoteCard({
   // Flag for warning UI: no rate sheet found
   const hasNoRateSheet = !effectiveRateSheet?.rateSheetId && (form.clientId || form.communityId);
 
+  // Fetch alternative quotes in the same group
+  const { data: alternatives } = useQuoteAlternatives(quote?.quote_group);
+  const hasAlternatives = alternatives && alternatives.length > 1;
+
   // Mutations for quote actions
   const sendMutation = useSendQuote();
   const approveMutation = useApproveQuote();
@@ -112,6 +116,9 @@ export default function QuoteCard({
   const requestManagerApprovalMutation = useRequestManagerApproval();
   const managerApproveMutation = useManagerApproveQuote();
   const managerRejectMutation = useManagerRejectQuote();
+
+  // Alternative quote mutation
+  const createAlternativeMutation = useCreateAlternativeQuote();
 
   // Handle save - switches to view mode after successful save
   const handleSave = useCallback(async () => {
@@ -187,20 +194,21 @@ export default function QuoteCard({
     }
   }, [quoteId, sendMutation, onSend]);
 
-  // Handle mark awaiting response
+  // Handle mark awaiting response - sets sent_at to trigger awaiting_response status
+  // Note: With computed status, this essentially marks the quote as "sent" without email
   const handleMarkAwaitingResponse = useCallback(async () => {
     if (!quoteId) return;
     try {
-      await updateStatusMutation.mutateAsync({
+      // Setting sent_at triggers the computed status to become 'awaiting_response'
+      await sendMutation.mutateAsync({
         id: quoteId,
-        status: 'follow_up',
-        notes: 'Marked as awaiting response',
+        method: 'manual', // Mark as sent manually (no email)
       });
     } catch (error) {
       console.error('Failed to mark quote as awaiting response:', error);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [quoteId, updateStatusMutation]);
+  }, [quoteId, sendMutation]);
 
   // Handle cancel editing
   const handleCancel = useCallback(() => {
@@ -306,6 +314,22 @@ export default function QuoteCard({
   const handleEdit = useCallback(() => {
     setMode('edit');
   }, []);
+
+  // Handle create alternative quote
+  const handleCreateAlternative = useCallback(async () => {
+    if (!quoteId) return;
+    try {
+      const newQuote = await createAlternativeMutation.mutateAsync({
+        original_quote_id: quoteId,
+      });
+      // Navigate to the new alternative quote in edit mode
+      // For now, just show success - the parent component can handle navigation
+      alert(`Alternative Quote ${newQuote.quote_number} created. You can find it in the project's Estimates tab.`);
+    } catch (error) {
+      console.error('Failed to create alternative quote:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, createAlternativeMutation]);
 
   // Handle SKU selection with rate sheet resolution and BU-specific labor cost
   const handleSkuSelect = useCallback(async (index: number, sku: SkuSearchResult | null) => {
@@ -429,6 +453,8 @@ export default function QuoteCard({
         onRequestManagerApproval={handleRequestManagerApproval}
         onManagerApprove={handleManagerApprove}
         onManagerReject={handleManagerReject}
+        // Alternative quotes
+        onCreateAlternative={mode === 'view' && quoteId ? handleCreateAlternative : undefined}
         // TODO: Implement these handlers
         // onClone={() => { /* Clone quote */ }}
         // onArchive={() => { /* Archive quote */ }}
@@ -454,6 +480,77 @@ export default function QuoteCard({
               onCommunityChange={(id) => setFields({ communityId: id, propertyId: '' })}
               onPropertyChange={(id) => setField('propertyId', id)}
             />
+          )}
+
+          {/* Quote Options (shows alternatives in the same group) */}
+          {hasAlternatives && mode === 'view' && (
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-5 h-5 text-purple-600" />
+                <h2 className="font-semibold text-purple-900">Quote Options</h2>
+                <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                  {alternatives.length} options
+                </span>
+              </div>
+              <p className="text-sm text-purple-700 mb-3">
+                This quote is part of a group of options. When one is accepted, the others will be automatically archived.
+              </p>
+              <div className="space-y-2">
+                {alternatives.map((alt) => {
+                  const isCurrentQuote = alt.id === quoteId;
+                  const isAccepted = !!alt.client_accepted_at;
+                  const isArchived = !!alt.archived_at || alt.status === 'archived';
+
+                  return (
+                    <div
+                      key={alt.id}
+                      className={`
+                        flex items-center gap-3 p-3 rounded-lg border
+                        ${isCurrentQuote ? 'bg-white border-purple-300 ring-2 ring-purple-200' : 'bg-white/50 border-gray-200'}
+                        ${isAccepted ? 'border-green-300 bg-green-50' : ''}
+                        ${isArchived && !isAccepted ? 'opacity-60 bg-gray-50' : ''}
+                      `}
+                    >
+                      {isAccepted ? (
+                        <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      ) : isArchived ? (
+                        <Archive className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${isCurrentQuote ? 'text-purple-700' : 'text-gray-900'}`}>
+                            {alt.quote_number}
+                          </span>
+                          {isCurrentQuote && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                              Current
+                            </span>
+                          )}
+                          {alt.is_alternative && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                              Alternative
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">
+                          {alt.scope_summary || 'No description'}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-semibold text-gray-900">
+                          ${(alt.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className={`text-xs ${isAccepted ? 'text-green-600 font-medium' : isArchived ? 'text-gray-500' : 'text-gray-500'}`}>
+                          {isAccepted ? 'Accepted' : isArchived ? 'Archived' : alt.status}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           {/* Scope Summary (editable in create/edit modes) */}
@@ -571,7 +668,7 @@ export default function QuoteCard({
             created_at: quote.created_at,
             sent_at: quote.sent_at,
             viewed_at: quote.viewed_at,
-            client_approved_at: quote.client_approved_at,
+            client_accepted_at: quote.client_accepted_at,
             expires_at: quote.valid_until,
           } : undefined}
           customFields={form.customFields}

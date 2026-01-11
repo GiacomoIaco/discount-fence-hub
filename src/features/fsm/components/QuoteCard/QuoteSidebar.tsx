@@ -69,7 +69,7 @@ interface QuoteSidebarProps {
     created_at?: string | null;
     sent_at?: string | null;
     viewed_at?: string | null;
-    client_approved_at?: string | null;
+    client_accepted_at?: string | null;
     expires_at?: string | null;
   };
   /** Custom fields for Additional Info section */
@@ -177,7 +177,7 @@ export default function QuoteSidebar({
                 <DateRow icon={Clock} label="Created" date={quoteDates.created_at} />
                 <DateRow icon={Send} label="Sent" date={quoteDates.sent_at} />
                 <DateRow icon={Eye} label="Viewed" date={quoteDates.viewed_at} />
-                <DateRow icon={CheckCircle} label="Approved" date={quoteDates.client_approved_at} highlight={true} />
+                <DateRow icon={CheckCircle} label="Accepted" date={quoteDates.client_accepted_at} highlight={true} />
               </div>
             )}
 
