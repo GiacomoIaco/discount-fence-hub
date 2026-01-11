@@ -14,6 +14,7 @@ import {
   Pin,
   PinOff,
   MapPin,
+  ShieldCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -30,7 +31,8 @@ export type SettingsPage =
   | 'qbo-classes'
   | 'fsm'
   | 'custom-fields'
-  | 'territories';
+  | 'territories'
+  | 'quote-approval';
 
 interface NavItem {
   id: SettingsPage;
@@ -49,6 +51,7 @@ const TEAM_NAV_ITEMS: NavItem[] = [
 
 const CONFIG_NAV_ITEMS: NavItem[] = [
   { id: 'request-settings', label: 'Request Settings', icon: FileText },
+  { id: 'quote-approval', label: 'Quote Approval', icon: ShieldCheck },
   { id: 'menu-visibility', label: 'Menu Visibility', icon: Menu },
   { id: 'qbo-classes', label: 'QBO Classes', icon: BookOpen },
   { id: 'fsm', label: 'FSM', icon: Truck },

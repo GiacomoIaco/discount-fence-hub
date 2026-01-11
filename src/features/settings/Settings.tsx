@@ -9,6 +9,7 @@ import NotificationSettings from './components/NotificationSettings';
 import QboClassesSettings from './components/QboClassesSettings';
 import FSMSettings from './components/FSMSettings';
 import CustomFieldsSettings from './components/CustomFieldsSettings';
+import QuoteApprovalSettings from './components/QuoteApprovalSettings';
 import { TerritoriesPage } from './territories';
 import type { UserRole } from '../../types';
 
@@ -131,6 +132,14 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
           <div className="p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-6">Custom Fields</h1>
             <CustomFieldsSettings />
+          </div>
+        );
+
+      case 'quote-approval':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Quote Approval Settings</h1>
+            <QuoteApprovalSettings />
           </div>
         );
 
