@@ -7,6 +7,10 @@
  * Follows Jobber pattern:
  * - Edit Mode: Cancel | Save Quote | Save And... dropdown
  * - View Mode: Send Text (primary) | Edit | More Actions dropdown
+ *
+ * Manager Approval Workflow:
+ * - When validation.needsApproval is true, "Send" becomes "Send for Approval"
+ * - When status is pending_manager_approval, managers see Approve/Reject buttons
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -30,6 +34,9 @@ import {
   Download,
   Printer,
   FileSignature,
+  AlertTriangle,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import type { Quote, QuoteStatus } from '../../types';
 import type { QuoteCardMode, QuoteValidation } from './types';
@@ -62,12 +69,13 @@ interface QuoteHeaderProps {
   validation: QuoteValidation;
   isSaving: boolean;
   isDirty: boolean;
+  isManager?: boolean;  // True if current user can approve quotes
   onBack?: () => void;
   onCancel?: () => void;
   onSave?: () => void;
   onSendEmail?: () => void;
   onSendText?: () => void;
-  onApprove?: () => void;
+  onApprove?: () => void;  // Client approval (after sent)
   onMarkLost?: () => void;
   onMarkAwaitingResponse?: () => void;
   onConvertToJob?: () => void;
@@ -79,6 +87,10 @@ interface QuoteHeaderProps {
   onCollectSignature?: () => void;
   onDownloadPdf?: () => void;
   onPrint?: () => void;
+  // Manager approval workflow
+  onRequestManagerApproval?: () => void;  // Rep requests approval (before send)
+  onManagerApprove?: () => void;  // Manager approves
+  onManagerReject?: () => void;   // Manager rejects (back to draft)
 }
 
 export default function QuoteHeader({
@@ -87,6 +99,7 @@ export default function QuoteHeader({
   validation,
   isSaving,
   isDirty,
+  isManager = false,
   onBack,
   onCancel,
   onSave,
@@ -104,6 +117,9 @@ export default function QuoteHeader({
   onCollectSignature,
   onDownloadPdf,
   onPrint,
+  onRequestManagerApproval,
+  onManagerApprove,
+  onManagerReject,
 }: QuoteHeaderProps) {
   const [showSaveAndMenu, setShowSaveAndMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -143,13 +159,17 @@ export default function QuoteHeader({
   const isEditMode = mode === 'create' || mode === 'edit';
   const isViewMode = mode === 'view';
 
+  // Manager approval state
+  const needsManagerApproval = validation.needsApproval && !quote?.manager_approved_at;
+  const isPendingManagerApproval = status === 'pending_manager_approval';
+  const hasManagerApproval = !!quote?.manager_approved_at;
+
   // Can convert to job only when approved by client
   const canConvertToJob = status === 'approved' || status === 'converted';
   // Can mark CLIENT approved only after quote has been sent
-  const canMarkClientApproved = ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
+  const canMarkClientApproved = ['sent', 'follow_up', 'changes_requested'].includes(status || '');
   // Can mark lost when not already lost/converted/archived
   const canMarkLost = !['lost', 'converted', 'archived'].includes(status || '');
-  // Note: validation.needsApproval indicates manager approval needed (shown via badge in header)
 
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
@@ -195,9 +215,17 @@ export default function QuoteHeader({
                       {buLabel}
                     </span>
                   )}
-                  {validation.needsApproval && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">
+                  {/* Manager approval badge */}
+                  {needsManagerApproval && !isPendingManagerApproval && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">
+                      <AlertTriangle className="w-3 h-3" />
                       Needs Approval
+                    </span>
+                  )}
+                  {hasManagerApproval && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                      <ThumbsUp className="w-3 h-3" />
+                      Manager Approved
                     </span>
                   )}
                   {isDirty && (
@@ -215,6 +243,30 @@ export default function QuoteHeader({
               <span className="text-xs text-red-600">
                 {validation.errors[0]}
               </span>
+            )}
+
+            {/* ========== PENDING MANAGER APPROVAL BUTTONS (for managers) ========== */}
+            {isPendingManagerApproval && isManager && isViewMode && (
+              <>
+                {onManagerReject && (
+                  <button
+                    onClick={onManagerReject}
+                    className="flex items-center gap-2 px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
+                  >
+                    <ThumbsDown className="w-4 h-4" />
+                    Reject
+                  </button>
+                )}
+                {onManagerApprove && (
+                  <button
+                    onClick={onManagerApprove}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <ThumbsUp className="w-4 h-4" />
+                    Approve
+                  </button>
+                )}
+              </>
             )}
 
             {/* ========== EDIT MODE BUTTONS (Jobber Image #5) ========== */}
@@ -253,35 +305,57 @@ export default function QuoteHeader({
                     <ChevronDown className="w-4 h-4" />
                   </button>
                   {showSaveAndMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                    <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
                       <div className="py-1">
                         <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase">
                           Save and...
                         </div>
-                        {onSendText && (
+
+                        {/* Request Manager Approval - show when thresholds violated */}
+                        {needsManagerApproval && onRequestManagerApproval && (
                           <button
                             onClick={() => {
                               setShowSaveAndMenu(false);
-                              onSendText();
+                              onRequestManagerApproval();
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 border-b border-orange-100"
                           >
-                            <MessageSquare className="w-4 h-4" />
-                            Send as Text Message
+                            <AlertTriangle className="w-4 h-4" />
+                            Send for Approval
+                            <span className="ml-auto text-xs text-orange-500">Required</span>
                           </button>
                         )}
-                        {onSendEmail && (
-                          <button
-                            onClick={() => {
-                              setShowSaveAndMenu(false);
-                              onSendEmail();
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Mail className="w-4 h-4" />
-                            Send as Email
-                          </button>
+
+                        {/* Regular send options - only show if no approval needed OR already approved */}
+                        {(!needsManagerApproval || hasManagerApproval) && (
+                          <>
+                            {onSendText && (
+                              <button
+                                onClick={() => {
+                                  setShowSaveAndMenu(false);
+                                  onSendText();
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                                Send as Text Message
+                              </button>
+                            )}
+                            {onSendEmail && (
+                              <button
+                                onClick={() => {
+                                  setShowSaveAndMenu(false);
+                                  onSendEmail();
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                <Mail className="w-4 h-4" />
+                                Send as Email
+                              </button>
+                            )}
+                          </>
                         )}
+
                         {onConvertToJob && (
                           <button
                             onClick={() => {
@@ -314,10 +388,20 @@ export default function QuoteHeader({
             )}
 
             {/* ========== VIEW MODE BUTTONS (Jobber Image #6) ========== */}
-            {isViewMode && (
+            {isViewMode && !isPendingManagerApproval && (
               <>
-                {/* Send Text Message - Primary action */}
-                {onSendText && (
+                {/* Primary action depends on approval state */}
+                {needsManagerApproval && onRequestManagerApproval ? (
+                  // Needs approval - show Send for Approval button
+                  <button
+                    onClick={onRequestManagerApproval}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    Send for Approval
+                  </button>
+                ) : onSendText ? (
+                  // No approval needed - show Send Text Message
                   <button
                     onClick={onSendText}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -325,7 +409,7 @@ export default function QuoteHeader({
                     <MessageSquare className="w-4 h-4" />
                     Send Text Message
                   </button>
-                )}
+                ) : null}
 
                 {/* Edit button */}
                 {onEdit && (
@@ -388,22 +472,26 @@ export default function QuoteHeader({
                           </button>
                         )}
 
-                        {/* Send as... section */}
-                        <div className="my-1 border-t border-gray-100" />
-                        <div className="px-4 py-2 text-xs font-medium text-gray-500">
-                          Send as...
-                        </div>
-                        {onSendEmail && (
-                          <button
-                            onClick={() => {
-                              setShowMoreMenu(false);
-                              onSendEmail();
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Mail className="w-4 h-4" />
-                            Email
-                          </button>
+                        {/* Send as... section - only if approval not required */}
+                        {(!needsManagerApproval || hasManagerApproval) && (
+                          <>
+                            <div className="my-1 border-t border-gray-100" />
+                            <div className="px-4 py-2 text-xs font-medium text-gray-500">
+                              Send as...
+                            </div>
+                            {onSendEmail && (
+                              <button
+                                onClick={() => {
+                                  setShowMoreMenu(false);
+                                  onSendEmail();
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                <Mail className="w-4 h-4" />
+                                Email
+                              </button>
+                            )}
+                          </>
                         )}
 
                         {/* Mark as... section */}
@@ -520,6 +608,14 @@ export default function QuoteHeader({
                   )}
                 </div>
               </>
+            )}
+
+            {/* ========== PENDING APPROVAL VIEW MODE (for non-managers) ========== */}
+            {isViewMode && isPendingManagerApproval && !isManager && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm font-medium">Awaiting Manager Approval</span>
+              </div>
             )}
           </div>
         </div>

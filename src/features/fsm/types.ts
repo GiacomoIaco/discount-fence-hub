@@ -18,7 +18,7 @@ export type RequestStatus =
 
 export type QuoteStatus =
   | 'draft'             // Being prepared
-  | 'pending_approval'  // Waiting for manager approval
+  | 'pending_manager_approval'   // Waiting for manager approval (before sent)
   | 'sent'              // Sent to client
   | 'follow_up'         // Follow-up needed (3+ days since sent)
   | 'changes_requested' // Client requested changes
@@ -435,13 +435,20 @@ export interface Quote {
   scope_summary: string | null;
   notes: string | null;  // Client-visible notes
   internal_notes: string | null;  // Internal notes
-  // Approval
+  // Internal/Pricing Approval
   requires_approval: boolean;
   approval_status: 'pending' | 'approved' | 'rejected' | null;
   approval_reason: string | null;
   approved_by: string | null;
   approved_at: string | null;
   approval_notes: string | null;
+  // Manager Approval (before quote can be sent)
+  approval_requested_at: string | null;
+  approval_requested_by: string | null;
+  manager_approved_by: string | null;
+  manager_approved_at: string | null;
+  manager_rejected_at: string | null;
+  manager_approval_notes: string | null;
   // Status
   status: QuoteStatus;
   status_changed_at: string;
@@ -1058,7 +1065,7 @@ export const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
 
 export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
   draft: 'Draft',
-  pending_approval: 'Pending Approval',
+  pending_manager_approval: 'Awaiting Manager Approval',
   sent: 'Sent',
   follow_up: 'Follow-up Needed',
   changes_requested: 'Changes Requested',
@@ -1069,7 +1076,7 @@ export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
 
 export const QUOTE_STATUS_COLORS: Record<QuoteStatus, string> = {
   draft: 'bg-gray-100 text-gray-700',
-  pending_approval: 'bg-amber-100 text-amber-700',
+  pending_manager_approval: 'bg-amber-100 text-amber-700',
   sent: 'bg-blue-100 text-blue-700',
   follow_up: 'bg-orange-100 text-orange-700',
   changes_requested: 'bg-yellow-100 text-yellow-700',
@@ -1243,8 +1250,8 @@ export const REQUEST_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
 };
 
 export const QUOTE_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
-  draft: ['pending_approval', 'sent', 'lost'],
-  pending_approval: ['sent', 'draft', 'lost'],
+  draft: ['pending_manager_approval', 'sent', 'lost'],
+  pending_manager_approval: ['sent', 'draft', 'lost'],
   sent: ['follow_up', 'changes_requested', 'approved', 'lost'],
   follow_up: ['sent', 'changes_requested', 'approved', 'lost'],
   changes_requested: ['draft', 'sent', 'lost'],

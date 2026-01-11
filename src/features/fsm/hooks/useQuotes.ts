@@ -711,3 +711,210 @@ export function useCreateAlternativeQuote() {
     },
   });
 }
+
+// ============================================
+// Manager Approval Workflow Hooks
+// ============================================
+
+/**
+ * Fetch quote approval settings for a business unit.
+ * Falls back to global default if no BU-specific settings exist.
+ */
+export function useQuoteApprovalSettings(qboClassId?: string | null) {
+  return useQuery({
+    queryKey: ['quote_approval_settings', qboClassId],
+    queryFn: async () => {
+      // Try BU-specific settings first
+      if (qboClassId) {
+        const { data: buSettings, error: buError } = await supabase
+          .from('quote_approval_settings')
+          .select('*')
+          .eq('qbo_class_id', qboClassId)
+          .single();
+
+        if (!buError && buSettings) {
+          return buSettings;
+        }
+      }
+
+      // Fall back to global default (qbo_class_id IS NULL)
+      const { data: globalSettings, error: globalError } = await supabase
+        .from('quote_approval_settings')
+        .select('*')
+        .is('qbo_class_id', null)
+        .single();
+
+      if (globalError) {
+        console.warn('No approval settings found:', globalError);
+        return null;
+      }
+
+      return globalSettings;
+    },
+  });
+}
+
+/**
+ * Check if current user is a manager who can approve quotes.
+ * Checks user role and FSM team profile roles.
+ */
+export function useIsQuoteApprover() {
+  return useQuery({
+    queryKey: ['current_user_is_approver'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Check user_profiles for admin/sales_manager role
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.role === 'admin' || profile?.role === 'sales_manager') {
+        return true;
+      }
+
+      // Check FSM team profile for sales_manager role
+      const { data: fsmProfile } = await supabase
+        .from('fsm_team_profiles')
+        .select('fsm_roles')
+        .eq('user_id', user.id)
+        .single();
+
+      if (fsmProfile?.fsm_roles?.includes('sales_manager')) {
+        return true;
+      }
+
+      return false;
+    },
+  });
+}
+
+/**
+ * Request manager approval for a quote.
+ * Sets approval_requested_at and changes status to pending_manager_approval.
+ */
+export function useRequestManagerApproval() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      notes,
+    }: {
+      id: string;
+      notes?: string;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          approval_requested_at: new Date().toISOString(),
+          approval_requested_by: user?.id || null,
+          manager_approval_notes: notes || null,
+          // Status will be computed by trigger
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
+      showSuccess('Quote sent for manager approval');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to request approval');
+    },
+  });
+}
+
+/**
+ * Manager approves a quote.
+ * Sets manager_approved_at and clears manager_rejected_at.
+ */
+export function useManagerApproveQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      notes,
+    }: {
+      id: string;
+      notes?: string;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          manager_approved_at: new Date().toISOString(),
+          manager_approved_by: user?.id || null,
+          manager_rejected_at: null,  // Clear any previous rejection
+          manager_approval_notes: notes || null,
+          requires_approval: false,  // Mark as no longer requiring approval
+          // Status will be computed - back to draft (now sendable)
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
+      showSuccess('Quote approved - ready to send to client');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to approve quote');
+    },
+  });
+}
+
+/**
+ * Manager rejects a quote.
+ * Sets manager_rejected_at and returns quote to draft status.
+ */
+export function useManagerRejectQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      notes,
+    }: {
+      id: string;
+      notes?: string;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          manager_rejected_at: new Date().toISOString(),
+          manager_approved_by: user?.id || null,  // Track who rejected
+          manager_approved_at: null,  // Clear any previous approval
+          approval_requested_at: null,  // Clear request so it goes back to draft
+          manager_approval_notes: notes || null,
+          // Status will be computed - back to draft
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['project_quotes'] });
+      showSuccess('Quote rejected - returned to rep for revision');
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to reject quote');
+    },
+  });
+}
