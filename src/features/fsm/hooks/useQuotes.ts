@@ -339,7 +339,7 @@ export function useSendQuote() {
       email,
     }: {
       id: string;
-      method: 'email' | 'client_hub' | 'print';
+      method: 'email' | 'client_hub' | 'print' | 'manual';
       email?: string;
     }) => {
       const { error } = await supabase
