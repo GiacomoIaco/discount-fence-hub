@@ -913,4 +913,514 @@ Before implementing ANY FSM feature, verify:
 
 ---
 
+## Appendix E: Workflow Automation System - FUTURE
+
+> **Priority**: MEDIUM | **Complexity**: L | **Status**: NOT STARTED
+> **Reference**: Workiz Automations, ServiceTitan Marketing Pro
+
+### Overview
+
+A user-configurable automation engine that triggers actions based on FSM events. Similar to Workiz's automation builder where users define "When X happens, do Y" rules.
+
+### Core Concept
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  AUTOMATION RULE                                            │
+├─────────────────────────────────────────────────────────────┤
+│  WHEN: [Trigger Event]                                      │
+│    • Quote not viewed after 3 days                          │
+│    • Quote expires in 7 days                                │
+│    • Job completed                                          │
+│    • Invoice past due                                       │
+│                                                             │
+│  IF: [Optional Conditions]                                  │
+│    • Quote total > $5,000                                   │
+│    • Client type = "Builder"                                │
+│    • Territory = "Austin"                                   │
+│                                                             │
+│  THEN: [Actions]                                            │
+│    • Assign to user/team                                    │
+│    • Send email to client                                   │
+│    • Send SMS to client                                     │
+│    • Create internal task                                   │
+│    • Update field value                                     │
+│    • Send Slack/Teams notification                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Trigger Events (WHEN)
+
+| Category | Trigger | Description |
+|----------|---------|-------------|
+| **Quote** | `quote.not_viewed` | Quote sent but not viewed after X days |
+| | `quote.expiring_soon` | Quote expires in X days |
+| | `quote.expired` | Quote auto-expired |
+| | `quote.accepted` | Client accepted quote |
+| | `quote.changes_requested` | Client requested changes via portal |
+| | `quote.lost` | Quote marked as lost |
+| **Job** | `job.scheduled` | Job scheduled for date |
+| | `job.starting_tomorrow` | Job starts tomorrow |
+| | `job.completed` | Job marked complete |
+| | `job.has_issue` | Job issue reported |
+| **Invoice** | `invoice.sent` | Invoice sent to client |
+| | `invoice.due_soon` | Invoice due in X days |
+| | `invoice.past_due` | Invoice past due date |
+| | `invoice.payment_received` | Payment recorded |
+| **Request** | `request.created` | New request received |
+| | `request.assessment_scheduled` | Assessment scheduled |
+| | `request.assessment_overdue` | Assessment date passed |
+
+### Actions (THEN)
+
+| Action | Parameters | Description |
+|--------|------------|-------------|
+| `assign_to_user` | user_id | Assign entity to specific user |
+| `assign_to_team` | team_name | Assign to team queue (e.g., "Follow-Up Team") |
+| `send_email` | template_id, to | Send email using template |
+| `send_sms` | template_id, to | Send SMS using template |
+| `create_task` | title, assignee, due_date | Create internal task |
+| `update_field` | field, value | Update entity field |
+| `add_tag` | tag_name | Add tag to entity |
+| `notify_slack` | channel, message | Send Slack notification |
+| `create_follow_up` | type, days | Schedule follow-up activity |
+
+### Database Schema
+
+```sql
+-- Automation rules defined by users
+CREATE TABLE fsm_automation_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  is_active BOOLEAN DEFAULT true,
+
+  -- Trigger
+  trigger_event TEXT NOT NULL,  -- e.g., 'quote.not_viewed'
+  trigger_delay_days INTEGER,   -- Days after event (e.g., 3 days after sent)
+  trigger_delay_hours INTEGER,  -- Hours after event
+
+  -- Conditions (JSON array of conditions)
+  conditions JSONB DEFAULT '[]',
+  -- Example: [{"field": "total", "operator": ">", "value": 5000}]
+
+  -- Actions (JSON array of actions to execute)
+  actions JSONB NOT NULL,
+  -- Example: [{"type": "assign_to_user", "user_id": "..."}, {"type": "send_email", "template_id": "..."}]
+
+  -- Scope
+  qbo_class_id UUID REFERENCES qbo_classes(id),  -- NULL = all BUs
+
+  -- Audit
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Execution log for debugging/audit
+CREATE TABLE fsm_automation_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rule_id UUID REFERENCES fsm_automation_rules(id),
+  entity_type TEXT NOT NULL,  -- 'quote', 'job', 'invoice'
+  entity_id UUID NOT NULL,
+  triggered_at TIMESTAMPTZ DEFAULT NOW(),
+  actions_executed JSONB,     -- What actions ran
+  success BOOLEAN,
+  error_message TEXT
+);
+
+-- Email/SMS templates for automations
+CREATE TABLE fsm_message_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('email', 'sms')),
+  subject TEXT,               -- Email only
+  body TEXT NOT NULL,         -- Supports {{variables}}
+  variables TEXT[],           -- Available merge fields
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Automation Engine (Cron/Edge Function)
+
+```typescript
+// Runs every 15 minutes via Supabase Edge Function or cron
+async function processAutomations() {
+  // 1. Get all active rules
+  const rules = await getActiveRules();
+
+  // 2. For each rule, find entities that match trigger
+  for (const rule of rules) {
+    const entities = await findTriggeredEntities(rule);
+
+    // 3. For each entity, check conditions
+    for (const entity of entities) {
+      if (await checkConditions(rule.conditions, entity)) {
+        // 4. Execute actions
+        await executeActions(rule.actions, entity);
+
+        // 5. Log execution
+        await logExecution(rule.id, entity);
+      }
+    }
+  }
+}
+```
+
+### UI Components Needed
+
+```
+src/features/settings/automations/
+├── AutomationsPage.tsx           # List all rules
+├── AutomationRuleEditor.tsx      # Create/edit rule
+├── TriggerSelector.tsx           # Select trigger event
+├── ConditionBuilder.tsx          # Build conditions
+├── ActionBuilder.tsx             # Configure actions
+├── AutomationLog.tsx             # View execution history
+└── MessageTemplateEditor.tsx     # Edit email/SMS templates
+```
+
+### Example Rules
+
+**Rule 1: Quote Follow-Up**
+```json
+{
+  "name": "Quote Follow-Up (3 Days)",
+  "trigger_event": "quote.not_viewed",
+  "trigger_delay_days": 3,
+  "conditions": [{"field": "total", "operator": ">", "value": 1000}],
+  "actions": [
+    {"type": "assign_to_user", "user_id": "follow-up-team-lead"},
+    {"type": "send_email", "template_id": "quote-reminder", "to": "client"},
+    {"type": "create_task", "title": "Follow up on quote {{quote_number}}", "assignee": "sales_rep"}
+  ]
+}
+```
+
+**Rule 2: Job Completion → Invoice**
+```json
+{
+  "name": "Auto-Create Invoice on Job Complete",
+  "trigger_event": "job.completed",
+  "conditions": [],
+  "actions": [
+    {"type": "create_invoice", "from": "job"},
+    {"type": "send_email", "template_id": "job-complete-thanks", "to": "client"}
+  ]
+}
+```
+
+### Implementation Phases
+
+1. **Phase 1**: Database schema + basic rule storage (2 hrs)
+2. **Phase 2**: Automation engine (cron job) (4 hrs)
+3. **Phase 3**: Settings UI for rule management (6 hrs)
+4. **Phase 4**: Email/SMS sending integration (4 hrs)
+5. **Phase 5**: Template editor with merge fields (3 hrs)
+
+**Total Estimated Effort**: 19-24 hours
+
+---
+
+## Appendix F: Client Portal - FUTURE
+
+> **Priority**: HIGH | **Complexity**: XL | **Status**: NOT STARTED
+> **Reference**: Jobber Client Hub, ServiceTitan Customer Portal
+
+### Overview
+
+A web portal where clients can:
+1. **View quotes** sent to them
+2. **Accept quotes** with e-signature
+3. **Pay deposits** via credit card
+4. **Request changes** to quotes
+5. **View project status** and job schedule
+6. **Pay invoices** online
+7. **View documents** (contracts, before/after photos)
+
+### Access Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  CLIENT PORTAL ACCESS                                       │
+├─────────────────────────────────────────────────────────────┤
+│  Option A: Magic Link (Recommended)                         │
+│  • Client receives email with unique link                   │
+│  • Link valid for 7 days, refreshable                       │
+│  • No password to remember                                  │
+│  • URL: /portal/quote/{token}                               │
+│                                                             │
+│  Option B: Client Account                                   │
+│  • Client creates account with email/password               │
+│  • Can view all their quotes/jobs/invoices                  │
+│  • URL: /portal/login                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Portal Pages
+
+#### 1. Quote View Page (`/portal/quote/{token}`)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [Company Logo]                                             │
+│                                                             │
+│  Quote #Q-2026-0042                                         │
+│  Prepared for: John Smith                                   │
+│  123 Main St, Austin TX 78701                               │
+│                                                             │
+│  Valid until: January 25, 2026                              │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  LINE ITEMS                                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 150 LF - 6ft Cedar Privacy Fence         $6,750.00  │   │
+│  │ 25 ea - Post Holes                         $875.00  │   │
+│  │ 1 ea  - Automatic Gate                   $2,500.00  │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│                           Subtotal:  $10,125.00             │
+│                           Tax (8.25%):  $835.31             │
+│                           ─────────────────────             │
+│                           TOTAL:     $10,960.31             │
+│                                                             │
+│  Required Deposit (50%):             $5,480.16              │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  TERMS & CONDITIONS                                         │
+│  [Expandable section with contract terms]                   │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  [ ] I agree to the terms and conditions                    │
+│                                                             │
+│  Signature: [____________________] (draw or type)           │
+│                                                             │
+│  ┌─────────────────┐  ┌─────────────────┐                  │
+│  │ Request Changes │  │ Accept & Pay    │                  │
+│  │    (outline)    │  │   (primary)     │                  │
+│  └─────────────────┘  └─────────────────┘                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 2. Payment Page (`/portal/quote/{token}/pay`)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Pay Deposit                                                │
+│                                                             │
+│  Amount: $5,480.16                                          │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Card Number: [4242 4242 4242 4242]                 │   │
+│  │  Expiry: [12/26]    CVC: [123]                      │   │
+│  │  ZIP: [78701]                                        │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  [🔒 Secured by Stripe]                                     │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Pay $5,480.16                          │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 3. Change Request Page (`/portal/quote/{token}/changes`)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Request Changes to Quote                                   │
+│                                                             │
+│  What would you like to change?                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ I'd like to upgrade to 8ft fence instead of 6ft.   │   │
+│  │ Also, can you add a second gate on the west side?  │   │
+│  │                                                     │   │
+│  │                                                     │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Attach files (optional): [+ Add photos/documents]          │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Submit Request                         │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Your sales rep will contact you within 1 business day.     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 4. Project Status Page (`/portal/project/{token}`)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Your Project: 123 Main St Fence Installation               │
+│                                                             │
+│  STATUS: Installation Scheduled                             │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  ✓ Quote Accepted (Jan 10)                          │   │
+│  │  ✓ Deposit Paid (Jan 10)                            │   │
+│  │  ✓ Materials Ordered (Jan 12)                       │   │
+│  │  ● Installation Scheduled (Jan 20)  ← You are here  │   │
+│  │  ○ Installation Complete                            │   │
+│  │  ○ Final Payment                                    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  SCHEDULED INSTALLATION                                     │
+│  Date: January 20, 2026                                     │
+│  Time: 8:00 AM - 4:00 PM                                    │
+│  Crew: Austin Alpha Team                                    │
+│                                                             │
+│  [Add to Calendar]                                          │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  DOCUMENTS                                                  │
+│  📄 Signed Contract (Jan 10)                                │
+│  📄 Property Survey                                         │
+│  📷 Site Photos (3)                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Database Schema
+
+```sql
+-- Portal access tokens (magic links)
+CREATE TABLE portal_access_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+
+  -- What this token grants access to
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('quote', 'project', 'invoice')),
+  entity_id UUID NOT NULL,
+  client_id UUID REFERENCES clients(id),
+
+  -- Validity
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
+  last_accessed_at TIMESTAMPTZ,
+  access_count INTEGER DEFAULT 0,
+
+  -- Revocation
+  revoked_at TIMESTAMPTZ,
+  revoked_by UUID REFERENCES auth.users(id)
+);
+
+-- Track client actions in portal
+CREATE TABLE portal_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token_id UUID REFERENCES portal_access_tokens(id),
+  client_id UUID REFERENCES clients(id),
+
+  action TEXT NOT NULL,  -- 'viewed', 'accepted', 'paid', 'requested_changes'
+  entity_type TEXT NOT NULL,
+  entity_id UUID NOT NULL,
+
+  -- Details
+  metadata JSONB,  -- IP, user agent, payment details, etc.
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- E-signatures
+CREATE TABLE portal_signatures (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id UUID REFERENCES quotes(id),
+  client_id UUID REFERENCES clients(id),
+
+  -- Signature data
+  signature_type TEXT CHECK (signature_type IN ('drawn', 'typed')),
+  signature_data TEXT,  -- Base64 image or typed name
+
+  -- Legal
+  ip_address TEXT,
+  user_agent TEXT,
+  agreed_to_terms BOOLEAN NOT NULL DEFAULT true,
+  signed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Change requests from clients
+CREATE TABLE portal_change_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id UUID REFERENCES quotes(id),
+  client_id UUID REFERENCES clients(id),
+
+  request_text TEXT NOT NULL,
+  attachments JSONB DEFAULT '[]',
+
+  -- Status
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'revised', 'declined')),
+  reviewed_by UUID REFERENCES auth.users(id),
+  reviewed_at TIMESTAMPTZ,
+  response_notes TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Integration Points
+
+| Feature | Integration | Notes |
+|---------|-------------|-------|
+| **Payments** | Stripe | Use Stripe Checkout or Payment Intents |
+| **E-Signature** | Built-in | Canvas signature or typed name |
+| **Email** | SendGrid/Postmark | Send magic links |
+| **SMS** | Twilio | Optional SMS link delivery |
+| **Calendar** | iCal/.ics | Download job schedule |
+
+### Quote Status Updates
+
+When client interacts with portal:
+
+| Client Action | Quote Update | Notification |
+|---------------|--------------|--------------|
+| Views quote | `viewed_at = NOW()` | None |
+| Accepts quote | `client_accepted_at = NOW()` | Email to sales rep |
+| Pays deposit | `deposit_paid_at = NOW()`, `deposit_amount` | Email to sales rep + accounting |
+| Requests changes | `changes_requested_at = NOW()` | Email to sales rep |
+
+### Security Considerations
+
+1. **Token Security**: 256-bit random tokens, HTTPS only
+2. **Rate Limiting**: Max 10 requests/minute per token
+3. **Token Expiration**: 7 days default, extendable
+4. **IP Logging**: Track all access for audit
+5. **PCI Compliance**: Use Stripe hosted payment page (no card data on our servers)
+
+### Implementation Phases
+
+1. **Phase 1**: Database schema + token generation (2 hrs)
+2. **Phase 2**: Quote view page (public route) (4 hrs)
+3. **Phase 3**: E-signature component (3 hrs)
+4. **Phase 4**: Change request flow (3 hrs)
+5. **Phase 5**: Stripe payment integration (6 hrs)
+6. **Phase 6**: Project status page (4 hrs)
+7. **Phase 7**: Email magic link sending (2 hrs)
+8. **Phase 8**: Invoice payment page (3 hrs)
+
+**Total Estimated Effort**: 27-32 hours
+
+### File Structure
+
+```
+src/features/portal/
+├── pages/
+│   ├── QuoteViewPage.tsx         # View quote (public)
+│   ├── QuotePaymentPage.tsx      # Pay deposit
+│   ├── ChangeRequestPage.tsx     # Request changes
+│   ├── ProjectStatusPage.tsx     # View project progress
+│   ├── InvoicePaymentPage.tsx    # Pay invoice
+│   └── PortalLayout.tsx          # Shared layout (no auth)
+├── components/
+│   ├── SignatureCanvas.tsx       # Draw signature
+│   ├── TermsAcceptance.tsx       # Terms checkbox
+│   ├── ProjectTimeline.tsx       # Status visualization
+│   └── StripePaymentForm.tsx     # Payment form
+├── hooks/
+│   ├── usePortalToken.ts         # Validate token
+│   ├── useQuoteAcceptance.ts     # Accept quote mutation
+│   └── usePayment.ts             # Process payment
+└── types.ts
+```
+
+---
+
 ## END OF STANDARDS DOCUMENT
