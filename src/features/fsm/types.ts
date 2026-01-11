@@ -513,11 +513,15 @@ export interface QuoteLineItem {
   unit_type: string | null;
   unit_price: number;
   unit_cost: number | null;
+  /** Material cost per unit (what we pay for materials) */
+  material_unit_cost: number | null;
+  /** Labor cost per unit (what we pay for labor) */
+  labor_unit_cost: number | null;
   total_price: number;
   material_id: string | null;
   labor_code_id: string | null;
   sku_id: string | null;
-  
+
   sort_order: number;
   is_visible_to_client: boolean;
   group_name: string | null;
@@ -532,6 +536,29 @@ export interface QuoteLineItem {
   product_type?: string;
   // Convenience alias for total_price
   total?: number;
+}
+
+export interface JobLineItem {
+  id: string;
+  job_id: string;
+  quote_line_item_id: string | null;
+  line_type: 'material' | 'labor' | 'service' | 'adjustment' | 'discount';
+  description: string;
+  quantity: number;
+  unit_type: string | null;
+  unit_price: number;
+  unit_cost: number;
+  material_unit_cost: number;
+  labor_unit_cost: number;
+  total_price: number;
+  sku_id: string | null;
+  // Actual tracking
+  actual_quantity: number | null;
+  actual_unit_cost: number | null;
+  actual_total_cost: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Job {

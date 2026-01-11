@@ -116,6 +116,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
         unit_type: li.unit_type || 'EA',
         unit_price: li.unit_price,
         unit_cost: li.unit_cost || 0,
+        material_unit_cost: li.material_unit_cost ?? li.unit_cost ?? 0,
+        labor_unit_cost: li.labor_unit_cost ?? 0,
         sku_id: li.sku_id || null,
         pricing_source: null,
         isNew: false,
@@ -311,14 +313,19 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     if (totals.total > 25000) {
       approvalReasons.push(`Total ($${totals.total.toLocaleString()}) exceeds $25,000`);
     }
+
+    // If quote is already approved or converted, no longer needs approval
+    const isAlreadyApproved = !!(quote?.client_approved_at || quote?.approval_status === 'approved');
+    const isConverted = !!(quote?.converted_to_job_id || quote?.status === 'converted');
+
     return {
       isValid: errors.length === 0,
       errors,
       warnings,
-      needsApproval: approvalReasons.length > 0,
-      approvalReasons,
+      needsApproval: approvalReasons.length > 0 && !isAlreadyApproved && !isConverted,
+      approvalReasons: (isAlreadyApproved || isConverted) ? [] : approvalReasons,
     };
-  }, [form.clientId, form.lineItems, form.discountPercent, totals]);
+  }, [form.clientId, form.lineItems, form.discountPercent, totals, quote]);
   // Save function
   const save = useCallback(async (): Promise<string | null> => {
     if (!validation.isValid) {
@@ -360,6 +367,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
             unit_type: item.unit_type,
             unit_price: item.unit_price,
             unit_cost: item.unit_cost,
+            material_unit_cost: item.material_unit_cost ?? item.unit_cost ?? 0,
+            labor_unit_cost: item.labor_unit_cost ?? 0,
             total_price: item.quantity * item.unit_price,
             sort_order: i,
             is_visible_to_client: true,
@@ -441,6 +450,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
                 unit_type: item.unit_type,
                 unit_price: item.unit_price,
                 unit_cost: item.unit_cost,
+                material_unit_cost: item.material_unit_cost ?? item.unit_cost ?? 0,
+                labor_unit_cost: item.labor_unit_cost ?? 0,
                 total_price: item.quantity * item.unit_price,
                 sort_order: sortOrder,
                 sku_id: item.sku_id || null,
@@ -455,6 +466,8 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
               unit_type: item.unit_type,
               unit_price: item.unit_price,
               unit_cost: item.unit_cost,
+              material_unit_cost: item.material_unit_cost ?? item.unit_cost ?? 0,
+              labor_unit_cost: item.labor_unit_cost ?? 0,
               total_price: item.quantity * item.unit_price,
               sort_order: sortOrder,
               is_visible_to_client: true,

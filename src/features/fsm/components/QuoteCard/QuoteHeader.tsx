@@ -145,8 +145,8 @@ export default function QuoteHeader({
 
   // Can convert to job only when approved
   const canConvertToJob = status === 'approved' || status === 'converted';
-  // Can mark approved when sent or awaiting
-  const canMarkApproved = ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
+  // Can mark approved when sent, awaiting, OR when validation says needs approval (includes draft)
+  const canMarkApproved = validation.needsApproval || ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
   // Can mark lost when not already lost/converted/archived
   const canMarkLost = !['lost', 'converted', 'archived'].includes(status || '');
 

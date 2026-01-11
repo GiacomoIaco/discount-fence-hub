@@ -157,6 +157,19 @@ export function useCreateInvoice() {
         .single();
 
       if (error) throw error;
+
+      // If invoice was created from a job, copy line items from job
+      if (data.job_id && result?.id) {
+        const { error: copyError } = await supabase.rpc('copy_job_line_items_to_invoice', {
+          p_job_id: data.job_id,
+          p_invoice_id: result.id,
+        });
+        if (copyError) {
+          console.warn('Failed to copy line items from job:', copyError);
+          // Don't fail the invoice creation, just warn
+        }
+      }
+
       return result;
     },
     onSuccess: (data) => {
