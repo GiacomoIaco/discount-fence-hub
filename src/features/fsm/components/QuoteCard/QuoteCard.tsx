@@ -18,7 +18,7 @@ import QuoteHeader from './QuoteHeader';
 import QuoteClientSection from './QuoteClientSection';
 import QuoteLineItems from './QuoteLineItems';
 import QuoteSidebar from './QuoteSidebar';
-import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote } from '../../hooks/useQuotes';
+import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote } from '../../hooks/useQuotes';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
@@ -107,6 +107,11 @@ export default function QuoteCard({
   const convertMutation = useConvertQuoteToJob();
   const updateStatusMutation = useUpdateQuoteStatus();
   const updateQuoteMutation = useUpdateQuote();
+
+  // Manager approval mutations
+  const requestManagerApprovalMutation = useRequestManagerApproval();
+  const managerApproveMutation = useManagerApproveQuote();
+  const managerRejectMutation = useManagerRejectQuote();
 
   // Handle save - switches to view mode after successful save
   const handleSave = useCallback(async () => {
@@ -220,6 +225,42 @@ export default function QuoteCard({
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }, [quoteId, approveMutation, onApprove]);
+
+  // Handle request manager approval (rep submits for approval)
+  const handleRequestManagerApproval = useCallback(async () => {
+    if (!quoteId) return;
+    try {
+      await requestManagerApprovalMutation.mutateAsync({ id: quoteId });
+      alert('Quote submitted for manager approval');
+    } catch (error) {
+      console.error('Failed to request manager approval:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, requestManagerApprovalMutation]);
+
+  // Handle manager approve
+  const handleManagerApprove = useCallback(async () => {
+    if (!quoteId) return;
+    try {
+      await managerApproveMutation.mutateAsync({ id: quoteId });
+      alert('Quote approved! It can now be sent to the client.');
+    } catch (error) {
+      console.error('Failed to approve quote:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, managerApproveMutation]);
+
+  // Handle manager reject
+  const handleManagerReject = useCallback(async () => {
+    if (!quoteId) return;
+    try {
+      await managerRejectMutation.mutateAsync({ id: quoteId, notes: 'Rejected by manager' });
+      alert('Quote rejected and returned to draft for revision.');
+    } catch (error) {
+      console.error('Failed to reject quote:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [quoteId, managerRejectMutation]);
 
   // Handle convert to job
   const handleConvertToJob = useCallback(async () => {
@@ -384,6 +425,10 @@ export default function QuoteCard({
         onMarkLost={() => setShowLostModal(true)}
         onConvertToJob={handleConvertToJob}
         onEdit={handleEdit}
+        // Manager approval workflow
+        onRequestManagerApproval={handleRequestManagerApproval}
+        onManagerApprove={handleManagerApprove}
+        onManagerReject={handleManagerReject}
         // TODO: Implement these handlers
         // onClone={() => { /* Clone quote */ }}
         // onArchive={() => { /* Archive quote */ }}
