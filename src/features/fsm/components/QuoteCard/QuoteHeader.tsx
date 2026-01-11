@@ -143,12 +143,14 @@ export default function QuoteHeader({
   const isEditMode = mode === 'create' || mode === 'edit';
   const isViewMode = mode === 'view';
 
-  // Can convert to job only when approved
+  // Can convert to job only when approved by client
   const canConvertToJob = status === 'approved' || status === 'converted';
-  // Can mark approved when sent, awaiting, OR when validation says needs approval (includes draft)
-  const canMarkApproved = validation.needsApproval || ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
+  // Can mark CLIENT approved only after quote has been sent
+  const canMarkClientApproved = ['sent', 'follow_up', 'pending_approval', 'changes_requested'].includes(status || '');
   // Can mark lost when not already lost/converted/archived
   const canMarkLost = !['lost', 'converted', 'archived'].includes(status || '');
+  // Manager approval needed (separate from client approval)
+  const needsManagerApproval = validation.needsApproval;
 
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
@@ -422,7 +424,7 @@ export default function QuoteHeader({
                             Awaiting Response
                           </button>
                         )}
-                        {onApprove && canMarkApproved && (
+                        {onApprove && canMarkClientApproved && (
                           <button
                             onClick={() => {
                               setShowMoreMenu(false);

@@ -303,7 +303,7 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     if (activeItems.length === 0) {
       warnings.push('No line items added');
     }
-    // Approval thresholds
+    // Manager approval thresholds (internal policy check - before sending to client)
     if (totals.marginPercent < 15 && activeItems.length > 0) {
       approvalReasons.push(`Margin (${totals.marginPercent.toFixed(1)}%) below 15%`);
     }
@@ -314,16 +314,16 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
       approvalReasons.push(`Total ($${totals.total.toLocaleString()}) exceeds $25,000`);
     }
 
-    // If quote is already approved or converted, no longer needs approval
-    const isAlreadyApproved = !!(quote?.client_approved_at || quote?.approval_status === 'approved');
-    const isConverted = !!(quote?.converted_to_job_id || quote?.status === 'converted');
+    // Check if manager has already approved this quote (internal approval)
+    const hasManagerApproval = !!(quote?.internal_approved_at || quote?.requires_approval === false);
 
     return {
       isValid: errors.length === 0,
       errors,
       warnings,
-      needsApproval: approvalReasons.length > 0 && !isAlreadyApproved && !isConverted,
-      approvalReasons: (isAlreadyApproved || isConverted) ? [] : approvalReasons,
+      // Manager approval needed if thresholds violated AND not yet internally approved
+      needsApproval: approvalReasons.length > 0 && !hasManagerApproval,
+      approvalReasons: hasManagerApproval ? [] : approvalReasons,
     };
   }, [form.clientId, form.lineItems, form.discountPercent, totals, quote]);
   // Save function
