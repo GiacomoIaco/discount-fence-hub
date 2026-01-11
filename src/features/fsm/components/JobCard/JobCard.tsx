@@ -9,12 +9,19 @@
  */
 
 import { useState, useCallback } from 'react';
+import {
+  Clock,
+  CheckCircle,
+  History,
+  AlertTriangle,
+} from 'lucide-react';
 import type { JobCardProps, JobCardMode } from './types';
 import { useJobForm } from './useJobForm';
 import JobHeader from './JobHeader';
 import JobVisitsSection from './JobVisitsSection';
 import JobBudgetSection from './JobBudgetSection';
 import JobSidebar from './JobSidebar';
+import CollapsibleSection from './CollapsibleSection';
 import {
   useCompleteJob,
   useUpdateJobStatus,
@@ -22,8 +29,11 @@ import {
   useAddJobVisit,
   useCompleteJobVisit,
 } from '../../hooks/useJobs';
+import { useJobIssues } from '../../hooks/useJobIssues';
 import { useCrews } from '../../hooks/useCrews';
 import type { JobVisit } from '../../types';
+import { JOB_STATUS_LABELS } from '../../types';
+import JobIssuesList from '../JobIssuesList';
 
 export default function JobCard({
   mode: initialMode,
@@ -73,6 +83,9 @@ export default function JobCard({
 
   // Crews for assignment dropdown
   const { data: crews = [], isLoading: isLoadingCrews } = useCrews();
+
+  // Job issues
+  const { data: jobIssues } = useJobIssues(jobId);
 
   // Mutations
   const completeMutation = useCompleteJob();
@@ -469,6 +482,118 @@ export default function JobCard({
               )}
             </div>
           )}
+
+          {/* Workflow Progress Section (view mode only) */}
+          {mode === 'view' && job && (
+            <CollapsibleSection
+              title="Workflow Progress"
+              icon={<Clock className="w-5 h-5" />}
+              defaultOpen={true}
+            >
+              <div className="space-y-3">
+                <WorkflowStep
+                  label="Ready for Yard"
+                  timestamp={job.ready_for_yard_at}
+                  completed={!!job.ready_for_yard_at}
+                />
+                <WorkflowStep
+                  label="Picking Started"
+                  timestamp={job.picking_started_at}
+                  completed={!!job.picking_started_at}
+                />
+                <WorkflowStep
+                  label="Picking/Staging Complete"
+                  timestamp={job.staging_completed_at}
+                  completed={!!job.staging_completed_at}
+                />
+                <WorkflowStep
+                  label="Loaded"
+                  timestamp={job.loaded_at}
+                  completed={!!job.loaded_at}
+                />
+                <WorkflowStep
+                  label="Work Started"
+                  timestamp={job.work_started_at}
+                  completed={!!job.work_started_at}
+                />
+                <WorkflowStep
+                  label="Work Completed"
+                  timestamp={job.work_completed_at}
+                  completed={!!job.work_completed_at}
+                />
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Issues Section (view mode only) */}
+          {mode === 'view' && jobId && (
+            <CollapsibleSection
+              title="Issues"
+              icon={<AlertTriangle className="w-5 h-5" />}
+              defaultOpen={jobIssues && jobIssues.length > 0}
+              badge={
+                jobIssues && jobIssues.length > 0 ? (
+                  <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                    {jobIssues.length}
+                  </span>
+                ) : undefined
+              }
+            >
+              <JobIssuesList jobId={jobId} />
+            </CollapsibleSection>
+          )}
+
+          {/* Activity Section (view mode only, collapsed by default) */}
+          {mode === 'view' && job && (
+            <CollapsibleSection
+              title="Activity"
+              icon={<History className="w-5 h-5" />}
+              defaultOpen={false}
+            >
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 text-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5" />
+                  <div>
+                    <p>Status changed to <strong>{JOB_STATUS_LABELS[job.status]}</strong></p>
+                    <p className="text-gray-500">{formatDateTime(job.status_changed_at)}</p>
+                  </div>
+                </div>
+                {job.work_completed_at && (
+                  <div className="flex items-start gap-3 text-sm">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5" />
+                    <div>
+                      <p>Work completed</p>
+                      <p className="text-gray-500">{formatDateTime(job.work_completed_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {job.work_started_at && (
+                  <div className="flex items-start gap-3 text-sm">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5" />
+                    <div>
+                      <p>Work started</p>
+                      <p className="text-gray-500">{formatDateTime(job.work_started_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {job.scheduled_date && (
+                  <div className="flex items-start gap-3 text-sm">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5" />
+                    <div>
+                      <p>Job scheduled for {new Date(job.scheduled_date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-start gap-3 text-sm">
+                  <div className="w-2 h-2 bg-gray-300 rounded-full mt-1.5" />
+                  <div>
+                    <p>Job created</p>
+                    <p className="text-gray-500">{formatDateTime(job.created_at)}</p>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleSection>
+          )}
         </main>
 
         {/* Right Sidebar */}
@@ -518,6 +643,56 @@ export default function JobCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Helper function to format date/time
+function formatDateTime(date: string | null | undefined): string {
+  if (!date) return '-';
+  return new Date(date).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// Helper component for workflow steps
+function WorkflowStep({
+  label,
+  timestamp,
+  completed,
+}: {
+  label: string;
+  timestamp: string | null | undefined;
+  completed: boolean;
+}) {
+  const formatTime = (ts: string | null | undefined) => {
+    if (!ts) return '-';
+    return new Date(ts).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+        completed ? 'bg-green-100' : 'bg-gray-100'
+      }`}>
+        {completed ? (
+          <CheckCircle className="w-4 h-4 text-green-600" />
+        ) : (
+          <Clock className="w-4 h-4 text-gray-400" />
+        )}
+      </div>
+      <div className="flex-1">
+        <span className={completed ? 'text-gray-900' : 'text-gray-500'}>{label}</span>
+      </div>
+      <span className="text-sm text-gray-500">{formatTime(timestamp)}</span>
     </div>
   );
 }

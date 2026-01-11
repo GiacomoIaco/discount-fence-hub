@@ -7,5 +7,6 @@ export { default as JobHeader } from './JobHeader';
 export { default as JobVisitsSection } from './JobVisitsSection';
 export { default as JobBudgetSection } from './JobBudgetSection';
 export { default as JobSidebar } from './JobSidebar';
+export { default as CollapsibleSection } from './CollapsibleSection';
 export { useJobForm } from './useJobForm';
 export * from './types';
