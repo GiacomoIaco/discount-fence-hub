@@ -9,11 +9,27 @@
 -- Also fixes the alternative quotes trigger to set archived_at
 
 -- ============================================
--- 1. Rename client_approved_at → client_accepted_at
+-- 1. Rename client_approved_at → client_accepted_at (if needed)
 -- ============================================
 
-ALTER TABLE quotes
-  RENAME COLUMN client_approved_at TO client_accepted_at;
+-- Check if old column exists before renaming (idempotent)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'quotes' AND column_name = 'client_approved_at'
+  ) THEN
+    ALTER TABLE quotes RENAME COLUMN client_approved_at TO client_accepted_at;
+  END IF;
+
+  -- If neither column exists, add the new one
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'quotes' AND column_name = 'client_accepted_at'
+  ) THEN
+    ALTER TABLE quotes ADD COLUMN client_accepted_at TIMESTAMPTZ;
+  END IF;
+END $$;
 
 -- ============================================
 -- 2. Add new columns for status tracking
