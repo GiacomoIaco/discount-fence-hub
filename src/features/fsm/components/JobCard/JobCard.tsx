@@ -20,6 +20,7 @@ import { useJobForm } from './useJobForm';
 import JobHeader from './JobHeader';
 import JobVisitsSection from './JobVisitsSection';
 import JobBudgetSection from './JobBudgetSection';
+import JobLineItemsSection from './JobLineItemsSection';
 import JobSidebar from './JobSidebar';
 import CollapsibleSection from './CollapsibleSection';
 import {
@@ -324,6 +325,14 @@ export default function JobCard({
             </div>
           )}
 
+          {/* Line Items Section (edit mode - read only) */}
+          {mode !== 'view' && job && (job as any).line_items && (job as any).line_items.length > 0 && (
+            <JobLineItemsSection
+              lineItems={(job as any).line_items}
+              totalAmount={job.quoted_total || undefined}
+            />
+          )}
+
           {/* Job Summary (view mode) */}
           {mode === 'view' && job && (
             <div className="bg-white rounded-xl border p-6">
@@ -363,6 +372,14 @@ export default function JobCard({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Line Items Section (view mode) */}
+          {mode === 'view' && job && (job as any).line_items && (
+            <JobLineItemsSection
+              lineItems={(job as any).line_items}
+              totalAmount={job.quoted_total || undefined}
+            />
           )}
 
           {/* Visits Timeline - ALWAYS VISIBLE */}

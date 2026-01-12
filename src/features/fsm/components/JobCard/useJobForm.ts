@@ -230,8 +230,10 @@ export function useJobForm({
       errors.clientId = 'Client is required';
     }
 
-    if (!form.jobAddress?.line1) {
-      errors.jobAddress = 'Job address is required';
+    // Address validation: require either job_address.line1 OR propertyId
+    // Jobs linked to properties get their address from the property
+    if (!form.jobAddress?.line1 && !form.propertyId) {
+      errors.jobAddress = 'Job address is required (or select a property)';
     }
 
     // Scheduling validation

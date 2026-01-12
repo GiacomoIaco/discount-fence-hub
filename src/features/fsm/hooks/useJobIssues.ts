@@ -43,9 +43,7 @@ export function useJobIssues(jobId: string | undefined) {
         .select(`
           *,
           job:jobs(id, job_number),
-          responsible_crew:crews(id, name),
-          responsible_user:user_profiles(id, full_name),
-          penalization_approver:user_profiles!job_issues_penalization_approved_by_fkey(id, full_name)
+          responsible_crew:crews(id, name)
         `)
         .eq('job_id', jobId)
         .order('created_at', { ascending: false });
@@ -69,9 +67,7 @@ export function useJobIssue(issueId: string | undefined) {
         .select(`
           *,
           job:jobs(id, job_number, project_id),
-          responsible_crew:crews(id, name),
-          responsible_user:user_profiles(id, full_name),
-          penalization_approver:user_profiles!job_issues_penalization_approved_by_fkey(id, full_name)
+          responsible_crew:crews(id, name)
         `)
         .eq('id', issueId)
         .single();

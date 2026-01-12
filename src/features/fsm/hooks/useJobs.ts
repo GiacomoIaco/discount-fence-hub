@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { Job, JobStatus, JobVisit, VisitType, VisitStatus } from '../types';
+import type { Job, JobStatus, JobVisit, JobLineItem, VisitType, VisitStatus } from '../types';
 import { showSuccess, showError } from '../../../lib/toast';
 
 interface JobFilters {
@@ -80,13 +80,14 @@ export function useJob(id: string | undefined) {
           assigned_crew:crews(id, name, code, crew_size),
           quote:quotes(id, quote_number, total),
           visits:job_visits(*),
-          qbo_class:qbo_classes(id, name, bu_type, location_code, labor_code)
+          qbo_class:qbo_classes(id, name, bu_type, location_code, labor_code),
+          line_items:job_line_items(*)
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as Job & { quote?: { id: string; quote_number: string; total: number }; visits: JobVisit[] };
+      return data as Job & { quote?: { id: string; quote_number: string; total: number }; visits: JobVisit[]; line_items?: JobLineItem[] };
     },
     enabled: !!id,
   });

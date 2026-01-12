@@ -474,6 +474,108 @@ export function useConvertQuoteToJob() {
   });
 }
 
+/**
+ * Convert quote to job with selected line items only.
+ * This allows users to choose which line items to include in the job.
+ */
+export function useConvertQuoteToJobWithSelection() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ quoteId, selectedQuoteLineItemIds }: { quoteId: string; selectedQuoteLineItemIds: string[] }) => {
+      // Get quote data
+      const { data: quote, error: quoteError } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('id', quoteId)
+        .single();
+
+      if (quoteError) throw quoteError;
+
+      // GUARD: Prevent creating multiple jobs from the same quote
+      if (quote.converted_to_job_id) {
+        throw new Error(`Quote ${quote.quote_number || quoteId} has already been converted to a job`);
+      }
+
+      // GUARD: Only accepted quotes can be converted
+      if (quote.status !== 'accepted') {
+        throw new Error(`Quote must be accepted before converting to a job (current status: ${quote.status})`);
+      }
+
+      // Create job from quote (trigger will copy ALL line items)
+      const { data: job, error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          quote_id: quoteId,
+          client_id: quote.client_id,
+          community_id: quote.community_id,
+          property_id: quote.property_id,
+          job_address: quote.job_address || {},
+          product_type: quote.product_type,
+          linear_feet: quote.linear_feet,
+          description: quote.scope_summary,
+          quoted_total: quote.total,
+          bom_project_id: quote.bom_project_id,
+        })
+        .select()
+        .single();
+
+      if (jobError) throw jobError;
+
+      // If not all line items were selected, delete the unselected ones from job_line_items
+      if (selectedQuoteLineItemIds.length > 0) {
+        // Get all job_line_items that reference quote_line_items NOT in the selection
+        const { error: deleteError } = await supabase
+          .from('job_line_items')
+          .delete()
+          .eq('job_id', job.id)
+          .not('quote_line_item_id', 'in', `(${selectedQuoteLineItemIds.join(',')})`);
+
+        if (deleteError) {
+          console.warn('Failed to filter job line items:', deleteError);
+          // Don't fail the whole operation for this
+        }
+
+        // Recalculate job total based on remaining line items
+        const { data: remainingItems } = await supabase
+          .from('job_line_items')
+          .select('total_price')
+          .eq('job_id', job.id);
+
+        if (remainingItems) {
+          const newTotal = remainingItems.reduce((sum, item) => sum + (item.total_price || 0), 0);
+          await supabase
+            .from('jobs')
+            .update({ quoted_total: newTotal })
+            .eq('id', job.id);
+        }
+      }
+
+      // Transfer custom fields from quote to job
+      try {
+        await supabase.rpc('transfer_custom_fields', {
+          p_source_entity_type: 'quote',
+          p_source_entity_id: quoteId,
+          p_target_entity_type: 'job',
+          p_target_entity_id: job.id,
+        });
+      } catch (transferError) {
+        console.warn('Failed to transfer custom fields:', transferError);
+      }
+
+      return job;
+    },
+    onSuccess: (job) => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      showSuccess(`Job ${job.job_number} created from quote`);
+    },
+    onError: (error: Error) => {
+      showError(error.message || 'Failed to convert quote to job');
+    },
+  });
+}
+
 export function useDeleteQuote() {
   const queryClient = useQueryClient();
 

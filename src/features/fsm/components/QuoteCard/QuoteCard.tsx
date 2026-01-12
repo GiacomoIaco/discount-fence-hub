@@ -18,7 +18,8 @@ import QuoteHeader from './QuoteHeader';
 import QuoteClientSection from './QuoteClientSection';
 import QuoteLineItems from './QuoteLineItems';
 import QuoteSidebar from './QuoteSidebar';
-import { useSendQuote, useApproveQuote, useConvertQuoteToJob, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
+import ConvertToJobModal from './ConvertToJobModal';
+import { useSendQuote, useApproveQuote, useConvertQuoteToJobWithSelection, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
@@ -60,6 +61,9 @@ export default function QuoteCard({
   const [lostReason, setLostReason] = useState('');
   const [lostCompetitor, setLostCompetitor] = useState('');
   const [lostNotes, setLostNotes] = useState('');
+
+  // Convert to Job modal state
+  const [showConvertModal, setShowConvertModal] = useState(false);
 
   // Form state management
   const {
@@ -109,7 +113,7 @@ export default function QuoteCard({
   // Mutations for quote actions
   const sendMutation = useSendQuote();
   const approveMutation = useApproveQuote();
-  const convertMutation = useConvertQuoteToJob();
+  const convertMutation = useConvertQuoteToJobWithSelection();
   const updateStatusMutation = useUpdateQuoteStatus();
   const updateQuoteMutation = useUpdateQuote();
 
@@ -271,11 +275,21 @@ export default function QuoteCard({
     }
   }, [quoteId, managerRejectMutation]);
 
-  // Handle convert to job
-  const handleConvertToJob = useCallback(async () => {
+  // Handle convert to job - show modal for line item selection
+  const handleConvertToJob = useCallback(() => {
+    if (!quoteId) return;
+    setShowConvertModal(true);
+  }, [quoteId]);
+
+  // Handle confirmed conversion with selected line items
+  const handleConfirmConvert = useCallback(async (selectedLineItemIds: string[]) => {
     if (!quoteId) return;
     try {
-      await convertMutation.mutateAsync(quoteId);
+      await convertMutation.mutateAsync({
+        quoteId,
+        selectedQuoteLineItemIds: selectedLineItemIds,
+      });
+      setShowConvertModal(false);
       onConvertToJob?.(quoteId);
     } catch (error) {
       console.error('Failed to convert quote to job:', error);
@@ -780,6 +794,16 @@ export default function QuoteCard({
           </div>
         </div>
       )}
+
+      {/* Convert to Job Modal */}
+      <ConvertToJobModal
+        isOpen={showConvertModal}
+        lineItems={form.lineItems}
+        quoteNumber={quote?.quote_number}
+        onClose={() => setShowConvertModal(false)}
+        onConfirm={handleConfirmConvert}
+        isConverting={convertMutation.isPending}
+      />
     </div>
   );
 }
