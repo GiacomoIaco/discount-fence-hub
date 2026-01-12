@@ -22,7 +22,7 @@ interface QuoteLineItemsProps {
   mode: QuoteCardMode;
   lineItems: LineItemFormState[];
   totals: QuoteTotals;
-  onAddItem: () => void;
+  onAddItem: (isOptional?: boolean) => void;
   onUpdateItem: (index: number, updates: Partial<LineItemFormState>) => void;
   onRemoveItem: (index: number) => void;
   onSkuSelect?: (index: number, sku: SkuSearchResult | null) => void;
@@ -106,13 +106,23 @@ export default function QuoteLineItems({
       <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
         <h2 className="text-lg font-semibold">Line Items</h2>
         {isEditable && (
-          <button
-            onClick={onAddItem}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            <Plus className="w-4 h-4" />
-            Add Item
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onAddItem(false)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              <Plus className="w-4 h-4" />
+              Add Item
+            </button>
+            <button
+              onClick={() => onAddItem(true)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-amber-500 text-amber-600 rounded-lg hover:bg-amber-50"
+              title="Optional items are shown to the client but not included in the total unless selected"
+            >
+              <Star className="w-4 h-4" />
+              Add Optional
+            </button>
+          </div>
         )}
       </div>
 
@@ -121,13 +131,22 @@ export default function QuoteLineItems({
           <DollarSign className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p className="text-gray-500 mb-4">No items added yet</p>
           {isEditable && (
-            <button
-              onClick={onAddItem}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            >
-              <Plus className="w-4 h-4" />
-              Add First Item
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => onAddItem(false)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              >
+                <Plus className="w-4 h-4" />
+                Add First Item
+              </button>
+              <button
+                onClick={() => onAddItem(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-amber-500 text-amber-600 rounded-lg hover:bg-amber-50"
+              >
+                <Star className="w-4 h-4" />
+                Add Optional Item
+              </button>
+            </div>
           )}
         </div>
       ) : (

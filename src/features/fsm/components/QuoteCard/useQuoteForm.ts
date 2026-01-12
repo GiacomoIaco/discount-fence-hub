@@ -45,7 +45,7 @@ interface UseQuoteFormReturn {
   setField: <K extends keyof QuoteFormState>(key: K, value: QuoteFormState[K]) => void;
   setFields: (updates: Partial<QuoteFormState>) => void;
   // Line items
-  addLineItem: () => void;
+  addLineItem: (isOptional?: boolean) => void;
   updateLineItem: (index: number, updates: Partial<LineItemFormState>) => void;
   removeLineItem: (index: number) => void;
   // Custom fields
@@ -186,10 +186,14 @@ export function useQuoteForm(options: UseQuoteFormOptions): UseQuoteFormReturn {
     setIsDirty(true);
   }, []);
   // Line item operations
-  const addLineItem = useCallback(() => {
+  const addLineItem = useCallback((isOptional: boolean = false) => {
     setForm(prev => ({
       ...prev,
-      lineItems: [...prev.lineItems, { ...DEFAULT_LINE_ITEM }],
+      lineItems: [...prev.lineItems, {
+        ...DEFAULT_LINE_ITEM,
+        is_optional: isOptional,
+        is_selected: true, // Optional items are selected by default
+      }],
     }));
     setIsDirty(true);
   }, []);
