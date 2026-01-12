@@ -441,6 +441,17 @@ export function useCreateInvoiceFromJob() {
 
       if (invoiceError) throw invoiceError;
 
+      // Copy line items from job to invoice
+      try {
+        await supabase.rpc('copy_job_line_items_to_invoice', {
+          p_job_id: jobId,
+          p_invoice_id: invoice.id,
+        });
+      } catch (copyError) {
+        // Log but don't fail the invoice creation
+        console.warn('Failed to copy line items from job:', copyError);
+      }
+
       // Transfer custom fields from job to invoice (Jobber-style)
       try {
         await supabase.rpc('transfer_custom_fields', {
