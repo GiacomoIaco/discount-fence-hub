@@ -81,6 +81,8 @@ interface ProjectContextHeaderProps {
   onNavigateToParentProject?: (projectId: string) => void;
   /** Callback when "Create Warranty" button is clicked (for completed projects) */
   onCreateWarranty?: (projectId: string) => void;
+  /** Callback when project ID/name is clicked to navigate to project */
+  onNavigateToProject?: (projectId: string) => void;
 }
 
 export default function ProjectContextHeader({
@@ -95,6 +97,7 @@ export default function ProjectContextHeader({
   onNavigateToRequest,
   onNavigateToParentProject,
   onCreateWarranty,
+  onNavigateToProject,
 }: ProjectContextHeaderProps) {
   if (!project) return null;
 
@@ -187,10 +190,41 @@ export default function ProjectContextHeader({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Project Name/Number */}
-        <div className="text-xs text-slate-400">
-          {projectDisplayName}
-        </div>
+        {/* Project ID/Name - Prominent and clickable */}
+        {onNavigateToProject ? (
+          <button
+            onClick={() => onNavigateToProject(project.id)}
+            className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg transition-colors group"
+            title="Go to project"
+          >
+            <span className="text-sm font-medium text-blue-200">
+              {project.project_number || `P-${project.id.slice(0, 8).toUpperCase()}`}
+            </span>
+            {project.name && (
+              <>
+                <span className="text-slate-400">•</span>
+                <span className="text-sm text-slate-300 max-w-[200px] truncate">
+                  {project.name}
+                </span>
+              </>
+            )}
+            <ChevronLeft className="w-4 h-4 text-blue-300 rotate-180 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-slate-300">
+              {project.project_number || `P-${project.id.slice(0, 8).toUpperCase()}`}
+            </span>
+            {project.name && (
+              <>
+                <span className="text-slate-500">•</span>
+                <span className="text-slate-400 max-w-[200px] truncate">
+                  {project.name}
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Row 2: Meta - BU, Rep, Value, Dates */}

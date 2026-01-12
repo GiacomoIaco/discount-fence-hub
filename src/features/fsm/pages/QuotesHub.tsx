@@ -155,6 +155,13 @@ export default function QuotesHub({
     );
   }
 
+  // Handle navigation to project
+  const handleNavigateToProject = (projectId: string) => {
+    if (onNavigateToEntity) {
+      onNavigateToEntity('project', { id: projectId });
+    }
+  };
+
   // Show QuoteCard for viewing/editing existing quote
   if (entityContext?.type === 'quote' && entityContext.id !== 'new') {
     return (
@@ -166,6 +173,7 @@ export default function QuotesHub({
             onBack={handleQuoteCardBack}
             childEntityType="quote"
             childEntityLabel={selectedQuote?.quote_number || `Quote ${entityContext.id.slice(0, 8)}`}
+            onNavigateToProject={handleNavigateToProject}
           />
         )}
         <QuoteCard

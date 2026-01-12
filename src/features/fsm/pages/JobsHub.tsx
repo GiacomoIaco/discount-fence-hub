@@ -144,6 +144,13 @@ export default function JobsHub({
     );
   }
 
+  // Handle navigation to project
+  const handleNavigateToProject = (projectId: string) => {
+    if (onNavigateToEntity) {
+      onNavigateToEntity('project', { id: projectId });
+    }
+  };
+
   // If viewing a specific job, render JobCard in view mode with ProjectContextHeader
   if (entityContext?.type === 'job') {
     return (
@@ -156,6 +163,7 @@ export default function JobsHub({
             childEntityType="job"
             childEntityLabel={selectedJob?.job_number || `Job ${entityContext.id.slice(0, 8)}`}
             onCreateWarranty={handleCreateWarranty}
+            onNavigateToProject={handleNavigateToProject}
           />
         )}
         <JobCard

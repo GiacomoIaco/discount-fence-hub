@@ -259,6 +259,13 @@ export default function InvoicesHub({
     );
   };
 
+  // Handle navigation to project
+  const handleNavigateToProject = (projectId: string) => {
+    if (onNavigateToEntity) {
+      onNavigateToEntity('project', { id: projectId });
+    }
+  };
+
   // If viewing a specific invoice, render InvoiceCard in view mode with ProjectContextHeader
   if (entityContext?.type === 'invoice') {
     return (
@@ -271,6 +278,7 @@ export default function InvoicesHub({
             childEntityType="invoice"
             childEntityLabel={selectedInvoice?.invoice_number || `Invoice ${entityContext.id.slice(0, 8)}`}
             onCreateWarranty={handleCreateWarranty}
+            onNavigateToProject={handleNavigateToProject}
           />
         )}
         <InvoiceCard
