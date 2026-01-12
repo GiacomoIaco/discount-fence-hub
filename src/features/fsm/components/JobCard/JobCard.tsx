@@ -8,7 +8,7 @@
  * - Right sidebar for assignment/scheduling
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Clock,
   CheckCircle,
@@ -23,6 +23,7 @@ import JobBudgetSection from './JobBudgetSection';
 import JobLineItemsSection from './JobLineItemsSection';
 import JobSidebar from './JobSidebar';
 import CollapsibleSection from './CollapsibleSection';
+import QuickTicketModal, { type FsmTicketContext } from '../QuickTicketModal';
 import {
   useCompleteJob,
   useUpdateJobStatus,
@@ -58,6 +59,9 @@ export default function JobCard({
   // Visit editor modal state
   const [showVisitEditor, setShowVisitEditor] = useState(false);
   const [editingVisit, setEditingVisit] = useState<JobVisit | null>(null);
+
+  // Quick Ticket modal state
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   // Form state management
   const {
@@ -210,10 +214,42 @@ export default function JobCard({
     if (onCreateTicket) {
       onCreateTicket(jobId, job.job_number);
     } else {
-      // Default behavior: show alert with instructions
-      alert(`To create a ticket for job ${job.job_number || jobId}, use the Tickets section with job reference.`);
+      // Open the QuickTicketModal
+      setShowTicketModal(true);
     }
   }, [jobId, job, onCreateTicket]);
+
+  // Build ticket context from job data
+  const ticketContext = useMemo<FsmTicketContext | null>(() => {
+    if (!jobId || !job) return null;
+
+    // Build address from job_address
+    const address = job.job_address;
+
+    return {
+      entityType: 'job',
+      entityId: jobId,
+      entityNumber: job.job_number,
+      projectId: job.project_id,
+      // Customer info
+      clientId: job.client_id || undefined,
+      clientName: job.client?.name,
+      communityId: job.community_id || undefined,
+      communityName: job.community?.name,
+      // Address
+      address: address ? {
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+      } : undefined,
+      // Project details
+      productType: job.product_type,
+      linearFeet: job.linear_feet,
+      // Note: Job's client select doesn't include contact info - phone/email will be undefined
+    };
+  }, [jobId, job]);
 
   // Handle field changes from sidebar
   const handleFieldChange = useCallback((field: keyof typeof form, value: string | number | null) => {
@@ -672,6 +708,19 @@ export default function JobCard({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Quick Ticket Modal */}
+      {ticketContext && (
+        <QuickTicketModal
+          isOpen={showTicketModal}
+          onClose={() => setShowTicketModal(false)}
+          context={ticketContext}
+          onSuccess={(ticketId) => {
+            console.log('Ticket created:', ticketId);
+            // Could navigate to ticket or show toast here
+          }}
+        />
       )}
     </div>
   );

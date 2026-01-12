@@ -19,6 +19,7 @@ import QuoteClientSection from './QuoteClientSection';
 import QuoteLineItems from './QuoteLineItems';
 import QuoteSidebar from './QuoteSidebar';
 import ConvertToJobModal from './ConvertToJobModal';
+import QuickTicketModal, { type FsmTicketContext } from '../QuickTicketModal';
 import { useSendQuote, useApproveQuote, useConvertQuoteToJobWithSelection, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
 import { useAuth } from '../../../../contexts/AuthContext';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
@@ -65,6 +66,9 @@ export default function QuoteCard({
 
   // Convert to Job modal state
   const [showConvertModal, setShowConvertModal] = useState(false);
+
+  // Quick Ticket modal state
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   // Form state management
   const {
@@ -363,11 +367,57 @@ export default function QuoteCard({
     if (onCreateTicket) {
       onCreateTicket(quoteId, quote.quote_number);
     } else {
-      // Default behavior: show alert with instructions
-      // In the future, this could open a modal or navigate to ticket creation
-      alert(`To create a ticket for quote ${quote.quote_number || quoteId}, use the Tickets section with quote reference.`);
+      // Open the QuickTicketModal
+      setShowTicketModal(true);
     }
   }, [quoteId, quote, onCreateTicket]);
+
+  // Build ticket context from quote data
+  const ticketContext = useMemo<FsmTicketContext | null>(() => {
+    if (!quoteId || !quote) return null;
+
+    // Build address from job_address or property
+    // job_address is AddressSnapshot with line1/line2
+    // property only has address_line1 (no line2)
+    const jobAddress = quote.job_address;
+    const propertyAddress = quote.property ? {
+      line1: quote.property.address_line1,
+      city: quote.property.city,
+      state: quote.property.state,
+      zip: quote.property.zip,
+    } : undefined;
+
+    return {
+      entityType: 'quote',
+      entityId: quoteId,
+      entityNumber: quote.quote_number,
+      projectId: quote.project_id,
+      // Customer info
+      clientId: quote.client_id,
+      clientName: quote.client?.name,
+      communityId: quote.community_id || undefined,
+      communityName: quote.community?.name,
+      // Address (prefer job_address if available)
+      address: jobAddress ? {
+        line1: jobAddress.line1,
+        line2: jobAddress.line2,
+        city: jobAddress.city,
+        state: jobAddress.state,
+        zip: jobAddress.zip,
+      } : propertyAddress ? {
+        line1: propertyAddress.line1,
+        city: propertyAddress.city,
+        state: propertyAddress.state,
+        zip: propertyAddress.zip,
+      } : undefined,
+      // Project details
+      productType: quote.product_type,
+      linearFeet: quote.linear_feet,
+      // Contact from client
+      phone: quote.client?.primary_contact_phone,
+      email: quote.client?.primary_contact_email,
+    };
+  }, [quoteId, quote]);
 
   // Handle SKU selection with rate sheet resolution and BU-specific labor cost
   const handleSkuSelect = useCallback(async (index: number, sku: SkuSearchResult | null) => {
@@ -816,6 +866,19 @@ export default function QuoteCard({
         onConfirm={handleConfirmConvert}
         isConverting={convertMutation.isPending}
       />
+
+      {/* Quick Ticket Modal */}
+      {ticketContext && (
+        <QuickTicketModal
+          isOpen={showTicketModal}
+          onClose={() => setShowTicketModal(false)}
+          context={ticketContext}
+          onSuccess={(ticketId) => {
+            console.log('Ticket created:', ticketId);
+            // Could navigate to ticket or show toast here
+          }}
+        />
+      )}
     </div>
   );
 }
