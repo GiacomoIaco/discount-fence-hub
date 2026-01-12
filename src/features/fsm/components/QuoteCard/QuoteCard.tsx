@@ -10,7 +10,7 @@
  * - Right sidebar: Assignment, terms, profitability
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { XCircle, AlertTriangle, Layers, CheckCircle, Archive, FileText } from 'lucide-react';
 import type { QuoteCardProps } from './types';
 import { useQuoteForm } from './useQuoteForm';
@@ -20,6 +20,7 @@ import QuoteLineItems from './QuoteLineItems';
 import QuoteSidebar from './QuoteSidebar';
 import ConvertToJobModal from './ConvertToJobModal';
 import { useSendQuote, useApproveQuote, useConvertQuoteToJobWithSelection, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
+import { useAuth } from '../../../../contexts/AuthContext';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
@@ -105,6 +106,16 @@ export default function QuoteCard({
 
   // Flag for warning UI: no rate sheet found
   const hasNoRateSheet = !effectiveRateSheet?.rateSheetId && (form.clientId || form.communityId);
+
+  // Get current user for role-based permissions
+  const { profile } = useAuth();
+
+  // Check if current user can approve quotes (admin or sales-manager roles)
+  const canApproveQuotes = useMemo(() => {
+    if (!profile?.role) return false;
+    const approverRoles = ['admin', 'sales-manager'];
+    return approverRoles.includes(profile.role) || profile.is_super_admin === true;
+  }, [profile]);
 
   // Fetch alternative quotes in the same group
   const { data: alternatives } = useQuoteAlternatives(quote?.quote_group);
@@ -464,6 +475,7 @@ export default function QuoteCard({
         validation={validation}
         isSaving={isSaving || sendMutation.isPending || updateStatusMutation.isPending}
         isDirty={isDirty}
+        isManager={canApproveQuotes}
         onBack={onBack}
         onCancel={handleCancel}
         onSave={handleSave}
@@ -478,8 +490,8 @@ export default function QuoteCard({
         onEdit={handleEdit}
         // Manager approval workflow
         onRequestManagerApproval={handleRequestManagerApproval}
-        onManagerApprove={handleManagerApprove}
-        onManagerReject={handleManagerReject}
+        onManagerApprove={canApproveQuotes ? handleManagerApprove : undefined}
+        onManagerReject={canApproveQuotes ? handleManagerReject : undefined}
         // Alternative quotes
         onCreateAlternative={mode === 'view' && quoteId ? handleCreateAlternative : undefined}
         // Ticket integration
