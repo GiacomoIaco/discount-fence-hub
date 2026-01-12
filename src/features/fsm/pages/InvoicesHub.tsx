@@ -23,10 +23,12 @@ import {
   X,
   Wrench,
 } from 'lucide-react';
-import { useInvoices, useCreateInvoice } from '../hooks/useInvoices';
-import { useJobs } from '../hooks/useJobs';
+import { useInvoices, useInvoice, useCreateInvoice } from '../hooks/useInvoices';
+import { useJobs, useJob } from '../hooks/useJobs';
+import { useProjectFull, useCreateChildProject } from '../hooks/useProjects';
 import type { Job } from '../types';
 import { InvoiceCard } from '../components/InvoiceCard';
+import { ProjectContextHeader } from '../components/project';
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_COLORS,
@@ -64,6 +66,35 @@ export default function InvoicesHub({
     : { status: statusFilter };
 
   const { data: invoices, isLoading, error } = useInvoices(filters);
+
+  // Fetch selected invoice data for project context (when viewing a specific invoice)
+  const { data: selectedInvoice } = useInvoice(
+    entityContext?.type === 'invoice' ? entityContext.id : undefined
+  );
+  // Fetch linked job to get project_id
+  const { data: linkedJob } = useJob(selectedInvoice?.job_id ?? undefined);
+  // Fetch linked project for ProjectContextHeader
+  const { data: linkedProject } = useProjectFull(linkedJob?.project_id ?? undefined);
+
+  // Hook for creating warranty projects
+  const createChildProjectMutation = useCreateChildProject();
+
+  // Handle creating a warranty project
+  const handleCreateWarranty = async (projectId: string) => {
+    try {
+      const warrantyProject = await createChildProjectMutation.mutateAsync({
+        parentProjectId: projectId,
+        relationshipType: 'warranty',
+        name: `Warranty - ${linkedProject?.name || 'Project'}`,
+      });
+      // Navigate to the new warranty project
+      if (onNavigateToEntity) {
+        onNavigateToEntity('project', { id: warrantyProject.id });
+      }
+    } catch (error) {
+      console.error('Failed to create warranty project:', error);
+    }
+  };
 
   // Fetch completed jobs for invoice creation (jobs without invoices)
   const { data: completedJobs } = useJobs({ status: 'completed' });
@@ -228,19 +259,31 @@ export default function InvoicesHub({
     );
   };
 
-  // If viewing a specific invoice, render InvoiceCard in view mode
+  // If viewing a specific invoice, render InvoiceCard in view mode with ProjectContextHeader
   if (entityContext?.type === 'invoice') {
     return (
-      <InvoiceCard
-        mode="view"
-        invoiceId={entityContext.id}
-        onBack={handleInvoiceClose}
-        onCancel={handleInvoiceClose}
-        onSave={() => {
-          // Stay on the invoice after save
-          console.log('Invoice saved');
-        }}
-      />
+      <div className="flex flex-col min-h-screen">
+        {/* Show ProjectContextHeader if invoice is linked to a project (via job) */}
+        {linkedProject && (
+          <ProjectContextHeader
+            project={linkedProject}
+            onBack={handleInvoiceClose}
+            childEntityType="invoice"
+            childEntityLabel={selectedInvoice?.invoice_number || `Invoice ${entityContext.id.slice(0, 8)}`}
+            onCreateWarranty={handleCreateWarranty}
+          />
+        )}
+        <InvoiceCard
+          mode="view"
+          invoiceId={entityContext.id}
+          onBack={linkedProject ? undefined : handleInvoiceClose}  // Header handles back when project exists
+          onCancel={handleInvoiceClose}
+          onSave={() => {
+            // Stay on the invoice after save
+            console.log('Invoice saved');
+          }}
+        />
+      </div>
     );
   }
 

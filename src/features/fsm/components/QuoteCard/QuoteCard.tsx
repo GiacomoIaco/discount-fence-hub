@@ -50,6 +50,7 @@ export default function QuoteCard({
   onConvertToJob,
   onSend,
   onApprove,
+  onCreateTicket,
 }: QuoteCardProps) {
   // Allow mode switching (view -> edit)
   const [mode, setMode] = useState(initialMode);
@@ -331,6 +332,18 @@ export default function QuoteCard({
     }
   }, [quoteId, createAlternativeMutation]);
 
+  // Handle creating an internal ticket linked to this quote
+  const handleCreateTicket = useCallback(() => {
+    if (!quoteId || !quote) return;
+    if (onCreateTicket) {
+      onCreateTicket(quoteId, quote.quote_number);
+    } else {
+      // Default behavior: show alert with instructions
+      // In the future, this could open a modal or navigate to ticket creation
+      alert(`To create a ticket for quote ${quote.quote_number || quoteId}, use the Tickets section with quote reference.`);
+    }
+  }, [quoteId, quote, onCreateTicket]);
+
   // Handle SKU selection with rate sheet resolution and BU-specific labor cost
   const handleSkuSelect = useCallback(async (index: number, sku: SkuSearchResult | null) => {
     if (!sku) {
@@ -455,6 +468,8 @@ export default function QuoteCard({
         onManagerReject={handleManagerReject}
         // Alternative quotes
         onCreateAlternative={mode === 'view' && quoteId ? handleCreateAlternative : undefined}
+        // Ticket integration
+        onCreateTicket={mode === 'view' && quoteId ? handleCreateTicket : undefined}
         // TODO: Implement these handlers
         // onClone={() => { /* Clone quote */ }}
         // onArchive={() => { /* Archive quote */ }}

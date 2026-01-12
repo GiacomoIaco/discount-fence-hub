@@ -413,6 +413,16 @@ export function useConvertQuoteToJob() {
 
       if (quoteError) throw quoteError;
 
+      // GUARD: Prevent creating multiple jobs from the same quote
+      if (quote.converted_to_job_id) {
+        throw new Error(`Quote ${quote.quote_number || quoteId} has already been converted to a job`);
+      }
+
+      // GUARD: Only accepted quotes can be converted
+      if (quote.status !== 'accepted') {
+        throw new Error(`Quote must be accepted before converting to a job (current status: ${quote.status})`);
+      }
+
       // Create job from quote
       // Note: status is auto-computed by trigger, quote auto-converts via cascade trigger
       const { data: job, error: jobError } = await supabase

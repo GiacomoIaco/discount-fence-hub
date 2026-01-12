@@ -21,9 +21,10 @@ import {
   Calendar,
   Users,
 } from 'lucide-react';
-import { useJobs } from '../hooks/useJobs';
+import { useJobs, useJob } from '../hooks/useJobs';
+import { useProjectFull, useCreateChildProject } from '../hooks/useProjects';
 import { JobCard } from '../components/JobCard';
-import { ProjectCreateWizard } from '../components/project';
+import { ProjectCreateWizard, ProjectContextHeader } from '../components/project';
 import {
   JOB_STATUS_LABELS,
   JOB_STATUS_COLORS,
@@ -55,6 +56,33 @@ export default function JobsHub({
 
   const filters = statusFilter === 'all' ? undefined : { status: statusFilter };
   const { data: jobs, isLoading, error } = useJobs(filters);
+
+  // Fetch selected job data for project context (when viewing a specific job)
+  const { data: selectedJob } = useJob(
+    entityContext?.type === 'job' ? entityContext.id : undefined
+  );
+  // Fetch linked project for ProjectContextHeader
+  const { data: linkedProject } = useProjectFull(selectedJob?.project_id ?? undefined);
+
+  // Hook for creating warranty projects
+  const createChildProjectMutation = useCreateChildProject();
+
+  // Handle creating a warranty project
+  const handleCreateWarranty = async (projectId: string) => {
+    try {
+      const warrantyProject = await createChildProjectMutation.mutateAsync({
+        parentProjectId: projectId,
+        relationshipType: 'warranty',
+        name: `Warranty - ${linkedProject?.name || 'Project'}`,
+      });
+      // Navigate to the new warranty project
+      if (onNavigateToEntity) {
+        onNavigateToEntity('project', { id: warrantyProject.id });
+      }
+    } catch (error) {
+      console.error('Failed to create warranty project:', error);
+    }
+  };
 
   // Filter jobs by search query
   const filteredJobs = jobs?.filter(job => {
@@ -116,24 +144,36 @@ export default function JobsHub({
     );
   }
 
-  // If viewing a specific job, render JobCard in view mode
+  // If viewing a specific job, render JobCard in view mode with ProjectContextHeader
   if (entityContext?.type === 'job') {
     return (
-      <JobCard
-        mode="view"
-        jobId={entityContext.id}
-        onBack={handleJobClose}
-        onCancel={handleJobClose}
-        onComplete={(jobId) => {
-          // Stay on the job detail after completion
-          console.log('Job completed:', jobId);
-        }}
-        onCreateInvoice={(jobId) => {
-          // Navigate to invoice after creation
-          // TODO: Get invoice ID from job after refresh
-          console.log('Invoice created for job:', jobId);
-        }}
-      />
+      <div className="flex flex-col min-h-screen">
+        {/* Show ProjectContextHeader if job is linked to a project */}
+        {linkedProject && (
+          <ProjectContextHeader
+            project={linkedProject}
+            onBack={handleJobClose}
+            childEntityType="job"
+            childEntityLabel={selectedJob?.job_number || `Job ${entityContext.id.slice(0, 8)}`}
+            onCreateWarranty={handleCreateWarranty}
+          />
+        )}
+        <JobCard
+          mode="view"
+          jobId={entityContext.id}
+          onBack={linkedProject ? undefined : handleJobClose}  // Header handles back when project exists
+          onCancel={handleJobClose}
+          onComplete={(jobId) => {
+            // Stay on the job detail after completion
+            console.log('Job completed:', jobId);
+          }}
+          onCreateInvoice={(jobId) => {
+            // Navigate to invoice after creation
+            // TODO: Get invoice ID from job after refresh
+            console.log('Invoice created for job:', jobId);
+          }}
+        />
+      </div>
     );
   }
 

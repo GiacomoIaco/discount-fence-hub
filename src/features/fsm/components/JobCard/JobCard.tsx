@@ -49,6 +49,7 @@ export default function JobCard({
   onBack,
   onComplete,
   onCreateInvoice,
+  onCreateTicket,
 }: JobCardProps) {
   // Mode state (can switch from view to edit)
   const [mode, setMode] = useState<JobCardMode>(initialMode);
@@ -202,6 +203,17 @@ export default function JobCard({
     alert('Report issue functionality coming soon');
   }, []);
 
+  // Handle creating an internal ticket linked to this job
+  const handleCreateTicket = useCallback(() => {
+    if (!jobId || !job) return;
+    if (onCreateTicket) {
+      onCreateTicket(jobId, job.job_number);
+    } else {
+      // Default behavior: show alert with instructions
+      alert(`To create a ticket for job ${job.job_number || jobId}, use the Tickets section with job reference.`);
+    }
+  }, [jobId, job, onCreateTicket]);
+
   // Handle field changes from sidebar
   const handleFieldChange = useCallback((field: keyof typeof form, value: string | number | null) => {
     setField(field, value as any);
@@ -244,6 +256,7 @@ export default function JobCard({
         onSendToYard={handleSendToYard}
         onAddVisit={handleAddVisit}
         onReportIssue={handleReportIssue}
+        onCreateTicket={mode === 'view' && jobId ? handleCreateTicket : undefined}
       />
 
       {/* Main Layout: Content + Sidebar */}

@@ -41,6 +41,8 @@ export interface QuoteCardProps {
   onConvertToJob?: (quoteId: string) => void;
   onSend?: (quoteId: string) => void;
   onApprove?: (quoteId: string) => void;
+  /** Navigate to create ticket page with quote context */
+  onCreateTicket?: (quoteId: string, quoteNumber?: string) => void;
 }
 
 export interface LineItemFormState {

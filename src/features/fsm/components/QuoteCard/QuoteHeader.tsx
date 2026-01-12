@@ -37,6 +37,7 @@ import {
   AlertTriangle,
   ThumbsUp,
   ThumbsDown,
+  Ticket,
 } from 'lucide-react';
 import type { Quote, QuoteStatus } from '../../types';
 import type { QuoteCardMode, QuoteValidation } from './types';
@@ -87,6 +88,7 @@ interface QuoteHeaderProps {
   onCollectSignature?: () => void;
   onDownloadPdf?: () => void;
   onPrint?: () => void;
+  onCreateTicket?: () => void;  // Create internal ticket linked to this quote
   // Manager approval workflow
   onRequestManagerApproval?: () => void;  // Rep requests approval (before send)
   onManagerApprove?: () => void;  // Manager approves
@@ -117,6 +119,7 @@ export default function QuoteHeader({
   onCollectSignature,
   onDownloadPdf,
   onPrint,
+  onCreateTicket,
   onRequestManagerApproval,
   onManagerApprove,
   onManagerReject,
@@ -164,8 +167,14 @@ export default function QuoteHeader({
   const isPendingManagerApproval = status === 'pending_approval';
   const hasManagerApproval = !!quote?.manager_approved_at;
 
-  // Can convert to job only when accepted by client
-  const canConvertToJob = status === 'accepted' || status === 'converted';
+  // Can convert to job only when:
+  // 1. Quote is accepted by client (status === 'accepted')
+  // 2. Quote hasn't already been converted (no converted_to_job_id)
+  // 3. If approval was needed, it must have been granted
+  const canConvertToJob =
+    status === 'accepted' &&
+    !quote?.converted_to_job_id &&
+    (!needsManagerApproval || hasManagerApproval);
   // Can mark CLIENT accepted only after quote has been sent (awaiting_response)
   const canMarkClientAccepted = ['awaiting_response', 'changes_requested'].includes(status || '');
   // Can mark lost when not already lost/converted/archived/expired
@@ -356,18 +365,8 @@ export default function QuoteHeader({
                           </>
                         )}
 
-                        {onConvertToJob && (
-                          <button
-                            onClick={() => {
-                              setShowSaveAndMenu(false);
-                              onConvertToJob();
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Briefcase className="w-4 h-4" />
-                            Convert to Job
-                          </button>
-                        )}
+                        {/* NOTE: Convert to Job removed from edit mode - only available in view mode
+                            after quote is accepted and passes all approval checks */}
                         {onMarkAwaitingResponse && (
                           <button
                             onClick={() => {
@@ -584,6 +583,18 @@ export default function QuoteHeader({
                           >
                             <Printer className="w-4 h-4" />
                             Print
+                          </button>
+                        )}
+                        {onCreateTicket && (
+                          <button
+                            onClick={() => {
+                              setShowMoreMenu(false);
+                              onCreateTicket();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Ticket className="w-4 h-4" />
+                            Create Ticket
                           </button>
                         )}
 

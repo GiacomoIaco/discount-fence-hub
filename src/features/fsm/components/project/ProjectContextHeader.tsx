@@ -79,6 +79,8 @@ interface ProjectContextHeaderProps {
   onNavigateToRequest?: (requestId: string) => void;
   /** Callback when "Warranty of" badge is clicked */
   onNavigateToParentProject?: (projectId: string) => void;
+  /** Callback when "Create Warranty" button is clicked (for completed projects) */
+  onCreateWarranty?: (projectId: string) => void;
 }
 
 export default function ProjectContextHeader({
@@ -92,6 +94,7 @@ export default function ProjectContextHeader({
   onShare,
   onNavigateToRequest,
   onNavigateToParentProject,
+  onCreateWarranty,
 }: ProjectContextHeaderProps) {
   if (!project) return null;
 
@@ -292,6 +295,19 @@ export default function ProjectContextHeader({
             >
               <Share2 className="w-3 h-3" />
               Share
+            </button>
+          )}
+          {/* Create Warranty button - show for completed projects that aren't already warranty projects */}
+          {onCreateWarranty &&
+            project.status === 'complete' &&
+            project.project_type !== 'warranty' && (
+            <button
+              onClick={() => onCreateWarranty(project.id)}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-500/50 hover:bg-purple-500/70 rounded transition-colors"
+              title="Create a warranty project linked to this completed project"
+            >
+              <Shield className="w-3 h-3" />
+              Create Warranty
             </button>
           )}
         </div>

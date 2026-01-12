@@ -25,6 +25,8 @@ export interface JobCardProps {
   onBack?: () => void;
   onComplete?: (jobId: string) => void;
   onCreateInvoice?: (jobId: string) => void;
+  /** Navigate to create ticket page with job context */
+  onCreateTicket?: (jobId: string, jobNumber?: string) => void;
 }
 
 // Form state for job editing
@@ -139,6 +141,7 @@ export interface JobHeaderProps {
   onSendToYard?: () => void;
   onAddVisit?: () => void;
   onReportIssue?: () => void;
+  onCreateTicket?: () => void;  // Create internal ticket linked to this job
 }
 
 // Visits section props

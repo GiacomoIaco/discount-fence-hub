@@ -61,10 +61,7 @@ const ClientHub = lazy(() => import('./features/client_hub/ClientHub'));
 const ProjectsHub = lazy(() => import('./features/projects_hub/ProjectsHub'));
 const SalesHub = lazy(() => import('./features/sales_hub/SalesHub'));
 const SchedulePage = lazy(() => import('./features/schedule/SchedulePage'));
-const RequestsHub = lazy(() => import('./features/fsm/pages/RequestsHub'));
-const QuotesHub = lazy(() => import('./features/fsm/pages/QuotesHub'));
-const JobsHub = lazy(() => import('./features/fsm/pages/JobsHub'));
-const InvoicesHub = lazy(() => import('./features/fsm/pages/InvoicesHub'));
+// Note: RequestsHub, QuotesHub, JobsHub, InvoicesHub are now routed through ProjectsHub
 const MessageCenterHub = lazy(() => import('./features/message-center/MessageCenterHub'));
 
 // Loading fallback component
@@ -639,12 +636,14 @@ function App() {
       );
     }
 
-    // FSM Pipeline - Requests (client service requests)
+    // FSM Pipeline - All sections route through ProjectsHub to preserve sidebar
+    // This ensures consistent navigation and project context across all FSM entities
     if (activeSection === 'requests') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <RequestsHub
+            <ProjectsHub
+              initialView="requests"
               entityContext={entityContext}
               onNavigateToEntity={navigateToEntity}
               onClearEntity={clearEntity}
@@ -654,12 +653,12 @@ function App() {
       );
     }
 
-    // FSM Pipeline - Quotes
     if (activeSection === 'quotes') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <QuotesHub
+            <ProjectsHub
+              initialView="quotes"
               entityContext={entityContext}
               onNavigateToEntity={navigateToEntity}
               onClearEntity={clearEntity}
@@ -669,12 +668,12 @@ function App() {
       );
     }
 
-    // FSM Pipeline - Jobs
     if (activeSection === 'jobs') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <JobsHub
+            <ProjectsHub
+              initialView="jobs"
               entityContext={entityContext}
               onNavigateToEntity={navigateToEntity}
               onClearEntity={clearEntity}
@@ -684,12 +683,12 @@ function App() {
       );
     }
 
-    // FSM Pipeline - Invoices
     if (activeSection === 'invoices') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <InvoicesHub
+            <ProjectsHub
+              initialView="invoices"
               entityContext={entityContext}
               onNavigateToEntity={navigateToEntity}
               onClearEntity={clearEntity}

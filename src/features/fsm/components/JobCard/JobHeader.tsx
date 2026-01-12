@@ -24,6 +24,7 @@ import {
   FileDown,
   X,
   Truck,
+  Ticket,
 } from 'lucide-react';
 import type { JobHeaderProps } from './types';
 import { JOB_STATUS_COLORS } from './types';
@@ -44,6 +45,7 @@ export default function JobHeader({
   onSendToYard,
   onAddVisit,
   onReportIssue,
+  onCreateTicket,
 }: JobHeaderProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -261,6 +263,19 @@ export default function JobHeader({
                       <Printer className="w-4 h-4" />
                       Print
                     </button>
+
+                    {onCreateTicket && (
+                      <button
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          onCreateTicket();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Ticket className="w-4 h-4" />
+                        Create Ticket
+                      </button>
+                    )}
 
                     <div className="border-t my-1" />
 
