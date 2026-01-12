@@ -226,7 +226,7 @@ export function useProjectEntities(projectId: string | undefined) {
           .from('quotes')
           .select(`
             id, quote_number, status, total, product_type,
-            created_at, sent_at, client_approved_at,
+            created_at, sent_at, client_accepted_at,
             sales_rep_user_id
           `)
           .eq('project_id', projectId)
