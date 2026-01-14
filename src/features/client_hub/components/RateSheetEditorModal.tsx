@@ -46,6 +46,7 @@ interface ItemEdit {
   labor_markup_percent: string;
   material_markup_percent: string;
   margin_target_percent: string;
+  cost_plus_amount: string;
   isNew?: boolean;
   isModified?: boolean;
   itemId?: string;
@@ -54,19 +55,23 @@ interface ItemEdit {
 export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
   const isEditing = !!rateSheet;
 
-  // Form state
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [description, setDescription] = useState('');
-  const [pricingType, setPricingType] = useState<PricingType>('custom');
-  const [defaultLaborMarkup, setDefaultLaborMarkup] = useState('0');
-  const [defaultMaterialMarkup, setDefaultMaterialMarkup] = useState('0');
-  const [defaultMarginTarget, setDefaultMarginTarget] = useState('');
-  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
-  const [expiresAt, setExpiresAt] = useState('');
-  const [isActive, setIsActive] = useState(true);
-  const [isTemplate, setIsTemplate] = useState(false);
-  const [notes, setNotes] = useState('');
+  // Form state - initialize from rateSheet prop immediately when editing
+  const [name, setName] = useState(rateSheet?.name || '');
+  const [code, setCode] = useState(rateSheet?.code || '');
+  const [description, setDescription] = useState(rateSheet?.description || '');
+  const [pricingType, setPricingType] = useState<PricingType>(rateSheet?.pricing_type || 'custom');
+  const [defaultLaborMarkup, setDefaultLaborMarkup] = useState(String(rateSheet?.default_labor_markup || 0));
+  const [defaultMaterialMarkup, setDefaultMaterialMarkup] = useState(String(rateSheet?.default_material_markup || 0));
+  const [defaultMarginTarget, setDefaultMarginTarget] = useState(rateSheet?.default_margin_target ? String(rateSheet.default_margin_target) : '');
+  const [effectiveDate, setEffectiveDate] = useState(rateSheet?.effective_date || new Date().toISOString().split('T')[0]);
+  const [expiresAt, setExpiresAt] = useState(rateSheet?.expires_at || '');
+  const [isActive, setIsActive] = useState(rateSheet?.is_active ?? true);
+  const [isTemplate, setIsTemplate] = useState(rateSheet?.is_template ?? false);
+  const [notes, setNotes] = useState(rateSheet?.notes || '');
+
+  // Validation state
+  const [validationError, setValidationError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   // Items state
   const [items, setItems] = useState<ItemEdit[]>([]);
@@ -119,6 +124,7 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
             labor_markup_percent: item.labor_markup_percent !== null ? String(item.labor_markup_percent) : '',
             material_markup_percent: item.material_markup_percent !== null ? String(item.material_markup_percent) : '',
             margin_target_percent: item.margin_target_percent !== null ? String(item.margin_target_percent) : '',
+            cost_plus_amount: item.cost_plus_amount !== null ? String(item.cost_plus_amount) : '',
             itemId: item.id,
           }))
         );
@@ -146,6 +152,7 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
         labor_markup_percent: '',
         material_markup_percent: '',
         margin_target_percent: '',
+        cost_plus_amount: '',
         isNew: true,
         isModified: true,
       },
@@ -173,7 +180,13 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) return;
+    // Validate required fields
+    if (!name.trim()) {
+      setValidationError('Name is required');
+      return;
+    }
+    setValidationError('');
+    setSaveError('');
 
     try {
       let sheetId = rateSheet?.id;
@@ -194,16 +207,21 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
         notes: notes.trim() || null,
       };
 
+      console.log('Saving rate sheet:', isEditing ? 'UPDATE' : 'CREATE', sheetData);
+
       if (isEditing) {
-        await updateMutation.mutateAsync({ id: sheetId!, ...sheetData });
+        const result = await updateMutation.mutateAsync({ id: sheetId!, ...sheetData });
+        console.log('Update result:', result);
       } else {
         const result = await createMutation.mutateAsync(sheetData);
+        console.log('Create result:', result);
         sheetId = result.id;
       }
 
       // Save items
       const modifiedItems = items.filter(i => i.isModified);
       if (modifiedItems.length > 0 && sheetId) {
+        console.log('Saving modified items:', modifiedItems.length);
         await bulkUpsertMutation.mutateAsync({
           rate_sheet_id: sheetId,
           items: modifiedItems.map(item => ({
@@ -215,14 +233,16 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
             labor_markup_percent: item.labor_markup_percent ? parseFloat(item.labor_markup_percent) : null,
             material_markup_percent: item.material_markup_percent ? parseFloat(item.material_markup_percent) : null,
             margin_target_percent: item.margin_target_percent ? parseFloat(item.margin_target_percent) : null,
+            cost_plus_amount: item.cost_plus_amount ? parseFloat(item.cost_plus_amount) : null,
             unit: item.unit,
           })),
         });
       }
 
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving rate sheet:', error);
+      setSaveError(error?.message || 'Failed to save rate sheet. Please try again.');
     }
   };
 
@@ -293,10 +313,21 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (validationError) setValidationError('');
+                    }}
                     placeholder="e.g., Perry Homes - Standard"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      validationError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
                   />
+                  {validationError && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {validationError}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
@@ -569,40 +600,102 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
                           </td>
                           <td className="px-4 py-3">
                             {item.pricing_method === 'fixed' ? (
-                              <div className="relative w-28">
-                                <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={item.fixed_price}
-                                  onChange={(e) => handleItemChange(item.sku_id, 'fixed_price', e.target.value)}
-                                  placeholder="0.00"
-                                  className="w-full pl-7 pr-2 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
-                                />
+                              <div className="space-y-1">
+                                <div className="relative w-28">
+                                  <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.fixed_price}
+                                    onChange={(e) => handleItemChange(item.sku_id, 'fixed_price', e.target.value)}
+                                    placeholder="Total"
+                                    className="w-full pl-7 pr-2 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <div className="flex gap-1">
+                                  <div className="relative w-[54px]">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={item.fixed_labor_price}
+                                      onChange={(e) => handleItemChange(item.sku_id, 'fixed_labor_price', e.target.value)}
+                                      placeholder="Labor"
+                                      title="Labor portion"
+                                      className="w-full pl-1 pr-1 py-0.5 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div className="relative w-[54px]">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={item.fixed_material_price}
+                                      onChange={(e) => handleItemChange(item.sku_id, 'fixed_material_price', e.target.value)}
+                                      placeholder="Mat"
+                                      title="Material portion"
+                                      className="w-full pl-1 pr-1 py-0.5 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             ) : item.pricing_method === 'markup' ? (
-                              <div className="relative w-28">
-                                <input
-                                  type="number"
-                                  value={item.material_markup_percent}
-                                  onChange={(e) => handleItemChange(item.sku_id, 'material_markup_percent', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full pl-2 pr-7 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
-                                />
-                                <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500 w-10">Labor:</span>
+                                  <div className="relative w-16">
+                                    <input
+                                      type="number"
+                                      value={item.labor_markup_percent}
+                                      onChange={(e) => handleItemChange(item.sku_id, 'labor_markup_percent', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full pl-2 pr-5 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <Percent className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500 w-10">Mat:</span>
+                                  <div className="relative w-16">
+                                    <input
+                                      type="number"
+                                      value={item.material_markup_percent}
+                                      onChange={(e) => handleItemChange(item.sku_id, 'material_markup_percent', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full pl-2 pr-5 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <Percent className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                  </div>
+                                </div>
                               </div>
-                            ) : (
-                              <div className="relative w-28">
-                                <input
-                                  type="number"
-                                  value={item.margin_target_percent}
-                                  onChange={(e) => handleItemChange(item.sku_id, 'margin_target_percent', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full pl-2 pr-7 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
-                                />
-                                <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            ) : item.pricing_method === 'margin' ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-500">GM:</span>
+                                <div className="relative w-20">
+                                  <input
+                                    type="number"
+                                    value={item.margin_target_percent}
+                                    onChange={(e) => handleItemChange(item.sku_id, 'margin_target_percent', e.target.value)}
+                                    placeholder="0"
+                                    className="w-full pl-2 pr-5 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <Percent className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                </div>
                               </div>
-                            )}
+                            ) : item.pricing_method === 'cost_plus' ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-500">Add:</span>
+                                <div className="relative w-20">
+                                  <DollarSign className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.cost_plus_amount}
+                                    onChange={(e) => handleItemChange(item.sku_id, 'cost_plus_amount', e.target.value)}
+                                    placeholder="0"
+                                    className="w-full pl-5 pr-2 py-1 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
                           </td>
                           <td className="px-4 py-3">
                             <button
@@ -631,21 +724,31 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isPending || !name.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {isPending ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Rate Sheet'}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+          {saveError ? (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isPending || !name.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isPending ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Rate Sheet'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
