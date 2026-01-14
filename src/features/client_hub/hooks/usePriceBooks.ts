@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { BuPriceBook, BuPriceBookOverride, BuPriceBookSummary } from '../types';
+import type { BuPriceBookOverride, BuPriceBookSummary } from '../types';
 
 /**
  * Hook to fetch all price books with summary info
@@ -168,11 +168,10 @@ export function useUpdatePriceBookOverride() {
   return useMutation({
     mutationFn: async ({
       id,
-      price_book_id,
       data,
     }: {
       id: string;
-      price_book_id: string;
+      price_book_id: string; // Used in onSuccess
       data: Partial<{
         action: 'include' | 'exclude';
         sort_order: number;
@@ -206,7 +205,7 @@ export function useRemovePriceBookOverride() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, price_book_id }: { id: string; price_book_id: string }) => {
+    mutationFn: async ({ id }: { id: string; price_book_id: string }) => {
       const { error } = await supabase.from('bu_price_book_overrides').delete().eq('id', id);
       if (error) throw error;
     },
@@ -221,7 +220,7 @@ export function useRemovePriceBookOverride() {
 /**
  * Hook to search SKUs for adding overrides
  */
-export function useSkuSearchForPriceBook(search: string, existingOverrideSkuIds: string[] = []) {
+export function useSkuSearchForPriceBook(search: string, _existingOverrideSkuIds: string[] = []) {
   return useQuery({
     queryKey: ['sku-search-price-book', search],
     queryFn: async () => {

@@ -107,11 +107,10 @@ export function useUpdateCommunityProduct() {
   return useMutation({
     mutationFn: async ({
       id,
-      community_id,
       data,
     }: {
       id: string;
-      community_id: string;
+      community_id: string; // Used in onSuccess
       data: Partial<{
         spec_code: string | null;
         custom_description: string | null;

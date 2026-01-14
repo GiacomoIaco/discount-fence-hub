@@ -8,6 +8,18 @@ import {
   useSkuSearchForCommunity,
 } from '../hooks/useCommunityProducts';
 
+// Helper type for SKU search results with nested product info
+interface SkuSearchResult {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  height: number;
+  post_type: string;
+  standard_cost_per_foot: number | null;
+  product_type: { name: string; code: string } | null;
+  product_style: { name: string; code: string } | null;
+}
+
 interface Props {
   communityId: string;
   communityName: string;
@@ -155,7 +167,7 @@ export default function CommunityProductsEditor({ communityId, communityName, on
                 {/* Search Results */}
                 {searchResults && searchResults.length > 0 ? (
                   <div className="max-h-48 overflow-y-auto space-y-1">
-                    {searchResults.map((sku) => (
+                    {(searchResults as SkuSearchResult[]).map((sku) => (
                       <button
                         key={sku.id}
                         onClick={() => handleAddSku(sku.id)}
@@ -201,7 +213,7 @@ export default function CommunityProductsEditor({ communityId, communityName, on
                 <div className="col-span-1"></div>
               </div>
 
-              {products.map((product, index) => (
+              {products.map((product) => (
                 <div
                   key={product.id}
                   className={`grid grid-cols-12 gap-2 px-3 py-3 items-center rounded-lg border ${

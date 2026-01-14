@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Package, Plus, Minus, Settings2, CheckCircle, XCircle } from 'lucide-react';
+import { BookOpen, Package, Settings2, CheckCircle, XCircle } from 'lucide-react';
 import { usePriceBooks } from '../hooks/usePriceBooks';
 import PriceBookEditorModal from './PriceBookEditorModal';
 import { BU_TYPE_LABELS } from '../types';

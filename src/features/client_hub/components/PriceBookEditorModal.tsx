@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus, Minus, Trash2, Search, Package, Star, Check } from 'lucide-react';
+import { X, Plus, Minus, Trash2, Search, Package, Star } from 'lucide-react';
 import {
   usePriceBook,
   useUpdatePriceBook,
@@ -8,6 +8,31 @@ import {
   useSkuSearchForPriceBook,
 } from '../hooks/usePriceBooks';
 import { BU_TYPE_LABELS } from '../types';
+
+// Helper type for SKU with nested product info
+interface SkuWithProductInfo {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  height: number;
+  post_type: string;
+  bu_types_allowed?: string[] | null;
+  product_type: { name: string; code: string } | null;
+  product_style: { name: string; code: string } | null;
+}
+
+// Helper type for override with SKU details
+interface OverrideWithSku {
+  id: string;
+  price_book_id: string;
+  sku_id: string;
+  action: 'include' | 'exclude';
+  sort_order: number;
+  is_featured: boolean;
+  category_override: string | null;
+  notes: string | null;
+  sku: SkuWithProductInfo;
+}
 
 interface Props {
   priceBookId: string;
@@ -33,11 +58,11 @@ export default function PriceBookEditorModal({ priceBookId, onClose }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchAction, setSearchAction] = useState<'include' | 'exclude'>('include');
-  const existingSkuIds = priceBook?.overrides?.map((o) => o.sku_id) || [];
+  const existingSkuIds = priceBook?.overrides?.map((o: OverrideWithSku) => o.sku_id) || [];
   const { data: searchResults } = useSkuSearchForPriceBook(searchQuery, existingSkuIds);
 
   // Filter results to exclude already-overridden SKUs
-  const filteredResults = searchResults?.filter((sku) => !existingSkuIds.includes(sku.id)) || [];
+  const filteredResults = (searchResults as SkuWithProductInfo[] | undefined)?.filter((sku) => !existingSkuIds.includes(sku.id)) || [];
 
   const handleAddOverride = async (skuId: string) => {
     try {
@@ -85,8 +110,8 @@ export default function PriceBookEditorModal({ priceBookId, onClose }: Props) {
     );
   }
 
-  const includeOverrides = priceBook.overrides?.filter((o) => o.action === 'include') || [];
-  const excludeOverrides = priceBook.overrides?.filter((o) => o.action === 'exclude') || [];
+  const includeOverrides = (priceBook.overrides as OverrideWithSku[] | undefined)?.filter((o) => o.action === 'include') || [];
+  const excludeOverrides = (priceBook.overrides as OverrideWithSku[] | undefined)?.filter((o) => o.action === 'exclude') || [];
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
