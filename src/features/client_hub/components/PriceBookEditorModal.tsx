@@ -1,382 +1,498 @@
-import { useState } from 'react';
-import { X, Plus, Minus, Trash2, Search, Package, Star } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import {
+  X,
+  BookOpen,
+  Search,
+  Trash2,
+  Save,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Star,
+  Plus,
+} from 'lucide-react';
 import {
   usePriceBook,
+  useCreatePriceBook,
   useUpdatePriceBook,
-  useAddPriceBookOverride,
-  useRemovePriceBookOverride,
-  useSkuSearchForPriceBook,
+  useAddPriceBookItem,
+  useRemovePriceBookItem,
+  useUpdatePriceBookItem,
+  useSkuCatalogForPriceBook,
+  useBulkAddPriceBookItems,
 } from '../hooks/usePriceBooks';
-import { BU_TYPE_LABELS } from '../types';
-
-// Helper type for SKU with nested product info
-// Note: Supabase returns foreign key joins as arrays
-interface SkuWithProductInfo {
-  id: string;
-  sku_code: string;
-  sku_name: string;
-  height: number;
-  post_type: string;
-  bu_types_allowed?: string[] | null;
-  product_type: { name: string; code: string }[] | null;
-  product_style: { name: string; code: string }[] | null;
-}
-
-// Helper type for override with SKU details
-interface OverrideWithSku {
-  id: string;
-  price_book_id: string;
-  sku_id: string;
-  action: 'include' | 'exclude';
-  sort_order: number;
-  is_featured: boolean;
-  category_override: string | null;
-  notes: string | null;
-  sku: {
-    id: string;
-    sku_code: string;
-    sku_name: string;
-    height: number;
-    post_type: string;
-    product_type: { name: string; code: string } | null;
-    product_style: { name: string; code: string } | null;
-  };
-}
+import type { PriceBook, PriceBookItem } from '../types';
+import BulkAddSkusModal from './BulkAddSkusModal';
 
 interface Props {
-  priceBookId: string;
+  priceBook: PriceBook | null;
   onClose: () => void;
 }
 
-/**
- * PriceBookEditorModal - Edit overrides for a BU Price Book
- *
- * Features:
- * - View current include/exclude overrides
- * - Add new overrides by searching SKUs
- * - Toggle featured flag for included SKUs
- * - Remove overrides
- */
-export default function PriceBookEditorModal({ priceBookId, onClose }: Props) {
-  const { data: priceBook, isLoading } = usePriceBook(priceBookId);
+export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
+  const isEditing = !!priceBook;
+
+  // Form state
+  const [name, setName] = useState(priceBook?.name || '');
+  const [code, setCode] = useState(priceBook?.code || '');
+  const [description, setDescription] = useState(priceBook?.description || '');
+  const [tags, setTags] = useState<string[]>(priceBook?.tags || []);
+  const [tagInput, setTagInput] = useState('');
+  const [isActive, setIsActive] = useState(priceBook?.is_active ?? true);
+
+  // Validation
+  const [validationError, setValidationError] = useState('');
+
+  // UI state
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeTab, setActiveTab] = useState<'info' | 'items'>('info');
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+
+  // SKU search
+  const [skuSearch, setSkuSearch] = useState('');
+  const [showSkuDropdown, setShowSkuDropdown] = useState(false);
+
+  // Queries
+  const { data: fullPriceBook, isLoading: loadingBook } = usePriceBook(priceBook?.id || null);
+  const { data: skuCatalog } = useSkuCatalogForPriceBook({
+    search: skuSearch,
+    excludeSkuIds: fullPriceBook?.items?.map(i => i.sku_id) || [],
+  });
+
+  // Mutations
+  const createMutation = useCreatePriceBook();
   const updateMutation = useUpdatePriceBook();
-  const addOverrideMutation = useAddPriceBookOverride();
-  const removeOverrideMutation = useRemovePriceBookOverride();
+  const addItemMutation = useAddPriceBookItem();
+  const removeItemMutation = useRemovePriceBookItem();
+  const updateItemMutation = useUpdatePriceBookItem();
+  const bulkAddMutation = useBulkAddPriceBookItems();
 
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchAction, setSearchAction] = useState<'include' | 'exclude'>('include');
-  const existingSkuIds = priceBook?.overrides?.map((o: OverrideWithSku) => o.sku_id) || [];
-  const { data: searchResults } = useSkuSearchForPriceBook(searchQuery, existingSkuIds);
+  // Load existing data
+  useEffect(() => {
+    if (fullPriceBook) {
+      setName(fullPriceBook.name);
+      setCode(fullPriceBook.code || '');
+      setDescription(fullPriceBook.description || '');
+      setTags(fullPriceBook.tags || []);
+      setIsActive(fullPriceBook.is_active);
+    }
+  }, [fullPriceBook]);
 
-  // Filter results to exclude already-overridden SKUs
-  const filteredResults = (searchResults as SkuWithProductInfo[] | undefined)?.filter((sku) => !existingSkuIds.includes(sku.id)) || [];
-
-  const handleAddOverride = async (skuId: string) => {
-    try {
-      await addOverrideMutation.mutateAsync({
-        price_book_id: priceBookId,
-        sku_id: skuId,
-        action: searchAction,
-      });
-      setSearchQuery('');
-    } catch {
-      // Error handled by mutation
+  const handleAddTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim().toLowerCase())) {
+      setTags([...tags, tagInput.trim().toLowerCase()]);
+      setTagInput('');
     }
   };
 
-  const handleRemoveOverride = async (overrideId: string) => {
+  const handleRemoveTag = (tag: string) => {
+    setTags(tags.filter(t => t !== tag));
+  };
+
+  const handleAddSku = async (sku: { id: string; sku: string; description: string }) => {
+    if (!priceBook?.id) return;
+
+    await addItemMutation.mutateAsync({
+      price_book_id: priceBook.id,
+      sku_id: sku.id,
+      is_featured: false,
+    });
+
+    setSkuSearch('');
+    setShowSkuDropdown(false);
+  };
+
+  const handleToggleFeatured = async (item: PriceBookItem) => {
+    if (!priceBook?.id) return;
+
+    await updateItemMutation.mutateAsync({
+      id: item.id,
+      price_book_id: priceBook.id,
+      is_featured: !item.is_featured,
+    });
+  };
+
+  const handleRemoveItem = async (item: PriceBookItem) => {
+    if (!priceBook?.id) return;
+
+    await removeItemMutation.mutateAsync({
+      id: item.id,
+      price_book_id: priceBook.id,
+    });
+  };
+
+  const handleBulkAdd = async (skuIds: string[]) => {
+    if (!priceBook?.id) return;
+
+    await bulkAddMutation.mutateAsync({
+      price_book_id: priceBook.id,
+      sku_ids: skuIds,
+    });
+
+    setShowBulkAdd(false);
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setValidationError('Name is required');
+      return;
+    }
+    setValidationError('');
+
     try {
-      await removeOverrideMutation.mutateAsync({
-        id: overrideId,
-        price_book_id: priceBookId,
-      });
-    } catch {
-      // Error handled by mutation
+      const data = {
+        name: name.trim(),
+        code: code.trim() || null,
+        description: description.trim() || null,
+        tags,
+        is_active: isActive,
+      };
+
+      if (isEditing) {
+        await updateMutation.mutateAsync({ id: priceBook.id, ...data });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
+
+      onClose();
+    } catch (error) {
+      console.error('Error saving price book:', error);
     }
   };
 
-  const handleToggleIncludeAll = async () => {
-    if (!priceBook) return;
-    try {
-      await updateMutation.mutateAsync({
-        id: priceBookId,
-        data: { include_all_for_bu_type: !priceBook.include_all_for_bu_type },
-      });
-    } catch {
-      // Error handled by mutation
-    }
-  };
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
-  if (isLoading || !priceBook) {
+  if (loadingBook) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-xl p-8">
-          <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <div className="bg-white rounded-xl p-8">
+          <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
         </div>
       </div>
     );
   }
 
-  const includeOverrides = (priceBook.overrides as OverrideWithSku[] | undefined)?.filter((o) => o.action === 'include') || [];
-  const excludeOverrides = (priceBook.overrides as OverrideWithSku[] | undefined)?.filter((o) => o.action === 'exclude') || [];
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <BookOpen className="w-5 h-5 text-green-600" />
+            </div>
             <h2 className="text-xl font-semibold text-gray-900">
-              {priceBook.qbo_class?.name || priceBook.name} Price Book
+              {isEditing ? 'Edit Price Book' : 'New Price Book'}
             </h2>
-            <p className="text-sm text-gray-500">
-              {priceBook.qbo_class?.bu_type &&
-                BU_TYPE_LABELS[priceBook.qbo_class.bu_type as keyof typeof BU_TYPE_LABELS]}{' '}
-              • {priceBook.qbo_class?.labor_code}
-            </p>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Settings */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={priceBook.include_all_for_bu_type}
-                onChange={handleToggleIncludeAll}
-                disabled={updateMutation.isPending}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <div>
-                <span className="text-sm font-medium text-gray-700">
-                  Auto-include SKUs matching BU type
-                </span>
-                <p className="text-xs text-gray-500">
-                  When enabled, SKUs with{' '}
-                  <code className="bg-gray-200 px-1 rounded">bu_types_allowed</code> matching "
-                  {priceBook.qbo_class?.bu_type}" are automatically included
-                </p>
-              </div>
-            </label>
-          </div>
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 px-6">
+          <button
+            onClick={() => setActiveTab('info')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'info'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Book Info
+          </button>
+          <button
+            onClick={() => setActiveTab('items')}
+            disabled={!isEditing}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'items'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            } ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            SKUs ({fullPriceBook?.items?.length || 0})
+          </button>
+        </div>
 
-          {/* Add Override Section */}
-          <div>
-            {!showSearch ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setSearchAction('include');
-                    setShowSearch(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-green-600 border border-green-200 rounded-lg hover:bg-green-50"
-                >
-                  <Plus className="w-4 h-4" />
-                  Include SKU
-                </button>
-                <button
-                  onClick={() => {
-                    setSearchAction('exclude');
-                    setShowSearch(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
-                >
-                  <Minus className="w-4 h-4" />
-                  Exclude SKU
-                </button>
-              </div>
-            ) : (
-              <div
-                className={`border rounded-lg p-4 ${
-                  searchAction === 'include'
-                    ? 'border-green-200 bg-green-50/50'
-                    : 'border-red-200 bg-red-50/50'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className={`px-2 py-1 rounded text-xs font-medium ${
-                      searchAction === 'include'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {searchAction === 'include' ? 'Include' : 'Exclude'}
-                  </div>
-                  <Search className="w-4 h-4 text-gray-400" />
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {activeTab === 'info' ? (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search SKUs by code or name..."
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    autoFocus
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (validationError) setValidationError('');
+                    }}
+                    placeholder="e.g., Builder Fence Products"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 ${
+                      validationError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
+                  />
+                  {validationError && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {validationError}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder="e.g., BLD-FENCE"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Optional description..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm"
+                    >
+                      {tag}
+                      <button
+                        onClick={() => handleRemoveTag(tag)}
+                        className="p-0.5 hover:bg-green-200 rounded-full"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                    placeholder="Add a tag..."
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500"
                   />
                   <button
-                    onClick={() => {
-                      setShowSearch(false);
-                      setSearchQuery('');
-                    }}
-                    className="p-2 text-gray-400 hover:text-gray-600"
+                    onClick={handleAddTag}
+                    disabled={!tagInput.trim()}
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50"
                   >
-                    <X className="w-4 h-4" />
+                    Add
                   </button>
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Use tags like: builders, fence, deck, residential, austin
+                </p>
+              </div>
 
-                {/* Search Results */}
-                {filteredResults.length > 0 ? (
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {filteredResults.map((sku) => {
-                      const isAlreadyAvailable =
-                        !sku.bu_types_allowed ||
-                        sku.bu_types_allowed.length === 0 ||
-                        sku.bu_types_allowed.includes(priceBook.qbo_class?.bu_type || '');
-
-                      return (
-                        <button
-                          key={sku.id}
-                          onClick={() => handleAddOverride(sku.id)}
-                          disabled={addOverrideMutation.isPending}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-white rounded-lg transition-colors"
-                        >
-                          <Package className="w-4 h-4 text-gray-400" />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 truncate">{sku.sku_name}</div>
-                            <div className="text-xs text-gray-500">
-                              {sku.sku_code} • {sku.product_type?.[0]?.name || 'Unknown'} • {sku.height}ft
-                              {sku.bu_types_allowed && sku.bu_types_allowed.length > 0 && (
-                                <span className="ml-2 text-gray-400">
-                                  ({sku.bu_types_allowed.join(', ')})
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {isAlreadyAvailable && searchAction === 'include' && (
-                            <span className="text-xs text-gray-400">Already available</span>
-                          )}
-                          {!isAlreadyAvailable && searchAction === 'exclude' && (
-                            <span className="text-xs text-gray-400">Not available</span>
-                          )}
-                          {searchAction === 'include' ? (
-                            <Plus className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <Minus className="w-4 h-4 text-red-600" />
-                          )}
-                        </button>
-                      );
-                    })}
+              {/* Advanced Options */}
+              <div>
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800"
+                >
+                  {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  Advanced Options
+                </button>
+                {showAdvanced && (
+                  <div className="mt-3 space-y-3 pl-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => setIsActive(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-gray-700">Active (can be assigned to clients)</span>
+                    </label>
                   </div>
-                ) : searchQuery.length >= 2 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No SKUs found</p>
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    Type at least 2 characters to search
-                  </p>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Include Overrides */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-green-600" />
-              Included SKUs ({includeOverrides.length})
-            </h3>
-            {includeOverrides.length > 0 ? (
-              <div className="space-y-2">
-                {includeOverrides.map((override) => (
-                  <div
-                    key={override.id}
-                    className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg"
-                  >
-                    <Package className="w-4 h-4 text-green-600" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-900 truncate">{override.sku.sku_name}</div>
-                      <div className="text-xs text-gray-500">
-                        {override.sku.sku_code} • {override.sku.product_type?.name || ''} •{' '}
-                        {override.sku.height}ft
-                      </div>
-                    </div>
-                    {override.is_featured && (
-                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    )}
-                    <button
-                      onClick={() => handleRemoveOverride(override.id)}
-                      disabled={removeOverrideMutation.isPending}
-                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+              {/* Save info notice */}
+              {!isEditing && (
+                <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-lg text-sm">
+                  <strong>Note:</strong> Save the price book first, then you can add SKUs.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* SKU Search + Bulk Add */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={skuSearch}
+                    onChange={(e) => {
+                      setSkuSearch(e.target.value);
+                      setShowSkuDropdown(true);
+                    }}
+                    onFocus={() => setShowSkuDropdown(true)}
+                    placeholder="Search SKUs to add..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowBulkAdd(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                >
+                  <Plus className="w-4 h-4" />
+                  Bulk Add
+                </button>
               </div>
-            ) : (
-              <p className="text-sm text-gray-500 py-4 text-center border border-dashed rounded-lg">
-                No explicit inclusions. SKUs are included based on their{' '}
-                <code className="bg-gray-100 px-1 rounded">bu_types_allowed</code> setting.
-              </p>
-            )}
-          </div>
 
-          {/* Exclude Overrides */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Minus className="w-4 h-4 text-red-600" />
-              Excluded SKUs ({excludeOverrides.length})
-            </h3>
-            {excludeOverrides.length > 0 ? (
-              <div className="space-y-2">
-                {excludeOverrides.map((override) => (
-                  <div
-                    key={override.id}
-                    className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg"
-                  >
-                    <Package className="w-4 h-4 text-red-600" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-900 truncate">{override.sku.sku_name}</div>
-                      <div className="text-xs text-gray-500">
-                        {override.sku.sku_code} • {override.sku.product_type?.name || ''} •{' '}
-                        {override.sku.height}ft
-                      </div>
-                    </div>
-                    {override.notes && (
-                      <span className="text-xs text-gray-500 max-w-[150px] truncate" title={override.notes}>
-                        {override.notes}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => handleRemoveOverride(override.id)}
-                      disabled={removeOverrideMutation.isPending}
-                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+              {/* SKU Dropdown */}
+              {showSkuDropdown && skuCatalog && skuCatalog.length > 0 && (
+                <div className="relative">
+                  <div className="absolute top-0 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                    {skuCatalog.map((sku) => (
+                      <button
+                        key={sku.id}
+                        onClick={() => handleAddSku(sku)}
+                        disabled={addItemMutation.isPending}
+                        className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-50"
+                      >
+                        <div>
+                          <div className="font-medium text-gray-900">{sku.sku}</div>
+                          <div className="text-sm text-gray-500">{sku.description}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            ${sku.sell_price?.toFixed(2) || '0.00'}
+                          </div>
+                          <div className="text-xs text-gray-500">{sku.unit}</div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 py-4 text-center border border-dashed rounded-lg">
-                No exclusions. All SKUs matching the BU type are available.
-              </p>
-            )}
-          </div>
+                </div>
+              )}
+
+              {/* Click outside to close dropdown */}
+              {showSkuDropdown && (
+                <div
+                  className="fixed inset-0 z-0"
+                  onClick={() => setShowSkuDropdown(false)}
+                />
+              )}
+
+              {/* Items Table */}
+              {!fullPriceBook?.items || fullPriceBook.items.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900">No SKUs added yet</h3>
+                  <p className="text-gray-500 mt-1">Search or bulk add SKUs to this price book</p>
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">SKU</th>
+                        <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Description</th>
+                        <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Price</th>
+                        <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Featured</th>
+                        <th className="w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {fullPriceBook.items.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {item.sku?.sku || item.sku_id}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 max-w-[300px] truncate">
+                            {item.sku?.description || '-'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            ${item.sku?.sell_price?.toFixed(2) || '0.00'}/{item.sku?.unit || 'EA'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => handleToggleFeatured(item)}
+                              disabled={updateItemMutation.isPending}
+                              className={`p-1 rounded transition-colors ${
+                                item.is_featured
+                                  ? 'text-yellow-500 hover:text-yellow-600'
+                                  : 'text-gray-300 hover:text-yellow-500'
+                              }`}
+                            >
+                              <Star className="w-5 h-5" fill={item.is_featured ? 'currentColor' : 'none'} />
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleRemoveItem(item)}
+                              disabled={removeItemMutation.isPending}
+                              className="p-1 text-gray-400 hover:text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <button onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Done
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isPending || !name.trim()}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            {isPending ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Price Book'}
           </button>
         </div>
       </div>
+
+      {/* Bulk Add Modal */}
+      {showBulkAdd && priceBook && (
+        <BulkAddSkusModal
+          priceBookId={priceBook.id}
+          priceBookName={priceBook.name}
+          existingSkuIds={fullPriceBook?.items?.map(i => i.sku_id) || []}
+          onAdd={handleBulkAdd}
+          onClose={() => setShowBulkAdd(false)}
+        />
+      )}
     </div>
   );
 }

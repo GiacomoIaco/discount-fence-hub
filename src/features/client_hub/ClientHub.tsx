@@ -16,7 +16,7 @@ import CommunityDetailPage from './pages/CommunityDetailPage';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
-type Tab = 'clients' | 'communities' | 'rate-sheets' | 'price-books';
+type Tab = 'clients' | 'communities' | 'price-books' | 'rate-sheets';
 
 interface ClientHubProps {
   onBack?: () => void;

@@ -15,6 +15,7 @@ import {
   DollarSign,
   ExternalLink,
   ChevronRight,
+  Tag,
 } from 'lucide-react';
 import { useClient, useCreateClientContact, useDeleteClientContact } from '../hooks/useClients';
 import { useContactRoles } from '../hooks/useContacts';
@@ -26,9 +27,10 @@ import {
 } from '../types';
 import ClientEditorModal from '../components/ClientEditorModal';
 import CustomFieldsSection from '../components/CustomFieldsSection';
+import ClientPricingTab from '../components/ClientPricingTab';
 import type { EntityType } from '../../../lib/routes';
 
-type Tab = 'overview' | 'communities' | 'projects' | 'invoices';
+type Tab = 'overview' | 'communities' | 'pricing' | 'projects' | 'invoices';
 
 interface ClientDetailPageProps {
   clientId: string;
@@ -91,6 +93,7 @@ export default function ClientDetailPage({
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'overview', label: 'Overview', icon: <Building2 className="w-4 h-4" /> },
     { id: 'communities', label: 'Communities', icon: <Home className="w-4 h-4" />, count: client?.communities?.length },
+    { id: 'pricing', label: 'Pricing', icon: <Tag className="w-4 h-4" /> },
     { id: 'projects', label: 'Projects', icon: <Briefcase className="w-4 h-4" />, count: 0 }, // TODO: Add project count
     { id: 'invoices', label: 'Invoices', icon: <FileText className="w-4 h-4" />, count: 0 }, // TODO: Add invoice count
   ];
@@ -603,6 +606,20 @@ export default function ClientDetailPage({
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'pricing' && (
+          <ClientPricingTab
+            clientId={clientId}
+            clientName={client.company_name || client.name}
+            communities={client.communities?.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              rate_sheet_override_id: c.rate_sheet_override_id || null,
+              rate_sheet_override: c.rate_sheet_override || null,
+              community_products_count: c.community_products_count || 0,
+            })) || []}
+          />
         )}
 
         {activeTab === 'projects' && (

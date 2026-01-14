@@ -479,6 +479,9 @@ export interface RateSheetItem {
   material_markup_percent: number | null;
   margin_target_percent: number | null;
 
+  // Cost plus pricing
+  cost_plus_amount: number | null;
+
   // Unit info
   unit: string | null;
   min_quantity: number;
@@ -639,3 +642,62 @@ export const BU_TYPE_LABELS: Record<BuType, string> = {
   builders: 'Builders',
   commercial: 'Commercial',
 };
+
+// ============================================
+// PRICE BOOKS (Product Catalogs) - Migration 234
+// ============================================
+
+export interface PriceBook {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  tags: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+
+  // Computed/joined
+  items_count?: number;
+  featured_count?: number;
+  assigned_clients_count?: number;
+  assigned_client_names?: string[];
+}
+
+export interface PriceBookItem {
+  id: string;
+  price_book_id: string;
+  sku_id: string;
+  is_featured: boolean;
+  sort_order: number;
+  notes: string | null;
+  created_at: string;
+
+  // Joined
+  sku?: {
+    id: string;
+    sku: string;
+    description: string;
+    unit: string;
+    sell_price: number;
+    category?: string;
+  };
+}
+
+export interface ClientPriceBookAssignment {
+  id: string;
+  client_id: string;
+  price_book_id: string;
+  rate_sheet_id: string | null;
+  is_default: boolean;
+  effective_date: string;
+  expires_at: string | null;
+  created_at: string;
+  created_by: string | null;
+
+  // Joined
+  price_book?: PriceBook;
+  rate_sheet?: RateSheet;
+  client?: Client;
+}
