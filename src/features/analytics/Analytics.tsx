@@ -7,7 +7,7 @@ interface AnalyticsProps {
   userRole: UserRole;
 }
 
-type TabId = 'overview' | 'requests' | 'sales' | 'photos';
+type TabId = 'overview' | 'requests' | 'sales' | 'photos' | 'jobber';
 
 export default function Analytics({ userRole }: AnalyticsProps) {
   const [dateRange, setDateRange] = useState<DateRange>('30days');
