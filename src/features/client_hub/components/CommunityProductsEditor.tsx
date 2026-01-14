@@ -9,6 +9,7 @@ import {
 } from '../hooks/useCommunityProducts';
 
 // Helper type for SKU search results with nested product info
+// Note: Supabase returns foreign key joins as arrays
 interface SkuSearchResult {
   id: string;
   sku_code: string;
@@ -16,8 +17,8 @@ interface SkuSearchResult {
   height: number;
   post_type: string;
   standard_cost_per_foot: number | null;
-  product_type: { name: string; code: string } | null;
-  product_style: { name: string; code: string } | null;
+  product_type: { name: string; code: string }[] | null;
+  product_style: { name: string; code: string }[] | null;
 }
 
 interface Props {
@@ -178,7 +179,7 @@ export default function CommunityProductsEditor({ communityId, communityName, on
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-900 truncate">{sku.sku_name}</div>
                           <div className="text-xs text-gray-500">
-                            {sku.sku_code} • {sku.product_type?.name || 'Unknown'} • {sku.height}ft
+                            {sku.sku_code} • {sku.product_type?.[0]?.name || 'Unknown'} • {sku.height}ft
                           </div>
                         </div>
                         <div className="text-sm text-gray-500">

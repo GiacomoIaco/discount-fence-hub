@@ -10,6 +10,7 @@ import {
 import { BU_TYPE_LABELS } from '../types';
 
 // Helper type for SKU with nested product info
+// Note: Supabase returns foreign key joins as arrays
 interface SkuWithProductInfo {
   id: string;
   sku_code: string;
@@ -17,8 +18,8 @@ interface SkuWithProductInfo {
   height: number;
   post_type: string;
   bu_types_allowed?: string[] | null;
-  product_type: { name: string; code: string } | null;
-  product_style: { name: string; code: string } | null;
+  product_type: { name: string; code: string }[] | null;
+  product_style: { name: string; code: string }[] | null;
 }
 
 // Helper type for override with SKU details
@@ -31,7 +32,15 @@ interface OverrideWithSku {
   is_featured: boolean;
   category_override: string | null;
   notes: string | null;
-  sku: SkuWithProductInfo;
+  sku: {
+    id: string;
+    sku_code: string;
+    sku_name: string;
+    height: number;
+    post_type: string;
+    product_type: { name: string; code: string } | null;
+    product_style: { name: string; code: string } | null;
+  };
 }
 
 interface Props {
@@ -241,7 +250,7 @@ export default function PriceBookEditorModal({ priceBookId, onClose }: Props) {
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-gray-900 truncate">{sku.sku_name}</div>
                             <div className="text-xs text-gray-500">
-                              {sku.sku_code} • {sku.product_type?.name || 'Unknown'} • {sku.height}ft
+                              {sku.sku_code} • {sku.product_type?.[0]?.name || 'Unknown'} • {sku.height}ft
                               {sku.bu_types_allowed && sku.bu_types_allowed.length > 0 && (
                                 <span className="ml-2 text-gray-400">
                                   ({sku.bu_types_allowed.join(', ')})

@@ -144,7 +144,7 @@ export function useRemoveCommunityProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, community_id }: { id: string; community_id: string }) => {
+    mutationFn: async ({ id }: { id: string; community_id: string }) => {
       const { error } = await supabase.from('community_products').delete().eq('id', id);
       if (error) throw error;
     },
@@ -163,7 +163,6 @@ export function useReorderCommunityProducts() {
 
   return useMutation({
     mutationFn: async ({
-      community_id,
       orderedIds,
     }: {
       community_id: string;
