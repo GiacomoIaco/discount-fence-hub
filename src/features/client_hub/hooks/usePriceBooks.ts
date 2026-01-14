@@ -211,7 +211,7 @@ export function useRemovePriceBookItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, price_book_id }: { id: string; price_book_id: string }) => {
+    mutationFn: async ({ id, price_book_id: _price_book_id }: { id: string; price_book_id: string }) => {
       const { error } = await supabase
         .from('price_book_items')
         .delete()
@@ -366,7 +366,7 @@ export function useDeleteClientPriceBookAssignment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, client_id }: { id: string; client_id: string }) => {
+    mutationFn: async ({ id, client_id: _client_id }: { id: string; client_id: string }) => {
       const { error } = await supabase
         .from('client_price_book_assignments')
         .delete()
@@ -613,7 +613,9 @@ export function useResolvedPrice(
         if (community?.rate_sheet_override_id) {
           const price = await resolveFromRateSheet(skuId, community.rate_sheet_override_id, skuData.sell_price);
           if (price) {
-            const rateSheet = community.rate_sheet_override as { id: string; name: string } | null;
+            // Supabase returns FK joins as arrays
+            const rateSheetRaw = community.rate_sheet_override;
+            const rateSheet = (Array.isArray(rateSheetRaw) ? rateSheetRaw[0] : rateSheetRaw) as { id: string; name: string } | null;
             return {
               ...price,
               pricingSource: `Community Rate Sheet: ${rateSheet?.name || 'Unknown'}`,
@@ -646,7 +648,9 @@ export function useResolvedPrice(
         if (relevantAssignment?.rate_sheet_id) {
           const price = await resolveFromRateSheet(skuId, relevantAssignment.rate_sheet_id, skuData.sell_price);
           if (price) {
-            const rateSheet = relevantAssignment.rate_sheet as { id: string; name: string } | null;
+            // Supabase returns FK joins as arrays
+            const rateSheetRaw = relevantAssignment.rate_sheet;
+            const rateSheet = (Array.isArray(rateSheetRaw) ? rateSheetRaw[0] : rateSheetRaw) as { id: string; name: string } | null;
             return {
               ...price,
               pricingSource: `Client Rate Sheet: ${rateSheet?.name || 'Unknown'}`,
@@ -671,7 +675,9 @@ export function useResolvedPrice(
         if (qboClass?.default_rate_sheet_id) {
           const price = await resolveFromRateSheet(skuId, qboClass.default_rate_sheet_id, skuData.sell_price);
           if (price) {
-            const rateSheet = qboClass.default_rate_sheet as { id: string; name: string } | null;
+            // Supabase returns FK joins as arrays
+            const rateSheetRaw = qboClass.default_rate_sheet;
+            const rateSheet = (Array.isArray(rateSheetRaw) ? rateSheetRaw[0] : rateSheetRaw) as { id: string; name: string } | null;
             return {
               ...price,
               pricingSource: `BU Default: ${rateSheet?.name || 'Unknown'}`,
