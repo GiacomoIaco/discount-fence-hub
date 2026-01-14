@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useAnalytics, type DateRange } from './hooks/useAnalytics';
-import { AnalyticsTabs } from './components/AnalyticsTabs';
+import { AnalyticsTabs, type TabId } from './components/AnalyticsTabs';
 import type { UserRole } from '../../types';
 
 interface AnalyticsProps {
   userRole: UserRole;
 }
-
-type TabId = 'overview' | 'requests' | 'sales' | 'photos' | 'jobber';
 
 export default function Analytics({ userRole }: AnalyticsProps) {
   const [dateRange, setDateRange] = useState<DateRange>('30days');
