@@ -528,3 +528,114 @@ export const PRICING_METHOD_LABELS: Record<PricingMethod, string> = {
   margin: 'Target Margin %',
   cost_plus: 'Cost Plus',
 };
+
+// ============================================
+// PRICE BOOK TYPES (Migration 221)
+// ============================================
+
+export type BuType = 'residential' | 'builders' | 'commercial';
+
+export interface BuPriceBook {
+  id: string;
+  qbo_class_id: string;
+  name: string;
+  description: string | null;
+  include_all_for_bu_type: boolean;
+  is_active: boolean;
+  copied_from_id: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export interface BuPriceBookOverride {
+  id: string;
+  price_book_id: string;
+  sku_id: string;
+  action: 'include' | 'exclude';
+  sort_order: number;
+  is_featured: boolean;
+  category_override: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export interface CommunityProduct {
+  id: string;
+  community_id: string;
+  sku_id: string;
+  spec_code: string | null;
+  custom_description: string | null;
+  price_override: number | null;
+  price_override_reason: string | null;
+  sort_order: number;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+// Summary views
+export interface BuPriceBookSummary extends BuPriceBook {
+  qbo_class_name: string;
+  bu_type: BuType | null;
+  sku_count: number;
+  include_count: number;
+  exclude_count: number;
+  default_rate_sheet_id: string | null;
+  default_rate_sheet_name: string | null;
+}
+
+export interface CommunityProductsSummary {
+  community_id: string;
+  community_name: string;
+  restrict_skus: boolean;
+  client_id: string | null;
+  client_name: string | null;
+  product_count: number;
+  community_rate_sheet_id: string | null;
+  community_rate_sheet_name: string | null;
+  client_rate_sheet_id: string | null;
+  client_rate_sheet_name: string | null;
+  effective_rate_sheet_id: string | null;
+  effective_rate_sheet_name: string | null;
+}
+
+// Available SKU from get_available_skus RPC
+export interface AvailableSku {
+  id: string;
+  sku_code: string;
+  sku_name: string;
+  product_type_id: string;
+  product_style_id: string;
+  height: number;
+  post_type: string;
+  variables: Record<string, unknown>;
+  components: Record<string, string>;
+  standard_cost_per_foot: number | null;
+  standard_material_cost: number | null;
+  standard_labor_cost: number | null;
+  is_featured: boolean;
+  sort_order: number;
+  community_spec_code: string | null;
+  community_price_override: number | null;
+}
+
+// Resolved price from get_resolved_price RPC
+export interface ResolvedPrice {
+  price: number;
+  labor_price: number | null;
+  material_price: number | null;
+  pricing_method: PricingMethod | 'community_override' | 'cost_only' | 'default_formula';
+  pricing_source: string;
+  rate_sheet_id: string | null;
+  rate_sheet_name: string | null;
+}
+
+export const BU_TYPE_LABELS: Record<BuType, string> = {
+  residential: 'Residential',
+  builders: 'Builders',
+  commercial: 'Commercial',
+};

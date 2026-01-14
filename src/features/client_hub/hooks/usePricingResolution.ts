@@ -353,3 +353,164 @@ export function useApprovedSkus(communityId: string | null) {
     enabled: !!communityId,
   });
 }
+
+/**
+ * Hook to get community-level product info (price overrides, spec codes)
+ */
+export function useCommunityProducts(communityId: string | null) {
+  return useQuery({
+    queryKey: ['community-products', communityId],
+    queryFn: async () => {
+      if (!communityId) return new Map<string, {
+        priceOverride: number | null;
+        specCode: string | null;
+        isDefault: boolean;
+      }>();
+
+      const { data } = await supabase
+        .from('community_products')
+        .select('sku_id, price_override, spec_code, is_default')
+        .eq('community_id', communityId);
+
+      const productMap = new Map<string, {
+        priceOverride: number | null;
+        specCode: string | null;
+        isDefault: boolean;
+      }>();
+
+      data?.forEach(item => {
+        productMap.set(item.sku_id, {
+          priceOverride: item.price_override,
+          specCode: item.spec_code,
+          isDefault: item.is_default,
+        });
+      });
+
+      return productMap;
+    },
+    enabled: !!communityId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Enhanced resolvePrice that checks community price override first
+ */
+export function resolvePriceWithCommunityOverride(
+  skuId: string,
+  baseCost: number,
+  itemMap: Map<string, RateSheetItem>,
+  rateSheet: RateSheet | null,
+  communityProducts: Map<string, { priceOverride: number | null; specCode: string | null; isDefault: boolean }> | null,
+  source: 'community' | 'client' | 'bu' | null = null
+): ResolvedPrice & { communitySpecCode?: string | null } {
+  // Check community price override first (highest priority)
+  const communityProduct = communityProducts?.get(skuId);
+  if (communityProduct?.priceOverride !== null && communityProduct?.priceOverride !== undefined) {
+    return {
+      price: communityProduct.priceOverride,
+      laborPrice: null,
+      materialPrice: null,
+      pricingMethod: 'cost_plus', // Using 'cost_plus' to indicate override
+      rateSheetId: null,
+      rateSheetName: 'Community Price Override',
+      source: 'community',
+      communitySpecCode: communityProduct.specCode,
+    };
+  }
+
+  // Fall back to regular rate sheet resolution
+  const result = resolvePrice(skuId, baseCost, itemMap, rateSheet, source);
+  return {
+    ...result,
+    communitySpecCode: communityProduct?.specCode || null,
+  };
+}
+
+/**
+ * Hook to get available SKUs filtered by BU price book and community restrictions
+ * Uses the get_available_skus RPC function
+ */
+export function useAvailableSkus(qboClassId: string | null, communityId: string | null = null) {
+  return useQuery({
+    queryKey: ['available-skus', qboClassId, communityId],
+    queryFn: async () => {
+      if (!qboClassId) return [];
+
+      const { data, error } = await supabase.rpc('get_available_skus', {
+        p_qbo_class_id: qboClassId,
+        p_community_id: communityId,
+      });
+
+      if (error) {
+        console.error('Error fetching available SKUs:', error);
+        return [];
+      }
+
+      return data || [];
+    },
+    enabled: !!qboClassId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook to get fully resolved price using the new get_resolved_price RPC
+ * Includes community price override, rate sheet hierarchy, and BU fallback
+ */
+export function useFullyResolvedPrice(
+  skuId: string | null,
+  baseCost: number,
+  context: PricingContext
+) {
+  return useQuery({
+    queryKey: ['fully-resolved-price', skuId, baseCost, context.communityId, context.clientId, context.qboClassId],
+    queryFn: async () => {
+      if (!skuId) {
+        return {
+          price: baseCost,
+          labor_price: null,
+          material_price: null,
+          pricing_method: 'cost_only',
+          pricing_source: 'No Rate Sheet',
+          rate_sheet_id: null,
+          rate_sheet_name: null,
+        };
+      }
+
+      const { data, error } = await supabase.rpc('get_resolved_price', {
+        p_sku_id: skuId,
+        p_base_cost: baseCost,
+        p_community_id: context.communityId || null,
+        p_client_id: context.clientId || null,
+        p_qbo_class_id: context.qboClassId || null,
+      });
+
+      if (error) {
+        console.error('Error resolving price:', error);
+        return {
+          price: baseCost,
+          labor_price: null,
+          material_price: null,
+          pricing_method: 'cost_only',
+          pricing_source: 'Error - Using Cost',
+          rate_sheet_id: null,
+          rate_sheet_name: null,
+        };
+      }
+
+      // RPC returns array, take first result
+      return data?.[0] || {
+        price: baseCost,
+        labor_price: null,
+        material_price: null,
+        pricing_method: 'cost_only',
+        pricing_source: 'No Rate Sheet',
+        rate_sheet_id: null,
+        rate_sheet_name: null,
+      };
+    },
+    enabled: !!skuId,
+    staleTime: 5 * 60 * 1000,
+  });
+}

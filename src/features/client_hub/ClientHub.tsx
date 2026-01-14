@@ -4,17 +4,19 @@ import {
   Users,
   Home,
   FileSpreadsheet,
+  BookOpen,
 } from 'lucide-react';
 import ClientsList from './components/ClientsList';
 import CommunitiesList from './components/CommunitiesList';
 import RateSheetsList from './components/RateSheetsList';
+import PriceBooksList from './components/PriceBooksList';
 import ClientDetailPage from './pages/ClientDetailPage';
 import PropertyDetailPage from './pages/PropertyDetailPage';
 import CommunityDetailPage from './pages/CommunityDetailPage';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
-type Tab = 'clients' | 'communities' | 'rate-sheets';
+type Tab = 'clients' | 'communities' | 'rate-sheets' | 'price-books';
 
 interface ClientHubProps {
   onBack?: () => void;
@@ -99,6 +101,7 @@ export default function ClientHub({
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'clients', label: 'Clients', icon: <Building2 className="w-4 h-4" /> },
     { id: 'communities', label: 'Communities', icon: <Home className="w-4 h-4" /> },
+    { id: 'price-books', label: 'Price Books', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'rate-sheets', label: 'Rate Sheets', icon: <FileSpreadsheet className="w-4 h-4" /> },
   ];
 
@@ -149,6 +152,7 @@ export default function ClientHub({
         {activeTab === 'communities' && (
           <CommunitiesList onNavigateToEntity={onNavigateToEntity} />
         )}
+        {activeTab === 'price-books' && <PriceBooksList />}
         {activeTab === 'rate-sheets' && <RateSheetsList />}
       </div>
     </div>

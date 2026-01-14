@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, FileSpreadsheet, BookOpen, Calendar, User, Users, GripVertical, MapPin } from 'lucide-react';
+import { X, FileSpreadsheet, BookOpen, Calendar, User, Users, GripVertical, MapPin, Package } from 'lucide-react';
+import CommunityProductsEditor from './CommunityProductsEditor';
 import { useCreateCommunity, useUpdateCommunity } from '../hooks/useCommunities';
 import { useClients } from '../hooks/useClients';
 import { useRateSheets } from '../hooks/useRateSheets';
@@ -61,6 +62,9 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
 
   const isEditing = !!community;
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  // Products editor modal state
+  const [showProductsEditor, setShowProductsEditor] = useState(false);
 
   // Handler for SmartAddressInput
   const handleAddressChange = (address: AddressFormData) => {
@@ -419,7 +423,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
 
           {/* SKU Restrictions */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">SKU Restrictions</h3>
+            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Product Restrictions</h3>
 
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -429,18 +433,32 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
               <div>
-                <span className="text-sm font-medium text-gray-700">Restrict SKUs for this community</span>
+                <span className="text-sm font-medium text-gray-700">Restrict products for this community</span>
                 <p className="text-xs text-gray-500">
-                  When enabled, only approved SKUs can be selected for quotes in this community
+                  When enabled, only configured products can be selected for quotes in this community
                 </p>
               </div>
             </label>
 
-            {formData.restrict_skus && (
-              <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                <p className="text-sm text-orange-700">
-                  SKU selection will be available after creating the community.
-                  You can manage approved SKUs from the community detail view.
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={() => setShowProductsEditor(true)}
+                className="flex items-center gap-2 px-4 py-3 w-full text-left border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                <Package className="w-5 h-5 text-blue-600" />
+                <div className="flex-1">
+                  <span className="font-medium text-gray-900">Manage Community Products</span>
+                  <p className="text-xs text-gray-500">
+                    Configure which products are available, set spec codes, and price overrides
+                  </p>
+                </div>
+                <span className="text-blue-600">&rarr;</span>
+              </button>
+            ) : formData.restrict_skus && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  Save this community first, then you can configure which products are available.
                 </p>
               </div>
             )}
@@ -477,6 +495,15 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
           </button>
         </div>
       </div>
+
+      {/* Community Products Editor Modal */}
+      {showProductsEditor && community && (
+        <CommunityProductsEditor
+          communityId={community.id}
+          communityName={community.name}
+          onClose={() => setShowProductsEditor(false)}
+        />
+      )}
     </div>
   );
 }

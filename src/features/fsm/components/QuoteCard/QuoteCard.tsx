@@ -23,7 +23,7 @@ import QuickTicketModal, { type FsmTicketContext } from '../QuickTicketModal';
 import { useSendQuote, useApproveQuote, useConvertQuoteToJobWithSelection, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
 import { useAuth } from '../../../../contexts/AuthContext';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
-import { useEffectiveRateSheet, useRateSheetPrices, resolvePrice } from '../../../client_hub/hooks/usePricingResolution';
+import { useEffectiveRateSheet, useRateSheetPrices, resolvePriceWithCommunityOverride, useCommunityProducts } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
 
 // Lost reason options
@@ -107,6 +107,9 @@ export default function QuoteCard({
   };
   const { data: effectiveRateSheet } = useEffectiveRateSheet(pricingContext);
   const { data: rateSheetPrices } = useRateSheetPrices(pricingContext);
+
+  // Community product pricing (price overrides, spec codes)
+  const { data: communityProducts } = useCommunityProducts(form.communityId || null);
 
   // Flag for warning UI: no rate sheet found
   const hasNoRateSheet = !effectiveRateSheet?.rateSheetId && (form.clientId || form.communityId);
@@ -458,24 +461,27 @@ export default function QuoteCard({
     let unitPrice = totalUnitCost;
     let pricingSource = 'No Rate Sheet - Using Cost';
 
-    // Resolve price from rate sheet (priority: community > client > BU default)
-    if (rateSheetPrices?.items && rateSheetPrices.rateSheet) {
-      const resolved = resolvePrice(
-        sku.id,
-        totalUnitCost,
-        rateSheetPrices.items,
-        rateSheetPrices.rateSheet,
-        rateSheetPrices.source
-      );
-      unitPrice = resolved.price;
-      if (resolved.rateSheetName) {
-        const sourceLabel = resolved.source === 'bu' ? 'BU Default' :
-                           resolved.source === 'client' ? 'Client' :
-                           resolved.source === 'community' ? 'Community' : '';
-        pricingSource = `${sourceLabel} Rate Sheet: ${resolved.rateSheetName}`;
-      } else if (resolved.pricingMethod === 'cost_only') {
-        pricingSource = 'No Rate Sheet - Using Cost';
-      }
+    // Resolve price from rate sheet (priority: community override > rate sheet > BU default)
+    // Use resolvePriceWithCommunityOverride to check community price override first
+    const resolved = resolvePriceWithCommunityOverride(
+      sku.id,
+      totalUnitCost,
+      rateSheetPrices?.items || new Map(),
+      rateSheetPrices?.rateSheet || null,
+      communityProducts || null,
+      rateSheetPrices?.source || null
+    );
+
+    unitPrice = resolved.price;
+    if (resolved.rateSheetName === 'Community Price Override') {
+      pricingSource = `Community Price Override${resolved.communitySpecCode ? ` (${resolved.communitySpecCode})` : ''}`;
+    } else if (resolved.rateSheetName) {
+      const sourceLabel = resolved.source === 'bu' ? 'BU Default' :
+                         resolved.source === 'client' ? 'Client' :
+                         resolved.source === 'community' ? 'Community' : '';
+      pricingSource = `${sourceLabel} Rate Sheet: ${resolved.rateSheetName}`;
+    } else if (resolved.pricingMethod === 'cost_only') {
+      pricingSource = 'No Rate Sheet - Using Cost';
     }
 
     updateLineItem(index, {
@@ -492,7 +498,7 @@ export default function QuoteCard({
       pricing_source: pricingSource,
       line_type: 'material',
     });
-  }, [updateLineItem, rateSheetPrices, quote?.qbo_class_id]);
+  }, [updateLineItem, rateSheetPrices, communityProducts, quote?.qbo_class_id]);
 
   // Handle sidebar field changes
   const handleSidebarFieldChange = useCallback((field: string, value: string) => {
