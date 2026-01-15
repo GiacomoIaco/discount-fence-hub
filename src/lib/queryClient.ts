@@ -2,9 +2,12 @@
  * React Query Configuration
  *
  * Centralizes React Query setup with optimized defaults for the application
+ * Includes localStorage persistence for Jobber analytics data
  */
 
 import { QueryClient } from '@tanstack/react-query';
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 
 /**
  * Create and configure the React Query client
@@ -42,6 +45,34 @@ export const queryClient = new QueryClient({
 
       // Network mode - fail fast on offline
       networkMode: 'online',
+    },
+  },
+});
+
+/**
+ * localStorage persister for caching Jobber analytics data across sessions
+ *
+ * Only persists queries that start with 'jobber-' to avoid bloating localStorage
+ * Cache is automatically invalidated when new data is uploaded (via query invalidation)
+ */
+const localStoragePersister = createSyncStoragePersister({
+  storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  key: 'JOBBER_ANALYTICS_CACHE',
+});
+
+// Set up persistence - only for Jobber analytics queries
+persistQueryClient({
+  queryClient,
+  persister: localStoragePersister,
+  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days max cache age
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query) => {
+      // Only persist Jobber analytics queries (they're expensive to compute)
+      const queryKey = query.queryKey;
+      if (Array.isArray(queryKey) && typeof queryKey[0] === 'string') {
+        return queryKey[0].startsWith('jobber-');
+      }
+      return false;
     },
   },
 });
