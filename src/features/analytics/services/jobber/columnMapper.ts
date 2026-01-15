@@ -219,7 +219,7 @@ export function mapCSVRowToDBFields(
 /**
  * Parse various date formats from Jobber exports
  */
-function parseDate(value: string): string | null {
+export function parseDate(value: string): string | null {
   if (!value || value.trim() === '') return null;
 
   const trimmed = value.trim();

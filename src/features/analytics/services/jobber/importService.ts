@@ -7,7 +7,8 @@ import {
   getColumnMapForType,
   getUniqueKeyForType,
   getTableNameForType,
-  detectReportType
+  detectReportType,
+  parseDate
 } from './columnMapper';
 import { loadNameNormalizationMap, getEffectiveSalesperson } from './nameNormalizer';
 import type {
@@ -283,14 +284,17 @@ export async function importJobberCSV(
   let dataEndDate: string | null = null;
 
   const dateField = reportType === 'quotes' ? 'drafted_date' : 'created_date';
-  const dates = rows
-    .map(r => r[Object.keys(columnMap).find(k => columnMap[k] === dateField) || ''])
-    .filter(d => d)
-    .sort();
+  const dateColumnKey = Object.keys(columnMap).find(k => columnMap[k] === dateField) || '';
 
-  if (dates.length > 0) {
-    dataStartDate = dates[0] || null;
-    dataEndDate = dates[dates.length - 1] || null;
+  // Parse dates and filter out invalid ones, then sort chronologically
+  const parsedDates = rows
+    .map(r => parseDate(r[dateColumnKey] || ''))
+    .filter((d): d is string => d !== null)
+    .sort((a, b) => a.localeCompare(b)); // ISO dates (YYYY-MM-DD) sort correctly as strings
+
+  if (parsedDates.length > 0) {
+    dataStartDate = parsedDates[0] || null;
+    dataEndDate = parsedDates[parsedDates.length - 1] || null;
   }
 
   // Update import log with results

@@ -31,7 +31,7 @@ export function ImportHistory({ businessUnit, onUploadClick }: ImportHistoryProp
     return new Date(dateStr).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: '2-digit',
+      year: 'numeric',
     });
   };
 
