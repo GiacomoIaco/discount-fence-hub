@@ -12,8 +12,23 @@ interface MonthlyTrendChartProps {
 }
 
 export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartProps) {
-  // Now passes full filters object, respecting date range, salesperson, location, and job sizes
-  const { data: trend, isLoading } = useMonthlyTrend(filters);
+  // Override date range to always show last 15 months for trend visualization
+  // Keep salesperson, location, and job size filters
+  const chartFilters = useMemo(() => {
+    const fifteenMonthsAgo = new Date();
+    fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
+    fifteenMonthsAgo.setDate(1); // Start of month
+
+    return {
+      ...filters,
+      dateRange: {
+        start: fifteenMonthsAgo,
+        end: new Date(),
+      },
+    };
+  }, [filters]);
+
+  const { data: trend, isLoading } = useMonthlyTrend(chartFilters);
 
   const { chartData, yoyGrowth, periodStats } = useMemo(() => {
     const data = (trend || []).map(t => ({
@@ -43,15 +58,17 @@ export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartPr
       }
     }
 
-    // Period stats
-    const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
-    const totalJobs = data.reduce((sum, d) => sum + d.jobs, 0);
-    const avgMonthly = data.length > 0 ? totalRevenue / data.length : 0;
+    // Period stats - use last 12 months for summary
+    const last12Months = data.slice(-12);
+    const totalRevenue = last12Months.reduce((sum, d) => sum + d.revenue, 0);
+    const totalJobs = last12Months.reduce((sum, d) => sum + d.jobs, 0);
+    const avgMonthly = last12Months.length > 0 ? totalRevenue / last12Months.length : 0;
+    const monthCount = last12Months.length;
 
     return {
       chartData: data,
       yoyGrowth,
-      periodStats: { totalRevenue, totalJobs, avgMonthly },
+      periodStats: { totalRevenue, totalJobs, avgMonthly, monthCount },
     };
   }, [trend]);
 
@@ -184,24 +201,29 @@ export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartPr
         </ResponsiveContainer>
       </div>
 
-      {/* Summary stats below chart */}
-      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
-        <div className="text-center">
-          <div className="text-sm text-gray-500">Total Revenue</div>
-          <div className="text-lg font-semibold text-gray-900">
-            ${periodStats.totalRevenue.toLocaleString()}
-          </div>
+      {/* Summary stats below chart - Last 12 months */}
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="text-xs text-gray-500 mb-2 text-center">
+          Last {periodStats.monthCount} Month{periodStats.monthCount !== 1 ? 's' : ''} Summary
         </div>
-        <div className="text-center">
-          <div className="text-sm text-gray-500">Total Jobs</div>
-          <div className="text-lg font-semibold text-gray-900">
-            {periodStats.totalJobs.toLocaleString()}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="text-sm text-gray-500">Total Revenue</div>
+            <div className="text-lg font-semibold text-gray-900">
+              ${periodStats.totalRevenue.toLocaleString()}
+            </div>
           </div>
-        </div>
-        <div className="text-center">
-          <div className="text-sm text-gray-500">Avg Monthly</div>
-          <div className="text-lg font-semibold text-gray-900">
-            ${periodStats.avgMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          <div className="text-center">
+            <div className="text-sm text-gray-500">Total Jobs</div>
+            <div className="text-lg font-semibold text-gray-900">
+              {periodStats.totalJobs.toLocaleString()}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-gray-500">Avg Monthly</div>
+            <div className="text-lg font-semibold text-gray-900">
+              ${periodStats.avgMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
           </div>
         </div>
       </div>

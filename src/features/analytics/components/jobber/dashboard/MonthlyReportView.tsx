@@ -128,27 +128,45 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
   const [newComment, setNewComment] = useState('');
   const [expandedObservations, setExpandedObservations] = useState<Set<string>>(new Set());
 
-  // Fetch jobs for the selected month
+  // Fetch all jobs and filter client-side by closed_date for monthly reports
+  // This is more accurate for business performance (when jobs were completed)
   const monthStart = new Date(selectedMonth + '-01');
   const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
 
-  const monthFilters: JobberFilters = {
+  // Fetch jobs with a broad date range (last 2 years of closed jobs)
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+  const broadFilters: JobberFilters = {
     ...filters,
     timePreset: 'custom',
-    dateRange: { start: monthStart, end: monthEnd },
+    dateRange: { start: twoYearsAgo, end: new Date() },
   };
 
-  // Prior month for comparison
+  const { data: allJobs, isLoading: jobsLoading } = useJobberJobs({ filters: broadFilters });
+
+  // Filter jobs by closed_date for the selected month
+  const currentJobs = useMemo(() => {
+    if (!allJobs) return [];
+    return allJobs.filter(job => {
+      if (!job.closed_date) return false;
+      const closedDate = new Date(job.closed_date);
+      return closedDate >= monthStart && closedDate <= monthEnd;
+    });
+  }, [allJobs, selectedMonth]);
+
+  // Prior month jobs for comparison
   const priorMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1);
   const priorMonthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth(), 0);
-  const priorMonthFilters: JobberFilters = {
-    ...filters,
-    timePreset: 'custom',
-    dateRange: { start: priorMonthStart, end: priorMonthEnd },
-  };
 
-  const { data: currentJobs, isLoading: currentLoading } = useJobberJobs({ filters: monthFilters });
-  const { data: priorJobs, isLoading: priorLoading } = useJobberJobs({ filters: priorMonthFilters });
+  const priorJobs = useMemo(() => {
+    if (!allJobs) return [];
+    return allJobs.filter(job => {
+      if (!job.closed_date) return false;
+      const closedDate = new Date(job.closed_date);
+      return closedDate >= priorMonthStart && closedDate <= priorMonthEnd;
+    });
+  }, [allJobs, selectedMonth]);
 
   const { reportData, observations } = useMemo(() => {
     if (!currentJobs) return { reportData: null, observations: [] };
@@ -283,7 +301,7 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
     return options;
   };
 
-  const isLoading = currentLoading || priorLoading;
+  const isLoading = jobsLoading;
 
   if (isLoading) {
     return (

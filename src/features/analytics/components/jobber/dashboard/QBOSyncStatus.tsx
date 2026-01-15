@@ -18,7 +18,9 @@ export function QBOSyncStatus({ filters }: QBOSyncStatusProps) {
     const statusMap = new Map<string, { jobs: number; revenue: number }>();
 
     for (const job of jobs) {
-      const status = job.on_qbo || 'Not Started';
+      // Normalize status - fix "No Started" typo from data
+      let status = job.on_qbo || 'Not Started';
+      if (status === 'No Started') status = 'Not Started';
       const revenue = Number(job.total_revenue) || 0;
 
       const existing = statusMap.get(status) || { jobs: 0, revenue: 0 };
@@ -109,7 +111,7 @@ export function QBOSyncStatus({ filters }: QBOSyncStatusProps) {
               {getStatusIcon(status.status)}
               <div>
                 <div className="font-medium text-gray-900">{status.status}</div>
-                <div className="text-sm text-gray-500">{status.jobs.toLocaleString()} jobs</div>
+                <div className="text-sm text-gray-500">{status.jobs.toLocaleString()} {status.jobs === 1 ? 'job' : 'jobs'}</div>
               </div>
             </div>
             <div className="text-right">

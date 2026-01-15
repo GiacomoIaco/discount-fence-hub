@@ -114,18 +114,18 @@ export function SalespersonLeaderboard({ filters, onSelectSalesperson }: Salespe
                   <span className="font-medium text-blue-600 hover:text-blue-800">{row.name}</span>
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <span className="font-semibold text-green-700">{formatCurrency(row.total_revenue)}</span>
+                  <span className="font-semibold text-green-700">{formatCurrency(row.total_revenue ?? 0)}</span>
                 </td>
-                <td className="px-3 py-2 text-right font-medium">{row.substantial_jobs.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right text-gray-600">{row.small_jobs.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right text-gray-500">{row.warranty_jobs.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right font-medium">{row.total_jobs.toLocaleString()}</td>
+                <td className="px-3 py-2 text-right font-medium">{(row.substantial_jobs ?? 0).toLocaleString()}</td>
+                <td className="px-3 py-2 text-right text-gray-600">{(row.small_jobs ?? 0).toLocaleString()}</td>
+                <td className="px-3 py-2 text-right text-gray-500">{(row.warranty_jobs ?? 0).toLocaleString()}</td>
+                <td className="px-3 py-2 text-right font-medium">{(row.total_jobs ?? 0).toLocaleString()}</td>
                 <td className="px-3 py-2 text-right">
-                  <span className={row.warranty_percent > 20 ? 'text-red-600' : 'text-gray-600'}>
-                    {row.warranty_percent.toFixed(1)}%
+                  <span className={(row.warranty_percent ?? 0) > 20 ? 'text-red-600' : 'text-gray-600'}>
+                    {(row.warranty_percent ?? 0).toFixed(1)}%
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right">{formatCurrency(row.avg_job_value)}</td>
+                <td className="px-3 py-2 text-right">{formatCurrency(row.avg_job_value ?? 0)}</td>
                 <td className="px-3 py-2 text-right text-gray-600">{formatDays(row.avg_days_to_schedule)}</td>
                 <td className="px-3 py-2 text-right text-gray-600">{formatDays(row.avg_days_to_close)}</td>
                 <td className="px-3 py-2 text-right">
