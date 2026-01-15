@@ -30,8 +30,23 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('monthly');
   const [groupBy, setGroupBy] = useState<GroupBy>('salesperson');
 
+  // Override date range to fetch 15 months of data for trend visualization
+  // Keep other filters (salesperson, location, job sizes)
+  const trendFilters = useMemo((): JobberFilters => {
+    const fifteenMonthsAgo = new Date();
+    fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
+    fifteenMonthsAgo.setDate(1);
+
+    return {
+      ...filters,
+      timePreset: 'custom',
+      dateRange: { start: fifteenMonthsAgo, end: new Date() },
+      dateField: 'created_date', // Always use created_date for trend analysis
+    };
+  }, [filters.salesperson, filters.location, filters.jobSizes]);
+
   // Fetch all jobs, we'll do period grouping client-side
-  const { data: jobs, isLoading } = useJobberJobs({ filters });
+  const { data: jobs, isLoading } = useJobberJobs({ filters: trendFilters });
 
   const { periods, entityTrends, totalsRow } = useMemo(() => {
     if (!jobs?.length) return { periods: [], entityTrends: [], totalsRow: null };

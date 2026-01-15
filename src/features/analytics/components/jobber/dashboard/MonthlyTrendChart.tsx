@@ -14,20 +14,21 @@ interface MonthlyTrendChartProps {
 export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartProps) {
   // Override date range to always show last 15 months for trend visualization
   // Keep salesperson, location, and job size filters
-  const chartFilters = useMemo(() => {
+  const chartFilters = useMemo((): JobberFilters => {
     const fifteenMonthsAgo = new Date();
     fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
     fifteenMonthsAgo.setDate(1); // Start of month
 
     return {
       ...filters,
+      timePreset: 'custom',
       dateRange: {
         start: fifteenMonthsAgo,
         end: new Date(),
       },
       dateField: 'created_date' as DateFieldType, // Always use created_date for trend analysis
     };
-  }, [filters]);
+  }, [filters.salesperson, filters.location, filters.jobSizes]);
 
   const { data: trend, isLoading } = useMonthlyTrend(chartFilters);
 
