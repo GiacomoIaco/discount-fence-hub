@@ -120,32 +120,61 @@ function generateObservations(data: {
 }
 
 export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // null until we determine best default
   const [comments, setComments] = useState<MonthlyReportComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [expandedObservations, setExpandedObservations] = useState<Set<string>>(new Set());
 
-  // Fetch all jobs and filter client-side by closed_date for monthly reports
-  // This is more accurate for business performance (when jobs were completed)
-  const monthStart = new Date(selectedMonth + '-01');
-  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+  // Memoize the broad filters to prevent query key from changing on every render
+  const broadFilters = useMemo((): JobberFilters => {
+    const fifteenMonthsAgo = new Date();
+    fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
+    fifteenMonthsAgo.setDate(1); // Start of month
 
-  // Fetch jobs with a broad date range (last 15 months to match available data)
-  const fifteenMonthsAgo = new Date();
-  fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
-  fifteenMonthsAgo.setDate(1); // Start of month
-
-  const broadFilters: JobberFilters = {
-    ...filters,
-    timePreset: 'custom',
-    dateRange: { start: fifteenMonthsAgo, end: new Date() },
-    dateField: 'created_date' as DateFieldType, // Always use created_date for broad fetch, then filter by closed_date client-side
-  };
+    return {
+      ...filters,
+      timePreset: 'custom',
+      dateRange: { start: fifteenMonthsAgo, end: new Date() },
+      dateField: 'created_date' as DateFieldType, // Always use created_date for broad fetch, then filter by closed_date client-side
+    };
+  }, [filters.salesperson, filters.location, filters.jobSizes]);
 
   const { data: allJobs, isLoading: jobsLoading } = useJobberJobs({ filters: broadFilters });
+
+  // Detect available months with closed jobs and auto-select the most recent one
+  const availableMonths = useMemo(() => {
+    if (!allJobs) return [];
+
+    const monthSet = new Set<string>();
+    for (const job of allJobs) {
+      if (job.closed_date) {
+        const date = new Date(job.closed_date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthSet.add(monthKey);
+      }
+    }
+
+    // Sort descending (most recent first)
+    return Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+  }, [allJobs]);
+
+  // Set default month to most recent with data, or current month if no data
+  useMemo(() => {
+    if (selectedMonth === null && !jobsLoading) {
+      if (availableMonths.length > 0) {
+        setSelectedMonth(availableMonths[0]); // Most recent month with data
+      } else {
+        const now = new Date();
+        setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+      }
+    }
+  }, [availableMonths, jobsLoading, selectedMonth]);
+
+  // Fetch all jobs and filter client-side by closed_date for monthly reports
+  // This is more accurate for business performance (when jobs were completed)
+  const effectiveMonth = selectedMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const monthStart = new Date(effectiveMonth + '-01');
+  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
 
   // Filter jobs by closed_date for the selected month
   const currentJobs = useMemo(() => {
@@ -155,7 +184,7 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
       const closedDate = new Date(job.closed_date);
       return closedDate >= monthStart && closedDate <= monthEnd;
     });
-  }, [allJobs, selectedMonth]);
+  }, [allJobs, effectiveMonth]);
 
   // Prior month jobs for comparison
   const priorMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1);
@@ -168,7 +197,7 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
       const closedDate = new Date(job.closed_date);
       return closedDate >= priorMonthStart && closedDate <= priorMonthEnd;
     });
-  }, [allJobs, selectedMonth]);
+  }, [allJobs, effectiveMonth]);
 
   const { reportData, observations } = useMemo(() => {
     if (!currentJobs) return { reportData: null, observations: [] };
@@ -292,18 +321,34 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
   };
 
   const getMonthOptions = () => {
-    const options = [];
+    // Use available months from data, plus current month if not in list
     const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Build set of all months to show (available months + current month)
+    const monthsToShow = new Set(availableMonths);
+    monthsToShow.add(currentMonthKey);
+
+    // Also add last 12 months for browsing
     for (let i = 0; i < 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      options.push({ value, label });
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthsToShow.add(key);
     }
-    return options;
+
+    // Sort descending and create options
+    const sortedMonths = Array.from(monthsToShow).sort((a, b) => b.localeCompare(a));
+
+    return sortedMonths.map(value => {
+      const [year, month] = value.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const hasData = availableMonths.includes(value);
+      return { value, label, hasData };
+    });
   };
 
-  const isLoading = jobsLoading;
+  const isLoading = jobsLoading || selectedMonth === null;
 
   if (isLoading) {
     return (
@@ -326,12 +371,14 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
 
           <div className="flex items-center gap-3">
             <select
-              value={selectedMonth}
+              value={effectiveMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             >
               {getMonthOptions().map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}{!opt.hasData ? ' (no data)' : ''}
+                </option>
               ))}
             </select>
 
@@ -342,8 +389,25 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
           </div>
         </div>
 
+        {/* Empty state when no closed jobs for selected month */}
+        {currentJobs.length === 0 && (
+          <div className="py-8 text-center">
+            <div className="text-gray-500 mb-2">No closed jobs for this month</div>
+            {availableMonths.length > 0 && (
+              <div className="text-sm text-gray-400">
+                Try selecting a month with data: {availableMonths.slice(0, 3).map(m => {
+                  const [year, month] = m.split('-');
+                  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+                  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }).join(', ')}
+                {availableMonths.length > 3 && '...'}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Summary Stats */}
-        {reportData && (
+        {reportData && currentJobs.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <div className="p-4 bg-green-50 rounded-lg">
               <div className="text-sm text-green-600 font-medium">Revenue</div>
@@ -386,73 +450,75 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
         )}
       </div>
 
-      {/* AI Observations */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="w-5 h-5 text-purple-600" />
-          <h3 className="text-lg font-semibold text-gray-900">AI Observations</h3>
-          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
-            {observations.length} insights
-          </span>
-        </div>
+      {/* AI Observations - only show when there are jobs */}
+      {currentJobs.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-5 h-5 text-purple-600" />
+            <h3 className="text-lg font-semibold text-gray-900">AI Observations</h3>
+            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+              {observations.length} insights
+            </span>
+          </div>
 
-        <div className="space-y-3">
-          {observations.map(obs => (
-            <div
-              key={obs.id}
-              className={`border rounded-lg overflow-hidden ${
-                obs.priority === 'high' ? 'border-red-200 bg-red-50/50' :
-                obs.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50' :
-                'border-gray-200'
-              }`}
-            >
+          <div className="space-y-3">
+            {observations.map(obs => (
               <div
-                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50"
-                onClick={() => toggleObservation(obs.id)}
+                key={obs.id}
+                className={`border rounded-lg overflow-hidden ${
+                  obs.priority === 'high' ? 'border-red-200 bg-red-50/50' :
+                  obs.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50' :
+                  'border-gray-200'
+                }`}
               >
-                {getImpactIcon(obs.impact)}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{obs.title}</span>
-                    {obs.metric_value && (
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                        obs.impact === 'positive' ? 'bg-green-100 text-green-700' :
-                        obs.impact === 'negative' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {obs.metric_value}
+                <div
+                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50"
+                  onClick={() => toggleObservation(obs.id)}
+                >
+                  {getImpactIcon(obs.impact)}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{obs.title}</span>
+                      {obs.metric_value && (
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          obs.impact === 'positive' ? 'bg-green-100 text-green-700' :
+                          obs.impact === 'negative' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {obs.metric_value}
+                        </span>
+                      )}
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded capitalize">
+                        {obs.category.replace('_', ' ')}
                       </span>
-                    )}
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded capitalize">
-                      {obs.category.replace('_', ' ')}
-                    </span>
+                    </div>
                   </div>
-                </div>
-                {expandedObservations.has(obs.id) ? (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                )}
-              </div>
-
-              {expandedObservations.has(obs.id) && (
-                <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                  <p className="text-gray-700 text-sm">{obs.observation}</p>
-                  {obs.comparison_value && (
-                    <p className="text-xs text-gray-500 mt-1">Target: {obs.comparison_value}</p>
+                  {expandedObservations.has(obs.id) ? (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
                   )}
                 </div>
-              )}
-            </div>
-          ))}
 
-          {observations.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No significant observations for this month
-            </div>
-          )}
+                {expandedObservations.has(obs.id) && (
+                  <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                    <p className="text-gray-700 text-sm">{obs.observation}</p>
+                    {obs.comparison_value && (
+                      <p className="text-xs text-gray-500 mt-1">Target: {obs.comparison_value}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {observations.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No significant observations for this month
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Manager Comments */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
