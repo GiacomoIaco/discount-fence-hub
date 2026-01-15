@@ -20,6 +20,7 @@ import { QBOSyncStatus } from './dashboard/QBOSyncStatus';
 import { TrendsAnalysis } from './dashboard/TrendsAnalysis';
 import { MonthlyReportView } from './dashboard/MonthlyReportView';
 import { ImportHistory } from './dashboard/ImportHistory';
+import { ResidentialDashboard } from './residential';
 import { useImportStats } from '../../hooks/jobber';
 import { useSalespersonDetail } from '../../hooks/jobber/useSalespersonMetrics';
 import { useClientDetail } from '../../hooks/jobber/useClientMetrics';
@@ -103,25 +104,36 @@ export function JobberDataTab() {
             Builder Division
           </button>
           <button
-            disabled
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-gray-100 text-gray-400 cursor-not-allowed"
+            onClick={() => setBusinessUnit('residential')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              businessUnit === 'residential'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
           >
             <Home className="w-4 h-4" />
             Residential
-            <span className="text-xs bg-gray-200 px-2 py-0.5 rounded">Coming Soon</span>
           </button>
         </div>
 
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-        >
-          <Upload className="w-4 h-4" />
-          Upload CSV
-        </button>
+        {businessUnit === 'builder' && (
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+          >
+            <Upload className="w-4 h-4" />
+            Upload CSV
+          </button>
+        )}
       </div>
 
-      {/* Compact Import Stats - click to see full history on Reports tab */}
+      {/* Residential Dashboard - separate from Builder */}
+      {businessUnit === 'residential' && <ResidentialDashboard />}
+
+      {/* Builder Dashboard Content */}
+      {businessUnit === 'builder' && (
+        <>
+          {/* Compact Import Stats - click to see full history on Reports tab */}
       {importStats && (
         <div
           className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm cursor-pointer hover:bg-gray-100 transition-colors"
@@ -249,12 +261,16 @@ export function JobberDataTab() {
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {/* Upload Modal */}
-      <JobberUploadModal
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-      />
+      {/* Upload Modal (Builder only) */}
+      {businessUnit === 'builder' && (
+        <JobberUploadModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+        />
+      )}
     </div>
   );
 }

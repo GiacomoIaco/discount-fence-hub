@@ -1,0 +1,574 @@
+// Residential Import Service
+// Handles bulk upload of Quotes, Jobs, and Requests CSVs
+// Normalizes quotes into opportunities and enriches with job/request data
+
+import { supabase } from '../../../../lib/supabase';
+import {
+  mapQuoteRow,
+  mapJobRow,
+  mapRequestRow,
+  type ParsedQuoteRow,
+  type ParsedJobRow,
+} from './residentialColumnMapper';
+import {
+  normalizeOpportunityKey,
+  type ResidentialImportResult,
+  type ImportError,
+  type ImportProgress,
+} from '../../types/residential';
+import Papa from 'papaparse';
+
+// =====================
+// TYPES
+// =====================
+
+interface OpportunityBuilder {
+  key: string;
+  clientName: string | null;
+  clientNameNormalized: string;
+  clientEmail: string | null;
+  clientPhone: string | null;
+  serviceStreet: string | null;
+  serviceStreetNormalized: string;
+  serviceCity: string | null;
+  serviceState: string | null;
+  serviceZip: string | null;
+  salesperson: string | null;
+  projectType: string | null;
+  location: string | null;
+  leadSource: string | null;
+
+  // Quote aggregations
+  quotes: ParsedQuoteRow[];
+  quoteNumbers: number[];
+
+  // Computed after processing
+  quoteCount: number;
+  maxQuoteValue: number;
+  minQuoteValue: number;
+  totalQuotedValue: number;
+  firstQuoteDate: string | null;
+  lastQuoteDate: string | null;
+
+  // Conversion status
+  isWon: boolean;
+  isLost: boolean;
+  isPending: boolean;
+  wonValue: number;
+  wonDate: string | null;
+  wonQuoteNumbers: number[];
+  jobNumbers: string[];
+
+  // Enrichment from jobs
+  scheduledDate: string | null;
+  closedDate: string | null;
+  actualRevenue: number | null;
+
+  // Enrichment from requests
+  assessmentDate: string | null;
+}
+
+// =====================
+// MAIN IMPORT FUNCTION
+// =====================
+
+export async function importResidentialData(
+  quotesFile: File,
+  jobsFile: File | null,
+  requestsFile: File | null,
+  onProgress?: (progress: ImportProgress) => void
+): Promise<ResidentialImportResult> {
+  const errors: ImportError[] = [];
+
+  const report = (step: ImportProgress['step'], progress: number, message: string) => {
+    onProgress?.({ step, progress, message });
+  };
+
+  try {
+    // =====================
+    // STEP 1: PARSE CSV FILES
+    // =====================
+    report('parsing', 5, 'Parsing CSV files...');
+
+    const quotesData = await parseCSV(quotesFile);
+    const jobsData = jobsFile ? await parseCSV(jobsFile) : [];
+    const requestsData = requestsFile ? await parseCSV(requestsFile) : [];
+
+    report('parsing', 15, `Parsed ${quotesData.length} quotes, ${jobsData.length} jobs, ${requestsData.length} requests`);
+
+    // =====================
+    // STEP 2: BUILD OPPORTUNITIES FROM QUOTES
+    // =====================
+    report('quotes', 20, 'Processing quotes and building opportunities...');
+
+    const opportunities = new Map<string, OpportunityBuilder>();
+    const quoteRows: ParsedQuoteRow[] = [];
+
+    for (let i = 0; i < quotesData.length; i++) {
+      const row = quotesData[i];
+      const parsed = mapQuoteRow(row);
+
+      // Validate quote number
+      if (!parsed.quote_number) {
+        errors.push({
+          file: 'quotes',
+          row: i + 2, // +2 for header and 0-index
+          field: 'Quote #',
+          message: 'Missing quote number',
+        });
+        continue;
+      }
+
+      quoteRows.push(parsed);
+
+      // Build opportunity key
+      const oppKey = normalizeOpportunityKey(parsed.client_name, parsed.service_street);
+
+      if (!opportunities.has(oppKey)) {
+        opportunities.set(oppKey, createOpportunityBuilder(oppKey, parsed));
+      }
+
+      const opp = opportunities.get(oppKey)!;
+      opp.quotes.push(parsed);
+      opp.quoteNumbers.push(parsed.quote_number);
+
+      // Update salesperson if not set (take first non-null)
+      if (!opp.salesperson && parsed.salesperson) {
+        opp.salesperson = parsed.salesperson;
+      }
+    }
+
+    report('quotes', 40, `Built ${opportunities.size} opportunities from ${quoteRows.length} quotes`);
+
+    // =====================
+    // STEP 3: CALCULATE OPPORTUNITY METRICS
+    // =====================
+    report('opportunities', 45, 'Calculating opportunity metrics...');
+
+    for (const opp of opportunities.values()) {
+      calculateOpportunityMetrics(opp);
+    }
+
+    // =====================
+    // STEP 4: ENRICH WITH JOBS DATA
+    // =====================
+    report('jobs', 50, 'Enriching with job data...');
+
+    const jobRows: ParsedJobRow[] = [];
+    const jobByQuoteNumber = new Map<number, ParsedJobRow>();
+
+    for (let i = 0; i < jobsData.length; i++) {
+      const row = jobsData[i];
+      const parsed = mapJobRow(row);
+
+      if (!parsed.job_number) {
+        errors.push({
+          file: 'jobs',
+          row: i + 2,
+          field: 'Job #',
+          message: 'Missing job number',
+        });
+        continue;
+      }
+
+      jobRows.push(parsed);
+
+      // Index by quote number for enrichment
+      if (parsed.quote_number) {
+        jobByQuoteNumber.set(parsed.quote_number, parsed);
+      }
+    }
+
+    // Link jobs to opportunities
+    let linkedJobs = 0;
+    for (const opp of opportunities.values()) {
+      if (opp.isWon && opp.jobNumbers.length > 0) {
+        // Try to find job data for this opportunity
+        for (const qn of opp.wonQuoteNumbers) {
+          const job = jobByQuoteNumber.get(qn);
+          if (job) {
+            opp.scheduledDate = job.scheduled_start_date;
+            opp.closedDate = job.closed_date;
+            opp.actualRevenue = job.total_revenue;
+            linkedJobs++;
+            break; // Take first job's dates
+          }
+        }
+      }
+    }
+
+    report('jobs', 65, `Linked ${linkedJobs} jobs to opportunities`);
+
+    // =====================
+    // STEP 5: ENRICH WITH REQUESTS DATA (ASSESSMENT DATES)
+    // =====================
+    report('requests', 70, 'Enriching with assessment dates from requests...');
+
+    // Build lookup: Quote # -> earliest assessment date
+    const assessmentByQuote = new Map<number, string>();
+
+    for (let i = 0; i < requestsData.length; i++) {
+      const row = requestsData[i];
+      const parsed = mapRequestRow(row);
+
+      if (!parsed.assessment_date) continue;
+
+      for (const qnStr of parsed.quote_numbers) {
+        const qn = parseInt(qnStr, 10);
+        if (isNaN(qn)) continue;
+
+        const existing = assessmentByQuote.get(qn);
+        if (!existing || parsed.assessment_date < existing) {
+          assessmentByQuote.set(qn, parsed.assessment_date);
+        }
+      }
+    }
+
+    // Apply assessment dates to opportunities
+    let linkedRequests = 0;
+    for (const opp of opportunities.values()) {
+      for (const qn of opp.quoteNumbers) {
+        const assessDate = assessmentByQuote.get(qn);
+        if (assessDate) {
+          if (!opp.assessmentDate || assessDate < opp.assessmentDate) {
+            opp.assessmentDate = assessDate;
+            linkedRequests++;
+          }
+        }
+      }
+    }
+
+    report('requests', 80, `Linked ${linkedRequests} assessment dates`);
+
+    // =====================
+    // STEP 6: UPSERT TO DATABASE
+    // =====================
+    report('opportunities', 85, 'Saving to database...');
+
+    // Save quotes first
+    const quotesToInsert = quoteRows.map(q => ({
+      quote_number: q.quote_number,
+      opportunity_key: normalizeOpportunityKey(q.client_name, q.service_street),
+      client_name: q.client_name,
+      client_email: q.client_email,
+      client_phone: q.client_phone,
+      service_street: q.service_street,
+      service_city: q.service_city,
+      service_state: q.service_state,
+      service_zip: q.service_zip,
+      title: q.title,
+      status: q.status,
+      line_items: q.line_items,
+      lead_source: q.lead_source,
+      project_type: q.project_type,
+      location: q.location,
+      salesperson: q.salesperson,
+      sent_by_user: q.sent_by_user,
+      subtotal: q.subtotal,
+      total: q.total,
+      discount: q.discount,
+      required_deposit: q.required_deposit,
+      collected_deposit: q.collected_deposit,
+      drafted_date: q.drafted_date,
+      sent_date: q.sent_date,
+      approved_date: q.approved_date,
+      converted_date: q.converted_date,
+      archived_date: q.archived_date,
+      job_numbers: q.job_numbers,
+    }));
+
+    // Batch upsert quotes
+    let quotesNew = 0;
+    let quotesUpdated = 0;
+
+    for (let i = 0; i < quotesToInsert.length; i += 500) {
+      const batch = quotesToInsert.slice(i, i + 500);
+      const { error } = await supabase
+        .from('jobber_residential_quotes')
+        .upsert(batch, { onConflict: 'quote_number' });
+
+      if (error) {
+        console.error('Error upserting quotes batch:', error);
+        errors.push({
+          file: 'quotes',
+          row: 0,
+          field: 'database',
+          message: `Database error: ${error.message}`,
+        });
+      }
+    }
+    quotesNew = quotesToInsert.length; // Simplified - actual count would require comparison
+
+    // Save jobs
+    const jobsToInsert = jobRows.map(j => ({
+      job_number: j.job_number,
+      quote_number: j.quote_number,
+      client_name: j.client_name,
+      service_street: j.service_street,
+      service_city: j.service_city,
+      service_state: j.service_state,
+      service_zip: j.service_zip,
+      title: j.title,
+      project_type: j.project_type,
+      salesperson: j.salesperson,
+      location: j.location,
+      created_date: j.created_date,
+      scheduled_start_date: j.scheduled_start_date,
+      closed_date: j.closed_date,
+      total_revenue: j.total_revenue,
+      total_costs: j.total_costs,
+      profit: j.profit,
+      crew_1: j.crew_1,
+      crew_1_pay: j.crew_1_pay,
+      crew_2: j.crew_2,
+      crew_2_pay: j.crew_2_pay,
+    }));
+
+    for (let i = 0; i < jobsToInsert.length; i += 500) {
+      const batch = jobsToInsert.slice(i, i + 500);
+      const { error } = await supabase
+        .from('jobber_residential_jobs')
+        .upsert(batch, { onConflict: 'job_number' });
+
+      if (error) {
+        console.error('Error upserting jobs batch:', error);
+      }
+    }
+
+    // Save opportunities
+    const oppsToInsert = Array.from(opportunities.values()).map(opp => ({
+      opportunity_key: opp.key,
+      client_name: opp.clientName,
+      client_name_normalized: opp.clientNameNormalized,
+      client_email: opp.clientEmail,
+      client_phone: opp.clientPhone,
+      service_street: opp.serviceStreet,
+      service_street_normalized: opp.serviceStreetNormalized,
+      service_city: opp.serviceCity,
+      service_state: opp.serviceState,
+      service_zip: opp.serviceZip,
+      salesperson: opp.salesperson,
+      project_type: opp.projectType,
+      location: opp.location,
+      lead_source: opp.leadSource,
+      quote_count: opp.quoteCount,
+      quote_numbers: opp.quoteNumbers.join(','),
+      first_quote_date: opp.firstQuoteDate,
+      last_quote_date: opp.lastQuoteDate,
+      max_quote_value: opp.maxQuoteValue,
+      min_quote_value: opp.minQuoteValue,
+      total_quoted_value: opp.totalQuotedValue,
+      won_value: opp.wonValue,
+      is_won: opp.isWon,
+      is_lost: opp.isLost,
+      is_pending: opp.isPending,
+      won_date: opp.wonDate,
+      won_quote_numbers: opp.wonQuoteNumbers.length > 0 ? opp.wonQuoteNumbers.join(',') : null,
+      job_numbers: opp.jobNumbers.length > 0 ? opp.jobNumbers.join(',') : null,
+      scheduled_date: opp.scheduledDate,
+      closed_date: opp.closedDate,
+      actual_revenue: opp.actualRevenue,
+      assessment_date: opp.assessmentDate,
+      last_updated_at: new Date().toISOString(),
+    }));
+
+    let oppsNew = 0;
+    let oppsUpdated = 0;
+
+    for (let i = 0; i < oppsToInsert.length; i += 500) {
+      const batch = oppsToInsert.slice(i, i + 500);
+      const { error } = await supabase
+        .from('jobber_residential_opportunities')
+        .upsert(batch, { onConflict: 'opportunity_key' });
+
+      if (error) {
+        console.error('Error upserting opportunities batch:', error);
+        errors.push({
+          file: 'quotes',
+          row: 0,
+          field: 'database',
+          message: `Database error: ${error.message}`,
+        });
+      }
+    }
+    oppsNew = oppsToInsert.length;
+
+    report('complete', 100, 'Import complete!');
+
+    return {
+      success: errors.length === 0,
+      opportunities: {
+        total: opportunities.size,
+        new: oppsNew,
+        updated: oppsUpdated,
+      },
+      quotes: {
+        total: quoteRows.length,
+        new: quotesNew,
+        updated: quotesUpdated,
+      },
+      jobs: {
+        total: jobRows.length,
+        linked: linkedJobs,
+      },
+      requests: {
+        total: requestsData.length,
+        linked: linkedRequests,
+      },
+      errors,
+    };
+  } catch (error) {
+    console.error('Import error:', error);
+    return {
+      success: false,
+      opportunities: { total: 0, new: 0, updated: 0 },
+      quotes: { total: 0, new: 0, updated: 0 },
+      jobs: { total: 0, linked: 0 },
+      requests: { total: 0, linked: 0 },
+      errors: [{
+        file: 'quotes',
+        row: 0,
+        field: 'system',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      }],
+    };
+  }
+}
+
+
+// =====================
+// HELPER FUNCTIONS
+// =====================
+
+async function parseCSV(file: File): Promise<Record<string, string>[]> {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        resolve(results.data as Record<string, string>[]);
+      },
+      error: (error) => {
+        reject(error);
+      },
+    });
+  });
+}
+
+function createOpportunityBuilder(key: string, firstQuote: ParsedQuoteRow): OpportunityBuilder {
+  return {
+    key,
+    clientName: firstQuote.client_name,
+    clientNameNormalized: (firstQuote.client_name || '').toLowerCase().trim(),
+    clientEmail: firstQuote.client_email,
+    clientPhone: firstQuote.client_phone,
+    serviceStreet: firstQuote.service_street,
+    serviceStreetNormalized: (firstQuote.service_street || '').toLowerCase().trim(),
+    serviceCity: firstQuote.service_city,
+    serviceState: firstQuote.service_state,
+    serviceZip: firstQuote.service_zip,
+    salesperson: firstQuote.salesperson,
+    projectType: firstQuote.project_type,
+    location: firstQuote.location,
+    leadSource: firstQuote.lead_source,
+    quotes: [],
+    quoteNumbers: [],
+    quoteCount: 0,
+    maxQuoteValue: 0,
+    minQuoteValue: Infinity,
+    totalQuotedValue: 0,
+    firstQuoteDate: null,
+    lastQuoteDate: null,
+    isWon: false,
+    isLost: false,
+    isPending: true,
+    wonValue: 0,
+    wonDate: null,
+    wonQuoteNumbers: [],
+    jobNumbers: [],
+    scheduledDate: null,
+    closedDate: null,
+    actualRevenue: null,
+    assessmentDate: null,
+  };
+}
+
+function calculateOpportunityMetrics(opp: OpportunityBuilder): void {
+  const quotes = opp.quotes;
+
+  opp.quoteCount = quotes.length;
+
+  // Calculate value aggregations
+  let maxVal = 0;
+  let minVal = Infinity;
+  let totalVal = 0;
+
+  for (const q of quotes) {
+    const val = q.total || 0;
+    totalVal += val;
+    if (val > maxVal) maxVal = val;
+    if (val < minVal) minVal = val;
+  }
+
+  opp.maxQuoteValue = maxVal;
+  opp.minQuoteValue = minVal === Infinity ? 0 : minVal;
+  opp.totalQuotedValue = totalVal;
+
+  // Calculate date ranges (use drafted_date)
+  const dates = quotes
+    .map(q => q.drafted_date)
+    .filter((d): d is string => d !== null)
+    .sort();
+
+  if (dates.length > 0) {
+    opp.firstQuoteDate = dates[0];
+    opp.lastQuoteDate = dates[dates.length - 1];
+  }
+
+  // Determine conversion status
+  const converted = quotes.filter(q => q.status === 'Converted');
+  const archived = quotes.filter(q => q.status === 'Archived');
+
+  if (converted.length > 0) {
+    opp.isWon = true;
+    opp.isLost = false;
+    opp.isPending = false;
+
+    // Calculate won value and date
+    opp.wonValue = converted.reduce((sum, q) => sum + (q.total || 0), 0);
+
+    // Get earliest converted date
+    const convertedDates = converted
+      .map(q => q.converted_date)
+      .filter((d): d is string => d !== null)
+      .sort();
+    if (convertedDates.length > 0) {
+      opp.wonDate = convertedDates[0];
+    }
+
+    // Get won quote numbers
+    opp.wonQuoteNumbers = converted
+      .map(q => q.quote_number)
+      .filter((n): n is number => n !== null);
+
+    // Get job numbers from converted quotes
+    const jobNums: string[] = [];
+    for (const q of converted) {
+      if (q.job_numbers) {
+        const nums = q.job_numbers.split(',').map(n => n.trim()).filter(n => n && n !== '-');
+        jobNums.push(...nums);
+      }
+    }
+    opp.jobNumbers = [...new Set(jobNums)]; // Dedupe
+  } else if (archived.length === quotes.length && quotes.length > 0) {
+    // All quotes archived = lost
+    opp.isWon = false;
+    opp.isLost = true;
+    opp.isPending = false;
+  } else {
+    // Some pending quotes
+    opp.isWon = false;
+    opp.isLost = false;
+    opp.isPending = true;
+  }
+}
