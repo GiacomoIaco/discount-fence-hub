@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Calendar, User, MapPin, X, ChevronDown } from 'lucide-react';
 import { useJobberJobs } from '../../hooks/jobber';
-import type { JobberFilters, JobberFilterOptions, TimePreset, JobSizeCategory } from '../../types/jobber';
+import type { JobberFilters, JobberFilterOptions, TimePreset, JobSizeCategory, DateFieldType } from '../../types/jobber';
 import { getTimePresetLabel, getDateRangeFromPreset, DEFAULT_JOBBER_FILTERS } from '../../types/jobber';
 
 interface JobberFiltersBarProps {
@@ -30,6 +30,12 @@ const JOB_SIZE_OPTIONS: { label: string; value: JobSizeCategory; description: st
   { label: 'Standard', value: 'standard', description: '> $500' },
   { label: 'Small', value: 'small', description: '$1-500' },
   { label: 'Warranty', value: 'warranty', description: '$0' },
+];
+
+const DATE_FIELD_OPTIONS: { label: string; value: DateFieldType; description: string }[] = [
+  { label: 'Created', value: 'created_date', description: 'When job was entered' },
+  { label: 'Scheduled', value: 'scheduled_start_date', description: 'When work was planned' },
+  { label: 'Closed', value: 'closed_date', description: 'When job was completed' },
 ];
 
 export function JobberFiltersBar({ filters, onChange }: JobberFiltersBarProps) {
@@ -96,6 +102,7 @@ export function JobberFiltersBar({ filters, onChange }: JobberFiltersBarProps) {
 
   const hasActiveFilters =
     filters.timePreset !== DEFAULT_JOBBER_FILTERS.timePreset ||
+    filters.dateField !== DEFAULT_JOBBER_FILTERS.dateField ||
     filters.salesperson ||
     filters.location ||
     JSON.stringify(filters.jobSizes) !== JSON.stringify(DEFAULT_JOBBER_FILTERS.jobSizes);
@@ -151,6 +158,22 @@ export function JobberFiltersBar({ filters, onChange }: JobberFiltersBarProps) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Date Field Filter (by which date to filter) */}
+      <div className="relative">
+        <select
+          value={filters.dateField || 'created_date'}
+          onChange={(e) => onChange({ ...filters, dateField: e.target.value as DateFieldType })}
+          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+          title="Filter jobs by this date field"
+        >
+          {DATE_FIELD_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>
+              By {option.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Job Size Filter (Multi-select) */}

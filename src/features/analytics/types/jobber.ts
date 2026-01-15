@@ -393,12 +393,15 @@ export type TimePreset =
 
 export type JobSizeCategory = 'standard' | 'small' | 'warranty';
 
+export type DateFieldType = 'created_date' | 'scheduled_start_date' | 'closed_date';
+
 export interface JobberFilters {
   timePreset: TimePreset;
   dateRange: {
     start: Date | null;
     end: Date | null;
   };
+  dateField: DateFieldType;  // Which date field to filter by
   salesperson: string | null;
   location: string | null;
   jobSizes: JobSizeCategory[];  // Multi-select: which job sizes to include
@@ -523,6 +526,7 @@ export function getTimePresetLabel(preset: TimePreset): string {
 export const DEFAULT_JOBBER_FILTERS: JobberFilters = {
   timePreset: 'this_year',
   dateRange: { start: null, end: null },
+  dateField: 'created_date',  // Default: filter by job creation date
   salesperson: null,
   location: null,
   jobSizes: ['standard', 'small'],  // Default: exclude warranties

@@ -18,17 +18,20 @@ export function useJobberJobs({ filters, enabled = true }: UseJobberJobsOptions 
   return useQuery({
     queryKey: ['jobber-jobs', filters],
     queryFn: async () => {
+      // Use selected date field for filtering (default to created_date)
+      const dateField = filters?.dateField || 'created_date';
+
       let query = supabase
         .from('jobber_builder_jobs')
         .select('*')
-        .order('created_date', { ascending: false });
+        .order(dateField, { ascending: false });
 
-      // Apply date filters
+      // Apply date filters using the selected date field
       if (filters?.dateRange.start) {
-        query = query.gte('created_date', filters.dateRange.start.toISOString().split('T')[0]);
+        query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
       }
       if (filters?.dateRange.end) {
-        query = query.lte('created_date', filters.dateRange.end.toISOString().split('T')[0]);
+        query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
       }
 
       // Apply salesperson filter
@@ -67,15 +70,17 @@ export function useJobberJobsCount(filters?: JobberFilters) {
   return useQuery({
     queryKey: ['jobber-jobs-count', filters],
     queryFn: async () => {
+      const dateField = filters?.dateField || 'created_date';
+
       let query = supabase
         .from('jobber_builder_jobs')
         .select('total_revenue');
 
       if (filters?.dateRange.start) {
-        query = query.gte('created_date', filters.dateRange.start.toISOString().split('T')[0]);
+        query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
       }
       if (filters?.dateRange.end) {
-        query = query.lte('created_date', filters.dateRange.end.toISOString().split('T')[0]);
+        query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
       }
       if (filters?.salesperson) {
         query = query.eq('effective_salesperson', filters.salesperson);
