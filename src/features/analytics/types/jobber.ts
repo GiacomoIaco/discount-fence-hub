@@ -276,8 +276,10 @@ export interface JobberBuilderInvoice {
 export interface SalespersonMetrics {
   name: string;
   total_jobs: number;
-  substantial_jobs: number;
-  warranty_jobs: number;
+  substantial_jobs: number;  // > $500
+  small_jobs: number;        // $1-500
+  warranty_jobs: number;     // $0
+  warranty_percent: number;  // warranty_jobs / total_jobs
   total_revenue: number;
   avg_job_value: number;
   avg_days_to_schedule: number | null;
@@ -289,8 +291,9 @@ export interface MonthlyTrend {
   month: string;
   label: string;
   total_jobs: number;
-  substantial_jobs: number;
-  warranty_jobs: number;
+  substantial_jobs: number;  // > $500
+  small_jobs: number;        // $1-500
+  warranty_jobs: number;     // $0
   revenue: number;
   avg_job_value: number;
 }
@@ -373,20 +376,157 @@ export interface QBOSyncMetrics {
 // Filter Types
 // =====================
 
+export type TimePreset =
+  | 'this_week'
+  | 'last_week'
+  | 'this_month'
+  | 'last_month'
+  | 'this_quarter'
+  | 'last_quarter'
+  | 'this_year'
+  | 'last_year'
+  | 'last_30_days'
+  | 'last_90_days'
+  | 'ytd'
+  | 'all_time'
+  | 'custom';
+
+export type JobSizeCategory = 'standard' | 'small' | 'warranty';
+
 export interface JobberFilters {
+  timePreset: TimePreset;
   dateRange: {
     start: Date | null;
     end: Date | null;
   };
   salesperson: string | null;
   location: string | null;
-  includeWarranties: boolean;
+  jobSizes: JobSizeCategory[];  // Multi-select: which job sizes to include
 }
 
 export interface JobberFilterOptions {
   salespersons: string[];
   locations: string[];
 }
+
+// Helper to get job size category from revenue
+export function getJobSizeCategory(revenue: number): JobSizeCategory {
+  if (revenue > 500) return 'standard';
+  if (revenue > 0) return 'small';
+  return 'warranty';  // $0 = warranty/callback
+}
+
+// Helper to check if job matches size filter
+export function jobMatchesSizeFilter(revenue: number, allowedSizes: JobSizeCategory[]): boolean {
+  const category = getJobSizeCategory(revenue);
+  return allowedSizes.includes(category);
+}
+
+// Helper to convert time preset to date range
+export function getDateRangeFromPreset(preset: TimePreset): { start: Date | null; end: Date | null } {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  const startOfToday = new Date(today);
+  startOfToday.setHours(0, 0, 0, 0);
+
+  switch (preset) {
+    case 'this_week': {
+      const start = new Date(startOfToday);
+      const dayOfWeek = start.getDay();
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday as start of week
+      start.setDate(start.getDate() - diff);
+      return { start, end: today };
+    }
+    case 'last_week': {
+      const end = new Date(startOfToday);
+      const dayOfWeek = end.getDay();
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      end.setDate(end.getDate() - diff - 1); // Last Sunday
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6); // Last Monday
+      return { start, end };
+    }
+    case 'this_month': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start, end: today };
+    }
+    case 'last_month': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0); // Last day of previous month
+      return { start, end };
+    }
+    case 'this_quarter': {
+      const quarterMonth = Math.floor(today.getMonth() / 3) * 3;
+      const start = new Date(today.getFullYear(), quarterMonth, 1);
+      return { start, end: today };
+    }
+    case 'last_quarter': {
+      const currentQuarterMonth = Math.floor(today.getMonth() / 3) * 3;
+      const start = new Date(today.getFullYear(), currentQuarterMonth - 3, 1);
+      const end = new Date(today.getFullYear(), currentQuarterMonth, 0);
+      return { start, end };
+    }
+    case 'this_year': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { start, end: today };
+    }
+    case 'last_year': {
+      const start = new Date(today.getFullYear() - 1, 0, 1);
+      const end = new Date(today.getFullYear() - 1, 11, 31);
+      return { start, end };
+    }
+    case 'last_30_days': {
+      const start = new Date(startOfToday);
+      start.setDate(start.getDate() - 30);
+      return { start, end: today };
+    }
+    case 'last_90_days': {
+      const start = new Date(startOfToday);
+      start.setDate(start.getDate() - 90);
+      return { start, end: today };
+    }
+    case 'ytd': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { start, end: today };
+    }
+    case 'all_time':
+      return { start: null, end: null };
+    case 'custom':
+      return { start: null, end: null }; // Custom will use existing dateRange
+    default:
+      return { start: null, end: null };
+  }
+}
+
+// Get display label for time preset
+export function getTimePresetLabel(preset: TimePreset): string {
+  const labels: Record<TimePreset, string> = {
+    this_week: 'This Week',
+    last_week: 'Last Week',
+    this_month: 'This Month',
+    last_month: 'Last Month',
+    this_quarter: 'This Quarter',
+    last_quarter: 'Last Quarter',
+    this_year: 'This Year',
+    last_year: 'Last Year',
+    last_30_days: 'Last 30 Days',
+    last_90_days: 'Last 90 Days',
+    ytd: 'Year to Date',
+    all_time: 'All Time',
+    custom: 'Custom',
+  };
+  return labels[preset] || preset;
+}
+
+// Default filters
+export const DEFAULT_JOBBER_FILTERS: JobberFilters = {
+  timePreset: 'this_year',
+  dateRange: { start: null, end: null },
+  salesperson: null,
+  location: null,
+  jobSizes: ['standard', 'small'],  // Default: exclude warranties
+};
 
 // =====================
 // Import Types
@@ -415,10 +555,12 @@ export interface CSVRow {
 
 export type JobberDashboardTab =
   | 'overview'
+  | 'trends'
   | 'salespeople'
   | 'clients'
   | 'pipeline'
-  | 'cycletime';
+  | 'cycletime'
+  | 'reports';
 
 export interface JobberDashboardState {
   activeTab: JobberDashboardTab;
@@ -438,4 +580,61 @@ export interface ExecutiveSummaryData {
   quoteConversionRate: number;
   speedToInvoice: number;
   qboSyncRate: number;
+}
+
+// =====================
+// Monthly Report Types
+// =====================
+
+export interface MonthlyReportObservation {
+  id: string;
+  category: 'revenue' | 'cycle_time' | 'warranty' | 'salesperson' | 'client' | 'trend' | 'opportunity';
+  title: string;
+  observation: string;
+  impact: 'positive' | 'negative' | 'neutral';
+  metric_value?: string;
+  comparison_value?: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface MonthlyReportComment {
+  id: string;
+  observation_id: string | null;  // null for general comments
+  author: string;
+  content: string;
+  created_at: string;
+}
+
+export interface MonthlyReport {
+  id: string;
+  month: string;  // YYYY-MM format
+  business_unit: 'builder' | 'residential';
+  generated_at: string;
+  generated_by: string | null;
+
+  // Summary stats
+  total_revenue: number;
+  total_jobs: number;
+  standard_jobs: number;
+  small_jobs: number;
+  warranty_jobs: number;
+  avg_cycle_days: number | null;
+  warranty_rate: number;
+
+  // Comparison to prior month
+  revenue_change_pct: number | null;
+  jobs_change_pct: number | null;
+
+  // AI observations
+  observations: MonthlyReportObservation[];
+
+  // Manager comments
+  comments: MonthlyReportComment[];
+
+  // Status
+  status: 'draft' | 'reviewed' | 'published' | 'sent';
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  sent_at: string | null;
+  sent_to: string[] | null;
 }

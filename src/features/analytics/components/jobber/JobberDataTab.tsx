@@ -17,24 +17,26 @@ import { DayOfWeekPatterns } from './dashboard/DayOfWeekPatterns';
 import { CrewPerformance } from './dashboard/CrewPerformance';
 import { OpenPipelineTracker } from './dashboard/OpenPipelineTracker';
 import { QBOSyncStatus } from './dashboard/QBOSyncStatus';
+import { TrendsAnalysis } from './dashboard/TrendsAnalysis';
+import { MonthlyReportView } from './dashboard/MonthlyReportView';
+import { ImportHistory } from './dashboard/ImportHistory';
 import { useImportStats } from '../../hooks/jobber';
 import { useSalespersonDetail } from '../../hooks/jobber/useSalespersonMetrics';
 import { useClientDetail } from '../../hooks/jobber/useClientMetrics';
 import type { JobberFilters, JobberDashboardTab } from '../../types/jobber';
+import { DEFAULT_JOBBER_FILTERS, getDateRangeFromPreset } from '../../types/jobber';
 
 type BusinessUnit = 'builder' | 'residential';
 
 export function JobberDataTab() {
-  // State
+  // State - initialize with default filters and compute initial date range
   const [businessUnit, setBusinessUnit] = useState<BusinessUnit>('builder');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [dashboardTab, setDashboardTab] = useState<JobberDashboardTab>('overview');
-  const [filters, setFilters] = useState<JobberFilters>({
-    dateRange: { start: null, end: null },
-    salesperson: null,
-    location: null,
-    includeWarranties: false,
-  });
+  const [filters, setFilters] = useState<JobberFilters>(() => ({
+    ...DEFAULT_JOBBER_FILTERS,
+    dateRange: getDateRangeFromPreset(DEFAULT_JOBBER_FILTERS.timePreset),
+  }));
   const [selectedSalesperson, setSelectedSalesperson] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
 
@@ -46,10 +48,12 @@ export function JobberDataTab() {
   // Dashboard tabs
   const tabs: { id: JobberDashboardTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
+    { id: 'trends', label: 'Trends' },
     { id: 'salespeople', label: 'Salespeople' },
     { id: 'clients', label: 'Clients' },
     { id: 'pipeline', label: 'Pipeline' },
     { id: 'cycletime', label: 'Cycle Time' },
+    { id: 'reports', label: 'Reports' },
   ];
 
   const formatDate = (dateStr: string | null | undefined) => {
@@ -117,9 +121,13 @@ export function JobberDataTab() {
         </button>
       </div>
 
-      {/* Import Stats */}
+      {/* Compact Import Stats - click to see full history on Reports tab */}
       {importStats && (
-        <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm">
+        <div
+          className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm cursor-pointer hover:bg-gray-100 transition-colors"
+          onClick={() => setDashboardTab('reports')}
+          title="Click to view import history"
+        >
           <div>
             <span className="text-gray-500">Jobs:</span>
             <span className="ml-2 font-medium">{importStats.totalJobs.toLocaleString()} records</span>
@@ -192,6 +200,10 @@ export function JobberDataTab() {
           </>
         )}
 
+        {dashboardTab === 'trends' && (
+          <TrendsAnalysis filters={filters} />
+        )}
+
         {dashboardTab === 'salespeople' && (
           <>
             <SalespersonLeaderboard
@@ -225,6 +237,16 @@ export function JobberDataTab() {
               <CrewPerformance filters={filters} />
             </div>
           </>
+        )}
+
+        {dashboardTab === 'reports' && (
+          <div className="space-y-6">
+            <ImportHistory
+              businessUnit={businessUnit}
+              onUploadClick={() => setShowUploadModal(true)}
+            />
+            <MonthlyReportView filters={filters} />
+          </div>
         )}
       </div>
 

@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/supabase';
 import type { JobberFilters, CycleTimeMetrics, CycleTimeDistribution, DayOfWeekPattern } from '../../types/jobber';
+import { jobMatchesSizeFilter, DEFAULT_JOBBER_FILTERS } from '../../types/jobber';
 
 /**
  * Get cycle time stage metrics
@@ -14,7 +15,7 @@ export function useCycleTimeMetrics(filters?: JobberFilters) {
       // Get jobs with cycle time data
       let query = supabase
         .from('jobber_builder_jobs')
-        .select('days_to_schedule, days_to_close, total_cycle_days')
+        .select('days_to_schedule, days_to_close, total_cycle_days, total_revenue')
         .not('closed_date', 'is', null);
 
       if (filters?.dateRange.start) {
@@ -29,15 +30,18 @@ export function useCycleTimeMetrics(filters?: JobberFilters) {
       if (filters?.location) {
         query = query.eq('franchise_location', filters.location);
       }
-      if (filters && !filters.includeWarranties) {
-        query = query.eq('is_warranty', false);
-      }
 
-      const { data: jobs, error } = await query;
+      const { data: allJobs, error } = await query;
 
       if (error) {
         throw new Error(`Failed to fetch cycle time data: ${error.message}`);
       }
+
+      // Apply job size filter client-side
+      const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
+      const jobs = (allJobs || []).filter(job =>
+        jobMatchesSizeFilter(job.total_revenue, jobSizes)
+      );
 
       // Calculate metrics for each stage
       const scheduleArray = (jobs || [])
@@ -98,7 +102,7 @@ export function useCycleTimeDistribution(filters?: JobberFilters) {
     queryFn: async () => {
       let query = supabase
         .from('jobber_builder_jobs')
-        .select('total_cycle_days')
+        .select('total_cycle_days, total_revenue')
         .not('closed_date', 'is', null);
 
       if (filters?.dateRange.start) {
@@ -113,15 +117,18 @@ export function useCycleTimeDistribution(filters?: JobberFilters) {
       if (filters?.location) {
         query = query.eq('franchise_location', filters.location);
       }
-      if (filters && !filters.includeWarranties) {
-        query = query.eq('is_warranty', false);
-      }
 
-      const { data: jobs, error } = await query;
+      const { data: allJobs, error } = await query;
 
       if (error) {
         throw new Error(`Failed to fetch cycle distribution: ${error.message}`);
       }
+
+      // Apply job size filter client-side
+      const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
+      const jobs = (allJobs || []).filter(job =>
+        jobMatchesSizeFilter(job.total_revenue, jobSizes)
+      );
 
       // Define buckets
       const buckets = [

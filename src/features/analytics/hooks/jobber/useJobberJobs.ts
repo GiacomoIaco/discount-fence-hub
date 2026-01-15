@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/supabase';
 import type { JobberBuilderJob, JobberFilters } from '../../types/jobber';
+import { jobMatchesSizeFilter, DEFAULT_JOBBER_FILTERS } from '../../types/jobber';
 
 interface UseJobberJobsOptions {
   filters?: JobberFilters;
@@ -11,6 +12,7 @@ interface UseJobberJobsOptions {
 
 /**
  * Fetch builder jobs with optional filters
+ * Now uses job size categories (standard/small/warranty) instead of binary includeWarranties
  */
 export function useJobberJobs({ filters, enabled = true }: UseJobberJobsOptions = {}) {
   return useQuery({
@@ -39,18 +41,19 @@ export function useJobberJobs({ filters, enabled = true }: UseJobberJobsOptions 
         query = query.eq('franchise_location', filters.location);
       }
 
-      // Filter warranties unless included
-      if (filters && !filters.includeWarranties) {
-        query = query.eq('is_warranty', false);
-      }
-
       const { data, error } = await query;
 
       if (error) {
         throw new Error(`Failed to fetch jobs: ${error.message}`);
       }
 
-      return data as JobberBuilderJob[];
+      // Apply job size filter client-side (more flexible than DB filtering)
+      const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
+      const filteredData = (data as JobberBuilderJob[]).filter(job =>
+        jobMatchesSizeFilter(job.total_revenue, jobSizes)
+      );
+
+      return filteredData;
     },
     enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -58,7 +61,7 @@ export function useJobberJobs({ filters, enabled = true }: UseJobberJobsOptions 
 }
 
 /**
- * Get total job count
+ * Get total job count with job size filtering
  */
 export function useJobberJobsCount(filters?: JobberFilters) {
   return useQuery({
@@ -66,7 +69,7 @@ export function useJobberJobsCount(filters?: JobberFilters) {
     queryFn: async () => {
       let query = supabase
         .from('jobber_builder_jobs')
-        .select('id', { count: 'exact', head: true });
+        .select('total_revenue');
 
       if (filters?.dateRange.start) {
         query = query.gte('created_date', filters.dateRange.start.toISOString().split('T')[0]);
@@ -80,17 +83,20 @@ export function useJobberJobsCount(filters?: JobberFilters) {
       if (filters?.location) {
         query = query.eq('franchise_location', filters.location);
       }
-      if (filters && !filters.includeWarranties) {
-        query = query.eq('is_warranty', false);
-      }
 
-      const { count, error } = await query;
+      const { data, error } = await query;
 
       if (error) {
         throw new Error(`Failed to count jobs: ${error.message}`);
       }
 
-      return count || 0;
+      // Apply job size filter client-side
+      const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
+      const count = (data || []).filter(job =>
+        jobMatchesSizeFilter(job.total_revenue, jobSizes)
+      ).length;
+
+      return count;
     },
     staleTime: 5 * 60 * 1000,
   });

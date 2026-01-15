@@ -1,7 +1,8 @@
-// Monthly trend chart component
+// Monthly trend chart component with bar labels and YoY growth
 
 import { useMemo } from 'react';
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from 'recharts';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart, LabelList } from 'recharts';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useMonthlyTrend } from '../../../hooks/jobber/useSalespersonMetrics';
 import type { JobberFilters } from '../../../types/jobber';
 
@@ -11,26 +12,83 @@ interface MonthlyTrendChartProps {
 }
 
 export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartProps) {
-  const { data: trend, isLoading } = useMonthlyTrend(
-    12,
-    filters.salesperson,
-    filters.location
-  );
+  // Now passes full filters object, respecting date range, salesperson, location, and job sizes
+  const { data: trend, isLoading } = useMonthlyTrend(filters);
 
-  const chartData = useMemo(() => {
-    return (trend || []).map(t => ({
+  const { chartData, yoyGrowth, periodStats } = useMemo(() => {
+    const data = (trend || []).map(t => ({
       ...t,
       revenue: t.revenue,
       revenueK: t.revenue / 1000, // For display
       jobs: t.total_jobs,
     }));
+
+    // Calculate YoY growth if we have at least 12 months of data
+    let yoyGrowth: { revenue: number | null; jobs: number | null } = { revenue: null, jobs: null };
+
+    if (data.length >= 12) {
+      const currentYearData = data.slice(-6);
+      const priorYearData = data.slice(-12, -6);
+
+      const currentRevenue = currentYearData.reduce((sum, d) => sum + d.revenue, 0);
+      const priorRevenue = priorYearData.reduce((sum, d) => sum + d.revenue, 0);
+      const currentJobs = currentYearData.reduce((sum, d) => sum + d.jobs, 0);
+      const priorJobs = priorYearData.reduce((sum, d) => sum + d.jobs, 0);
+
+      if (priorRevenue > 0) {
+        yoyGrowth.revenue = ((currentRevenue - priorRevenue) / priorRevenue) * 100;
+      }
+      if (priorJobs > 0) {
+        yoyGrowth.jobs = ((currentJobs - priorJobs) / priorJobs) * 100;
+      }
+    }
+
+    // Period stats
+    const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
+    const totalJobs = data.reduce((sum, d) => sum + d.jobs, 0);
+    const avgMonthly = data.length > 0 ? totalRevenue / data.length : 0;
+
+    return {
+      chartData: data,
+      yoyGrowth,
+      periodStats: { totalRevenue, totalJobs, avgMonthly },
+    };
   }, [trend]);
 
   const formatCurrency = (value: number) => {
-    if (value >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
-    }
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
     return `$${value.toFixed(0)}`;
+  };
+
+  const formatBarLabel = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
+    return `${value.toFixed(0)}`;
+  };
+
+  const renderGrowthIndicator = (value: number | null, label: string) => {
+    if (value === null) return null;
+
+    const isPositive = value > 0;
+    const isNeutral = Math.abs(value) < 1;
+
+    return (
+      <div className={`flex items-center gap-1 ${
+        isNeutral ? 'text-gray-500' :
+        isPositive ? 'text-green-600' : 'text-red-600'
+      }`}>
+        {isNeutral ? (
+          <Minus className="w-4 h-4" />
+        ) : isPositive ? (
+          <TrendingUp className="w-4 h-4" />
+        ) : (
+          <TrendingDown className="w-4 h-4" />
+        )}
+        <span className="font-semibold">{isPositive ? '+' : ''}{value.toFixed(1)}%</span>
+        <span className="text-xs text-gray-500">YoY {label}</span>
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -55,13 +113,21 @@ export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartPr
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Revenue Trend</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">Monthly Revenue Trend</h3>
 
-      <div className="h-64">
+        {/* YoY Growth Indicators */}
+        <div className="flex gap-4">
+          {renderGrowthIndicator(yoyGrowth.revenue, 'Revenue')}
+          {renderGrowthIndicator(yoyGrowth.jobs, 'Jobs')}
+        </div>
+      </div>
+
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={chartData}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            margin={{ top: 25, right: 30, left: 20, bottom: 5 }}
             onClick={(e) => {
               if (e?.activeLabel && onMonthClick) {
                 const monthData = chartData.find(d => d.label === e.activeLabel);
@@ -95,7 +161,16 @@ export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartPr
               fill="#3B82F6"
               radius={[4, 4, 0, 0]}
               cursor="pointer"
-            />
+            >
+              {/* Bar Labels */}
+              <LabelList
+                dataKey="revenue"
+                position="top"
+                formatter={(value: unknown) => formatBarLabel(Number(value))}
+                fill="#374151"
+                fontSize={10}
+              />
+            </Bar>
             <Line
               yAxisId="right"
               type="monotone"
@@ -114,19 +189,19 @@ export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartPr
         <div className="text-center">
           <div className="text-sm text-gray-500">Total Revenue</div>
           <div className="text-lg font-semibold text-gray-900">
-            ${chartData.reduce((sum, d) => sum + d.revenue, 0).toLocaleString()}
+            ${periodStats.totalRevenue.toLocaleString()}
           </div>
         </div>
         <div className="text-center">
           <div className="text-sm text-gray-500">Total Jobs</div>
           <div className="text-lg font-semibold text-gray-900">
-            {chartData.reduce((sum, d) => sum + d.jobs, 0).toLocaleString()}
+            {periodStats.totalJobs.toLocaleString()}
           </div>
         </div>
         <div className="text-center">
           <div className="text-sm text-gray-500">Avg Monthly</div>
           <div className="text-lg font-semibold text-gray-900">
-            ${(chartData.reduce((sum, d) => sum + d.revenue, 0) / chartData.length).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            ${periodStats.avgMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>

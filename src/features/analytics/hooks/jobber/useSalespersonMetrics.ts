@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/supabase';
 import type { SalespersonMetrics, JobberFilters, MonthlyTrend } from '../../types/jobber';
+import { jobMatchesSizeFilter, DEFAULT_JOBBER_FILTERS } from '../../types/jobber';
 
 /**
  * Get salesperson metrics using the database function
@@ -32,6 +33,7 @@ export function useSalespersonMetrics(filters?: JobberFilters) {
 
 /**
  * Fallback to client-side calculation if RPC fails
+ * Now calculates small_jobs ($1-500) and warranty_percent
  */
 async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<SalespersonMetrics[]> {
   let query = supabase
@@ -54,10 +56,14 @@ async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<Sale
     throw new Error(`Failed to fetch jobs for salesperson metrics: ${error.message}`);
   }
 
+  // Apply job size filters if specified
+  const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
+
   // Group by salesperson
   const spMap = new Map<string, {
     total_jobs: number;
     substantial_jobs: number;
+    small_jobs: number;
     warranty_jobs: number;
     total_revenue: number;
     schedule_days: number[];
@@ -69,9 +75,15 @@ async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<Sale
     const sp = job.effective_salesperson || '(Unassigned)';
     if (sp === '(Unassigned)') continue;
 
+    const revenue = Number(job.total_revenue) || 0;
+
+    // Check if this job matches the size filter
+    if (!jobMatchesSizeFilter(revenue, jobSizes)) continue;
+
     const existing = spMap.get(sp) || {
       total_jobs: 0,
       substantial_jobs: 0,
+      small_jobs: 0,
       warranty_jobs: 0,
       total_revenue: 0,
       schedule_days: [],
@@ -80,9 +92,16 @@ async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<Sale
     };
 
     existing.total_jobs++;
-    if (job.is_substantial) existing.substantial_jobs++;
-    if (job.is_warranty) existing.warranty_jobs++;
-    existing.total_revenue += Number(job.total_revenue) || 0;
+    existing.total_revenue += revenue;
+
+    // Categorize by revenue-based job size
+    if (revenue > 500) {
+      existing.substantial_jobs++;
+    } else if (revenue > 0) {
+      existing.small_jobs++;
+    } else {
+      existing.warranty_jobs++;
+    }
 
     if (job.days_to_schedule !== null && job.days_to_schedule >= 0) {
       existing.schedule_days.push(job.days_to_schedule);
@@ -103,7 +122,9 @@ async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<Sale
       name,
       total_jobs: data.total_jobs,
       substantial_jobs: data.substantial_jobs,
+      small_jobs: data.small_jobs,
       warranty_jobs: data.warranty_jobs,
+      warranty_percent: data.total_jobs > 0 ? (data.warranty_jobs / data.total_jobs) * 100 : 0,
       total_revenue: data.total_revenue,
       avg_job_value: data.substantial_jobs > 0 ? data.total_revenue / data.substantial_jobs : 0,
       avg_days_to_schedule: data.schedule_days.length > 0
@@ -122,55 +143,44 @@ async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<Sale
 }
 
 /**
- * Get monthly trend data
+ * Get monthly trend data - now accepts full filters object
+ * This ensures date range, salesperson, location, and job sizes are all respected
  */
-export function useMonthlyTrend(
-  months: number = 12,
-  salesperson?: string | null,
-  location?: string | null
-) {
+export function useMonthlyTrend(filters?: JobberFilters) {
   return useQuery({
-    queryKey: ['jobber-monthly-trend', months, salesperson, location],
+    queryKey: ['jobber-monthly-trend', filters],
     queryFn: async () => {
-      // Try the RPC function first
-      const { data, error } = await supabase.rpc('get_builder_monthly_trend', {
-        p_months: months,
-        p_salesperson: salesperson || null,
-        p_franchise_location: location || null,
-      });
-
-      if (error) {
-        console.error('Error fetching monthly trend:', error);
-        return await fallbackMonthlyTrend(months, salesperson, location);
-      }
-
-      return data as MonthlyTrend[];
+      // Always use client-side calculation for flexibility with job size filters
+      return await calculateMonthlyTrend(filters);
     },
     staleTime: 5 * 60 * 1000,
   });
 }
 
 /**
- * Fallback to client-side calculation for monthly trend
+ * Calculate monthly trend with full filter support
  */
-async function fallbackMonthlyTrend(
-  months: number,
-  salesperson?: string | null,
-  location?: string | null
-): Promise<MonthlyTrend[]> {
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - months);
-
+async function calculateMonthlyTrend(filters?: JobberFilters): Promise<MonthlyTrend[]> {
   let query = supabase
     .from('jobber_builder_jobs')
-    .select('created_date, total_revenue, is_substantial, is_warranty')
-    .gte('created_date', startDate.toISOString().split('T')[0]);
+    .select('created_date, total_revenue, is_substantial, is_warranty');
 
-  if (salesperson) {
-    query = query.eq('effective_salesperson', salesperson);
+  // Apply date range from filters
+  if (filters?.dateRange.start) {
+    query = query.gte('created_date', filters.dateRange.start.toISOString().split('T')[0]);
   }
-  if (location) {
-    query = query.eq('franchise_location', location);
+  if (filters?.dateRange.end) {
+    query = query.lte('created_date', filters.dateRange.end.toISOString().split('T')[0]);
+  }
+
+  // Apply salesperson filter
+  if (filters?.salesperson) {
+    query = query.eq('effective_salesperson', filters.salesperson);
+  }
+
+  // Apply location filter
+  if (filters?.location) {
+    query = query.eq('franchise_location', filters.location);
   }
 
   const { data: jobs, error } = await query;
@@ -179,16 +189,23 @@ async function fallbackMonthlyTrend(
     throw new Error(`Failed to fetch monthly trend: ${error.message}`);
   }
 
+  // Apply job size filter client-side
+  const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
+  const filteredJobs = (jobs || []).filter(job =>
+    jobMatchesSizeFilter(job.total_revenue, jobSizes)
+  );
+
   // Group by month
   const monthMap = new Map<string, {
     label: string;
     total_jobs: number;
     substantial_jobs: number;
     warranty_jobs: number;
+    small_jobs: number;
     revenue: number;
   }>();
 
-  for (const job of jobs || []) {
+  for (const job of filteredJobs) {
     if (!job.created_date) continue;
 
     const date = new Date(job.created_date);
@@ -200,13 +217,22 @@ async function fallbackMonthlyTrend(
       total_jobs: 0,
       substantial_jobs: 0,
       warranty_jobs: 0,
+      small_jobs: 0,
       revenue: 0,
     };
 
     existing.total_jobs++;
-    if (job.is_substantial) existing.substantial_jobs++;
-    if (job.is_warranty) existing.warranty_jobs++;
-    existing.revenue += Number(job.total_revenue) || 0;
+    const revenue = Number(job.total_revenue) || 0;
+    existing.revenue += revenue;
+
+    // Categorize by revenue-based job size
+    if (revenue > 500) {
+      existing.substantial_jobs++;
+    } else if (revenue > 0) {
+      existing.small_jobs++;
+    } else {
+      existing.warranty_jobs++;
+    }
 
     monthMap.set(monthKey, existing);
   }
