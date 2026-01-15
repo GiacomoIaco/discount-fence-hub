@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { FileText, Sparkles, MessageSquare, TrendingUp, AlertTriangle, CheckCircle, Send, ChevronDown, ChevronRight } from 'lucide-react';
 import { useJobberJobs } from '../../../hooks/jobber';
-import type { JobberFilters, MonthlyReportObservation, MonthlyReportComment } from '../../../types/jobber';
+import type { JobberFilters, MonthlyReportObservation, MonthlyReportComment, DateFieldType } from '../../../types/jobber';
 
 interface MonthlyReportViewProps {
   filters: JobberFilters;
@@ -141,6 +141,7 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
     ...filters,
     timePreset: 'custom',
     dateRange: { start: twoYearsAgo, end: new Date() },
+    dateField: 'created_date' as DateFieldType, // Always use created_date for broad fetch, then filter by closed_date client-side
   };
 
   const { data: allJobs, isLoading: jobsLoading } = useJobberJobs({ filters: broadFilters });

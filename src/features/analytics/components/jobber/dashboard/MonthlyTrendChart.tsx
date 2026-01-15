@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart, LabelList } from 'recharts';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useMonthlyTrend } from '../../../hooks/jobber/useSalespersonMetrics';
-import type { JobberFilters } from '../../../types/jobber';
+import type { JobberFilters, DateFieldType } from '../../../types/jobber';
 
 interface MonthlyTrendChartProps {
   filters: JobberFilters;
@@ -25,6 +25,7 @@ export function MonthlyTrendChart({ filters, onMonthClick }: MonthlyTrendChartPr
         start: fifteenMonthsAgo,
         end: new Date(),
       },
+      dateField: 'created_date' as DateFieldType, // Always use created_date for trend analysis
     };
   }, [filters]);
 

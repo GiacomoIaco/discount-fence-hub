@@ -161,16 +161,18 @@ export function useMonthlyTrend(filters?: JobberFilters) {
  * Calculate monthly trend with full filter support
  */
 async function calculateMonthlyTrend(filters?: JobberFilters): Promise<MonthlyTrend[]> {
+  const dateField = filters?.dateField || 'created_date';
+
   let query = supabase
     .from('jobber_builder_jobs')
-    .select('created_date, total_revenue, is_substantial, is_warranty');
+    .select('created_date, scheduled_start_date, closed_date, total_revenue, is_substantial, is_warranty');
 
-  // Apply date range from filters
+  // Apply date range from filters using the selected date field
   if (filters?.dateRange.start) {
-    query = query.gte('created_date', filters.dateRange.start.toISOString().split('T')[0]);
+    query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
   }
   if (filters?.dateRange.end) {
-    query = query.lte('created_date', filters.dateRange.end.toISOString().split('T')[0]);
+    query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
   }
 
   // Apply salesperson filter
@@ -195,7 +197,7 @@ async function calculateMonthlyTrend(filters?: JobberFilters): Promise<MonthlyTr
     jobMatchesSizeFilter(job.total_revenue, jobSizes)
   );
 
-  // Group by month
+  // Group by month using the selected date field
   const monthMap = new Map<string, {
     label: string;
     total_jobs: number;
@@ -206,9 +208,11 @@ async function calculateMonthlyTrend(filters?: JobberFilters): Promise<MonthlyTr
   }>();
 
   for (const job of filteredJobs) {
-    if (!job.created_date) continue;
+    // Get the date value based on selected date field
+    const dateValue = job[dateField as keyof typeof job] as string | null;
+    if (!dateValue) continue;
 
-    const date = new Date(job.created_date);
+    const date = new Date(dateValue);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 
