@@ -5,7 +5,7 @@ import { useRateSheets } from '../../client_hub/hooks/useRateSheets';
 
 export default function QboClassesSettings() {
   const { data: classes, isLoading } = useQboClasses();
-  const { data: rateSheets } = useRateSheets({ isActive: true });
+  const { data: rateSheets } = useRateSheets({ is_active: true });
   const syncMutation = useSyncQboClasses();
   const updateSelectableMutation = useUpdateQboClassSelectable();
   const updateDefaultRateSheetMutation = useUpdateQboClassDefaultRateSheet();
