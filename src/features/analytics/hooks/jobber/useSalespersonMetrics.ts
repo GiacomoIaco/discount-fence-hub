@@ -32,29 +32,76 @@ export function useSalespersonMetrics(filters?: JobberFilters) {
 }
 
 /**
+ * Helper function to fetch all jobs with pagination (Supabase default limit is 1000)
+ */
+async function fetchAllJobsWithFilters<T>(
+  selectFields: string,
+  filters?: JobberFilters,
+  dateField: string = 'created_date'
+): Promise<T[]> {
+  const allJobs: T[] = [];
+  const pageSize = 1000;
+  let offset = 0;
+
+  while (true) {
+    let query = supabase
+      .from('jobber_builder_jobs')
+      .select(selectFields)
+      .range(offset, offset + pageSize - 1);
+
+    if (filters?.dateRange.start) {
+      query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
+    }
+    if (filters?.dateRange.end) {
+      query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
+    }
+    if (filters?.salesperson) {
+      query = query.eq('effective_salesperson', filters.salesperson);
+    }
+    if (filters?.location) {
+      query = query.eq('franchise_location', filters.location);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch jobs: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allJobs.push(...(data as T[]));
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return allJobs;
+}
+
+/**
  * Fallback to client-side calculation if RPC fails
  * Now calculates small_jobs ($1-500) and warranty_percent
+ * Uses pagination to fetch all jobs
  */
 async function fallbackSalespersonMetrics(filters?: JobberFilters): Promise<SalespersonMetrics[]> {
-  let query = supabase
-    .from('jobber_builder_jobs')
-    .select('effective_salesperson, total_revenue, is_substantial, is_warranty, days_to_schedule, days_to_close, total_cycle_days');
-
-  if (filters?.dateRange.start) {
-    query = query.gte('created_date', filters.dateRange.start.toISOString().split('T')[0]);
-  }
-  if (filters?.dateRange.end) {
-    query = query.lte('created_date', filters.dateRange.end.toISOString().split('T')[0]);
-  }
-  if (filters?.location) {
-    query = query.eq('franchise_location', filters.location);
-  }
-
-  const { data: jobs, error } = await query;
-
-  if (error) {
-    throw new Error(`Failed to fetch jobs for salesperson metrics: ${error.message}`);
-  }
+  const jobs = await fetchAllJobsWithFilters<{
+    effective_salesperson: string | null;
+    total_revenue: number | null;
+    is_substantial: boolean | null;
+    is_warranty: boolean | null;
+    days_to_schedule: number | null;
+    days_to_close: number | null;
+    total_cycle_days: number | null;
+  }>(
+    'effective_salesperson, total_revenue, is_substantial, is_warranty, days_to_schedule, days_to_close, total_cycle_days',
+    filters
+  );
 
   // Apply job size filters if specified
   const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
@@ -159,42 +206,28 @@ export function useMonthlyTrend(filters?: JobberFilters) {
 
 /**
  * Calculate monthly trend with full filter support
+ * Uses pagination to fetch all jobs
  */
 async function calculateMonthlyTrend(filters?: JobberFilters): Promise<MonthlyTrend[]> {
   const dateField = filters?.dateField || 'created_date';
 
-  let query = supabase
-    .from('jobber_builder_jobs')
-    .select('created_date, scheduled_start_date, closed_date, total_revenue, is_substantial, is_warranty');
-
-  // Apply date range from filters using the selected date field
-  if (filters?.dateRange.start) {
-    query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
-  }
-  if (filters?.dateRange.end) {
-    query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
-  }
-
-  // Apply salesperson filter
-  if (filters?.salesperson) {
-    query = query.eq('effective_salesperson', filters.salesperson);
-  }
-
-  // Apply location filter
-  if (filters?.location) {
-    query = query.eq('franchise_location', filters.location);
-  }
-
-  const { data: jobs, error } = await query;
-
-  if (error) {
-    throw new Error(`Failed to fetch monthly trend: ${error.message}`);
-  }
+  const jobs = await fetchAllJobsWithFilters<{
+    created_date: string | null;
+    scheduled_start_date: string | null;
+    closed_date: string | null;
+    total_revenue: number | null;
+    is_substantial: boolean | null;
+    is_warranty: boolean | null;
+  }>(
+    'created_date, scheduled_start_date, closed_date, total_revenue, is_substantial, is_warranty',
+    filters,
+    dateField
+  );
 
   // Apply job size filter client-side
   const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
   const filteredJobs = (jobs || []).filter(job =>
-    jobMatchesSizeFilter(job.total_revenue, jobSizes)
+    jobMatchesSizeFilter(Number(job.total_revenue) || 0, jobSizes)
   );
 
   // Group by month using the selected date field
@@ -260,21 +293,42 @@ export function useSalespersonDetail(salesperson: string | null) {
     queryFn: async () => {
       if (!salesperson) return null;
 
-      // Get all jobs for this salesperson
-      const { data: jobs, error } = await supabase
-        .from('jobber_builder_jobs')
-        .select('*')
-        .eq('effective_salesperson', salesperson)
-        .order('created_date', { ascending: false });
+      // Get all jobs for this salesperson with pagination
+      const allJobs: Record<string, unknown>[] = [];
+      const pageSize = 1000;
+      let offset = 0;
 
-      if (error) {
-        throw new Error(`Failed to fetch salesperson detail: ${error.message}`);
+      while (true) {
+        const { data, error } = await supabase
+          .from('jobber_builder_jobs')
+          .select('*')
+          .eq('effective_salesperson', salesperson)
+          .order('created_date', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) {
+          throw new Error(`Failed to fetch salesperson detail: ${error.message}`);
+        }
+
+        if (!data || data.length === 0) {
+          break;
+        }
+
+        allJobs.push(...data);
+
+        if (data.length < pageSize) {
+          break;
+        }
+
+        offset += pageSize;
       }
+
+      const jobs = allJobs;
 
       // Compute top clients
       const clientMap = new Map<string, { revenue: number; jobs: number }>();
       for (const job of jobs || []) {
-        const client = job.client_name || 'Unknown';
+        const client = String(job.client_name || 'Unknown');
         const existing = clientMap.get(client) || { revenue: 0, jobs: 0 };
         existing.revenue += Number(job.total_revenue) || 0;
         existing.jobs++;
@@ -289,7 +343,7 @@ export function useSalespersonDetail(salesperson: string | null) {
       // Compute top communities
       const communityMap = new Map<string, { revenue: number; jobs: number }>();
       for (const job of jobs || []) {
-        const community = job.community || 'Unknown';
+        const community = String(job.community || 'Unknown');
         if (community === 'Unknown') continue;
         const existing = communityMap.get(community) || { revenue: 0, jobs: 0 };
         existing.revenue += Number(job.total_revenue) || 0;

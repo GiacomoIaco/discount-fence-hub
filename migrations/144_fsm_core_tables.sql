@@ -329,8 +329,8 @@ CREATE TABLE IF NOT EXISTS quote_line_items (
   -- Source reference
   material_id UUID REFERENCES materials(id),
   labor_code_id UUID REFERENCES labor_codes(id),
-  sku_id UUID REFERENCES sku_catalog(id),
-  bom_line_item_id UUID REFERENCES bom_line_items(id),
+  sku_id UUID REFERENCES sku_catalog_v2(id),
+  project_line_item_id UUID REFERENCES project_line_items(id),
 
   -- Display
   sort_order INT DEFAULT 0,

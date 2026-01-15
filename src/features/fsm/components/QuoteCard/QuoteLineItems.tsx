@@ -12,6 +12,7 @@ import type { LineItemFormState, QuoteCardMode, QuoteTotals } from './types';
 import { LINE_TYPE_OPTIONS, UNIT_TYPE_OPTIONS } from './types';
 import SkuSearchCombobox from '../SkuSearchCombobox';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
+import { useCanSeeFinancials, useCanEditPrices, useCanGiveDiscounts } from '../../../../lib/permissions';
 
 // Currency formatter with commas
 const formatCurrency = (amount: number): string => {
@@ -56,6 +57,11 @@ export default function QuoteLineItems({
 }: QuoteLineItemsProps) {
   const isEditable = mode !== 'view';
   const activeItems = lineItems.filter(li => !li.isDeleted);
+
+  // Permission checks
+  const canSeeCosts = useCanSeeFinancials();
+  const canEditPrices = useCanEditPrices();
+  const canGiveDiscounts = useCanGiveDiscounts();
 
   // Local state for showing/hiding discount and deposit inputs
   const [showDiscount, setShowDiscount] = useState(parseFloat(discountPercent) > 0);
@@ -151,14 +157,14 @@ export default function QuoteLineItems({
         </div>
       ) : (
         <div className="divide-y">
-          {/* Table Header - Redesigned layout */}
+          {/* Table Header - Redesigned layout (Cost column hidden for sales reps) */}
           <div className="grid grid-cols-12 gap-2 px-6 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
             <div className="col-span-1">SKU</div>
-            <div className="col-span-4">Product/Service</div>
+            <div className={canSeeCosts ? 'col-span-4' : 'col-span-5'}>Product/Service</div>
             <div className="col-span-1 text-center">Qty</div>
             <div className="col-span-1 text-center">Unit</div>
-            <div className="col-span-1 text-right">Price</div>
-            <div className="col-span-2 text-right">Cost</div>
+            <div className={canSeeCosts ? 'col-span-1 text-right' : 'col-span-2 text-right'}>Price</div>
+            {canSeeCosts && <div className="col-span-2 text-right">Cost</div>}
             <div className="col-span-1 text-right">Total</div>
             {isEditable && <div className="col-span-1"></div>}
           </div>
@@ -204,7 +210,7 @@ export default function QuoteLineItems({
                 </div>
 
                 {/* Product/Service - SKU combobox + Description field */}
-                <div className="col-span-4">
+                <div className={canSeeCosts ? 'col-span-4' : 'col-span-5'}>
                   {isEditable ? (
                     <div className="space-y-2">
                       {/* Row 1: SKU search combobox or Product Name input */}
@@ -304,9 +310,9 @@ export default function QuoteLineItems({
                   )}
                 </div>
 
-                {/* Unit Price - Reduced width */}
-                <div className="col-span-1 pt-1">
-                  {isEditable && !item.sku_id ? (
+                {/* Unit Price - Wider when cost column is hidden, editing requires edit_prices permission */}
+                <div className={canSeeCosts ? 'col-span-1 pt-1' : 'col-span-2 pt-1'}>
+                  {isEditable && canEditPrices && !item.sku_id ? (
                     <input
                       type="number"
                       value={item.unit_price}
@@ -321,29 +327,31 @@ export default function QuoteLineItems({
                   )}
                 </div>
 
-                {/* Unit Cost - With M/L breakdown */}
-                <div className="col-span-2 pt-1">
-                  {isEditable && !item.sku_id ? (
-                    <input
-                      type="number"
-                      value={item.unit_cost}
-                      onChange={(e) => onUpdateItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-1 py-1 text-xs text-right border rounded focus:ring-2 focus:ring-purple-500"
-                      step="0.01"
-                    />
-                  ) : (
-                    <div className="text-right">
-                      <span className={`text-sm block ${item.sku_id ? 'text-gray-500' : 'text-gray-900'}`}>
-                        ${formatCurrency(item.unit_cost)}
-                      </span>
-                      {item.sku_id && item.material_unit_cost !== undefined && item.labor_unit_cost !== undefined && (
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          M: ${formatCurrency(item.material_unit_cost)} L: ${formatCurrency(item.labor_unit_cost)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {/* Unit Cost - With M/L breakdown (hidden from sales reps) */}
+                {canSeeCosts && (
+                  <div className="col-span-2 pt-1">
+                    {isEditable && !item.sku_id ? (
+                      <input
+                        type="number"
+                        value={item.unit_cost}
+                        onChange={(e) => onUpdateItem(index, { unit_cost: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-1 py-1 text-xs text-right border rounded focus:ring-2 focus:ring-purple-500"
+                        step="0.01"
+                      />
+                    ) : (
+                      <div className="text-right">
+                        <span className={`text-sm block ${item.sku_id ? 'text-gray-500' : 'text-gray-900'}`}>
+                          ${formatCurrency(item.unit_cost)}
+                        </span>
+                        {item.sku_id && item.material_unit_cost !== undefined && item.labor_unit_cost !== undefined && (
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            M: ${formatCurrency(item.material_unit_cost)} L: ${formatCurrency(item.labor_unit_cost)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Line Total */}
                 <div className="col-span-1 text-right font-medium text-sm pt-1">
@@ -412,8 +420,8 @@ export default function QuoteLineItems({
                 <span className="font-medium">${formatCurrency(totals.subtotal)}</span>
               </div>
 
-              {/* Discount - Jobber style */}
-              {isEditable ? (
+              {/* Discount - Jobber style (requires give_discounts permission to edit) */}
+              {isEditable && canGiveDiscounts ? (
                 showDiscount ? (
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">

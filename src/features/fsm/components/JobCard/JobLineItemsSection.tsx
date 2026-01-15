@@ -8,6 +8,7 @@
 import { Package, Wrench, User, DollarSign } from 'lucide-react';
 import type { JobLineItem } from '../../types';
 import CollapsibleSection from './CollapsibleSection';
+import { useCanSeeFinancials } from '../../../../lib/permissions';
 
 interface JobLineItemsSectionProps {
   lineItems: JobLineItem[];
@@ -31,6 +32,9 @@ export default function JobLineItemsSection({
   lineItems,
   totalAmount,
 }: JobLineItemsSectionProps) {
+  // Permission check - cost details hidden from sales reps
+  const canSeeCosts = useCanSeeFinancials();
+
   if (!lineItems || lineItems.length === 0) {
     return (
       <CollapsibleSection
@@ -99,7 +103,8 @@ export default function JobLineItemsSection({
               {/* Description */}
               <div className="col-span-5">
                 <p className="text-sm font-medium text-gray-900">{item.description}</p>
-                {item.sku_id && (
+                {/* Cost breakdown hidden from sales reps */}
+                {canSeeCosts && item.sku_id && (
                   <p className="text-xs text-gray-500">
                     M: ${formatCurrency(item.material_unit_cost)}/unit • L: ${formatCurrency(item.labor_unit_cost)}/unit
                   </p>
@@ -132,18 +137,22 @@ export default function JobLineItemsSection({
         {/* Totals Section */}
         <div className="px-4 py-4 bg-gray-50">
           <div className="max-w-xs ml-auto space-y-2">
-            {/* Cost Breakdown */}
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Material Cost</span>
-              <span>${formatCurrency(materialCost)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Labor Cost</span>
-              <span>${formatCurrency(laborCost)}</span>
-            </div>
+            {/* Cost Breakdown - hidden from sales reps */}
+            {canSeeCosts && (
+              <>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Material Cost</span>
+                  <span>${formatCurrency(materialCost)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Labor Cost</span>
+                  <span>${formatCurrency(laborCost)}</span>
+                </div>
+              </>
+            )}
 
             {/* Subtotal */}
-            <div className="flex justify-between text-sm pt-2 border-t">
+            <div className={`flex justify-between text-sm ${canSeeCosts ? 'pt-2 border-t' : ''}`}>
               <span className="text-gray-600">Subtotal</span>
               <span className="font-medium">${formatCurrency(subtotal)}</span>
             </div>

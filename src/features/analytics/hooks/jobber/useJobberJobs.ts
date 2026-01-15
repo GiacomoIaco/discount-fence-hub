@@ -13,6 +13,7 @@ interface UseJobberJobsOptions {
 /**
  * Fetch builder jobs with optional filters
  * Now uses job size categories (standard/small/warranty) instead of binary includeWarranties
+ * Uses pagination to fetch all jobs (Supabase default limit is 1000)
  */
 export function useJobberJobs({ filters, enabled = true }: UseJobberJobsOptions = {}) {
   return useQuery({
@@ -20,39 +21,59 @@ export function useJobberJobs({ filters, enabled = true }: UseJobberJobsOptions 
     queryFn: async () => {
       // Use selected date field for filtering (default to created_date)
       const dateField = filters?.dateField || 'created_date';
+      const allJobs: JobberBuilderJob[] = [];
+      const pageSize = 1000;
+      let offset = 0;
 
-      let query = supabase
-        .from('jobber_builder_jobs')
-        .select('*')
-        .order(dateField, { ascending: false });
+      // Fetch all jobs with pagination
+      while (true) {
+        let query = supabase
+          .from('jobber_builder_jobs')
+          .select('*')
+          .order(dateField, { ascending: false })
+          .range(offset, offset + pageSize - 1);
 
-      // Apply date filters using the selected date field
-      if (filters?.dateRange.start) {
-        query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
-      }
-      if (filters?.dateRange.end) {
-        query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
-      }
+        // Apply date filters using the selected date field
+        if (filters?.dateRange.start) {
+          query = query.gte(dateField, filters.dateRange.start.toISOString().split('T')[0]);
+        }
+        if (filters?.dateRange.end) {
+          query = query.lte(dateField, filters.dateRange.end.toISOString().split('T')[0]);
+        }
 
-      // Apply salesperson filter
-      if (filters?.salesperson) {
-        query = query.eq('effective_salesperson', filters.salesperson);
-      }
+        // Apply salesperson filter
+        if (filters?.salesperson) {
+          query = query.eq('effective_salesperson', filters.salesperson);
+        }
 
-      // Apply location filter
-      if (filters?.location) {
-        query = query.eq('franchise_location', filters.location);
-      }
+        // Apply location filter
+        if (filters?.location) {
+          query = query.eq('franchise_location', filters.location);
+        }
 
-      const { data, error } = await query;
+        const { data, error } = await query;
 
-      if (error) {
-        throw new Error(`Failed to fetch jobs: ${error.message}`);
+        if (error) {
+          throw new Error(`Failed to fetch jobs: ${error.message}`);
+        }
+
+        if (!data || data.length === 0) {
+          break;
+        }
+
+        allJobs.push(...(data as JobberBuilderJob[]));
+
+        // If we got fewer than pageSize, we've reached the end
+        if (data.length < pageSize) {
+          break;
+        }
+
+        offset += pageSize;
       }
 
       // Apply job size filter client-side (more flexible than DB filtering)
       const jobSizes = filters?.jobSizes || DEFAULT_JOBBER_FILTERS.jobSizes;
-      const filteredData = (data as JobberBuilderJob[]).filter(job =>
+      const filteredData = allJobs.filter(job =>
         jobMatchesSizeFilter(job.total_revenue, jobSizes)
       );
 

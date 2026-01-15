@@ -1,6 +1,15 @@
 # Implementation Checklist - FSM Architecture Overhaul
 
-## Status Summary (Updated: 2026-01-05)
+> **DEPRECATED**: This checklist uses old phase numbering (1-10).
+>
+> **USE INSTEAD**: `docs/FSM Planning/FSM_SYSTEM_STANDARDS.md`
+> - New phases: A (Foundation), B (Entity Unification), C (Files/Pricing), D (Advanced), E (Integrations)
+> - Phase A is COMPLETE
+> - Current work: Phase B
+
+---
+
+## Status Summary (Updated: 2026-01-05) - OUTDATED
 
 | Phase | Status | Completion |
 |-------|--------|------------|

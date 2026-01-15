@@ -9,6 +9,7 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import type { InvoiceLineItemsProps } from './types';
+import { useCanEditPrices, useCanGiveDiscounts } from '../../../../lib/permissions';
 
 export default function InvoiceLineItems({
   mode,
@@ -23,6 +24,10 @@ export default function InvoiceLineItems({
   onDiscountChange,
 }: InvoiceLineItemsProps) {
   const isEditable = mode !== 'view';
+
+  // Permission checks - price editing requires edit_prices permission
+  const canEditPrices = useCanEditPrices();
+  const canGiveDiscounts = useCanGiveDiscounts();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -89,9 +94,9 @@ export default function InvoiceLineItems({
                   )}
                 </td>
 
-                {/* Unit Price */}
+                {/* Unit Price - editing requires edit_prices permission */}
                 <td className="px-4 py-3">
-                  {isEditable ? (
+                  {isEditable && canEditPrices ? (
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                         $
@@ -188,11 +193,11 @@ export default function InvoiceLineItems({
             </span>
           </div>
 
-          {/* Discount */}
+          {/* Discount - editing requires give_discounts permission */}
           <div className="flex items-center justify-between w-72">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Discount</span>
-              {isEditable && (
+              {isEditable && canGiveDiscounts && (
                 <button
                   onClick={() => {
                     const newDiscount = prompt('Enter discount amount:', discountAmount.toString());

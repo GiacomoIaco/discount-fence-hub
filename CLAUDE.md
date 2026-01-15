@@ -18,6 +18,31 @@ Migrations use the service key from `.env` (not CLI auth). Commands:
 
 **Common failure**: Running from wrong directory (`.env` not found).
 
+#### Migration Tracking Best Practices
+
+**CRITICAL**: After running any migration via `migrate:direct`, you MUST update the tracking table to mark it as applied. Otherwise `migrate:status` will show it as "Pending" even though it ran.
+
+**To mark a migration as applied** after running it manually:
+```sql
+INSERT INTO schema_migrations (version, name, applied_by, execution_time_ms)
+VALUES ('NNN', 'migration_name', 'manual', 0)
+ON CONFLICT (version) DO NOTHING;
+```
+
+**Naming conventions**:
+- Standard: `NNN_description.sql` (e.g., `220_new_feature.sql`)
+- Sub-migrations: `NNNx_description.sql` (e.g., `220b_fix.sql`) - These are NOT tracked by the system
+- Always use the next available number (check `npm run migrate:status` first)
+
+**Avoid duplicate versions**: Never create two files with the same 3-digit version number. The tracking system uses version as a unique key.
+
+**Workflow for new migrations**:
+1. Run `npm run migrate:status` to find the next available number
+2. Create `migrations/NNN_description.sql`
+3. Run `npm run migrate:direct NNN_description.sql`
+4. Verify with `npm run migrate:status` - should show as Applied
+   - If it shows Pending, manually insert the tracking record (see above)
+
 ---
 
 ## Deployment
@@ -108,6 +133,11 @@ When user asks to expand on an idea (e.g., "expand on S-001"):
 ## FSM (Field Service Management) System
 
 The FSM is the core business logic managing the service lifecycle. **All FSM code is centralized in `/src/features/fsm/`**.
+
+> **Source of Truth**: See `docs/FSM Planning/FSM_SYSTEM_STANDARDS.md` for complete standards, requirements, and implementation phases.
+>
+> **Current Phase**: B (Entity Unification) - JobCard, InvoiceCard, Right Sidebar
+> **Completed**: Phase A (ResponsiveList, ProjectContextHeader, ProjectPipelineProgress)
 
 ### Directory Structure
 

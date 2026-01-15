@@ -15,6 +15,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import type { JobBudgetSectionProps } from './types';
+import { useCanSeeFinancials } from '../../../../lib/permissions';
 
 interface VarianceDisplayProps {
   label: string;
@@ -94,6 +95,10 @@ export default function JobBudgetSection({
   reworkReason,
   reworkCost,
 }: JobBudgetSectionProps) {
+  // Permission check - entire budget section is hidden from sales reps
+  const canSeeCosts = useCanSeeFinancials();
+  if (!canSeeCosts) return null;
+
   const {
     budgetedLaborHours,
     budgetedLaborCost,

@@ -188,7 +188,8 @@ export function useCreateRateSheetItem() {
       return result;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['rate-sheet', variables.rate_sheet_id] });
+      const sheetId = variables.rate_sheet_id;
+      queryClient.invalidateQueries({ queryKey: ['rate-sheet', sheetId] });
       queryClient.invalidateQueries({ queryKey: ['rate-sheets'] });
     },
   });
@@ -250,15 +251,17 @@ export function useBulkUpsertRateSheetItems() {
 
       const existingMap = new Map(existing?.map(e => [e.sku_id, e.id]) || []);
 
-      const toInsert: Partial<RateSheetItem>[] = [];
-      const toUpdate: { id: string; data: Partial<RateSheetItem> }[] = [];
+      const toInsert: any[] = [];
+      const toUpdate: { id: string; data: any }[] = [];
 
       for (const item of items) {
         const existingId = existingMap.get(item.sku_id!);
+        const mappedItem = { ...item, rate_sheet_id };
+
         if (existingId) {
-          toUpdate.push({ id: existingId, data: item });
+          toUpdate.push({ id: existingId, data: mappedItem });
         } else {
-          toInsert.push({ ...item, rate_sheet_id });
+          toInsert.push(mappedItem);
         }
       }
 
@@ -305,12 +308,18 @@ export function useCreateRateSheetAssignment() {
     }) => {
       const { data: user } = await supabase.auth.getUser();
 
+      const insertData = {
+        rate_sheet_id: data.rate_sheet_id,
+        client_id: data.client_id,
+        community_id: data.community_id,
+        is_default: data.is_default,
+        priority: data.priority,
+        created_by: user.user?.id,
+      };
+
       const { data: result, error } = await supabase
         .from('rate_sheet_assignments')
-        .insert({
-          ...data,
-          created_by: user.user?.id,
-        })
+        .insert(insertData)
         .select()
         .single();
 

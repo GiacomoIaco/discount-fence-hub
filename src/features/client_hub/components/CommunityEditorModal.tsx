@@ -353,13 +353,13 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
             </p>
           </div>
 
-          {/* Rate Sheet & QBO Class Override */}
+          {/* Price Book & QBO Class Override */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-gray-400" />
-                  Rate Sheet (Override)
+                  Price Book (Override)
                 </div>
               </label>
               <select
@@ -398,7 +398,7 @@ export default function CommunityEditorModal({ community, onClose, defaultClient
             </div>
           </div>
           <p className="text-xs text-gray-500 -mt-4">
-            Override the client's default rate sheet or QBO class for this community only
+            Override the client's default price book or QBO class for this community only
           </p>
 
           {/* Address */}

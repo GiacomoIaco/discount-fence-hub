@@ -32,6 +32,7 @@ import {
 import type { QuoteCardMode, QuoteTotals, QuoteValidation, CustomField } from './types';
 import { PAYMENT_TERMS_OPTIONS, PRODUCT_TYPE_OPTIONS } from './types';
 import { useRepsByQboClass } from '../../hooks/useSalesReps';
+import { RequirePermission } from '../../../../lib/permissions';
 
 // Currency formatter with commas
 const formatCurrency = (amount: number): string => {
@@ -305,54 +306,56 @@ export default function QuoteSidebar({
       </div>
 
 
-      {/* Profitability Section - Costs & Margin only */}
-      <div className="bg-white rounded-lg p-4 border">
-        <CollapsibleSection title="PROFITABILITY" icon={DollarSign}>
-          <div className="space-y-2 text-sm">
-            <div className="text-xs text-gray-500 uppercase font-medium">Estimated Costs</div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Materials:</span>
-              <span>${formatCurrency(totals.materialCost)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Labor:</span>
-              <span>${formatCurrency(totals.laborCost)}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2">
-              <span className="text-gray-600">Total Cost:</span>
-              <span className="font-medium">${formatCurrency(totals.materialCost + totals.laborCost)}</span>
-            </div>
+      {/* Profitability Section - Costs & Margin only (hidden from sales reps) */}
+      <RequirePermission permission="view_profitability">
+        <div className="bg-white rounded-lg p-4 border">
+          <CollapsibleSection title="PROFITABILITY" icon={DollarSign}>
+            <div className="space-y-2 text-sm">
+              <div className="text-xs text-gray-500 uppercase font-medium">Estimated Costs</div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Materials:</span>
+                <span>${formatCurrency(totals.materialCost)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Labor:</span>
+                <span>${formatCurrency(totals.laborCost)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-gray-600">Total Cost:</span>
+                <span className="font-medium">${formatCurrency(totals.materialCost + totals.laborCost)}</span>
+              </div>
 
-            <div className="text-xs text-gray-500 uppercase font-medium mt-4">Margin Analysis</div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Gross Profit:</span>
-              <span>${formatCurrency(totals.grossProfit)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Gross Margin:</span>
-              <span className={`font-semibold ${totals.marginPercent >= 15 ? 'text-green-600' : 'text-red-600'}`}>
-                {totals.marginPercent.toFixed(1)}%
-              </span>
-            </div>
+              <div className="text-xs text-gray-500 uppercase font-medium mt-4">Margin Analysis</div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Gross Profit:</span>
+                <span>${formatCurrency(totals.grossProfit)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Gross Margin:</span>
+                <span className={`font-semibold ${totals.marginPercent >= 15 ? 'text-green-600' : 'text-red-600'}`}>
+                  {totals.marginPercent.toFixed(1)}%
+                </span>
+              </div>
 
-            {validation.needsApproval && (
-              <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Approval Required</div>
-                    <ul className="mt-1 space-y-0.5">
-                      {validation.approvalReasons.map((reason, i) => (
-                        <li key={i}>{reason}</li>
-                      ))}
-                    </ul>
+              {validation.needsApproval && (
+                <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-medium">Approval Required</div>
+                      <ul className="mt-1 space-y-0.5">
+                        {validation.approvalReasons.map((reason, i) => (
+                          <li key={i}>{reason}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </CollapsibleSection>
-      </div>
+              )}
+            </div>
+          </CollapsibleSection>
+        </div>
+      </RequirePermission>
 
       {/* Additional Info Section - Custom Fields */}
       <div className="bg-white rounded-lg p-4 mt-4 border">

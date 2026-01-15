@@ -1,0 +1,5 @@
+{
+  "name": "Austin Sales Territory Mapper",
+  "description": "An interactive tool for sales teams to define, visualize, and manage sales territories across Austin, TX ZIP codes with support for overlapping regions and AI-powered territory insights.",
+  "requestFramePermissions": []
+}
