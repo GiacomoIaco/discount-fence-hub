@@ -31,7 +31,7 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('salesperson');
 
   // Override date range to fetch 15 months of data for trend visualization
-  // Keep other filters (salesperson, location, job sizes)
+  // Keep other filters (salesperson, location, job sizes, and dateField)
   const trendFilters = useMemo((): JobberFilters => {
     const fifteenMonthsAgo = new Date();
     fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
@@ -41,12 +41,15 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
       ...filters,
       timePreset: 'custom',
       dateRange: { start: fifteenMonthsAgo, end: new Date() },
-      dateField: 'created_date', // Always use created_date for trend analysis
+      // Use the user-selected date field (created/scheduled/closed) for trend analysis
     };
-  }, [filters.salesperson, filters.location, filters.jobSizes]);
+  }, [filters.salesperson, filters.location, filters.jobSizes, filters.dateField]);
 
   // Fetch all jobs, we'll do period grouping client-side
   const { data: jobs, isLoading } = useJobberJobs({ filters: trendFilters });
+
+  // Get the date field to use for grouping (respects user's filter selection)
+  const dateFieldKey = filters.dateField || 'created_date';
 
   const { periods, entityTrends, totalsRow } = useMemo(() => {
     if (!jobs?.length) return { periods: [], entityTrends: [], totalsRow: null };
@@ -83,7 +86,9 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
     periods.forEach(p => periodTotals.set(p.key, { revenue: 0, jobs: 0 }));
 
     for (const job of jobs) {
-      if (!job.created_date) continue;
+      // Use the selected date field for grouping
+      const dateValue = job[dateFieldKey as keyof typeof job] as string | null;
+      if (!dateValue) continue;
 
       const entityName = groupBy === 'salesperson'
         ? (job.effective_salesperson || '(Unassigned)')
@@ -91,7 +96,7 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
 
       if (entityName === '(Unassigned)' || entityName === 'Unknown') continue;
 
-      const date = new Date(job.created_date);
+      const date = new Date(dateValue);
       let periodKey: string;
 
       if (viewMode === 'weekly') {
@@ -136,10 +141,11 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
       }
     }
 
-    // Convert to sorted array (top 15 by total revenue)
+    // Convert to sorted array - top 50 for clients, top 15 for salespeople
+    const displayLimit = groupBy === 'client' ? 50 : 15;
     const entityTrends = Array.from(entityMap.values())
       .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 15);
+      .slice(0, displayLimit);
 
     // Create totals row
     const totalsRow = {
@@ -150,7 +156,7 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
     };
 
     return { periods, entityTrends, totalsRow };
-  }, [jobs, viewMode, groupBy]);
+  }, [jobs, viewMode, groupBy, dateFieldKey]);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
@@ -175,6 +181,9 @@ export function TrendsAnalysis({ filters }: TrendsAnalysisProps) {
           <h3 className="text-lg font-semibold text-gray-900">
             {viewMode === 'weekly' ? '12-Week' : '12-Month'} Trends by {groupBy === 'salesperson' ? 'Salesperson' : 'Client'}
           </h3>
+          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded">
+            by {dateFieldKey === 'created_date' ? 'Created' : dateFieldKey === 'scheduled_start_date' ? 'Scheduled' : 'Closed'} Date
+          </span>
         </div>
 
         <div className="flex gap-2">

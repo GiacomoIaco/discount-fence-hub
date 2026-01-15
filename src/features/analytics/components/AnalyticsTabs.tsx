@@ -31,7 +31,7 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
