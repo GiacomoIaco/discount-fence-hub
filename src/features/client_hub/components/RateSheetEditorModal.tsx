@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Plus,
 } from 'lucide-react';
 import {
   useRateSheet,
@@ -27,6 +28,7 @@ import {
   PRICING_TYPE_LABELS,
   PRICING_METHOD_LABELS,
 } from '../types';
+import RateSheetBulkAddModal, { type SkuData } from './RateSheetBulkAddModal';
 
 interface Props {
   rateSheet: RateSheet | null;
@@ -77,6 +79,7 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
   const [items, setItems] = useState<ItemEdit[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'items'>('info');
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
 
   // SKU search
   const [skuSearch, setSkuSearch] = useState('');
@@ -159,6 +162,30 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
     ]);
     setSkuSearch('');
     setShowSkuDropdown(false);
+  };
+
+  const handleBulkAddSkus = (skus: SkuData[]) => {
+    const newItems = skus
+      .filter(sku => !items.find(i => i.sku_id === sku.id))
+      .map(sku => ({
+        sku_id: sku.id,
+        sku: sku.sku,
+        description: sku.description || '',
+        unit: sku.unit || 'EA',
+        catalog_price: sku.sell_price || 0,
+        pricing_method: 'fixed' as PricingMethod,
+        fixed_price: '',
+        fixed_labor_price: '',
+        fixed_material_price: '',
+        labor_markup_percent: '',
+        material_markup_percent: '',
+        margin_target_percent: '',
+        cost_plus_amount: '',
+        isNew: true,
+        isModified: true,
+      }));
+
+    setItems([...items, ...newItems]);
   };
 
   const handleRemoveItem = (skuId: string) => {
@@ -515,6 +542,13 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
                       className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  <button
+                    onClick={() => setShowBulkAdd(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Bulk Add
+                  </button>
                 </div>
 
                 {/* SKU Dropdown */}
@@ -751,6 +785,16 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Bulk Add Modal */}
+      {showBulkAdd && (
+        <RateSheetBulkAddModal
+          rateSheetName={name || 'New Rate Sheet'}
+          existingSkuIds={items.map(i => i.sku_id)}
+          onAdd={handleBulkAddSkus}
+          onClose={() => setShowBulkAdd(false)}
+        />
+      )}
     </div>
   );
 }

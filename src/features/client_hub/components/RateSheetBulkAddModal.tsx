@@ -11,11 +11,18 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 
 interface Props {
-  priceBookId: string;
-  priceBookName: string;
+  rateSheetName: string;
   existingSkuIds: string[];
-  onAdd: (skuIds: string[]) => Promise<void>;
+  onAdd: (skus: SkuData[]) => void;
   onClose: () => void;
+}
+
+export interface SkuData {
+  id: string;
+  sku: string;
+  description: string;
+  unit: string;
+  sell_price: number;
 }
 
 interface SkuCatalogItem {
@@ -30,9 +37,8 @@ interface SkuCatalogItem {
   height: number | null;
 }
 
-export default function BulkAddSkusModal({
-  priceBookId: _priceBookId,
-  priceBookName,
+export default function RateSheetBulkAddModal({
+  rateSheetName,
   existingSkuIds,
   onAdd,
   onClose,
@@ -43,11 +49,10 @@ export default function BulkAddSkusModal({
   const [selectedProductStyle, setSelectedProductStyle] = useState('');
   const [selectedHeight, setSelectedHeight] = useState('');
   const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
-  const [isAdding, setIsAdding] = useState(false);
 
   // Fetch all SKUs with filters
   const { data: allSkus, isLoading } = useQuery({
-    queryKey: ['bulk-add-skus'],
+    queryKey: ['bulk-add-skus-rate-sheet'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sku_catalog')
@@ -157,14 +162,21 @@ export default function BulkAddSkusModal({
     }
   };
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (selectedSkuIds.size === 0) return;
-    setIsAdding(true);
-    try {
-      await onAdd([...selectedSkuIds]);
-    } finally {
-      setIsAdding(false);
-    }
+
+    const selectedSkus = filteredSkus
+      .filter(sku => selectedSkuIds.has(sku.id))
+      .map(sku => ({
+        id: sku.id,
+        sku: sku.sku,
+        description: sku.description || '',
+        unit: sku.unit || 'EA',
+        sell_price: sku.sell_price || 0,
+      }));
+
+    onAdd(selectedSkus);
+    onClose();
   };
 
   const allSelected = filteredSkus.length > 0 && selectedSkuIds.size === filteredSkus.length;
@@ -177,10 +189,10 @@ export default function BulkAddSkusModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              Add SKUs to "{priceBookName}"
+              Add SKUs to "{rateSheetName}"
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Select SKUs to add to this price book
+              Select SKUs to add pricing for
             </p>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
@@ -199,7 +211,7 @@ export default function BulkAddSkusModal({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search SKUs..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -275,9 +287,9 @@ export default function BulkAddSkusModal({
               className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800"
             >
               {allSelected ? (
-                <CheckSquare className="w-4 h-4 text-green-600" />
+                <CheckSquare className="w-4 h-4 text-blue-600" />
               ) : someSelected ? (
-                <MinusSquare className="w-4 h-4 text-green-600" />
+                <MinusSquare className="w-4 h-4 text-blue-600" />
               ) : (
                 <Square className="w-4 h-4" />
               )}
@@ -293,7 +305,7 @@ export default function BulkAddSkusModal({
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full" />
+              <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
             </div>
           ) : filteredSkus.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
@@ -308,11 +320,11 @@ export default function BulkAddSkusModal({
                     key={sku.id}
                     onClick={() => handleToggle(sku.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                      isSelected ? 'bg-green-50 border border-green-200' : 'hover:bg-gray-50 border border-transparent'
+                      isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'
                     }`}
                   >
                     {isSelected ? (
-                      <CheckSquare className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <CheckSquare className="w-5 h-5 text-blue-600 flex-shrink-0" />
                     ) : (
                       <Square className="w-5 h-5 text-gray-300 flex-shrink-0" />
                     )}
@@ -343,11 +355,11 @@ export default function BulkAddSkusModal({
           </button>
           <button
             onClick={handleAdd}
-            disabled={selectedSkuIds.size === 0 || isAdding}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            disabled={selectedSkuIds.size === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
-            {isAdding ? 'Adding...' : `Add ${selectedSkuIds.size} Products`}
+            Add {selectedSkuIds.size} Products
           </button>
         </div>
       </div>
