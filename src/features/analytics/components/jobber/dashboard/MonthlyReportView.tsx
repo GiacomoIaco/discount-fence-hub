@@ -174,7 +174,16 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
   // This is more accurate for business performance (when jobs were completed)
   const effectiveMonth = selectedMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   const monthStart = new Date(effectiveMonth + '-01');
-  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+
+  // Check if this is the current month (partial month reporting)
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentMonth = effectiveMonth === currentMonthKey;
+
+  // For current month, use today's date; for past months, use end of month
+  const monthEnd = isCurrentMonth
+    ? now  // Today's date for partial month
+    : new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);  // End of month for complete months
 
   // Filter jobs by closed_date for the selected month
   const currentJobs = useMemo(() => {
@@ -367,6 +376,11 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
           <div className="flex items-center gap-3">
             <FileText className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-bold text-gray-900">Monthly Report</h2>
+            {isCurrentMonth && (
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                Through {monthEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -377,7 +391,7 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
             >
               {getMonthOptions().map(opt => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}{!opt.hasData ? ' (no data)' : ''}
+                  {opt.label}{!opt.hasData ? ' (no data)' : ''}{opt.value === currentMonthKey ? ' (partial)' : ''}
                 </option>
               ))}
             </select>
