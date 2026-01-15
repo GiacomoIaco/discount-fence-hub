@@ -288,12 +288,19 @@ export async function importResidentialData(
         .upsert(batch, { onConflict: 'quote_number' });
 
       if (error) {
-        console.error('Error upserting quotes batch:', error);
+        console.error('Error upserting quotes batch:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          batchSize: batch.length,
+          firstRow: batch[0] ? { quote_number: batch[0].quote_number, client_name: batch[0].client_name } : null,
+        });
         errors.push({
           file: 'quotes',
-          row: 0,
+          row: i,
           field: 'database',
-          message: `Database error: ${error.message}`,
+          message: `Database error: ${error.message} (code: ${error.code}, hint: ${error.hint || 'none'})`,
         });
       }
     }
@@ -331,7 +338,18 @@ export async function importResidentialData(
         .upsert(batch, { onConflict: 'job_number' });
 
       if (error) {
-        console.error('Error upserting jobs batch:', error);
+        console.error('Error upserting jobs batch:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+        errors.push({
+          file: 'jobs',
+          row: i,
+          field: 'database',
+          message: `Database error: ${error.message} (code: ${error.code})`,
+        });
       }
     }
 
@@ -382,12 +400,18 @@ export async function importResidentialData(
         .upsert(batch, { onConflict: 'opportunity_key' });
 
       if (error) {
-        console.error('Error upserting opportunities batch:', error);
+        console.error('Error upserting opportunities batch:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          batchSize: batch.length,
+        });
         errors.push({
-          file: 'quotes',
-          row: 0,
+          file: 'opportunities',
+          row: i,
           field: 'database',
-          message: `Database error: ${error.message}`,
+          message: `Database error: ${error.message} (code: ${error.code})`,
         });
       }
     }

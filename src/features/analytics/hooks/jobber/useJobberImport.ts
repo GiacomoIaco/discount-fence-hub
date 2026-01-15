@@ -99,12 +99,15 @@ export function useJobberImport(businessUnit: BusinessUnit = 'builder'): UseJobb
 
 /**
  * Hook for getting import statistics
+ * Note: Only works for 'builder' - residential uses separate import tracking
  */
 export function useImportStats(businessUnit: BusinessUnit = 'builder') {
   return useQuery({
     queryKey: ['jobber-import-stats', businessUnit],
     queryFn: () => getImportStats(businessUnit),
     staleTime: 60 * 1000, // 1 minute
+    // Only enable for builder - residential has different import flow
+    enabled: businessUnit === 'builder',
   });
 }
 
@@ -166,12 +169,15 @@ export function useActualDataRange(businessUnit: BusinessUnit = 'builder') {
 
 /**
  * Hook for getting import history
+ * Note: Only works for 'builder' - residential has separate tracking
  */
 export function useImportLogs(businessUnit?: BusinessUnit, limit: number = 10) {
   return useQuery({
     queryKey: ['jobber-import-logs', businessUnit, limit],
     queryFn: () => getImportLogs(businessUnit, limit),
     staleTime: 60 * 1000,
+    // Only enable for builder or undefined - residential has different import flow
+    enabled: !businessUnit || businessUnit === 'builder',
   });
 }
 
