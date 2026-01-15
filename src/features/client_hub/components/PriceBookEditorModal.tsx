@@ -29,16 +29,18 @@ interface Props {
   onClose: () => void;
 }
 
-export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
-  const isEditing = !!priceBook;
+export default function PriceBookEditorModal({ priceBook: initialPriceBook, onClose }: Props) {
+  // Track the price book ID - starts with initial, but updates after create
+  const [priceBookId, setPriceBookId] = useState<string | null>(initialPriceBook?.id || null);
+  const isEditing = !!priceBookId;
 
   // Form state
-  const [name, setName] = useState(priceBook?.name || '');
-  const [code, setCode] = useState(priceBook?.code || '');
-  const [description, setDescription] = useState(priceBook?.description || '');
-  const [tags, setTags] = useState<string[]>(priceBook?.tags || []);
+  const [name, setName] = useState(initialPriceBook?.name || '');
+  const [code, setCode] = useState(initialPriceBook?.code || '');
+  const [description, setDescription] = useState(initialPriceBook?.description || '');
+  const [tags, setTags] = useState<string[]>(initialPriceBook?.tags || []);
   const [tagInput, setTagInput] = useState('');
-  const [isActive, setIsActive] = useState(priceBook?.is_active ?? true);
+  const [isActive, setIsActive] = useState(initialPriceBook?.is_active ?? true);
 
   // Validation
   const [validationError, setValidationError] = useState('');
@@ -53,7 +55,7 @@ export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
   const [showSkuDropdown, setShowSkuDropdown] = useState(false);
 
   // Queries
-  const { data: fullPriceBook, isLoading: loadingBook } = usePriceBook(priceBook?.id || null);
+  const { data: fullPriceBook, isLoading: loadingBook } = usePriceBook(priceBookId);
   const { data: skuCatalog } = useSkuCatalogForPriceBook({
     search: skuSearch,
     excludeSkuIds: fullPriceBook?.items?.map(i => i.sku_id) || [],
@@ -90,10 +92,10 @@ export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
   };
 
   const handleAddSku = async (sku: { id: string; sku: string; description: string }) => {
-    if (!priceBook?.id) return;
+    if (!priceBookId) return;
 
     await addItemMutation.mutateAsync({
-      price_book_id: priceBook.id,
+      price_book_id: priceBookId,
       sku_id: sku.id,
       is_featured: false,
     });
@@ -103,29 +105,29 @@ export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
   };
 
   const handleToggleFeatured = async (item: PriceBookItem) => {
-    if (!priceBook?.id) return;
+    if (!priceBookId) return;
 
     await updateItemMutation.mutateAsync({
       id: item.id,
-      price_book_id: priceBook.id,
+      price_book_id: priceBookId,
       is_featured: !item.is_featured,
     });
   };
 
   const handleRemoveItem = async (item: PriceBookItem) => {
-    if (!priceBook?.id) return;
+    if (!priceBookId) return;
 
     await removeItemMutation.mutateAsync({
       id: item.id,
-      price_book_id: priceBook.id,
+      price_book_id: priceBookId,
     });
   };
 
   const handleBulkAdd = async (skuIds: string[]) => {
-    if (!priceBook?.id) return;
+    if (!priceBookId) return;
 
     await bulkAddMutation.mutateAsync({
-      price_book_id: priceBook.id,
+      price_book_id: priceBookId,
       sku_ids: skuIds,
     });
 
@@ -148,13 +150,16 @@ export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
         is_active: isActive,
       };
 
-      if (isEditing) {
-        await updateMutation.mutateAsync({ id: priceBook.id, ...data });
+      if (priceBookId) {
+        // Update existing
+        await updateMutation.mutateAsync({ id: priceBookId, ...data });
+        onClose();
       } else {
-        await createMutation.mutateAsync(data);
+        // Create new - stay in modal to add SKUs
+        const result = await createMutation.mutateAsync(data);
+        setPriceBookId(result.id);
+        setActiveTab('items'); // Auto-switch to SKUs tab
       }
-
-      onClose();
     } catch (error) {
       console.error('Error saving price book:', error);
     }
@@ -333,9 +338,14 @@ export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
               </div>
 
               {/* Save info notice */}
-              {!isEditing && (
+              {!priceBookId && (
                 <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-lg text-sm">
-                  <strong>Note:</strong> Save the price book first, then you can add SKUs.
+                  <strong>Note:</strong> Click "Create Price Book" to save, then you'll be able to add SKUs.
+                </div>
+              )}
+              {priceBookId && !initialPriceBook && (
+                <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm">
+                  <strong>Success!</strong> Price Book created. You can now add SKUs in the "SKUs" tab above.
                 </div>
               )}
             </div>
@@ -470,24 +480,35 @@ export default function PriceBookEditorModal({ priceBook, onClose }: Props) {
             onClick={onClose}
             className="px-4 py-2 text-gray-600 hover:text-gray-800"
           >
-            Cancel
+            {priceBookId ? 'Close' : 'Cancel'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={isPending || !name.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {isPending ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Price Book'}
-          </button>
+          {!priceBookId ? (
+            <button
+              onClick={handleSave}
+              disabled={isPending || !name.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isPending ? 'Creating...' : 'Create Price Book'}
+            </button>
+          ) : (
+            <button
+              onClick={handleSave}
+              disabled={isPending || !name.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isPending ? 'Saving...' : 'Save & Close'}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Bulk Add Modal */}
-      {showBulkAdd && priceBook && (
+      {showBulkAdd && priceBookId && (
         <BulkAddSkusModal
-          priceBookId={priceBook.id}
-          priceBookName={priceBook.name}
+          priceBookId={priceBookId}
+          priceBookName={name}
           existingSkuIds={fullPriceBook?.items?.map(i => i.sku_id) || []}
           onAdd={handleBulkAdd}
           onClose={() => setShowBulkAdd(false)}

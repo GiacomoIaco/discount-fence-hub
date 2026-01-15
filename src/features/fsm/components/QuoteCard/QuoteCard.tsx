@@ -11,6 +11,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { XCircle, AlertTriangle, Layers, CheckCircle, Archive, FileText } from 'lucide-react';
 import type { QuoteCardProps } from './types';
 import { useQuoteForm } from './useQuoteForm';
@@ -25,6 +26,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePriceWithCommunityOverride, useCommunityProducts } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
+import { supabase } from '../../../../lib/supabase';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -99,11 +101,64 @@ export default function QuoteCard({
     propertyId,
   });
 
+  // Fetch effective QBO Class ID from client/community when quote doesn't exist yet
+  // Priority: community.override_qbo_class_id > client.default_qbo_class_id > quote.qbo_class_id
+  const { data: effectiveQboClassId } = useQuery({
+    queryKey: ['effective-qbo-class', form.clientId, form.communityId, quote?.qbo_class_id],
+    queryFn: async () => {
+      // If quote already has qbo_class_id, use it
+      if (quote?.qbo_class_id) return quote.qbo_class_id;
+
+      // Check community override first
+      if (form.communityId) {
+        const { data: community } = await supabase
+          .from('communities')
+          .select('override_qbo_class_id, client_id')
+          .eq('id', form.communityId)
+          .single();
+
+        if (community?.override_qbo_class_id) {
+          return community.override_qbo_class_id;
+        }
+
+        // Fall back to community's parent client if no client is explicitly selected
+        if (!form.clientId && community?.client_id) {
+          const { data: client } = await supabase
+            .from('clients')
+            .select('default_qbo_class_id')
+            .eq('id', community.client_id)
+            .single();
+
+          if (client?.default_qbo_class_id) {
+            return client.default_qbo_class_id;
+          }
+        }
+      }
+
+      // Check client's default QBO class
+      if (form.clientId) {
+        const { data: client } = await supabase
+          .from('clients')
+          .select('default_qbo_class_id')
+          .eq('id', form.clientId)
+          .single();
+
+        if (client?.default_qbo_class_id) {
+          return client.default_qbo_class_id;
+        }
+      }
+
+      return null;
+    },
+    enabled: !!(form.clientId || form.communityId || quote?.qbo_class_id),
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Rate sheet pricing context (includes QBO Class for BU default fallback)
   const pricingContext = {
     communityId: form.communityId || null,
     clientId: form.clientId || null,
-    qboClassId: quote?.qbo_class_id || null,
+    qboClassId: effectiveQboClassId || null,
   };
   const { data: effectiveRateSheet } = useEffectiveRateSheet(pricingContext);
   const { data: rateSheetPrices } = useRateSheetPrices(pricingContext);
@@ -439,10 +494,10 @@ export default function QuoteCard({
     // Material cost: standard_cost_per_foot is already per 1 LF (pre-computed)
     const materialCost = sku.standard_cost_per_foot || 0;
 
-    // Labor cost: Fetch from sku_labor_costs_v2 based on quote's QBO class
+    // Labor cost: Fetch from sku_labor_costs_v2 based on effective QBO class
     // This ensures we get the correct labor rate for the Business Unit
     let laborCost = 0;
-    const qboClassId = quote?.qbo_class_id;
+    const qboClassId = effectiveQboClassId;
 
     if (qboClassId) {
       // Fetch BU-specific labor cost from sku_labor_costs_v2
@@ -498,7 +553,7 @@ export default function QuoteCard({
       pricing_source: pricingSource,
       line_type: 'material',
     });
-  }, [updateLineItem, rateSheetPrices, communityProducts, quote?.qbo_class_id]);
+  }, [updateLineItem, rateSheetPrices, communityProducts, effectiveQboClassId]);
 
   // Handle sidebar field changes
   const handleSidebarFieldChange = useCallback((field: string, value: string) => {
