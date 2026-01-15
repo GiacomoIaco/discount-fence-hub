@@ -133,14 +133,15 @@ export function MonthlyReportView({ filters }: MonthlyReportViewProps) {
   const monthStart = new Date(selectedMonth + '-01');
   const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
 
-  // Fetch jobs with a broad date range (last 2 years of closed jobs)
-  const twoYearsAgo = new Date();
-  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+  // Fetch jobs with a broad date range (last 15 months to match available data)
+  const fifteenMonthsAgo = new Date();
+  fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
+  fifteenMonthsAgo.setDate(1); // Start of month
 
   const broadFilters: JobberFilters = {
     ...filters,
     timePreset: 'custom',
-    dateRange: { start: twoYearsAgo, end: new Date() },
+    dateRange: { start: fifteenMonthsAgo, end: new Date() },
     dateField: 'created_date' as DateFieldType, // Always use created_date for broad fetch, then filter by closed_date client-side
   };
 
