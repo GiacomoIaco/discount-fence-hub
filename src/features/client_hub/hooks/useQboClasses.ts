@@ -88,6 +88,34 @@ export function useUpdateQboClassSelectable() {
 }
 
 /**
+ * Update the default rate sheet for a QBO class (BU)
+ */
+export function useUpdateQboClassDefaultRateSheet() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, defaultRateSheetId }: { id: string; defaultRateSheetId: string | null }) => {
+      const { data, error } = await supabase
+        .from('qbo_classes')
+        .update({ default_rate_sheet_id: defaultRateSheetId })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['qbo-classes'] });
+      showSuccess('Default rate sheet updated');
+    },
+    onError: (error: Error) => {
+      showError(`Failed to update default rate sheet: ${error.message}`);
+    },
+  });
+}
+
+/**
  * Get a single QBO class by ID
  */
 export function useQboClass(id: string | null) {

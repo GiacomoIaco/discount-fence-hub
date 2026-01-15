@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { RefreshCw, Check, X, ChevronRight, ExternalLink } from 'lucide-react';
-import { useQboClasses, useSyncQboClasses, useUpdateQboClassSelectable } from '../../client_hub/hooks/useQboClasses';
+import { useQboClasses, useSyncQboClasses, useUpdateQboClassSelectable, useUpdateQboClassDefaultRateSheet } from '../../client_hub/hooks/useQboClasses';
+import { useRateSheets } from '../../client_hub/hooks/useRateSheets';
 
 export default function QboClassesSettings() {
   const { data: classes, isLoading } = useQboClasses();
+  const { data: rateSheets } = useRateSheets({ isActive: true });
   const syncMutation = useSyncQboClasses();
   const updateSelectableMutation = useUpdateQboClassSelectable();
+  const updateDefaultRateSheetMutation = useUpdateQboClassDefaultRateSheet();
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
 
   // Group classes by parent
@@ -70,6 +73,7 @@ export default function QboClassesSettings() {
             {/* Table Header */}
             <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 text-sm font-medium text-gray-600">
               <div className="flex-1">Class Name</div>
+              <div className="w-56 text-center">Default Rate Sheet</div>
               <div className="w-32 text-center">Selectable</div>
             </div>
 
@@ -97,6 +101,29 @@ export default function QboClassesSettings() {
                       {hasChildren && (
                         <span className="text-xs text-gray-400">({children.length} sub-classes)</span>
                       )}
+                    </div>
+                    {/* Default Rate Sheet Dropdown */}
+                    <div className="w-56">
+                      <select
+                        value={rootClass.default_rate_sheet_id || ''}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateDefaultRateSheetMutation.mutate({
+                            id: rootClass.id,
+                            defaultRateSheetId: e.target.value || null,
+                          });
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={updateDefaultRateSheetMutation.isPending}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        <option value="">No default</option>
+                        {rateSheets?.map((rs) => (
+                          <option key={rs.id} value={rs.id}>
+                            {rs.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="w-32 flex justify-center">
                       <button
@@ -127,6 +154,27 @@ export default function QboClassesSettings() {
                         >
                           <div className="flex-1">
                             <span className="text-gray-700">{child.name}</span>
+                          </div>
+                          {/* Default Rate Sheet Dropdown for child */}
+                          <div className="w-56">
+                            <select
+                              value={child.default_rate_sheet_id || ''}
+                              onChange={(e) => {
+                                updateDefaultRateSheetMutation.mutate({
+                                  id: child.id,
+                                  defaultRateSheetId: e.target.value || null,
+                                });
+                              }}
+                              disabled={updateDefaultRateSheetMutation.isPending}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                            >
+                              <option value="">No default</option>
+                              {rateSheets?.map((rs) => (
+                                <option key={rs.id} value={rs.id}>
+                                  {rs.name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                           <div className="w-32 flex justify-center">
                             <button
@@ -160,6 +208,27 @@ export default function QboClassesSettings() {
                   <div className="w-4" />
                   <span className="text-gray-700">{orphan.fully_qualified_name || orphan.name}</span>
                 </div>
+                {/* Default Rate Sheet Dropdown for orphan */}
+                <div className="w-56">
+                  <select
+                    value={orphan.default_rate_sheet_id || ''}
+                    onChange={(e) => {
+                      updateDefaultRateSheetMutation.mutate({
+                        id: orphan.id,
+                        defaultRateSheetId: e.target.value || null,
+                      });
+                    }}
+                    disabled={updateDefaultRateSheetMutation.isPending}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="">No default</option>
+                    {rateSheets?.map((rs) => (
+                      <option key={rs.id} value={rs.id}>
+                        {rs.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="w-32 flex justify-center">
                   <button
                     onClick={() => handleToggleSelectable(orphan.id, orphan.is_selectable)}
@@ -183,10 +252,11 @@ export default function QboClassesSettings() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="font-medium text-blue-900 mb-2">How it works</h3>
         <ul className="text-sm text-blue-700 space-y-1">
-          <li>- Classes from QuickBooks are used for P&L tracking and reporting</li>
-          <li>- Toggle "Selectable" to control which classes appear in Client Hub dropdowns</li>
-          <li>- Parent classes (like "Residential") can be hidden if you only want leaf classes visible</li>
-          <li>- Syncing will preserve your selectable choices while updating class names</li>
+          <li>• Classes from QuickBooks are used for P&L tracking and reporting</li>
+          <li>• <strong>Default Rate Sheet</strong>: Select the fallback pricing for each BU. When a client/community doesn't have a specific rate sheet, this default is used.</li>
+          <li>• <strong>Selectable</strong>: Toggle to control which classes appear in Client Hub dropdowns</li>
+          <li>• Parent classes (like "Residential") can be hidden if you only want leaf classes visible</li>
+          <li>• Syncing will preserve your choices while updating class names</li>
         </ul>
       </div>
     </div>
