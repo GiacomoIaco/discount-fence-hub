@@ -1,8 +1,8 @@
 // Import History component - Shows upload history and data freshness
 
 import { useState } from 'react';
-import { History, FileText, CheckCircle, XCircle, AlertTriangle, Calendar, Clock, RefreshCw } from 'lucide-react';
-import { useImportLogs, useImportStats } from '../../../hooks/jobber/useJobberImport';
+import { History, FileText, CheckCircle, XCircle, AlertTriangle, Calendar, Clock, RefreshCw, Database } from 'lucide-react';
+import { useImportLogs, useImportStats, useActualDataRange } from '../../../hooks/jobber/useJobberImport';
 import type { BusinessUnit } from '../../../types/jobber';
 
 interface ImportHistoryProps {
@@ -14,6 +14,7 @@ export function ImportHistory({ businessUnit, onUploadClick }: ImportHistoryProp
   const [showAll, setShowAll] = useState(false);
   const { data: logs, isLoading: logsLoading } = useImportLogs(businessUnit, showAll ? 50 : 10);
   const { data: stats, isLoading: statsLoading } = useImportStats(businessUnit);
+  const { data: actualRange, isLoading: rangeLoading } = useActualDataRange(businessUnit);
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return '-';
@@ -76,7 +77,7 @@ export function ImportHistory({ businessUnit, onUploadClick }: ImportHistoryProp
     return { status: 'stale', color: 'text-red-600', bg: 'bg-red-50' };
   };
 
-  const isLoading = logsLoading || statsLoading;
+  const isLoading = logsLoading || statsLoading || rangeLoading;
 
   if (isLoading) {
     return (
@@ -173,6 +174,36 @@ export function ImportHistory({ businessUnit, onUploadClick }: ImportHistoryProp
           </div>
         </div>
       </div>
+
+      {/* Actual Data Range in Database */}
+      {actualRange && (actualRange.createdDateMin || actualRange.closedDateMin) && (
+        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <Database className="w-5 h-5 text-indigo-600 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium text-indigo-900 mb-2">Data Coverage in Database</div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {actualRange.createdDateMin && actualRange.createdDateMax && (
+                  <div>
+                    <span className="text-indigo-700 font-medium">Jobs Created:</span>{' '}
+                    <span className="text-indigo-900">
+                      {formatShortDate(actualRange.createdDateMin)} - {formatShortDate(actualRange.createdDateMax)}
+                    </span>
+                  </div>
+                )}
+                {actualRange.closedDateMin && actualRange.closedDateMax && (
+                  <div>
+                    <span className="text-indigo-700 font-medium">Jobs Closed:</span>{' '}
+                    <span className="text-indigo-900">
+                      {formatShortDate(actualRange.closedDateMin)} - {formatShortDate(actualRange.closedDateMax)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recommendation Banner */}
       <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">

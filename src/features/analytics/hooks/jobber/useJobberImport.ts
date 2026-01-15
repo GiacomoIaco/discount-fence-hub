@@ -109,6 +109,62 @@ export function useImportStats(businessUnit: BusinessUnit = 'builder') {
 }
 
 /**
+ * Hook for getting actual data range in the database (not import logs)
+ */
+export function useActualDataRange(businessUnit: BusinessUnit = 'builder') {
+  return useQuery({
+    queryKey: ['jobber-actual-data-range', businessUnit],
+    queryFn: async () => {
+      const { supabase } = await import('../../../../lib/supabase');
+      const tableName = businessUnit === 'builder' ? 'jobber_builder_jobs' : 'jobber_builder_jobs';
+
+      // Get min/max created_date and closed_date
+      const [createdRange, closedRange] = await Promise.all([
+        supabase
+          .from(tableName)
+          .select('created_date')
+          .not('created_date', 'is', null)
+          .order('created_date', { ascending: true })
+          .limit(1)
+          .single(),
+        supabase
+          .from(tableName)
+          .select('closed_date')
+          .not('closed_date', 'is', null)
+          .order('closed_date', { ascending: true })
+          .limit(1)
+          .single(),
+      ]);
+
+      const [createdMaxRange, closedMaxRange] = await Promise.all([
+        supabase
+          .from(tableName)
+          .select('created_date')
+          .not('created_date', 'is', null)
+          .order('created_date', { ascending: false })
+          .limit(1)
+          .single(),
+        supabase
+          .from(tableName)
+          .select('closed_date')
+          .not('closed_date', 'is', null)
+          .order('closed_date', { ascending: false })
+          .limit(1)
+          .single(),
+      ]);
+
+      return {
+        createdDateMin: createdRange.data?.created_date || null,
+        createdDateMax: createdMaxRange.data?.created_date || null,
+        closedDateMin: closedRange.data?.closed_date || null,
+        closedDateMax: closedMaxRange.data?.closed_date || null,
+      };
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
  * Hook for getting import history
  */
 export function useImportLogs(businessUnit?: BusinessUnit, limit: number = 10) {
