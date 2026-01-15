@@ -408,10 +408,10 @@ export async function importResidentialData(
           batchSize: batch.length,
         });
         errors.push({
-          file: 'opportunities',
+          file: 'quotes', // Use 'quotes' since opportunities are derived from quotes
           row: i,
           field: 'database',
-          message: `Database error: ${error.message} (code: ${error.code})`,
+          message: `Opportunities DB error: ${error.message} (code: ${error.code})`,
         });
       }
     }
