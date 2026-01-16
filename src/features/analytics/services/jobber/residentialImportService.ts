@@ -69,7 +69,8 @@ interface OpportunityBuilder {
 
   // Enrichment from requests
   assessmentDate: string | null;
-  requestDate: string | null;  // Fallback for days_to_quote when no assessment
+  requestedDate: string | null;  // When customer first requested (primary for days_to_quote)
+  requestDate: string | null;    // Legacy fallback
 }
 
 // =====================
@@ -204,13 +205,15 @@ export async function importResidentialData(
     report('jobs', 65, `Linked ${linkedJobs} jobs to opportunities`);
 
     // =====================
-    // STEP 5: ENRICH WITH REQUESTS DATA (ASSESSMENT + REQUEST DATES)
+    // STEP 5: ENRICH WITH REQUESTS DATA (DATES FOR CYCLE TIME)
     // =====================
-    report('requests', 70, 'Enriching with assessment and request dates...');
+    report('requests', 70, 'Enriching with request dates...');
 
-    // Build lookups: Quote # -> dates (assessment and request/fallback)
+    // Build lookups: Quote # -> dates
+    // requested_date = when customer first reached out (PRIMARY for days_to_quote)
+    // assessment_date = when assessment was done (usually same day as quote)
+    const requestedDateByQuote = new Map<number, string>();  // PRIMARY for days_to_quote
     const assessmentByQuote = new Map<number, string>();
-    const requestDateByQuote = new Map<number, string>();  // Fallback for days_to_quote
     const requestRows: ParsedRequestRow[] = [];
 
     for (let i = 0; i < requestsData.length; i++) {
@@ -229,21 +232,19 @@ export async function importResidentialData(
         const qn = parseInt(qnStr, 10);
         if (isNaN(qn)) continue;
 
-        // Track assessment date (if available)
+        // Track requested_date (PRIMARY - when customer first requested)
+        if (parsed.requested_date) {
+          const existing = requestedDateByQuote.get(qn);
+          if (!existing || parsed.requested_date < existing) {
+            requestedDateByQuote.set(qn, parsed.requested_date);
+          }
+        }
+
+        // Track assessment date (when assessment was performed)
         if (parsed.assessment_date) {
           const existing = assessmentByQuote.get(qn);
           if (!existing || parsed.assessment_date < existing) {
             assessmentByQuote.set(qn, parsed.assessment_date);
-          }
-        }
-
-        // Track request date (fallback for days_to_quote)
-        // Use assessment_date if available, otherwise requested_date
-        const requestDate = parsed.assessment_date || parsed.requested_date;
-        if (requestDate) {
-          const existing = requestDateByQuote.get(qn);
-          if (!existing || requestDate < existing) {
-            requestDateByQuote.set(qn, requestDate);
           }
         }
       }
@@ -253,20 +254,20 @@ export async function importResidentialData(
     let linkedRequests = 0;
     for (const opp of opportunities.values()) {
       for (const qn of opp.quoteNumbers) {
+        // Apply requested_date (PRIMARY for days_to_quote)
+        const requestedDate = requestedDateByQuote.get(qn);
+        if (requestedDate) {
+          if (!opp.requestedDate || requestedDate < opp.requestedDate) {
+            opp.requestedDate = requestedDate;
+            linkedRequests++;
+          }
+        }
+
         // Apply assessment date
         const assessDate = assessmentByQuote.get(qn);
         if (assessDate) {
           if (!opp.assessmentDate || assessDate < opp.assessmentDate) {
             opp.assessmentDate = assessDate;
-            linkedRequests++;
-          }
-        }
-
-        // Apply request date (for days_to_quote fallback)
-        const reqDate = requestDateByQuote.get(qn);
-        if (reqDate) {
-          if (!opp.requestDate || reqDate < opp.requestDate) {
-            opp.requestDate = reqDate;
           }
         }
       }
@@ -491,7 +492,8 @@ export async function importResidentialData(
       closed_date: opp.closedDate,
       actual_revenue: opp.actualRevenue,
       assessment_date: opp.assessmentDate,
-      request_date: opp.requestDate,  // Fallback for days_to_quote when no assessment
+      requested_date: opp.requestedDate,  // PRIMARY for days_to_quote (when customer first requested)
+      request_date: opp.requestDate,      // Legacy fallback
       last_updated_at: new Date().toISOString(),
     }));
 
@@ -622,6 +624,7 @@ function createOpportunityBuilder(key: string, firstQuote: ParsedQuoteRow): Oppo
     closedDate: null,
     actualRevenue: null,
     assessmentDate: null,
+    requestedDate: null,
     requestDate: null,
   };
 }
