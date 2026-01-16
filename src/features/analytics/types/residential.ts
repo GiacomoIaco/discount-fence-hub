@@ -250,7 +250,24 @@ export interface FunnelMetrics {
   value_win_rate: number | null;
   avg_days_to_quote: number | null;
   avg_days_to_decision: number | null;
+  avg_days_to_schedule: number | null;  // NEW: Converted → Job Scheduled
   avg_days_to_close: number | null;
+  total_cycle_days: number | null;      // NEW: Assessment → Job Closed
+}
+
+// Warranty metrics from job-level analytics
+export interface WarrantyMetrics {
+  warranty_count: number;               // Jobs with $0 revenue
+  paid_count: number;                   // Jobs with revenue > 0
+  warranty_percent: number | null;      // % relative to baseline
+  baseline_weekly_avg: number | null;   // Average paid jobs per week (8-week baseline)
+}
+
+// Request metrics (assessments scheduled)
+export interface RequestMetrics {
+  total_requests: number;
+  assessments_scheduled: number;
+  by_form_name: Record<string, number>; // Breakdown by request form type
 }
 
 export interface SalespersonMetrics {
@@ -401,6 +418,7 @@ export interface ResidentialImportResult {
   requests: {
     total: number;
     linked: number;
+    saved: number;
   };
   errors: ImportError[];
 }

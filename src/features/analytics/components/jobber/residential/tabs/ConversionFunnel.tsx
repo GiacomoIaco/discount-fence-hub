@@ -1,13 +1,15 @@
 // Conversion Funnel Tab - Core metrics and funnel visualization
-// Shows: 4 rows of metrics (Count, Value, Speed, Cycle Time) + Monthly Trend
+// Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend
 
 import { useState } from 'react';
-import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench } from 'lucide-react';
+import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList } from 'lucide-react';
 import {
   useResidentialFunnelMetrics,
   useResidentialEnhancedMonthlyTotals,
   useResidentialSpeedMetrics,
   useResidentialQuoteCountMetrics,
+  useResidentialWarrantyMetrics,
+  useResidentialRequestMetrics,
 } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, MonthlyTotals } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
@@ -24,10 +26,13 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   const { data: monthlyData } = useResidentialEnhancedMonthlyTotals(13, filters.revenueBucket || undefined);
   const { data: speedMetrics } = useResidentialSpeedMetrics(filters);
   const { data: quoteCountMetrics } = useResidentialQuoteCountMetrics(filters);
+  const { data: warrantyMetrics } = useResidentialWarrantyMetrics(filters);
+  const { data: requestMetrics } = useResidentialRequestMetrics(filters);
 
-  // Calculate derived metrics
-  const sameDayData = speedMetrics?.find((s) => s.speed_bucket === 'Same day');
+  // Calculate derived metrics - Speed buckets
   const totalSpeedOpps = speedMetrics?.reduce((sum, s) => sum + s.total_opps, 0) || 0;
+
+  const sameDayData = speedMetrics?.find((s) => s.speed_bucket === 'Same day');
   const sameDayPercent = totalSpeedOpps > 0 && sameDayData
     ? (sameDayData.total_opps / totalSpeedOpps) * 100
     : null;
@@ -68,138 +73,156 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
 
   return (
     <div className="space-y-4">
-      {/* Row 1: Count-Based Metrics (6 boxes) */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+      {/* Row 1: Count-Based Metrics (7 cards) */}
+      <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
         <MetricCard
           icon={<TrendingUp className="w-4 h-4 text-blue-600" />}
-          label="Total Opportunities"
+          label="Total Opps (#)"
           value={metrics.total_opportunities.toLocaleString()}
           bgColor="bg-blue-50"
           compact
         />
         <MetricCard
           icon={<CheckCircle className="w-4 h-4 text-green-600" />}
-          label="Won"
+          label="Won (#)"
           value={metrics.won_opportunities.toLocaleString()}
           bgColor="bg-green-50"
           compact
         />
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-sm">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Percent className="w-4 h-4 text-blue-200" />
-            <span className="text-xs font-medium text-blue-100">Win Rate %</span>
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-2 text-white shadow-sm">
+          <div className="flex items-center gap-1 mb-0.5">
+            <Percent className="w-3 h-3 text-blue-200" />
+            <span className="text-[10px] font-medium text-blue-100">Win Rate %</span>
           </div>
-          <div className="text-2xl font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
-        </div>
-        <MetricCard
-          icon={<TrendingUp className="w-4 h-4 text-red-500" />}
-          label="Lost"
-          value={metrics.lost_opportunities.toLocaleString()}
-          bgColor="bg-red-50"
-          compact
-        />
-        <MetricCard
-          icon={<Clock className="w-4 h-4 text-amber-600" />}
-          label="Pending"
-          value={metrics.pending_opportunities.toLocaleString()}
-          bgColor="bg-amber-50"
-          compact
-        />
-        <MetricCard
-          icon={<Calendar className="w-4 h-4 text-indigo-600" />}
-          label="Closed Win Rate"
-          value={formatResidentialPercent(metrics.closed_win_rate)}
-          subValue="won/(won+lost)"
-          bgColor="bg-indigo-50"
-          compact
-        />
-      </div>
-
-      {/* Row 2: Value-Based Metrics (4 boxes) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard
-          icon={<DollarSign className="w-4 h-4 text-slate-600" />}
-          label="Pipeline Value"
-          value={formatResidentialCurrency(metrics.total_value)}
-          bgColor="bg-slate-50"
-          compact
-        />
-        <MetricCard
-          icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
-          label="Won Value"
-          value={formatResidentialCurrency(metrics.won_value)}
-          bgColor="bg-emerald-50"
-          compact
-        />
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-3 text-white shadow-sm">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Percent className="w-4 h-4 text-purple-200" />
-            <span className="text-xs font-medium text-purple-100">Value Win %</span>
-          </div>
-          <div className="text-2xl font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
+          <div className="text-lg font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
         </div>
         <MetricCard
           icon={<DollarSign className="w-4 h-4 text-teal-600" />}
-          label="Avg Deal Size"
+          label="Avg Deal"
           value={avgDealSize ? formatResidentialCurrency(avgDealSize) : '-'}
-          subValue="won$/won#"
           bgColor="bg-teal-50"
           compact
         />
-      </div>
-
-      {/* Row 3: Speed & Quote Insights (3 boxes) */}
-      <div className="grid grid-cols-3 gap-3">
         <MetricCard
           icon={<Timer className="w-4 h-4 text-orange-600" />}
-          label="Avg Days to Quote"
+          label="Days to Quote"
           value={metrics.avg_days_to_quote?.toFixed(1) || '-'}
           subValue="assess → sent"
           bgColor="bg-orange-50"
           compact
         />
         <MetricCard
-          icon={<FileText className="w-4 h-4 text-violet-600" />}
-          label="Multi-Quote Opps"
-          value={multiQuotePercent !== null ? `${multiQuotePercent.toFixed(1)}%` : '-'}
-          subValue={`${multiQuoteOpps.toLocaleString()} of ${totalQuoteOpps.toLocaleString()}`}
-          bgColor="bg-violet-50"
+          icon={<Clock className="w-4 h-4 text-green-600" />}
+          label="% Same Day"
+          value={sameDayPercent !== null ? `${sameDayPercent.toFixed(1)}%` : '-'}
+          subValue={sameDayData ? `win: ${sameDayData.win_rate?.toFixed(0) || '-'}%` : ''}
+          bgColor="bg-green-50"
           compact
         />
         <MetricCard
-          icon={<Clock className="w-4 h-4 text-green-600" />}
-          label="Same Day Quote %"
-          value={sameDayPercent !== null ? `${sameDayPercent.toFixed(1)}%` : '-'}
-          subValue="target to increase"
-          bgColor="bg-green-50"
+          icon={<FileText className="w-4 h-4 text-violet-600" />}
+          label="% Multi-Quote"
+          value={multiQuotePercent !== null ? `${multiQuotePercent.toFixed(1)}%` : '-'}
+          subValue={`${multiQuoteOpps} of ${totalQuoteOpps}`}
+          bgColor="bg-violet-50"
           compact
         />
       </div>
 
-      {/* Row 4: Cycle Time Metrics (3 boxes) */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Row 2: Value & Cycle Time (7 cards) */}
+      <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+        <MetricCard
+          icon={<DollarSign className="w-4 h-4 text-slate-600" />}
+          label="Total Opps ($)"
+          value={formatResidentialCurrency(metrics.total_value)}
+          bgColor="bg-slate-50"
+          compact
+        />
+        <MetricCard
+          icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
+          label="Won ($)"
+          value={formatResidentialCurrency(metrics.won_value)}
+          bgColor="bg-emerald-50"
+          compact
+        />
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-2 text-white shadow-sm">
+          <div className="flex items-center gap-1 mb-0.5">
+            <Percent className="w-3 h-3 text-purple-200" />
+            <span className="text-[10px] font-medium text-purple-100">Value Win %</span>
+          </div>
+          <div className="text-lg font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
+        </div>
         <MetricCard
           icon={<Timer className="w-4 h-4 text-blue-600" />}
-          label="Days to Decision"
+          label="Day to Decision"
           value={metrics.avg_days_to_decision?.toFixed(1) || '-'}
           subValue="sent → converted"
           bgColor="bg-blue-50"
           compact
         />
         <MetricCard
-          icon={<Calendar className="w-4 h-4 text-purple-600" />}
-          label="Days to Close"
+          icon={<Calendar className="w-4 h-4 text-cyan-600" />}
+          label="Day to Schedule"
+          value={metrics.avg_days_to_schedule?.toFixed(1) || '-'}
+          subValue="converted → sched"
+          bgColor="bg-cyan-50"
+          compact
+        />
+        <MetricCard
+          icon={<Clock className="w-4 h-4 text-purple-600" />}
+          label="Day to Close"
           value={metrics.avg_days_to_close?.toFixed(1) || '-'}
-          subValue="converted → closed"
+          subValue="sched → closed"
           bgColor="bg-purple-50"
           compact
         />
         <MetricCard
-          icon={<Wrench className="w-4 h-4 text-gray-600" />}
-          label="Warranty Jobs"
-          value="-"
-          subValue="coming soon"
-          bgColor="bg-gray-50"
+          icon={<Timer className="w-4 h-4 text-gray-600" />}
+          label="Total Cycle"
+          value={metrics.total_cycle_days?.toFixed(1) || '-'}
+          subValue="assess → closed"
+          bgColor="bg-gray-100"
+          compact
+        />
+      </div>
+
+      {/* Row 3: Requests & Jobs (5 cards) */}
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+        <MetricCard
+          icon={<ClipboardList className="w-4 h-4 text-indigo-600" />}
+          label="Requests Received"
+          value={(requestMetrics?.total_requests || 0).toLocaleString()}
+          bgColor="bg-indigo-50"
+          compact
+        />
+        <MetricCard
+          icon={<Calendar className="w-4 h-4 text-indigo-600" />}
+          label="Assessments Sched"
+          value={(requestMetrics?.assessments_scheduled || 0).toLocaleString()}
+          subValue="from request file"
+          bgColor="bg-indigo-100"
+          compact
+        />
+        <MetricCard
+          icon={<CheckCircle className="w-4 h-4 text-green-600" />}
+          label="# Paid Jobs"
+          value={(warrantyMetrics?.paid_count || 0).toLocaleString()}
+          bgColor="bg-green-50"
+          compact
+        />
+        <MetricCard
+          icon={<Wrench className="w-4 h-4 text-amber-600" />}
+          label="# Warranties"
+          value={(warrantyMetrics?.warranty_count || 0).toLocaleString()}
+          bgColor="bg-amber-50"
+          compact
+        />
+        <MetricCard
+          icon={<Percent className="w-4 h-4 text-rose-600" />}
+          label="Warranty %"
+          value={warrantyMetrics?.warranty_percent !== null ? `${warrantyMetrics?.warranty_percent?.toFixed(1)}%` : '-'}
+          subValue="of paid jobs"
+          bgColor="bg-rose-50"
           compact
         />
       </div>
@@ -499,13 +522,13 @@ function MetricCard({
 }) {
   if (compact) {
     return (
-      <div className={`${bgColor} rounded-lg p-3`}>
-        <div className="flex items-center gap-1.5 mb-1">
+      <div className={`${bgColor} rounded-lg p-2`}>
+        <div className="flex items-center gap-1 mb-0.5">
           {icon}
-          <span className="text-xs font-medium text-gray-600 truncate">{label}</span>
+          <span className="text-[10px] font-medium text-gray-600 truncate">{label}</span>
         </div>
-        <div className="text-xl font-bold text-gray-900">{value}</div>
-        {subValue && <div className="text-[10px] text-gray-500 mt-0.5">{subValue}</div>}
+        <div className="text-base font-bold text-gray-900">{value}</div>
+        {subValue && <div className="text-[9px] text-gray-500 mt-0.5 truncate">{subValue}</div>}
       </div>
     );
   }

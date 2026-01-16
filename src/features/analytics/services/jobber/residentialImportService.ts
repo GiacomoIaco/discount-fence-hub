@@ -9,6 +9,7 @@ import {
   mapRequestRow,
   type ParsedQuoteRow,
   type ParsedJobRow,
+  type ParsedRequestRow,
 } from './residentialColumnMapper';
 import {
   normalizeOpportunityKey,
@@ -47,7 +48,8 @@ interface OpportunityBuilder {
   maxQuoteValue: number;
   minQuoteValue: number;
   totalQuotedValue: number;
-  firstQuoteDate: string | null;
+  firstQuoteDate: string | null;      // First DRAFTED date (legacy)
+  firstQuoteSentDate: string | null;  // First SENT date (for correct cycle time)
   lastQuoteDate: string | null;
 
   // Conversion status
@@ -206,10 +208,16 @@ export async function importResidentialData(
 
     // Build lookup: Quote # -> earliest assessment date
     const assessmentByQuote = new Map<number, string>();
+    const requestRows: ParsedRequestRow[] = [];
 
     for (let i = 0; i < requestsData.length; i++) {
       const row = requestsData[i];
       const parsed = mapRequestRow(row);
+
+      // Collect all parsed requests for persistence
+      if (parsed.request_key) {
+        requestRows.push(parsed);
+      }
 
       if (!parsed.assessment_date) continue;
 
@@ -238,7 +246,7 @@ export async function importResidentialData(
       }
     }
 
-    report('requests', 80, `Linked ${linkedRequests} assessment dates`);
+    report('requests', 80, `Linked ${linkedRequests} assessment dates, ${requestRows.length} requests to save`);
 
     // =====================
     // STEP 6: UPSERT TO DATABASE
@@ -353,6 +361,58 @@ export async function importResidentialData(
       }
     }
 
+    // Save requests
+    let requestsSaved = 0;
+    if (requestRows.length > 0) {
+      const requestsToInsert = requestRows.map(r => ({
+        request_key: r.request_key,
+        client_name: r.client_name,
+        client_name_normalized: r.client_name_normalized,
+        service_street: r.service_street,
+        service_street_normalized: r.service_street_normalized,
+        service_city: r.service_city,
+        service_state: r.service_state,
+        service_zip: r.service_zip,
+        requested_date: r.requested_date,
+        assessment_date: r.assessment_date,
+        form_name: r.form_name,
+        request_title: r.request_title,
+        status: r.status,
+        assessment_assigned_to: r.assessment_assigned_to,
+        description_of_work: r.description_of_work,
+        size_of_project: r.size_of_project,
+        source: r.source,
+        additional_rep: r.additional_rep,
+        online_booking: r.online_booking,
+        quote_numbers: r.quote_numbers.length > 0 ? r.quote_numbers.join(',') : null,
+        job_numbers: r.job_numbers.length > 0 ? r.job_numbers.join(',') : null,
+      }));
+
+      for (let i = 0; i < requestsToInsert.length; i += 500) {
+        const batch = requestsToInsert.slice(i, i + 500);
+        const { error } = await supabase
+          .from('jobber_residential_requests')
+          .upsert(batch, { onConflict: 'request_key' });
+
+        if (error) {
+          console.error('Error upserting requests batch:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+          });
+          errors.push({
+            file: 'requests',
+            row: i,
+            field: 'database',
+            message: `Database error: ${error.message} (code: ${error.code})`,
+          });
+        } else {
+          requestsSaved += batch.length;
+        }
+      }
+    }
+
     // Save opportunities
     const oppsToInsert = Array.from(opportunities.values()).map(opp => ({
       opportunity_key: opp.key,
@@ -372,6 +432,7 @@ export async function importResidentialData(
       quote_count: opp.quoteCount,
       quote_numbers: opp.quoteNumbers.join(','),
       first_quote_date: opp.firstQuoteDate,
+      first_quote_sent_date: opp.firstQuoteSentDate,
       last_quote_date: opp.lastQuoteDate,
       max_quote_value: opp.maxQuoteValue,
       min_quote_value: opp.minQuoteValue,
@@ -438,6 +499,7 @@ export async function importResidentialData(
       requests: {
         total: requestsData.length,
         linked: linkedRequests,
+        saved: requestsSaved,
       },
       errors,
     };
@@ -448,7 +510,7 @@ export async function importResidentialData(
       opportunities: { total: 0, new: 0, updated: 0 },
       quotes: { total: 0, new: 0, updated: 0 },
       jobs: { total: 0, linked: 0 },
-      requests: { total: 0, linked: 0 },
+      requests: { total: 0, linked: 0, saved: 0 },
       errors: [{
         file: 'quotes',
         row: 0,
@@ -502,6 +564,7 @@ function createOpportunityBuilder(key: string, firstQuote: ParsedQuoteRow): Oppo
     minQuoteValue: Infinity,
     totalQuotedValue: 0,
     firstQuoteDate: null,
+    firstQuoteSentDate: null,
     lastQuoteDate: null,
     isWon: false,
     isLost: false,
@@ -538,15 +601,26 @@ function calculateOpportunityMetrics(opp: OpportunityBuilder): void {
   opp.minQuoteValue = minVal === Infinity ? 0 : minVal;
   opp.totalQuotedValue = totalVal;
 
-  // Calculate date ranges (use drafted_date)
-  const dates = quotes
+  // Calculate date ranges
+  // First DRAFTED date (legacy - keep for backwards compatibility)
+  const draftDates = quotes
     .map(q => q.drafted_date)
     .filter((d): d is string => d !== null)
     .sort();
 
-  if (dates.length > 0) {
-    opp.firstQuoteDate = dates[0];
-    opp.lastQuoteDate = dates[dates.length - 1];
+  if (draftDates.length > 0) {
+    opp.firstQuoteDate = draftDates[0];
+    opp.lastQuoteDate = draftDates[draftDates.length - 1];
+  }
+
+  // First SENT date (for correct cycle time calculations)
+  const sentDates = quotes
+    .map(q => q.sent_date)
+    .filter((d): d is string => d !== null)
+    .sort();
+
+  if (sentDates.length > 0) {
+    opp.firstQuoteSentDate = sentDates[0];
   }
 
   // Determine conversion status

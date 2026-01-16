@@ -453,3 +453,76 @@ export function useResidentialWinRateMatrixWeekly(weeks: number = 13, revenueBuc
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// =====================
+// WARRANTY METRICS
+// =====================
+
+import type { WarrantyMetrics, RequestMetrics } from '../../../types/residential';
+
+export function useResidentialWarrantyMetrics(filters?: ResidentialFilters) {
+  const memoizedFilters = useMemo(() => filters, [
+    filters?.timePreset,
+    filters?.dateRange?.start?.getTime(),
+    filters?.dateRange?.end?.getTime(),
+  ]);
+
+  return useQuery({
+    queryKey: ['jobber-residential-warranty-metrics', memoizedFilters],
+    queryFn: async () => {
+      const dateRange = memoizedFilters?.timePreset && memoizedFilters.timePreset !== 'custom'
+        ? getResidentialDateRange(memoizedFilters.timePreset)
+        : memoizedFilters?.dateRange || { start: null, end: null };
+
+      const { data, error } = await supabase.rpc('get_residential_warranty_metrics', {
+        p_start_date: dateRange.start?.toISOString().split('T')[0] || null,
+        p_end_date: dateRange.end?.toISOString().split('T')[0] || null,
+        p_baseline_weeks: 8, // 8-week baseline for warranty %
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch warranty metrics: ${error.message}`);
+      }
+
+      // RPC returns array, get first row
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as WarrantyMetrics;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// REQUEST METRICS (Assessments)
+// =====================
+
+export function useResidentialRequestMetrics(filters?: ResidentialFilters) {
+  const memoizedFilters = useMemo(() => filters, [
+    filters?.timePreset,
+    filters?.dateRange?.start?.getTime(),
+    filters?.dateRange?.end?.getTime(),
+  ]);
+
+  return useQuery({
+    queryKey: ['jobber-residential-request-metrics', memoizedFilters],
+    queryFn: async () => {
+      const dateRange = memoizedFilters?.timePreset && memoizedFilters.timePreset !== 'custom'
+        ? getResidentialDateRange(memoizedFilters.timePreset)
+        : memoizedFilters?.dateRange || { start: null, end: null };
+
+      const { data, error } = await supabase.rpc('get_residential_request_metrics', {
+        p_start_date: dateRange.start?.toISOString().split('T')[0] || null,
+        p_end_date: dateRange.end?.toISOString().split('T')[0] || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch request metrics: ${error.message}`);
+      }
+
+      // RPC returns array, get first row
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as RequestMetrics;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}

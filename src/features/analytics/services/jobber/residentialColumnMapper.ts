@@ -399,19 +399,91 @@ export function mapJobRow(row: Record<string, string>): ParsedJobRow {
 }
 
 export interface ParsedRequestRow {
-  assessment_date: string | null;
-  quote_numbers: string[];
+  // Core identification
   client_name: string | null;
+  client_name_normalized: string | null;
+  client_email: string | null;
+  client_phone: string | null;
   service_street: string | null;
+  service_street_normalized: string | null;
+  service_city: string | null;
+  service_state: string | null;
+  service_zip: string | null;
+
+  // Dates
+  requested_date: string | null;
+  assessment_date: string | null;
+
+  // Request details
+  form_name: string | null;           // Product type indicator
+  request_title: string | null;
+  status: string | null;
+
+  // Assignment
+  assessment_assigned_to: string | null;
+
+  // Custom fields
+  description_of_work: string | null;
+  size_of_project: string | null;
+  source: string | null;
+  additional_rep: string | null;
+  online_booking: boolean;
+
+  // Linkage
+  quote_numbers: string[];
+  job_numbers: string[];
+
+  // Computed key for matching
+  request_key: string | null;
 }
 
 export function mapRequestRow(row: Record<string, string>): ParsedRequestRow {
   const get = (csvColumn: string): string | undefined => row[csvColumn];
 
+  const clientName = cleanString(get('Client name'));
+  const serviceStreet = cleanString(get('Service street'));
+
+  // Generate request key for matching (client + address)
+  const clientNorm = (clientName || '').toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
+  const streetNorm = (serviceStreet || '').toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
+  const requestKey = clientNorm && streetNorm ? `${clientNorm}|${streetNorm}` : null;
+
   return {
+    // Core identification
+    client_name: clientName,
+    client_name_normalized: clientNorm || null,
+    client_email: cleanString(get('Client email')),
+    client_phone: cleanString(get('Client phone')),
+    service_street: serviceStreet,
+    service_street_normalized: streetNorm || null,
+    service_city: cleanString(get('Service city')),
+    service_state: cleanString(get('Service province')),
+    service_zip: cleanString(get('Service ZIP')),
+
+    // Dates
+    requested_date: parseResidentialDate(get('Requested on date')),
     assessment_date: parseResidentialDate(get('Assessment date')),
+
+    // Request details
+    form_name: cleanString(get('Form name')),
+    request_title: cleanString(get('Request title')),
+    status: cleanString(get('Status')),
+
+    // Assignment
+    assessment_assigned_to: cleanString(get('Assessment assigned to')),
+
+    // Custom fields
+    description_of_work: cleanString(get('Description of Work:')),
+    size_of_project: cleanString(get('SIze of Project')),  // Note: CSV has typo "SIze"
+    source: cleanString(get('Source (For Internal Use)')),
+    additional_rep: cleanString(get('Additional Rep')),
+    online_booking: get('Online booking')?.toLowerCase() === 'yes',
+
+    // Linkage
     quote_numbers: parseQuoteNumbers(get('Quote #s')),
-    client_name: cleanString(get('Client name')),
-    service_street: cleanString(get('Service street')),
+    job_numbers: parseQuoteNumbers(get('Job #s')),  // Same format as quote numbers
+
+    // Computed key
+    request_key: requestKey,
   };
 }
