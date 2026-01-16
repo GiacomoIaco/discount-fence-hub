@@ -2,7 +2,7 @@
 // Shows: Opportunities, Won/Lost/Pending, Win%, Won$, Value Win%, Avg Days
 
 import { useState } from 'react';
-import { TrendingUp, CheckCircle, XCircle, Clock, DollarSign, Percent, Timer } from 'lucide-react';
+import { TrendingUp, CheckCircle, DollarSign, Percent, Timer } from 'lucide-react';
 import { useResidentialFunnelMetrics, useResidentialEnhancedMonthlyTotals } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, MonthlyTotals } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
@@ -43,8 +43,8 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Row 1: Volume Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {/* Total Opportunities */}
         <MetricCard
           icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
@@ -53,39 +53,22 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           bgColor="bg-blue-50"
         />
 
-        {/* Won */}
+        {/* Total Pipeline Value */}
         <MetricCard
-          icon={<CheckCircle className="w-5 h-5 text-green-600" />}
-          label="Won"
-          value={metrics.won_opportunities.toLocaleString()}
-          subValue={formatResidentialPercent(metrics.win_rate)}
-          bgColor="bg-green-50"
+          icon={<DollarSign className="w-5 h-5 text-slate-600" />}
+          label="Pipeline Value"
+          value={formatResidentialCurrency(metrics.total_value)}
+          subValue="total opportunity value"
+          bgColor="bg-slate-50"
         />
 
-        {/* Lost */}
+        {/* Quoted Value */}
         <MetricCard
-          icon={<XCircle className="w-5 h-5 text-red-600" />}
-          label="Lost"
-          value={metrics.lost_opportunities.toLocaleString()}
-          subValue={formatResidentialPercent(
-            metrics.total_opportunities > 0
-              ? (metrics.lost_opportunities / metrics.total_opportunities) * 100
-              : null
-          )}
-          bgColor="bg-red-50"
-        />
-
-        {/* Pending */}
-        <MetricCard
-          icon={<Clock className="w-5 h-5 text-amber-600" />}
-          label="Pending"
-          value={metrics.pending_opportunities.toLocaleString()}
-          subValue={formatResidentialPercent(
-            metrics.total_opportunities > 0
-              ? (metrics.pending_opportunities / metrics.total_opportunities) * 100
-              : null
-          )}
-          bgColor="bg-amber-50"
+          icon={<DollarSign className="w-5 h-5 text-indigo-600" />}
+          label="Quoted Value"
+          value={formatResidentialCurrency(metrics.quoted_value)}
+          subValue="total bidded out"
+          bgColor="bg-indigo-50"
         />
 
         {/* Won Value */}
@@ -96,23 +79,37 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           bgColor="bg-emerald-50"
         />
 
-        {/* Value Win Rate */}
+        {/* Won Count */}
         <MetricCard
-          icon={<Percent className="w-5 h-5 text-purple-600" />}
-          label="Value Win Rate"
-          value={formatResidentialPercent(metrics.value_win_rate)}
-          subValue={`of ${formatResidentialCurrency(metrics.total_value)} total`}
-          bgColor="bg-purple-50"
+          icon={<CheckCircle className="w-5 h-5 text-green-600" />}
+          label="Won"
+          value={metrics.won_opportunities.toLocaleString()}
+          subValue={`of ${metrics.total_opportunities.toLocaleString()} opps`}
+          bgColor="bg-green-50"
         />
+      </div>
 
-        {/* Avg Days to Quote */}
-        <MetricCard
-          icon={<Timer className="w-5 h-5 text-indigo-600" />}
-          label="Avg Days to Quote"
-          value={metrics.avg_days_to_quote?.toFixed(1) || '-'}
-          subValue="from assessment"
-          bgColor="bg-indigo-50"
-        />
+      {/* Row 2: Win Rates - Highlighted */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Win Rate (Count) - Prominent */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Percent className="w-5 h-5 text-blue-200" />
+            <span className="text-sm font-medium text-blue-100">Win Rate (Count)</span>
+          </div>
+          <div className="text-3xl font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
+          <div className="text-xs text-blue-200 mt-1">won / total opportunities</div>
+        </div>
+
+        {/* Value Win Rate - Prominent */}
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Percent className="w-5 h-5 text-purple-200" />
+            <span className="text-sm font-medium text-purple-100">Value Win Rate</span>
+          </div>
+          <div className="text-3xl font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
+          <div className="text-xs text-purple-200 mt-1">won$ / pipeline$</div>
+        </div>
 
         {/* Closed Win Rate */}
         <MetricCard
@@ -122,6 +119,75 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           subValue="won / (won + lost)"
           bgColor="bg-teal-50"
         />
+
+        {/* Avg Days to Quote */}
+        <MetricCard
+          icon={<Timer className="w-5 h-5 text-orange-600" />}
+          label="Avg Days to Quote"
+          value={metrics.avg_days_to_quote?.toFixed(1) || '-'}
+          subValue="from assessment"
+          bgColor="bg-orange-50"
+        />
+      </div>
+
+      {/* Row 3: Status Breakdown */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Won */}
+        <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-green-700">Won</div>
+              <div className="text-2xl font-bold text-green-800">{metrics.won_opportunities.toLocaleString()}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-green-600">{formatResidentialPercent(metrics.win_rate)}</div>
+              <div className="text-xs text-green-600">{formatResidentialCurrency(metrics.won_value)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lost */}
+        <div className="bg-red-50 rounded-lg p-4 border border-red-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-red-700">Lost</div>
+              <div className="text-2xl font-bold text-red-800">{metrics.lost_opportunities.toLocaleString()}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-red-600">
+                {formatResidentialPercent(
+                  metrics.total_opportunities > 0
+                    ? (metrics.lost_opportunities / metrics.total_opportunities) * 100
+                    : null
+                )}
+              </div>
+              <div className="text-xs text-red-500">of total</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pending - with caveat */}
+        <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-amber-700 flex items-center gap-1">
+                Pending
+                <span className="text-[10px] text-amber-500" title="May include stale opportunities not marked as lost">⚠️</span>
+              </div>
+              <div className="text-2xl font-bold text-amber-800">{metrics.pending_opportunities.toLocaleString()}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-amber-600">
+                {formatResidentialPercent(
+                  metrics.total_opportunities > 0
+                    ? (metrics.pending_opportunities / metrics.total_opportunities) * 100
+                    : null
+                )}
+              </div>
+              <div className="text-xs text-amber-500">of total</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Monthly Histogram with Toggle */}
@@ -288,31 +354,40 @@ function MonthlyHistogram({ data, viewMode }: { data: MonthlyTotals[]; viewMode:
       </div>
 
       {/* Chart Area */}
-      <div className="relative ml-14 pt-6 pb-4">
+      <div className="relative ml-14 pt-8 pb-4">
+        {/* Win Rate Labels Row - Fixed position above bars */}
+        <div className="flex gap-3 mb-3">
+          {chartData.map((item, idx) => {
+            const isHighPerformer = (item.winRate || 0) >= avgWinRate;
+            return (
+              <div key={idx} className="flex-1 text-center min-w-0">
+                <span className={`text-[11px] font-bold transition-all duration-200
+                               ${isHighPerformer ? 'text-teal-600' : 'text-stone-400'}`}>
+                  {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Average Line */}
         <div
           className="absolute left-0 right-0 border-t-2 border-dashed border-teal-400/60 pointer-events-none z-10"
-          style={{ top: 24 + barAreaHeight - (avgWinRate / 100) * barAreaHeight * 0.6 }}
+          style={{ top: 44 + barAreaHeight - (avgWinRate / 100) * barAreaHeight * 0.6 }}
         />
 
         {/* Bars Container */}
-        <div className="flex items-end gap-3" style={{ height: barAreaHeight }}>
+        <div className="flex items-end gap-3" style={{ height: barAreaHeight - 20 }}>
           {chartData.map((item, idx) => {
-            const totalHeightPx = Math.max((item.total / maxTotal) * barAreaHeight, 2);
-            const wonHeightPx = Math.max((item.won / maxTotal) * barAreaHeight, 0);
-            const isHighPerformer = (item.winRate || 0) >= avgWinRate;
+            const effectiveBarHeight = barAreaHeight - 20;
+            const totalHeightPx = Math.max((item.total / maxTotal) * effectiveBarHeight, 2);
+            const wonHeightPx = Math.max((item.won / maxTotal) * effectiveBarHeight, 0);
 
             return (
-              <div key={idx} className="flex-1 flex flex-col items-center group min-w-0">
-                {/* Win rate label - Editorial style with conditional highlight */}
-                <div className={`text-[11px] font-bold mb-2 transition-all duration-200
-                               ${isHighPerformer ? 'text-teal-600' : 'text-stone-400'}
-                               group-hover:scale-110`}>
-                  {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
-                </div>
+              <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0 h-full">
 
                 {/* Bar Stack */}
-                <div className="relative w-full max-w-[32px]" style={{ height: barAreaHeight - 24 }}>
+                <div className="relative w-full max-w-[32px]" style={{ height: effectiveBarHeight }}>
                   {/* Total bar (background) - warm stone */}
                   <div
                     className="absolute bottom-0 w-full bg-stone-200/80 rounded-t-sm transition-all duration-500 ease-out"
