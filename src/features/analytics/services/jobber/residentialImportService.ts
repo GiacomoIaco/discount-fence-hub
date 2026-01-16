@@ -48,6 +48,7 @@ interface OpportunityBuilder {
   maxQuoteValue: number;
   minQuoteValue: number;
   totalQuotedValue: number;
+  avgQuoteValue: number;              // For normalized pipeline value calculation
   firstQuoteDate: string | null;      // First DRAFTED date (legacy)
   firstQuoteSentDate: string | null;  // First SENT date (for correct cycle time)
   lastQuoteDate: string | null;
@@ -437,6 +438,7 @@ export async function importResidentialData(
       max_quote_value: opp.maxQuoteValue,
       min_quote_value: opp.minQuoteValue,
       total_quoted_value: opp.totalQuotedValue,
+      avg_quote_value: opp.avgQuoteValue,
       won_value: opp.wonValue,
       is_won: opp.isWon,
       is_lost: opp.isLost,
@@ -563,6 +565,7 @@ function createOpportunityBuilder(key: string, firstQuote: ParsedQuoteRow): Oppo
     maxQuoteValue: 0,
     minQuoteValue: Infinity,
     totalQuotedValue: 0,
+    avgQuoteValue: 0,
     firstQuoteDate: null,
     firstQuoteSentDate: null,
     lastQuoteDate: null,
@@ -600,6 +603,7 @@ function calculateOpportunityMetrics(opp: OpportunityBuilder): void {
   opp.maxQuoteValue = maxVal;
   opp.minQuoteValue = minVal === Infinity ? 0 : minVal;
   opp.totalQuotedValue = totalVal;
+  opp.avgQuoteValue = quotes.length > 0 ? totalVal / quotes.length : 0;
 
   // Calculate date ranges
   // First DRAFTED date (legacy - keep for backwards compatibility)
