@@ -2,7 +2,7 @@
 // Shows: Monthly/Weekly histograms, Value win rate, Salesperson matrix
 
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, Minus, BarChart3, Users, Grid3X3, ChevronDown, ChevronUp } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, BarChart3, Users, Grid3X3, ChevronDown, ChevronUp, Filter } from 'lucide-react';
 import {
   useResidentialEnhancedMonthlyTotals,
   useResidentialWeeklyTotals,
@@ -19,10 +19,13 @@ interface WinRateTrendsProps {
 type TimeView = 'monthly' | 'weekly';
 type RateType = 'count' | 'value';
 
+const MIN_OPPS_THRESHOLD = 10; // Minimum opportunities to be shown as individual salesperson
+
 export function WinRateTrends({ filters }: WinRateTrendsProps) {
   const [timeView, setTimeView] = useState<TimeView>('monthly');
   const [rateType, setRateType] = useState<RateType>('count');
   const [showMatrix, setShowMatrix] = useState(true);
+  const [showAllSalespeople, setShowAllSalespeople] = useState(false);
 
   // Fetch data
   const { data: monthlyData, isLoading: monthlyLoading } = useResidentialEnhancedMonthlyTotals(
@@ -57,7 +60,15 @@ export function WinRateTrends({ filters }: WinRateTrendsProps) {
   }
 
   const currentData = timeView === 'monthly' ? monthlyData : weeklyData;
-  const matrixData = timeView === 'monthly' ? monthlyMatrix : weeklyMatrix;
+
+  // Filter matrix data to only show salespeople with >= MIN_OPPS_THRESHOLD total opportunities
+  const filteredMonthlyMatrix = monthlyMatrix
+    ? filterSalespeopleByVolume(monthlyMatrix, showAllSalespeople)
+    : null;
+  const filteredWeeklyMatrix = weeklyMatrix
+    ? filterSalespeopleByVolume(weeklyMatrix, showAllSalespeople)
+    : null;
+  const matrixData = timeView === 'monthly' ? filteredMonthlyMatrix : filteredWeeklyMatrix;
 
   if (!currentData || currentData.length === 0) {
     return (
@@ -70,7 +81,7 @@ export function WinRateTrends({ filters }: WinRateTrendsProps) {
   return (
     <div className="space-y-6">
       {/* View Toggle Controls */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTimeView('monthly')}
@@ -94,28 +105,44 @@ export function WinRateTrends({ filters }: WinRateTrendsProps) {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Win Rate By:</span>
+        <div className="flex items-center gap-4">
+          {/* Salesperson Filter Toggle */}
           <button
-            onClick={() => setRateType('count')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              rateType === 'count'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            onClick={() => setShowAllSalespeople(!showAllSalespeople)}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              showAllSalespeople
+                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                : 'bg-purple-600 text-white'
             }`}
+            title={showAllSalespeople ? 'Click to show only top performers' : `Showing salespeople with ≥${MIN_OPPS_THRESHOLD} opportunities`}
           >
-            # Opps
+            <Filter className="w-4 h-4" />
+            {showAllSalespeople ? 'Show All' : `Top Performers (≥${MIN_OPPS_THRESHOLD} opps)`}
           </button>
-          <button
-            onClick={() => setRateType('value')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              rateType === 'value'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            $ Value
-          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Win Rate By:</span>
+            <button
+              onClick={() => setRateType('count')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                rateType === 'count'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              # Opps
+            </button>
+            <button
+              onClick={() => setRateType('value')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                rateType === 'value'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              $ Value
+            </button>
+          </div>
         </div>
       </div>
 
@@ -215,6 +242,9 @@ function HistogramChart({
 
   const maxRate = Math.max(...chartData.map((d) => d.winRate || 0), 50);
 
+  // Fixed bar area height in pixels for consistent rendering
+  const barAreaHeight = 180;
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
@@ -229,35 +259,47 @@ function HistogramChart({
         </div>
       </div>
 
-      <div className="relative h-64 mt-4">
+      <div className="relative">
         {/* Y-axis labels */}
-        <div className="absolute left-0 top-0 bottom-8 w-10 flex flex-col justify-between text-xs text-gray-500">
+        <div className="absolute left-0 top-0 w-10 flex flex-col justify-between text-xs text-gray-500" style={{ height: barAreaHeight }}>
           <span>{Math.round(maxRate)}%</span>
-          <span>{Math.round(maxRate * 0.75)}%</span>
           <span>{Math.round(maxRate * 0.5)}%</span>
-          <span>{Math.round(maxRate * 0.25)}%</span>
           <span>0%</span>
         </div>
 
+        {/* Average line - positioned relative to bar area */}
+        <div
+          className="absolute left-12 right-4 border-t-2 border-dashed border-blue-400 pointer-events-none z-10"
+          style={{ top: barAreaHeight - (avgWinRate / maxRate) * barAreaHeight }}
+        />
+
         {/* Chart area */}
-        <div className="ml-12 h-[calc(100%-2rem)] flex items-end gap-1 overflow-x-auto pb-8">
+        <div className="ml-12 flex items-end gap-2 overflow-x-auto pb-10" style={{ minHeight: barAreaHeight + 50 }}>
           {chartData.map((item, idx) => {
-            const height = item.winRate !== null
-              ? Math.max((item.winRate / maxRate) * 100, 2)
+            const heightPx = item.winRate !== null
+              ? Math.max((item.winRate / maxRate) * barAreaHeight, 4)
               : 0;
             const isAboveAvg = (item.winRate || 0) >= avgWinRate;
 
             return (
               <div key={idx} className="flex flex-col items-center min-w-[50px] group">
-                <div className="flex-1 flex items-end w-full justify-center">
+                {/* Win rate value above bar */}
+                <div className="text-xs font-bold mb-1 h-5">
+                  <span className={isAboveAvg ? 'text-green-600' : 'text-amber-600'}>
+                    {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
+                  </span>
+                </div>
+
+                {/* Bar container */}
+                <div className="relative w-10" style={{ height: barAreaHeight }}>
                   <div
-                    className={`w-10 rounded-t transition-all duration-300 cursor-pointer relative ${
+                    className={`w-full rounded-t transition-all duration-300 cursor-pointer absolute bottom-0 ${
                       isAboveAvg ? 'bg-green-500 hover:bg-green-600' : 'bg-amber-500 hover:bg-amber-600'
                     }`}
-                    style={{ height: `${height}%` }}
+                    style={{ height: heightPx }}
                   >
                     {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 -translate-y-full px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
                       <div className="font-medium">{item.label}</div>
                       <div>Win Rate: {formatResidentialPercent(item.winRate)}</div>
                       <div>Won: {item.wonOpps.toLocaleString()} / {item.totalOpps.toLocaleString()}</div>
@@ -265,19 +307,15 @@ function HistogramChart({
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500 mt-2 transform -rotate-45 origin-top-left w-16 truncate">
-                  {item.label.slice(0, 6)}
+
+                {/* X-axis label */}
+                <div className="text-xs text-gray-600 mt-2 text-center w-12 truncate" title={item.label}>
+                  {item.label}
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Average line */}
-        <div
-          className="absolute left-12 right-0 border-t-2 border-dashed border-blue-400 pointer-events-none"
-          style={{ bottom: `${32 + (avgWinRate / maxRate) * (256 - 32)}px` }}
-        />
       </div>
 
       {/* Legend */}
@@ -628,4 +666,29 @@ function getMatrixCellColor(rate: number | null | undefined): string {
   if (rate >= 30) return 'bg-blue-50 text-blue-700';
   if (rate >= 20) return 'bg-amber-50 text-amber-700';
   return 'bg-red-50 text-red-700';
+}
+
+// Filter salespeople by minimum opportunities threshold
+function filterSalespeopleByVolume<T extends { salesperson: string; total_opps: number }>(
+  data: T[],
+  showAll: boolean
+): T[] {
+  if (showAll) return data;
+
+  // Calculate total opportunities per salesperson
+  const salespersonTotals = new Map<string, number>();
+  data.forEach((d) => {
+    const current = salespersonTotals.get(d.salesperson) || 0;
+    salespersonTotals.set(d.salesperson, current + d.total_opps);
+  });
+
+  // Filter to only include salespeople with >= MIN_OPPS_THRESHOLD
+  const qualifiedSalespeople = new Set<string>();
+  salespersonTotals.forEach((total, salesperson) => {
+    if (total >= MIN_OPPS_THRESHOLD) {
+      qualifiedSalespeople.add(salesperson);
+    }
+  });
+
+  return data.filter((d) => qualifiedSalespeople.has(d.salesperson));
 }

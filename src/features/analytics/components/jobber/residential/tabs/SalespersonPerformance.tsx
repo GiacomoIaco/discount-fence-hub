@@ -2,7 +2,7 @@
 // Shows: Win rate by salesperson, Opportunities handled, $ Won, Trend
 
 import { useState } from 'react';
-import { User, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight } from 'lucide-react';
+import { User, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Filter } from 'lucide-react';
 import { useResidentialSalespersonMetrics, useResidentialSalespersonMonthly } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, SalespersonMetrics } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
@@ -14,11 +14,14 @@ interface SalespersonPerformanceProps {
 type SortField = 'name' | 'total_opps' | 'won_opps' | 'win_rate' | 'total_value' | 'won_value' | 'value_win_rate';
 type SortDirection = 'asc' | 'desc';
 
+const MIN_OPPS_THRESHOLD = 10; // Minimum opportunities to be shown as individual salesperson
+
 export function SalespersonPerformance({ filters }: SalespersonPerformanceProps) {
   const { data: salespersonMetrics, isLoading } = useResidentialSalespersonMetrics(filters);
   const [sortField, setSortField] = useState<SortField>('win_rate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
+  const [showAllSalespeople, setShowAllSalespeople] = useState(false);
 
   if (isLoading) {
     return (
@@ -31,8 +34,13 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
     );
   }
 
+  // Filter data by minimum opportunities threshold
+  const filteredData = showAllSalespeople
+    ? (salespersonMetrics || [])
+    : (salespersonMetrics || []).filter((s) => s.total_opps >= MIN_OPPS_THRESHOLD);
+
   // Sort data
-  const sortedData = [...(salespersonMetrics || [])].sort((a, b) => {
+  const sortedData = [...filteredData].sort((a, b) => {
     let aVal: string | number;
     let bVal: string | number;
 
@@ -71,18 +79,42 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
     );
   };
 
-  // Calculate averages
-  const avgWinRate = salespersonMetrics && salespersonMetrics.length > 0
-    ? salespersonMetrics.reduce((sum, s) => sum + (s.win_rate || 0), 0) / salespersonMetrics.length
+  // Calculate averages (using filtered data)
+  const avgWinRate = filteredData.length > 0
+    ? filteredData.reduce((sum, s) => sum + (s.win_rate || 0), 0) / filteredData.length
     : 0;
 
   return (
     <div className="space-y-6">
+      {/* Filter Toggle + Summary Cards */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600">
+            Showing {filteredData.length} of {salespersonMetrics?.length || 0} salespeople
+          </span>
+          <button
+            onClick={() => setShowAllSalespeople(!showAllSalespeople)}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              showAllSalespeople
+                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                : 'bg-purple-600 text-white'
+            }`}
+            title={showAllSalespeople ? 'Click to show only top performers' : `Showing salespeople with ≥${MIN_OPPS_THRESHOLD} opportunities`}
+          >
+            <Filter className="w-4 h-4" />
+            {showAllSalespeople ? 'Show All' : `Top Performers (≥${MIN_OPPS_THRESHOLD} opps)`}
+          </button>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Total Salespeople</div>
-          <div className="text-2xl font-bold text-gray-900">{salespersonMetrics?.length || 0}</div>
+          <div className="text-sm text-gray-600">Salespeople Shown</div>
+          <div className="text-2xl font-bold text-gray-900">{filteredData.length}</div>
+          {!showAllSalespeople && (
+            <div className="text-xs text-gray-500">{(salespersonMetrics?.length || 0) - filteredData.length} filtered out</div>
+          )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="text-sm text-gray-600">Avg Win Rate</div>

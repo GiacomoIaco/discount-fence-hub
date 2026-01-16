@@ -263,58 +263,60 @@ function MonthlyHistogram({ data, viewMode }: { data: MonthlyTotals[]; viewMode:
       ? validRates.reduce((sum, d) => sum + (d.winRate || 0), 0) / validRates.length
       : 0;
 
+  // Fixed bar height in pixels for consistent rendering
+  const barAreaHeight = 180;
+
   return (
     <div className="space-y-4">
       {/* Chart */}
-      <div className="relative h-64">
+      <div className="relative">
         {/* Y-axis for totals */}
-        <div className="absolute left-0 top-0 bottom-8 w-16 flex flex-col justify-between text-xs text-gray-500 text-right pr-2">
+        <div className="absolute left-0 top-0 w-16 flex flex-col justify-between text-xs text-gray-500 text-right pr-2" style={{ height: barAreaHeight }}>
           <span>{viewMode === 'count' ? maxTotal.toLocaleString() : formatResidentialCurrency(maxTotal)}</span>
-          <span>{viewMode === 'count' ? Math.round(maxTotal * 0.75).toLocaleString() : formatResidentialCurrency(maxTotal * 0.75)}</span>
           <span>{viewMode === 'count' ? Math.round(maxTotal * 0.5).toLocaleString() : formatResidentialCurrency(maxTotal * 0.5)}</span>
-          <span>{viewMode === 'count' ? Math.round(maxTotal * 0.25).toLocaleString() : formatResidentialCurrency(maxTotal * 0.25)}</span>
           <span>0</span>
         </div>
 
         {/* Bars */}
-        <div className="ml-16 h-[calc(100%-2rem)] flex items-end gap-1 overflow-x-auto pb-8">
+        <div className="ml-16 flex items-end gap-2 overflow-x-auto pb-12" style={{ minHeight: barAreaHeight + 60 }}>
           {chartData.map((item, idx) => {
-            const totalHeight = (item.total / maxTotal) * 100;
-            const wonHeight = (item.won / maxTotal) * 100;
+            const totalHeightPx = (item.total / maxTotal) * barAreaHeight;
+            const wonHeightPx = (item.won / maxTotal) * barAreaHeight;
 
             return (
-              <div key={idx} className="flex flex-col items-center min-w-[60px] group relative">
-                <div className="flex-1 flex items-end w-full justify-center relative" style={{ height: '200px' }}>
+              <div key={idx} className="flex flex-col items-center min-w-[50px] group">
+                {/* Win rate label above bar */}
+                <div className="text-xs font-bold mb-1 h-5">
+                  <span className={getWinRateColor(item.winRate)}>
+                    {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
+                  </span>
+                </div>
+
+                {/* Bar container */}
+                <div className="relative w-10" style={{ height: barAreaHeight }}>
                   {/* Total bar (background) */}
                   <div
-                    className="w-10 bg-blue-200 rounded-t absolute bottom-0"
-                    style={{ height: `${totalHeight}%` }}
+                    className="w-full bg-blue-200 rounded-t absolute bottom-0"
+                    style={{ height: totalHeightPx }}
                   />
                   {/* Won bar (foreground) */}
                   <div
-                    className="w-10 bg-green-500 rounded-t absolute bottom-0"
-                    style={{ height: `${wonHeight}%` }}
+                    className="w-full bg-green-500 rounded-t absolute bottom-0"
+                    style={{ height: wonHeightPx }}
                   />
-                  {/* Win rate label on top */}
-                  <div
-                    className="absolute text-xs font-bold"
-                    style={{ bottom: `${Math.max(totalHeight, 5) + 2}%` }}
-                  >
-                    <span className={getWinRateColor(item.winRate)}>
-                      {item.winRate?.toFixed(0)}%
-                    </span>
-                  </div>
 
                   {/* Tooltip */}
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 -translate-y-full px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
                     <div className="font-medium">{item.label}</div>
                     <div>Total: {viewMode === 'count' ? item.total.toLocaleString() : formatResidentialCurrency(item.total)}</div>
                     <div>Won: {viewMode === 'count' ? item.won.toLocaleString() : formatResidentialCurrency(item.won)}</div>
                     <div>Win Rate: {formatResidentialPercent(item.winRate)}</div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500 mt-2 transform -rotate-45 origin-top-left w-16 truncate">
-                  {item.label.slice(0, 6)}
+
+                {/* X-axis label */}
+                <div className="text-xs text-gray-600 mt-2 text-center w-12 truncate" title={item.label}>
+                  {item.label}
                 </div>
               </div>
             );
