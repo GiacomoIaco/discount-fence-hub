@@ -1,9 +1,14 @@
 // Conversion Funnel Tab - Core metrics and funnel visualization
-// Shows: Opportunities, Won/Lost/Pending, Win%, Won$, Value Win%, Avg Days
+// Shows: 4 rows of metrics (Count, Value, Speed, Cycle Time) + Monthly Trend
 
 import { useState } from 'react';
-import { TrendingUp, CheckCircle, DollarSign, Percent, Timer } from 'lucide-react';
-import { useResidentialFunnelMetrics, useResidentialEnhancedMonthlyTotals } from '../../../../hooks/jobber/residential';
+import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench } from 'lucide-react';
+import {
+  useResidentialFunnelMetrics,
+  useResidentialEnhancedMonthlyTotals,
+  useResidentialSpeedMetrics,
+  useResidentialQuoteCountMetrics,
+} from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, MonthlyTotals } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
 
@@ -17,6 +22,26 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('count');
   const { data: metrics, isLoading } = useResidentialFunnelMetrics(filters);
   const { data: monthlyData } = useResidentialEnhancedMonthlyTotals(13, filters.revenueBucket || undefined);
+  const { data: speedMetrics } = useResidentialSpeedMetrics(filters);
+  const { data: quoteCountMetrics } = useResidentialQuoteCountMetrics(filters);
+
+  // Calculate derived metrics
+  const sameDayData = speedMetrics?.find((s) => s.speed_bucket === 'Same day');
+  const totalSpeedOpps = speedMetrics?.reduce((sum, s) => sum + s.total_opps, 0) || 0;
+  const sameDayPercent = totalSpeedOpps > 0 && sameDayData
+    ? (sameDayData.total_opps / totalSpeedOpps) * 100
+    : null;
+
+  const multiQuoteOpps = quoteCountMetrics
+    ?.filter((q) => q.quote_count_bucket !== '1 quote')
+    ?.reduce((sum, q) => sum + q.total_opps, 0) || 0;
+  const totalQuoteOpps = quoteCountMetrics?.reduce((sum, q) => sum + q.total_opps, 0) || 0;
+  const multiQuotePercent = totalQuoteOpps > 0 ? (multiQuoteOpps / totalQuoteOpps) * 100 : null;
+
+  // Avg Deal Size (excluding warranties - approximated as won_value > 0)
+  const avgDealSize = metrics && metrics.won_opportunities > 0
+    ? metrics.won_value / metrics.won_opportunities
+    : null;
 
   if (isLoading) {
     return (
@@ -42,152 +67,141 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Row 1: Volume Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {/* Total Opportunities */}
+    <div className="space-y-4">
+      {/* Row 1: Count-Based Metrics (6 boxes) */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         <MetricCard
-          icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
+          icon={<TrendingUp className="w-4 h-4 text-blue-600" />}
           label="Total Opportunities"
           value={metrics.total_opportunities.toLocaleString()}
           bgColor="bg-blue-50"
+          compact
         />
-
-        {/* Total Pipeline Value */}
         <MetricCard
-          icon={<DollarSign className="w-5 h-5 text-slate-600" />}
+          icon={<CheckCircle className="w-4 h-4 text-green-600" />}
+          label="Won"
+          value={metrics.won_opportunities.toLocaleString()}
+          bgColor="bg-green-50"
+          compact
+        />
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-sm">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Percent className="w-4 h-4 text-blue-200" />
+            <span className="text-xs font-medium text-blue-100">Win Rate %</span>
+          </div>
+          <div className="text-2xl font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
+        </div>
+        <MetricCard
+          icon={<TrendingUp className="w-4 h-4 text-red-500" />}
+          label="Lost"
+          value={metrics.lost_opportunities.toLocaleString()}
+          bgColor="bg-red-50"
+          compact
+        />
+        <MetricCard
+          icon={<Clock className="w-4 h-4 text-amber-600" />}
+          label="Pending"
+          value={metrics.pending_opportunities.toLocaleString()}
+          bgColor="bg-amber-50"
+          compact
+        />
+        <MetricCard
+          icon={<Calendar className="w-4 h-4 text-indigo-600" />}
+          label="Closed Win Rate"
+          value={formatResidentialPercent(metrics.closed_win_rate)}
+          subValue="won/(won+lost)"
+          bgColor="bg-indigo-50"
+          compact
+        />
+      </div>
+
+      {/* Row 2: Value-Based Metrics (4 boxes) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard
+          icon={<DollarSign className="w-4 h-4 text-slate-600" />}
           label="Pipeline Value"
           value={formatResidentialCurrency(metrics.total_value)}
-          subValue="total opportunity value"
           bgColor="bg-slate-50"
+          compact
         />
-
-        {/* Quoted Value */}
         <MetricCard
-          icon={<DollarSign className="w-5 h-5 text-indigo-600" />}
-          label="Quoted Value"
-          value={formatResidentialCurrency(metrics.quoted_value)}
-          subValue="total bidded out"
-          bgColor="bg-indigo-50"
-        />
-
-        {/* Won Value */}
-        <MetricCard
-          icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
+          icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
           label="Won Value"
           value={formatResidentialCurrency(metrics.won_value)}
           bgColor="bg-emerald-50"
+          compact
         />
-
-        {/* Won Count */}
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-3 text-white shadow-sm">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Percent className="w-4 h-4 text-purple-200" />
+            <span className="text-xs font-medium text-purple-100">Value Win %</span>
+          </div>
+          <div className="text-2xl font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
+        </div>
         <MetricCard
-          icon={<CheckCircle className="w-5 h-5 text-green-600" />}
-          label="Won"
-          value={metrics.won_opportunities.toLocaleString()}
-          subValue={`of ${metrics.total_opportunities.toLocaleString()} opps`}
-          bgColor="bg-green-50"
+          icon={<DollarSign className="w-4 h-4 text-teal-600" />}
+          label="Avg Deal Size"
+          value={avgDealSize ? formatResidentialCurrency(avgDealSize) : '-'}
+          subValue="won$/won#"
+          bgColor="bg-teal-50"
+          compact
         />
       </div>
 
-      {/* Row 2: Win Rates - Highlighted */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Win Rate (Count) - Prominent */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <Percent className="w-5 h-5 text-blue-200" />
-            <span className="text-sm font-medium text-blue-100">Win Rate (Count)</span>
-          </div>
-          <div className="text-3xl font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
-          <div className="text-xs text-blue-200 mt-1">won / total opportunities</div>
-        </div>
-
-        {/* Value Win Rate - Prominent */}
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <Percent className="w-5 h-5 text-purple-200" />
-            <span className="text-sm font-medium text-purple-100">Value Win Rate</span>
-          </div>
-          <div className="text-3xl font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
-          <div className="text-xs text-purple-200 mt-1">won$ / pipeline$</div>
-        </div>
-
-        {/* Closed Win Rate */}
+      {/* Row 3: Speed & Quote Insights (3 boxes) */}
+      <div className="grid grid-cols-3 gap-3">
         <MetricCard
-          icon={<CheckCircle className="w-5 h-5 text-teal-600" />}
-          label="Closed Win Rate"
-          value={formatResidentialPercent(metrics.closed_win_rate)}
-          subValue="won / (won + lost)"
-          bgColor="bg-teal-50"
-        />
-
-        {/* Avg Days to Quote */}
-        <MetricCard
-          icon={<Timer className="w-5 h-5 text-orange-600" />}
+          icon={<Timer className="w-4 h-4 text-orange-600" />}
           label="Avg Days to Quote"
           value={metrics.avg_days_to_quote?.toFixed(1) || '-'}
-          subValue="from assessment"
+          subValue="assess → sent"
           bgColor="bg-orange-50"
+          compact
+        />
+        <MetricCard
+          icon={<FileText className="w-4 h-4 text-violet-600" />}
+          label="Multi-Quote Opps"
+          value={multiQuotePercent !== null ? `${multiQuotePercent.toFixed(1)}%` : '-'}
+          subValue={`${multiQuoteOpps.toLocaleString()} of ${totalQuoteOpps.toLocaleString()}`}
+          bgColor="bg-violet-50"
+          compact
+        />
+        <MetricCard
+          icon={<Clock className="w-4 h-4 text-green-600" />}
+          label="Same Day Quote %"
+          value={sameDayPercent !== null ? `${sameDayPercent.toFixed(1)}%` : '-'}
+          subValue="target to increase"
+          bgColor="bg-green-50"
+          compact
         />
       </div>
 
-      {/* Row 3: Status Breakdown */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Won */}
-        <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-green-700">Won</div>
-              <div className="text-2xl font-bold text-green-800">{metrics.won_opportunities.toLocaleString()}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-bold text-green-600">{formatResidentialPercent(metrics.win_rate)}</div>
-              <div className="text-xs text-green-600">{formatResidentialCurrency(metrics.won_value)}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Lost */}
-        <div className="bg-red-50 rounded-lg p-4 border border-red-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-red-700">Lost</div>
-              <div className="text-2xl font-bold text-red-800">{metrics.lost_opportunities.toLocaleString()}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-bold text-red-600">
-                {formatResidentialPercent(
-                  metrics.total_opportunities > 0
-                    ? (metrics.lost_opportunities / metrics.total_opportunities) * 100
-                    : null
-                )}
-              </div>
-              <div className="text-xs text-red-500">of total</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pending - with caveat */}
-        <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-amber-700 flex items-center gap-1">
-                Pending
-                <span className="text-[10px] text-amber-500" title="May include stale opportunities not marked as lost">⚠️</span>
-              </div>
-              <div className="text-2xl font-bold text-amber-800">{metrics.pending_opportunities.toLocaleString()}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-bold text-amber-600">
-                {formatResidentialPercent(
-                  metrics.total_opportunities > 0
-                    ? (metrics.pending_opportunities / metrics.total_opportunities) * 100
-                    : null
-                )}
-              </div>
-              <div className="text-xs text-amber-500">of total</div>
-            </div>
-          </div>
-        </div>
+      {/* Row 4: Cycle Time Metrics (3 boxes) */}
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard
+          icon={<Timer className="w-4 h-4 text-blue-600" />}
+          label="Days to Decision"
+          value={metrics.avg_days_to_decision?.toFixed(1) || '-'}
+          subValue="sent → converted"
+          bgColor="bg-blue-50"
+          compact
+        />
+        <MetricCard
+          icon={<Calendar className="w-4 h-4 text-purple-600" />}
+          label="Days to Close"
+          value={metrics.avg_days_to_close?.toFixed(1) || '-'}
+          subValue="converted → closed"
+          bgColor="bg-purple-50"
+          compact
+        />
+        <MetricCard
+          icon={<Wrench className="w-4 h-4 text-gray-600" />}
+          label="Warranty Jobs"
+          value="-"
+          subValue="coming soon"
+          bgColor="bg-gray-50"
+          compact
+        />
       </div>
 
       {/* Monthly Histogram with Toggle */}
@@ -474,13 +488,28 @@ function MetricCard({
   value,
   subValue,
   bgColor,
+  compact = false,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   subValue?: string;
   bgColor: string;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div className={`${bgColor} rounded-lg p-3`}>
+        <div className="flex items-center gap-1.5 mb-1">
+          {icon}
+          <span className="text-xs font-medium text-gray-600 truncate">{label}</span>
+        </div>
+        <div className="text-xl font-bold text-gray-900">{value}</div>
+        {subValue && <div className="text-[10px] text-gray-500 mt-0.5">{subValue}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className={`${bgColor} rounded-lg p-4`}>
       <div className="flex items-center gap-2 mb-2">
