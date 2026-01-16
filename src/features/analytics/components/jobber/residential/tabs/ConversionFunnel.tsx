@@ -2,7 +2,7 @@
 // Shows: Opportunities, Won/Lost/Pending, Win%, Won$, Value Win%, Avg Days
 
 import { useState } from 'react';
-import { TrendingUp, CheckCircle, XCircle, Clock, DollarSign, Percent, Timer, BarChart3 } from 'lucide-react';
+import { TrendingUp, CheckCircle, XCircle, Clock, DollarSign, Percent, Timer } from 'lucide-react';
 import { useResidentialFunnelMetrics, useResidentialEnhancedMonthlyTotals } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, MonthlyTotals } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
@@ -126,30 +126,31 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
 
       {/* Monthly Histogram with Toggle */}
       {monthlyData && monthlyData.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Monthly Trend (Last 13 Months)</h3>
+        <div className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-stone-200">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
+              <h3 className="text-lg font-semibold text-stone-800">Monthly Trend</h3>
+              <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Last 13 Months</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">View:</span>
+            <div className="flex items-center gap-1 p-1 bg-stone-100 rounded-lg">
               <button
                 onClick={() => setViewMode('count')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   viewMode === 'count'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-white text-stone-800 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                 }`}
               >
-                # Opportunities
+                # Count
               </button>
               <button
                 onClick={() => setViewMode('value')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   viewMode === 'value'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-white text-stone-800 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                 }`}
               >
                 $ Value
@@ -158,7 +159,9 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           </div>
 
           {/* Histogram Chart */}
-          <MonthlyHistogram data={monthlyData} viewMode={viewMode} />
+          <div className="p-6">
+            <MonthlyHistogram data={monthlyData} viewMode={viewMode} />
+          </div>
         </div>
       )}
 
@@ -243,11 +246,12 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   );
 }
 
-// Monthly Histogram Component
+// Monthly Histogram Component - Hybrid Editorial + Modern Design
 function MonthlyHistogram({ data, viewMode }: { data: MonthlyTotals[]; viewMode: ViewMode }) {
   // Prepare chart data based on view mode
   const chartData = data.map((month) => ({
     label: month.month_label,
+    shortLabel: month.month_label.slice(0, 3),
     total: viewMode === 'count' ? month.total_opps : month.total_value,
     won: viewMode === 'count' ? month.won_opps : month.won_value,
     winRate: viewMode === 'count' ? month.win_rate : month.value_win_rate,
@@ -264,78 +268,123 @@ function MonthlyHistogram({ data, viewMode }: { data: MonthlyTotals[]; viewMode:
       : 0;
 
   // Fixed bar height in pixels for consistent rendering
-  const barAreaHeight = 180;
+  const barAreaHeight = 200;
 
   return (
-    <div className="space-y-4">
-      {/* Chart */}
-      <div className="relative">
-        {/* Y-axis for totals */}
-        <div className="absolute left-0 top-0 w-16 flex flex-col justify-between text-xs text-gray-500 text-right pr-2" style={{ height: barAreaHeight }}>
-          <span>{viewMode === 'count' ? maxTotal.toLocaleString() : formatResidentialCurrency(maxTotal)}</span>
-          <span>{viewMode === 'count' ? Math.round(maxTotal * 0.5).toLocaleString() : formatResidentialCurrency(maxTotal * 0.5)}</span>
-          <span>0</span>
-        </div>
+    <div className="relative">
+      {/* Horizontal Grid Lines */}
+      <div className="absolute inset-x-0 top-6 flex flex-col justify-between pointer-events-none" style={{ height: barAreaHeight }}>
+        {[100, 75, 50, 25, 0].map((pct, i) => (
+          <div key={pct} className="flex items-center gap-3">
+            <span className="text-[10px] font-medium text-stone-400 w-12 text-right tabular-nums">
+              {viewMode === 'count'
+                ? Math.round(maxTotal * (1 - i * 0.25)).toLocaleString()
+                : formatResidentialCurrency(maxTotal * (1 - i * 0.25))
+              }
+            </span>
+            <div className="flex-1 border-t border-stone-200/80" />
+          </div>
+        ))}
+      </div>
 
-        {/* Bars */}
-        <div className="ml-16 flex items-end gap-2 overflow-x-auto pb-12" style={{ minHeight: barAreaHeight + 60 }}>
+      {/* Chart Area */}
+      <div className="relative ml-14 pt-6 pb-4">
+        {/* Average Line */}
+        <div
+          className="absolute left-0 right-0 border-t-2 border-dashed border-teal-400/60 pointer-events-none z-10"
+          style={{ top: 24 + barAreaHeight - (avgWinRate / 100) * barAreaHeight * 0.6 }}
+        />
+
+        {/* Bars Container */}
+        <div className="flex items-end gap-3" style={{ height: barAreaHeight }}>
           {chartData.map((item, idx) => {
-            const totalHeightPx = (item.total / maxTotal) * barAreaHeight;
-            const wonHeightPx = (item.won / maxTotal) * barAreaHeight;
+            const totalHeightPx = Math.max((item.total / maxTotal) * barAreaHeight, 2);
+            const wonHeightPx = Math.max((item.won / maxTotal) * barAreaHeight, 0);
+            const isHighPerformer = (item.winRate || 0) >= avgWinRate;
 
             return (
-              <div key={idx} className="flex flex-col items-center min-w-[50px] group">
-                {/* Win rate label above bar */}
-                <div className="text-xs font-bold mb-1 h-5">
-                  <span className={getWinRateColor(item.winRate)}>
-                    {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
-                  </span>
+              <div key={idx} className="flex-1 flex flex-col items-center group min-w-0">
+                {/* Win rate label - Editorial style with conditional highlight */}
+                <div className={`text-[11px] font-bold mb-2 transition-all duration-200
+                               ${isHighPerformer ? 'text-teal-600' : 'text-stone-400'}
+                               group-hover:scale-110`}>
+                  {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
                 </div>
 
-                {/* Bar container */}
-                <div className="relative w-10" style={{ height: barAreaHeight }}>
-                  {/* Total bar (background) */}
+                {/* Bar Stack */}
+                <div className="relative w-full max-w-[32px]" style={{ height: barAreaHeight - 24 }}>
+                  {/* Total bar (background) - warm stone */}
                   <div
-                    className="w-full bg-blue-200 rounded-t absolute bottom-0"
+                    className="absolute bottom-0 w-full bg-stone-200/80 rounded-t-sm transition-all duration-500 ease-out"
                     style={{ height: totalHeightPx }}
                   />
-                  {/* Won bar (foreground) */}
+                  {/* Won bar (foreground) - coral/salmon accent */}
                   <div
-                    className="w-full bg-green-500 rounded-t absolute bottom-0"
+                    className="absolute bottom-0 w-full rounded-t-sm transition-all duration-500 ease-out
+                               bg-gradient-to-t from-[#E07A5F] to-[#F2A490]
+                               group-hover:from-[#D66B4F] group-hover:to-[#E8937E]
+                               group-hover:shadow-lg group-hover:shadow-[#E07A5F]/20"
                     style={{ height: wonHeightPx }}
                   />
 
-                  {/* Tooltip */}
-                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 -translate-y-full px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                    <div className="font-medium">{item.label}</div>
-                    <div>Total: {viewMode === 'count' ? item.total.toLocaleString() : formatResidentialCurrency(item.total)}</div>
-                    <div>Won: {viewMode === 'count' ? item.won.toLocaleString() : formatResidentialCurrency(item.won)}</div>
-                    <div>Win Rate: {formatResidentialPercent(item.winRate)}</div>
+                  {/* Glass Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3
+                                  opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100
+                                  transition-all duration-200 ease-out pointer-events-none z-20">
+                    <div className="bg-white/95 backdrop-blur-sm border border-stone-200
+                                    rounded-lg shadow-xl shadow-stone-200/50 px-3 py-2.5 min-w-[140px]">
+                      <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1.5">
+                        {item.label}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-stone-500">Pipeline</span>
+                          <span className="font-semibold text-stone-700 tabular-nums">
+                            {viewMode === 'count' ? item.total.toLocaleString() : formatResidentialCurrency(item.total)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-[#E07A5F]">Won</span>
+                          <span className="font-semibold text-[#E07A5F] tabular-nums">
+                            {viewMode === 'count' ? item.won.toLocaleString() : formatResidentialCurrency(item.won)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs pt-1.5 mt-1.5 border-t border-stone-100">
+                          <span className="text-stone-500">Win Rate</span>
+                          <span className="font-bold text-stone-800">{formatResidentialPercent(item.winRate)}</span>
+                        </div>
+                      </div>
+                      {/* Tooltip Arrow */}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2
+                                      border-[6px] border-transparent border-t-white/95" />
+                    </div>
                   </div>
                 </div>
 
-                {/* X-axis label */}
-                <div className="text-xs text-gray-600 mt-2 text-center w-12 truncate" title={item.label}>
-                  {item.label}
-                </div>
+                {/* Month Label */}
+                <span className="mt-2 text-[10px] font-medium text-stone-500 uppercase tracking-wide
+                               group-hover:text-stone-700 transition-colors">
+                  {item.shortLabel}
+                </span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-6 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-200 rounded" />
-          <span>Total {viewMode === 'count' ? 'Opportunities' : 'Value'}</span>
+      {/* Legend - Pill Style */}
+      <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-stone-200">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 rounded-full">
+          <div className="w-3 h-3 bg-stone-300 rounded-sm" />
+          <span className="text-xs font-medium text-stone-600">Total Pipeline</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded" />
-          <span>Won {viewMode === 'count' ? 'Opportunities' : 'Value'}</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#E07A5F]/10 rounded-full">
+          <div className="w-3 h-3 bg-gradient-to-t from-[#E07A5F] to-[#F2A490] rounded-sm" />
+          <span className="text-xs font-medium text-[#C86A52]">Won</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-600">Avg Win Rate: {formatResidentialPercent(avgWinRate)}</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-full">
+          <div className="w-6 h-0.5 border-t-2 border-dashed border-teal-400" />
+          <span className="text-xs font-medium text-teal-700">Avg: {formatResidentialPercent(avgWinRate)}</span>
         </div>
       </div>
     </div>

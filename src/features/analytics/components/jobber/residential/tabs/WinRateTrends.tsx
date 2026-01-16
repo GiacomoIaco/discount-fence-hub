@@ -2,7 +2,7 @@
 // Shows: Monthly/Weekly histograms, Value win rate, Salesperson matrix
 
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, Minus, BarChart3, Users, Grid3X3, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Users, Grid3X3, ChevronDown, ChevronUp, Filter } from 'lucide-react';
 import {
   useResidentialEnhancedMonthlyTotals,
   useResidentialWeeklyTotals,
@@ -197,7 +197,7 @@ export function WinRateTrends({ filters }: WinRateTrendsProps) {
 }
 
 // =====================
-// HISTOGRAM CHART
+// HISTOGRAM CHART - Hybrid Editorial + Modern Design
 // =====================
 
 function HistogramChart({
@@ -215,6 +215,7 @@ function HistogramChart({
     const label = isMonthly
       ? (item as MonthlyTotals).month_label
       : (item as WeeklyTotals).week_label;
+    const shortLabel = label.slice(0, 3);
     const winRate =
       rateType === 'count'
         ? item.win_rate
@@ -225,6 +226,7 @@ function HistogramChart({
             : null;
     return {
       label,
+      shortLabel,
       winRate,
       wonOpps: item.won_opps,
       totalOpps: item.total_opps,
@@ -243,94 +245,148 @@ function HistogramChart({
   const maxRate = Math.max(...chartData.map((d) => d.winRate || 0), 50);
 
   // Fixed bar area height in pixels for consistent rendering
-  const barAreaHeight = 180;
+  const barAreaHeight = 200;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">
-            {rateType === 'count' ? 'Win Rate' : 'Value Win Rate'} Trend ({timeView === 'monthly' ? 'Monthly' : 'Weekly'})
+    <div className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-stone-200">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-8 bg-gradient-to-b from-teal-400 to-emerald-500 rounded-full" />
+          <h3 className="text-lg font-semibold text-stone-800">
+            {rateType === 'count' ? 'Win Rate' : 'Value Win Rate'} Trend
           </h3>
+          <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">
+            {timeView === 'monthly' ? 'Monthly' : 'Weekly'}
+          </span>
         </div>
-        <div className="text-sm text-gray-600">
-          Average: <span className="font-bold text-blue-600">{formatResidentialPercent(avgWinRate)}</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-full">
+          <div className="w-2 h-2 bg-gradient-to-r from-teal-400 to-emerald-500 rounded-full" />
+          <span className="text-sm text-teal-700">
+            Avg: <span className="font-bold text-teal-800">{formatResidentialPercent(avgWinRate)}</span>
+          </span>
         </div>
       </div>
 
-      <div className="relative">
-        {/* Y-axis labels */}
-        <div className="absolute left-0 top-0 w-10 flex flex-col justify-between text-xs text-gray-500" style={{ height: barAreaHeight }}>
-          <span>{Math.round(maxRate)}%</span>
-          <span>{Math.round(maxRate * 0.5)}%</span>
-          <span>0%</span>
+      {/* Chart Area */}
+      <div className="p-6 relative">
+        {/* Horizontal Grid Lines */}
+        <div className="absolute inset-x-6 top-6 flex flex-col justify-between pointer-events-none" style={{ height: barAreaHeight }}>
+          {[100, 75, 50, 25, 0].map((pct, i) => (
+            <div key={pct} className="flex items-center gap-3">
+              <span className="text-[10px] font-medium text-stone-400 w-8 text-right tabular-nums">
+                {Math.round(maxRate * (1 - i * 0.25))}%
+              </span>
+              <div className="flex-1 border-t border-stone-200/80" />
+            </div>
+          ))}
         </div>
 
-        {/* Average line - positioned relative to bar area */}
-        <div
-          className="absolute left-12 right-4 border-t-2 border-dashed border-blue-400 pointer-events-none z-10"
-          style={{ top: barAreaHeight - (avgWinRate / maxRate) * barAreaHeight }}
-        />
+        {/* Chart Content */}
+        <div className="relative ml-10 pt-6">
+          {/* Average Line with Glow */}
+          <div
+            className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-teal-400 to-emerald-500
+                       shadow-[0_0_8px_rgba(20,184,166,0.4)] pointer-events-none z-10"
+            style={{ top: barAreaHeight - (avgWinRate / maxRate) * barAreaHeight }}
+          />
 
-        {/* Chart area */}
-        <div className="ml-12 flex items-end gap-2 overflow-x-auto pb-10" style={{ minHeight: barAreaHeight + 50 }}>
-          {chartData.map((item, idx) => {
-            const heightPx = item.winRate !== null
-              ? Math.max((item.winRate / maxRate) * barAreaHeight, 4)
-              : 0;
-            const isAboveAvg = (item.winRate || 0) >= avgWinRate;
+          {/* Bars Container */}
+          <div className="flex items-end gap-3" style={{ height: barAreaHeight }}>
+            {chartData.map((item, idx) => {
+              const heightPx = item.winRate !== null
+                ? Math.max((item.winRate / maxRate) * barAreaHeight, 4)
+                : 0;
+              const isAboveAvg = (item.winRate || 0) >= avgWinRate;
+              // Highlight exceptional performance (>10% above avg)
+              const isExceptional = (item.winRate || 0) >= avgWinRate + 10;
 
-            return (
-              <div key={idx} className="flex flex-col items-center min-w-[50px] group">
-                {/* Win rate value above bar */}
-                <div className="text-xs font-bold mb-1 h-5">
-                  <span className={isAboveAvg ? 'text-green-600' : 'text-amber-600'}>
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center group min-w-0">
+                  {/* Win rate value above bar */}
+                  <div className={`text-[11px] font-bold mb-2 transition-all duration-200
+                                 ${isExceptional ? 'text-emerald-600' : isAboveAvg ? 'text-teal-600' : 'text-stone-400'}
+                                 group-hover:scale-110`}>
                     {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
-                  </span>
-                </div>
+                  </div>
 
-                {/* Bar container */}
-                <div className="relative w-10" style={{ height: barAreaHeight }}>
-                  <div
-                    className={`w-full rounded-t transition-all duration-300 cursor-pointer absolute bottom-0 ${
-                      isAboveAvg ? 'bg-green-500 hover:bg-green-600' : 'bg-amber-500 hover:bg-amber-600'
-                    }`}
-                    style={{ height: heightPx }}
-                  >
-                    {/* Tooltip */}
-                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 -translate-y-full px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                      <div className="font-medium">{item.label}</div>
-                      <div>Win Rate: {formatResidentialPercent(item.winRate)}</div>
-                      <div>Won: {item.wonOpps.toLocaleString()} / {item.totalOpps.toLocaleString()}</div>
-                      <div>Value: {formatResidentialCurrency(item.wonValue)}</div>
+                  {/* Bar */}
+                  <div className="relative w-full max-w-[28px]" style={{ height: barAreaHeight - 24 }}>
+                    <div
+                      className={`absolute bottom-0 w-full rounded-t-sm transition-all duration-500 ease-out cursor-pointer
+                                 ${isAboveAvg
+                                   ? 'bg-gradient-to-t from-teal-500 to-emerald-400 group-hover:from-teal-400 group-hover:to-emerald-300'
+                                   : 'bg-gradient-to-t from-amber-400 to-orange-300 group-hover:from-amber-300 group-hover:to-orange-200'
+                                 }
+                                 group-hover:shadow-lg ${isAboveAvg ? 'group-hover:shadow-teal-400/30' : 'group-hover:shadow-amber-400/30'}`}
+                      style={{ height: heightPx }}
+                    >
+                      {/* Shine Effect on Hover */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0
+                                      translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 rounded-t-sm" />
+                    </div>
+
+                    {/* Glass Tooltip */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3
+                                    opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100
+                                    transition-all duration-200 ease-out pointer-events-none z-20">
+                      <div className="bg-white/95 backdrop-blur-sm border border-stone-200
+                                      rounded-lg shadow-xl shadow-stone-200/50 px-3 py-2.5 min-w-[150px]">
+                        <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1.5">
+                          {item.label}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-stone-500">Win Rate</span>
+                            <span className={`font-bold ${isAboveAvg ? 'text-teal-600' : 'text-amber-600'}`}>
+                              {formatResidentialPercent(item.winRate)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-stone-500">Won / Total</span>
+                            <span className="font-semibold text-stone-700 tabular-nums">
+                              {item.wonOpps} / {item.totalOpps}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs pt-1.5 mt-1.5 border-t border-stone-100">
+                            <span className="text-stone-500">Won Value</span>
+                            <span className="font-semibold text-stone-800 tabular-nums">
+                              {formatResidentialCurrency(item.wonValue)}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Tooltip Arrow */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2
+                                        border-[6px] border-transparent border-t-white/95" />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* X-axis label */}
-                <div className="text-xs text-gray-600 mt-2 text-center w-12 truncate" title={item.label}>
-                  {item.label}
+                  {/* Month/Week Label */}
+                  <span className="mt-2 text-[10px] font-medium text-stone-500 uppercase tracking-wide
+                                 group-hover:text-stone-700 transition-colors">
+                    {item.shortLabel}
+                  </span>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded" />
-          <span>Above Average</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-amber-500 rounded" />
-          <span>Below Average</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-0.5 border-t-2 border-dashed border-blue-400" />
-          <span>Average: {formatResidentialPercent(avgWinRate)}</span>
+        {/* Legend - Pill Style */}
+        <div className="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-stone-200">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-full">
+            <div className="w-3 h-3 bg-gradient-to-t from-teal-500 to-emerald-400 rounded-sm" />
+            <span className="text-xs font-medium text-teal-700">Above Average</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-full">
+            <div className="w-3 h-3 bg-gradient-to-t from-amber-400 to-orange-300 rounded-sm" />
+            <span className="text-xs font-medium text-amber-700">Below Average</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 rounded-full">
+            <div className="w-6 h-0.5 bg-gradient-to-r from-teal-400 to-emerald-500 rounded-full" />
+            <span className="text-xs font-medium text-stone-600">Avg: {formatResidentialPercent(avgWinRate)}</span>
+          </div>
         </div>
       </div>
     </div>
