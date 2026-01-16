@@ -360,6 +360,26 @@ export interface MonthlyTotals {
   value_win_rate: number | null;
 }
 
+// Monthly cycle time and operational trends
+export interface MonthlyCycleTrends {
+  month: string;
+  month_label: string;
+  avg_days_to_quote: number;
+  avg_days_to_decision: number;
+  avg_days_to_schedule: number;
+  avg_days_to_close: number;
+  total_cycle_days: number;
+  same_day_count: number;
+  same_day_percent: number;
+  multi_quote_count: number;
+  multi_quote_percent: number;
+  avg_won_deal: number;
+  request_count: number;
+  assessment_count: number;
+  warranty_count: number;
+  paid_job_count: number;
+}
+
 // Weekly histogram data
 export interface WeeklyTotals {
   week: string;

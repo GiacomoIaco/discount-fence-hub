@@ -526,3 +526,27 @@ export function useResidentialRequestMetrics(filters?: ResidentialFilters) {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// =====================
+// MONTHLY CYCLE TRENDS (All key metrics over time)
+// =====================
+
+import type { MonthlyCycleTrends } from '../../../types/residential';
+
+export function useResidentialMonthlyCycleTrends(months: number = 13) {
+  return useQuery({
+    queryKey: ['jobber-residential-monthly-cycle-trends', months],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_residential_monthly_cycle_trends', {
+        p_months: months,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch monthly cycle trends: ${error.message}`);
+      }
+
+      return (data || []) as MonthlyCycleTrends[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}

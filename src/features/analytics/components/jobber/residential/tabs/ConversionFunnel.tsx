@@ -1,8 +1,8 @@
 // Conversion Funnel Tab - Core metrics and funnel visualization
 // Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend
 
-import { useState } from 'react';
-import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList, BarChart3 } from 'lucide-react';
 import {
   useResidentialFunnelMetrics,
   useResidentialEnhancedMonthlyTotals,
@@ -10,8 +10,9 @@ import {
   useResidentialQuoteCountMetrics,
   useResidentialWarrantyMetrics,
   useResidentialRequestMetrics,
+  useResidentialMonthlyCycleTrends,
 } from '../../../../hooks/jobber/residential';
-import type { ResidentialFilters, MonthlyTotals } from '../../../../types/residential';
+import type { ResidentialFilters, MonthlyTotals, MonthlyCycleTrends } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
 
 interface ConversionFunnelProps {
@@ -19,15 +20,46 @@ interface ConversionFunnelProps {
 }
 
 type ViewMode = 'count' | 'value';
+type TrendMetric = 'days_to_quote' | 'avg_deal' | 'same_day' | 'multi_quote' | 'days_to_decision' | 'days_to_schedule' | 'days_to_close' | 'warranty';
+
+const TREND_METRICS: { key: TrendMetric; label: string; color: string; unit: string }[] = [
+  { key: 'days_to_quote', label: 'Days to Quote', color: '#F97316', unit: 'days' },
+  { key: 'avg_deal', label: 'Avg Deal Size', color: '#10B981', unit: '$' },
+  { key: 'same_day', label: '% Same Day', color: '#06B6D4', unit: '%' },
+  { key: 'multi_quote', label: '% Multi-Quote', color: '#8B5CF6', unit: '%' },
+  { key: 'days_to_decision', label: 'Days to Decision', color: '#3B82F6', unit: 'days' },
+  { key: 'days_to_schedule', label: 'Days to Schedule', color: '#EC4899', unit: 'days' },
+  { key: 'days_to_close', label: 'Days to Close', color: '#EF4444', unit: 'days' },
+  { key: 'warranty', label: 'Warranty Jobs', color: '#F59E0B', unit: '#' },
+];
 
 export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('count');
+  const [selectedTrend, setSelectedTrend] = useState<TrendMetric>('days_to_quote');
   const { data: metrics, isLoading } = useResidentialFunnelMetrics(filters);
   const { data: monthlyData } = useResidentialEnhancedMonthlyTotals(13, filters.revenueBucket || undefined);
   const { data: speedMetrics } = useResidentialSpeedMetrics(filters);
   const { data: quoteCountMetrics } = useResidentialQuoteCountMetrics(filters);
   const { data: warrantyMetrics } = useResidentialWarrantyMetrics(filters);
   const { data: requestMetrics } = useResidentialRequestMetrics(filters);
+  const { data: cycleTrends } = useResidentialMonthlyCycleTrends(13);
+
+  // Calculate LTM (Last Twelve Months) totals from monthly data
+  const ltmTotals = useMemo(() => {
+    if (!monthlyData || monthlyData.length === 0) return null;
+    // Take last 12 months (skip current partial month if we have 13)
+    const ltmData = monthlyData.slice(-12);
+    const totalPipeline = ltmData.reduce((sum, m) => sum + (m.total_value || 0), 0);
+    const totalWon = ltmData.reduce((sum, m) => sum + (m.won_value || 0), 0);
+    const totalOpps = ltmData.reduce((sum, m) => sum + m.total_opps, 0);
+    const wonOpps = ltmData.reduce((sum, m) => sum + m.won_opps, 0);
+    return {
+      pipeline: totalPipeline,
+      won: totalWon,
+      winRateCount: totalOpps > 0 ? (wonOpps / totalOpps) * 100 : null,
+      winRateValue: totalPipeline > 0 ? (totalWon / totalPipeline) * 100 : null,
+    };
+  }, [monthlyData]);
 
   // Calculate derived metrics - Speed buckets
   const totalSpeedOpps = speedMetrics?.reduce((sum, s) => sum + s.total_opps, 0) || 0;
@@ -263,7 +295,46 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
 
           {/* Histogram Chart */}
           <div className="p-6">
-            <MonthlyHistogram data={monthlyData} viewMode={viewMode} />
+            <MonthlyHistogram data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
+          </div>
+        </div>
+      )}
+
+      {/* Operational Trends Section */}
+      {cycleTrends && cycleTrends.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {/* Header with Metric Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-gray-200 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full" />
+              <h3 className="text-lg font-semibold text-gray-800">Operational Trends</h3>
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">13 Months</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {TREND_METRICS.map((metric) => (
+                <button
+                  key={metric.key}
+                  onClick={() => setSelectedTrend(metric.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
+                    selectedTrend === metric.key
+                      ? 'text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  style={selectedTrend === metric.key ? { backgroundColor: metric.color } : {}}
+                >
+                  {metric.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Trend Chart */}
+          <div className="p-6">
+            <OperationalTrendChart
+              data={cycleTrends}
+              metric={selectedTrend}
+              config={TREND_METRICS.find(m => m.key === selectedTrend)!}
+            />
           </div>
         </div>
       )}
@@ -350,7 +421,15 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
 }
 
 // Monthly Histogram Component - Hybrid Editorial + Modern Design
-function MonthlyHistogram({ data, viewMode }: { data: MonthlyTotals[]; viewMode: ViewMode }) {
+function MonthlyHistogram({
+  data,
+  viewMode,
+  ltmTotals
+}: {
+  data: MonthlyTotals[];
+  viewMode: ViewMode;
+  ltmTotals: { pipeline: number; won: number; winRateCount: number | null; winRateValue: number | null } | null;
+}) {
   // Prepare chart data based on view mode
   const chartData = data.map((month) => ({
     label: month.month_label,
@@ -484,19 +563,164 @@ function MonthlyHistogram({ data, viewMode }: { data: MonthlyTotals[]; viewMode:
         </div>
       </div>
 
-      {/* Legend - Pill Style */}
-      <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-stone-200">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 rounded-full">
-          <div className="w-3 h-3 bg-stone-300 rounded-sm" />
-          <span className="text-xs font-medium text-stone-600">Total Pipeline</span>
+      {/* Legend with LTM Stats */}
+      <div className="mt-4 pt-4 border-t border-stone-200">
+        {/* Legend Pills */}
+        <div className="flex items-center justify-center gap-4 mb-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 rounded-full">
+            <div className="w-3 h-3 bg-stone-300 rounded-sm" />
+            <span className="text-xs font-medium text-stone-600">Total Pipeline</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#E07A5F]/10 rounded-full">
+            <div className="w-3 h-3 bg-gradient-to-t from-[#E07A5F] to-[#F2A490] rounded-sm" />
+            <span className="text-xs font-medium text-[#C86A52]">Won</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-full">
+            <div className="w-6 h-0.5 border-t-2 border-dashed border-teal-400" />
+            <span className="text-xs font-medium text-teal-700">Avg: {formatResidentialPercent(avgWinRate)}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#E07A5F]/10 rounded-full">
-          <div className="w-3 h-3 bg-gradient-to-t from-[#E07A5F] to-[#F2A490] rounded-sm" />
-          <span className="text-xs font-medium text-[#C86A52]">Won</span>
+
+        {/* LTM Summary Stats */}
+        {ltmTotals && (
+          <div className="flex items-center justify-center gap-6 pt-3 border-t border-stone-100">
+            <div className="text-center">
+              <div className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">LTM Pipeline</div>
+              <div className="text-sm font-bold text-stone-700">{formatResidentialCurrency(ltmTotals.pipeline)}</div>
+            </div>
+            <div className="w-px h-8 bg-stone-200" />
+            <div className="text-center">
+              <div className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">LTM Won</div>
+              <div className="text-sm font-bold text-[#E07A5F]">{formatResidentialCurrency(ltmTotals.won)}</div>
+            </div>
+            <div className="w-px h-8 bg-stone-200" />
+            <div className="text-center">
+              <div className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">LTM Win Rate</div>
+              <div className="text-sm font-bold text-teal-600">
+                {viewMode === 'count'
+                  ? formatResidentialPercent(ltmTotals.winRateCount)
+                  : formatResidentialPercent(ltmTotals.winRateValue)
+                }
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Operational Trend Chart Component
+function OperationalTrendChart({
+  data,
+  metric,
+  config,
+}: {
+  data: MonthlyCycleTrends[];
+  metric: TrendMetric;
+  config: { label: string; color: string; unit: string };
+}) {
+  // Map metric key to data field
+  const getValue = (item: MonthlyCycleTrends): number => {
+    switch (metric) {
+      case 'days_to_quote': return item.avg_days_to_quote;
+      case 'avg_deal': return item.avg_won_deal;
+      case 'same_day': return item.same_day_percent;
+      case 'multi_quote': return item.multi_quote_percent;
+      case 'days_to_decision': return item.avg_days_to_decision;
+      case 'days_to_schedule': return item.avg_days_to_schedule;
+      case 'days_to_close': return item.avg_days_to_close;
+      case 'warranty': return item.warranty_count;
+      default: return 0;
+    }
+  };
+
+  const chartData = data.map((item) => ({
+    label: item.month_label,
+    shortLabel: item.month_label.slice(0, 3),
+    value: getValue(item),
+  }));
+
+  const maxValue = Math.max(...chartData.map((d) => d.value), 1);
+  const avgValue = chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length;
+  const barAreaHeight = 160;
+
+  // Format value based on unit
+  const formatValue = (val: number): string => {
+    if (config.unit === '$') return formatResidentialCurrency(val);
+    if (config.unit === '%') return `${val.toFixed(1)}%`;
+    if (config.unit === 'days') return val.toFixed(1);
+    return val.toLocaleString();
+  };
+
+  return (
+    <div className="relative">
+      {/* Chart Area */}
+      <div className="relative ml-12">
+        {/* Y-axis labels */}
+        <div className="absolute -left-12 top-0 flex flex-col justify-between h-full text-[10px] text-gray-400 font-medium" style={{ height: barAreaHeight }}>
+          <span>{formatValue(maxValue)}</span>
+          <span>{formatValue(maxValue / 2)}</span>
+          <span>0</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-full">
-          <div className="w-6 h-0.5 border-t-2 border-dashed border-teal-400" />
-          <span className="text-xs font-medium text-teal-700">Avg: {formatResidentialPercent(avgWinRate)}</span>
+
+        {/* Average line */}
+        <div
+          className="absolute left-0 right-0 border-t-2 border-dashed pointer-events-none z-10"
+          style={{
+            borderColor: config.color + '60',
+            top: barAreaHeight - (avgValue / maxValue) * barAreaHeight,
+          }}
+        />
+
+        {/* Bars */}
+        <div className="flex items-end gap-2" style={{ height: barAreaHeight }}>
+          {chartData.map((item, idx) => {
+            const heightPx = Math.max((item.value / maxValue) * barAreaHeight, 2);
+            const isAboveAvg = item.value >= avgValue;
+
+            return (
+              <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0">
+                {/* Value on hover */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold mb-1"
+                     style={{ color: config.color }}>
+                  {formatValue(item.value)}
+                </div>
+
+                {/* Bar */}
+                <div
+                  className="w-full max-w-[24px] rounded-t transition-all duration-300 group-hover:opacity-80"
+                  style={{
+                    height: heightPx,
+                    backgroundColor: isAboveAvg ? config.color : config.color + '60',
+                  }}
+                />
+
+                {/* Month label */}
+                <span className="mt-2 text-[9px] font-medium text-gray-400 uppercase tracking-wide">
+                  {item.shortLabel}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-gray-100">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ backgroundColor: config.color + '15' }}>
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: config.color }} />
+          <span className="text-xs font-medium" style={{ color: config.color }}>{config.label}</span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full">
+          <div className="w-6 h-0.5 border-t-2 border-dashed" style={{ borderColor: config.color + '60' }} />
+          <span className="text-xs font-medium text-gray-600">Avg: {formatValue(avgValue)}</span>
+        </div>
+        <div className="text-center px-3">
+          <span className="text-xs text-gray-400">Latest: </span>
+          <span className="text-xs font-bold" style={{ color: config.color }}>
+            {chartData.length > 0 ? formatValue(chartData[chartData.length - 1].value) : '-'}
+          </span>
         </div>
       </div>
     </div>
