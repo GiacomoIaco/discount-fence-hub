@@ -416,7 +416,9 @@
       "WebFetch(domain:garysmithpartnership.com)",
       "Bash(git rev-list:*)",
       "Bash(git rev-parse:*)",
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "WebFetch(domain:developer.getjobber.com)",
+      "WebFetch(domain:rollout.com)"
     ],
     "deny": [],
     "ask": []

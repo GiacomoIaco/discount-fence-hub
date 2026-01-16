@@ -2,7 +2,7 @@
 // Shows: Opportunities, Won/Lost/Pending, Win%, Won$, Value Win%, Avg Days
 
 import { TrendingUp, CheckCircle, XCircle, Clock, DollarSign, Percent, Timer } from 'lucide-react';
-import { useResidentialFunnelMetrics, useResidentialMonthlyTotals } from '../../../../hooks/jobber/residential';
+import { useResidentialFunnelMetrics, useResidentialEnhancedMonthlyTotals } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
 
@@ -12,7 +12,7 @@ interface ConversionFunnelProps {
 
 export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   const { data: metrics, isLoading } = useResidentialFunnelMetrics(filters);
-  const { data: monthlyData } = useResidentialMonthlyTotals(12, filters.revenueBucket || undefined);
+  const { data: monthlyData } = useResidentialEnhancedMonthlyTotals(12, filters.revenueBucket || undefined);
 
   if (isLoading) {
     return (
@@ -97,7 +97,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           icon={<Percent className="w-5 h-5 text-purple-600" />}
           label="Value Win Rate"
           value={formatResidentialPercent(metrics.value_win_rate)}
-          subValue={`of ${formatResidentialCurrency(metrics.quoted_value)} quoted`}
+          subValue={`of ${formatResidentialCurrency(metrics.total_value)} total`}
           bgColor="bg-purple-50"
         />
 
@@ -162,7 +162,8 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
                   <th className="text-left py-2 px-3 font-medium text-gray-700">Month</th>
                   <th className="text-right py-2 px-3 font-medium text-gray-700">Opps</th>
                   <th className="text-right py-2 px-3 font-medium text-gray-700">Won</th>
-                  <th className="text-right py-2 px-3 font-medium text-gray-700">Win Rate</th>
+                  <th className="text-right py-2 px-3 font-medium text-gray-700">Win Rate (#)</th>
+                  <th className="text-right py-2 px-3 font-medium text-gray-700">Win Rate ($)</th>
                   <th className="text-right py-2 px-3 font-medium text-gray-700">Won Value</th>
                 </tr>
               </thead>
@@ -175,6 +176,11 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
                     <td className="py-2 px-3 text-right">
                       <span className={`font-medium ${getWinRateColor(month.win_rate)}`}>
                         {formatResidentialPercent(month.win_rate)}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <span className={`font-medium ${getWinRateColor(month.value_win_rate)}`}>
+                        {formatResidentialPercent(month.value_win_rate)}
                       </span>
                     </td>
                     <td className="py-2 px-3 text-right text-gray-900">

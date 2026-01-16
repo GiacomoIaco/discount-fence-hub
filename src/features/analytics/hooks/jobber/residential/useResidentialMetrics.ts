@@ -13,6 +13,10 @@ import type {
   SpeedBySizeMetrics,
   QuoteCountMetrics,
   MonthlyTrend,
+  MonthlyTotals,
+  WeeklyTotals,
+  WinRateMatrixEntry,
+  WeeklyWinRateMatrixEntry,
   SalespersonMonthlyTrend,
 } from '../../../types/residential';
 import { getResidentialDateRange } from '../../../types/residential';
@@ -348,5 +352,97 @@ export function useResidentialSalespersonMonthly(
     },
     staleTime: 5 * 60 * 1000,
     enabled: salesperson !== undefined || true, // Always enable for RPC mode
+  });
+}
+
+// =====================
+// WEEKLY TOTALS (Histogram)
+// =====================
+
+export function useResidentialWeeklyTotals(weeks: number = 13, revenueBucket?: string) {
+  return useQuery({
+    queryKey: ['jobber-residential-weekly-totals', weeks, revenueBucket],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_residential_weekly_totals', {
+        p_weeks: weeks,
+        p_revenue_bucket: revenueBucket || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch weekly totals: ${error.message}`);
+      }
+
+      return (data || []) as WeeklyTotals[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// ENHANCED MONTHLY TOTALS (with value_win_rate)
+// =====================
+
+export function useResidentialEnhancedMonthlyTotals(months: number = 13, revenueBucket?: string) {
+  return useQuery({
+    queryKey: ['jobber-residential-enhanced-monthly-totals', months, revenueBucket],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_residential_monthly_totals', {
+        p_months: months,
+        p_revenue_bucket: revenueBucket || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch enhanced monthly totals: ${error.message}`);
+      }
+
+      return (data || []) as MonthlyTotals[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// WIN RATE MATRIX (Salesperson × Month)
+// =====================
+
+export function useResidentialWinRateMatrix(months: number = 12, revenueBucket?: string) {
+  return useQuery({
+    queryKey: ['jobber-residential-win-rate-matrix', months, revenueBucket],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_residential_win_rate_matrix', {
+        p_months: months,
+        p_revenue_bucket: revenueBucket || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch win rate matrix: ${error.message}`);
+      }
+
+      return (data || []) as WinRateMatrixEntry[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// WEEKLY WIN RATE MATRIX (Salesperson × Week)
+// =====================
+
+export function useResidentialWinRateMatrixWeekly(weeks: number = 13, revenueBucket?: string) {
+  return useQuery({
+    queryKey: ['jobber-residential-win-rate-matrix-weekly', weeks, revenueBucket],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_residential_win_rate_matrix_weekly', {
+        p_weeks: weeks,
+        p_revenue_bucket: revenueBucket || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch weekly win rate matrix: ${error.message}`);
+      }
+
+      return (data || []) as WeeklyWinRateMatrixEntry[];
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }

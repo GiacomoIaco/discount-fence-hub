@@ -246,6 +246,7 @@ export interface FunnelMetrics {
   closed_win_rate: number | null;
   won_value: number;
   quoted_value: number;
+  total_value: number;
   value_win_rate: number | null;
   avg_days_to_quote: number | null;
   avg_days_to_decision: number | null;
@@ -312,9 +313,55 @@ export interface MonthlyTrend {
   won_value: number;
 }
 
-// Alias for MonthlyTrend with optional pending count
-export interface MonthlyTotals extends MonthlyTrend {
-  pending_opps?: number;
+// Enhanced MonthlyTotals with total_value and value_win_rate
+export interface MonthlyTotals {
+  month: string;
+  month_label: string;
+  total_opps: number;
+  won_opps: number;
+  win_rate: number | null;
+  won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
+}
+
+// Weekly histogram data
+export interface WeeklyTotals {
+  week: string;
+  week_label: string;
+  week_start: string;
+  total_opps: number;
+  won_opps: number;
+  win_rate: number | null;
+  won_value: number;
+  total_value: number;
+}
+
+// Win rate matrix entry (salesperson × month)
+export interface WinRateMatrixEntry {
+  salesperson: string;
+  month: string;
+  month_label: string;
+  total_opps: number;
+  won_opps: number;
+  win_rate: number | null;
+  won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
+}
+
+// Weekly win rate matrix entry (salesperson × week)
+export interface WeeklyWinRateMatrixEntry {
+  salesperson: string;
+  week: string;
+  week_label: string;
+  week_start: string;
+  total_opps: number;
+  won_opps: number;
+  win_rate: number | null;
+  won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
 }
 
 export interface SalespersonMonthlyTrend extends MonthlyTrend {
