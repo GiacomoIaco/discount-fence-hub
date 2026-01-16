@@ -179,6 +179,14 @@ export type RevenueBucket =
 export type QuoteCountBucket = '1 quote' | '2 quotes' | '3 quotes' | '4+ quotes';
 
 export type ResidentialTimePreset =
+  | 'this_week'
+  | 'last_week'
+  | 'this_month'
+  | 'last_month'
+  | 'this_quarter'
+  | 'last_quarter'
+  | 'this_year'
+  | 'last_year'
   | 'last_30_days'
   | 'last_60_days'
   | 'last_90_days'
@@ -486,6 +494,53 @@ export function getResidentialDateRange(preset: ResidentialTimePreset): {
   startOfToday.setHours(0, 0, 0, 0);
 
   switch (preset) {
+    case 'this_week': {
+      const start = new Date(startOfToday);
+      const dayOfWeek = start.getDay();
+      start.setDate(start.getDate() - dayOfWeek); // Start of current week (Sunday)
+      return { start, end: today };
+    }
+    case 'last_week': {
+      const start = new Date(startOfToday);
+      const dayOfWeek = start.getDay();
+      start.setDate(start.getDate() - dayOfWeek - 7); // Start of last week
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    case 'this_month': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start, end: today };
+    }
+    case 'last_month': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    case 'this_quarter': {
+      const quarter = Math.floor(today.getMonth() / 3);
+      const start = new Date(today.getFullYear(), quarter * 3, 1);
+      return { start, end: today };
+    }
+    case 'last_quarter': {
+      const quarter = Math.floor(today.getMonth() / 3);
+      const start = new Date(today.getFullYear(), (quarter - 1) * 3, 1);
+      const end = new Date(today.getFullYear(), quarter * 3, 0);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    case 'this_year': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { start, end: today };
+    }
+    case 'last_year': {
+      const start = new Date(today.getFullYear() - 1, 0, 1);
+      const end = new Date(today.getFullYear() - 1, 11, 31);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
     case 'last_30_days': {
       const start = new Date(startOfToday);
       start.setDate(start.getDate() - 30);

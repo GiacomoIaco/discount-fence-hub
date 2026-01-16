@@ -22,12 +22,20 @@ interface ResidentialFiltersProps {
   onChange: (filters: ResidentialFiltersType) => void;
 }
 
-const TIME_PRESETS: { value: ResidentialTimePreset; label: string }[] = [
-  { value: 'last_30_days', label: 'Last 30 Days' },
+const TIME_PRESETS: { value: ResidentialTimePreset; label: string; divider?: boolean }[] = [
+  { value: 'this_week', label: 'This Week' },
+  { value: 'last_week', label: 'Last Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_quarter', label: 'This Quarter' },
+  { value: 'last_quarter', label: 'Last Quarter' },
+  { value: 'this_year', label: 'This Year' },
+  { value: 'last_year', label: 'Last Year' },
+  { value: 'last_30_days', label: 'Last 30 Days', divider: true },
   { value: 'last_60_days', label: 'Last 60 Days' },
   { value: 'last_90_days', label: 'Last 90 Days' },
   { value: 'last_180_days', label: 'Last 180 Days' },
-  { value: 'last_365_days', label: 'Last Year' },
+  { value: 'last_365_days', label: 'Last 365 Days' },
   { value: 'ytd', label: 'Year to Date' },
   { value: 'all_time', label: 'All Time' },
 ];

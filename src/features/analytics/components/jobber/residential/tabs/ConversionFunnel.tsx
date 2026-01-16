@@ -74,7 +74,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   return (
     <div className="space-y-4">
       {/* Row 1: Count-Based Metrics (7 cards) */}
-      <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+      <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
         <MetricCard
           icon={<TrendingUp className="w-4 h-4 text-blue-600" />}
           label="Total Opps (#)"
@@ -89,12 +89,12 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           bgColor="bg-green-50"
           compact
         />
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-2 text-white shadow-sm">
-          <div className="flex items-center gap-1 mb-0.5">
-            <Percent className="w-3 h-3 text-blue-200" />
-            <span className="text-[10px] font-medium text-blue-100">Win Rate %</span>
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-sm">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Percent className="w-4 h-4 text-blue-200" />
+            <span className="text-xs font-medium text-blue-100">Win Rate %</span>
           </div>
-          <div className="text-lg font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
+          <div className="text-xl font-bold">{formatResidentialPercent(metrics.win_rate)}</div>
         </div>
         <MetricCard
           icon={<DollarSign className="w-4 h-4 text-teal-600" />}
@@ -130,7 +130,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
       </div>
 
       {/* Row 2: Value & Cycle Time (7 cards) */}
-      <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+      <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
         <MetricCard
           icon={<DollarSign className="w-4 h-4 text-slate-600" />}
           label="Total Opps ($)"
@@ -145,12 +145,12 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
           bgColor="bg-emerald-50"
           compact
         />
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-2 text-white shadow-sm">
-          <div className="flex items-center gap-1 mb-0.5">
-            <Percent className="w-3 h-3 text-purple-200" />
-            <span className="text-[10px] font-medium text-purple-100">Value Win %</span>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-3 text-white shadow-sm">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Percent className="w-4 h-4 text-purple-200" />
+            <span className="text-xs font-medium text-purple-100">Value Win %</span>
           </div>
-          <div className="text-lg font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
+          <div className="text-xl font-bold">{formatResidentialPercent(metrics.value_win_rate)}</div>
         </div>
         <MetricCard
           icon={<Timer className="w-4 h-4 text-blue-600" />}
@@ -187,7 +187,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
       </div>
 
       {/* Row 3: Requests & Jobs (5 cards) */}
-      <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
         <MetricCard
           icon={<ClipboardList className="w-4 h-4 text-indigo-600" />}
           label="Requests Received"
@@ -220,7 +220,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         <MetricCard
           icon={<Percent className="w-4 h-4 text-rose-600" />}
           label="Warranty %"
-          value={warrantyMetrics?.warranty_percent !== null ? `${warrantyMetrics?.warranty_percent?.toFixed(1)}%` : '-'}
+          value={warrantyMetrics?.warranty_percent != null ? `${warrantyMetrics.warranty_percent.toFixed(1)}%` : '-'}
           subValue="of paid jobs"
           bgColor="bg-rose-50"
           compact
@@ -522,13 +522,13 @@ function MetricCard({
 }) {
   if (compact) {
     return (
-      <div className={`${bgColor} rounded-lg p-2`}>
-        <div className="flex items-center gap-1 mb-0.5">
+      <div className={`${bgColor} rounded-lg p-3`}>
+        <div className="flex items-center gap-1.5 mb-1">
           {icon}
-          <span className="text-[10px] font-medium text-gray-600 truncate">{label}</span>
+          <span className="text-xs font-medium text-gray-600 truncate">{label}</span>
         </div>
-        <div className="text-base font-bold text-gray-900">{value}</div>
-        {subValue && <div className="text-[9px] text-gray-500 mt-0.5 truncate">{subValue}</div>}
+        <div className="text-lg font-bold text-gray-900">{value}</div>
+        {subValue && <div className="text-[10px] text-gray-500 mt-0.5 truncate">{subValue}</div>}
       </div>
     );
   }
