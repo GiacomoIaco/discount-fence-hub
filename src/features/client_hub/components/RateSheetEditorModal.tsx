@@ -404,58 +404,109 @@ export default function RateSheetEditorModal({ rateSheet, onClose }: Props) {
                 </div>
               </div>
 
-              {/* Default Markup Settings (for formula/hybrid) */}
+              {/* Default Pricing Rules (for formula/hybrid) */}
               {(pricingType === 'formula' || pricingType === 'hybrid') && (
                 <div className="bg-purple-50 rounded-lg p-4">
                   <h3 className="text-sm font-medium text-purple-900 mb-3">Default Pricing Rules</h3>
                   <p className="text-xs text-purple-700 mb-3">
-                    These apply to SKUs without specific prices set
+                    Choose ONE method: Target Margin OR Markup percentages (not both)
                   </p>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
+
+                  {/* Pricing Method Toggle */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDefaultMarginTarget('');
+                        // Keep existing markup values or set defaults
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                        !defaultMarginTarget
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-purple-700 border-purple-200 hover:border-purple-400'
+                      }`}
+                    >
+                      Use Markup %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDefaultLaborMarkup('0');
+                        setDefaultMaterialMarkup('0');
+                        if (!defaultMarginTarget) setDefaultMarginTarget('33');
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                        defaultMarginTarget
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-purple-700 border-purple-200 hover:border-purple-400'
+                      }`}
+                    >
+                      Use Target Margin %
+                    </button>
+                  </div>
+
+                  {/* Margin Input (when margin mode selected) */}
+                  {defaultMarginTarget && (
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
                       <label className="block text-sm font-medium text-purple-800 mb-1">
-                        Labor Markup %
+                        Target Gross Margin %
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={defaultLaborMarkup}
-                          onChange={(e) => setDefaultLaborMarkup(e.target.value)}
-                          className="w-full px-3 py-2 pr-8 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500"
-                        />
-                        <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-purple-800 mb-1">
-                        Material Markup %
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={defaultMaterialMarkup}
-                          onChange={(e) => setDefaultMaterialMarkup(e.target.value)}
-                          className="w-full px-3 py-2 pr-8 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500"
-                        />
-                        <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-purple-800 mb-1">
-                        Target Margin %
-                      </label>
-                      <div className="relative">
+                      <p className="text-xs text-purple-600 mb-2">
+                        Price = Cost ÷ (1 - Margin%). Example: 40% margin on $10 cost = $16.67 price
+                      </p>
+                      <div className="relative w-32">
                         <input
                           type="number"
                           value={defaultMarginTarget}
                           onChange={(e) => setDefaultMarginTarget(e.target.value)}
-                          placeholder="Optional"
+                          placeholder="e.g., 40"
                           className="w-full px-3 py-2 pr-8 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500"
                         />
                         <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Markup Inputs (when markup mode selected) */}
+                  {!defaultMarginTarget && (
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                      <p className="text-xs text-purple-600 mb-3">
+                        Price = Cost × (1 + Markup%). Example: 50% markup on $10 cost = $15 price
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-purple-800 mb-1">
+                            Labor Markup %
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={defaultLaborMarkup}
+                              onChange={(e) => setDefaultLaborMarkup(e.target.value)}
+                              placeholder="e.g., 50"
+                              className="w-full px-3 py-2 pr-8 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500"
+                            />
+                            <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-purple-800 mb-1">
+                            Material Markup %
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={defaultMaterialMarkup}
+                              onChange={(e) => setDefaultMaterialMarkup(e.target.value)}
+                              placeholder="e.g., 30"
+                              className="w-full px-3 py-2 pr-8 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500"
+                            />
+                            <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
