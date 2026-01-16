@@ -198,8 +198,10 @@ const QUOTES_QUERY = (cursor: string | null) => `
         }
         createdAt
         sentAt
-        approvedAt
-        convertedToJobAt
+        lastTransitioned {
+          approvedAt
+          convertedAt
+        }
         jobs {
           nodes {
             id
@@ -249,8 +251,10 @@ interface JobberQuote {
   };
   createdAt?: string;
   sentAt?: string;
-  approvedAt?: string;
-  convertedToJobAt?: string;
+  lastTransitioned?: {
+    approvedAt?: string;
+    convertedAt?: string;
+  };
   jobs?: {
     nodes?: Array<{ id: string }>;
   };
@@ -295,8 +299,8 @@ async function syncQuotes(accessToken: string): Promise<number> {
         service_zip: addr?.postalCode,
         drafted_at: q.createdAt,
         sent_at: q.sentAt,
-        approved_at: q.approvedAt,
-        converted_at: q.convertedToJobAt,
+        approved_at: q.lastTransitioned?.approvedAt,
+        converted_at: q.lastTransitioned?.convertedAt,
         job_jobber_ids: q.jobs?.nodes?.map((j) => j.id) || [],
         request_jobber_id: q.request?.id,
         synced_at: new Date().toISOString(),
