@@ -168,7 +168,11 @@ const QUOTES_QUERY = (cursor: string | null) => `
         quoteNumber
         title
         quoteStatus
-        total
+        amounts {
+          totalPrice
+          subtotal
+          discountAmount
+        }
         client {
           id
           name
@@ -219,7 +223,11 @@ interface JobberQuote {
   quoteNumber: number;
   title: string;
   quoteStatus: string;
-  total: number;
+  amounts?: {
+    totalPrice?: number;
+    subtotal?: number;
+    discountAmount?: number;
+  };
   client?: {
     id: string;
     name: string;
@@ -274,7 +282,9 @@ async function syncQuotes(accessToken: string): Promise<number> {
         quote_number: q.quoteNumber,
         title: q.title,
         status: q.quoteStatus?.toLowerCase().replace(/_/g, '_'),
-        total: q.total || 0,
+        total: q.amounts?.totalPrice || 0,
+        subtotal: q.amounts?.subtotal || 0,
+        discount: q.amounts?.discountAmount || 0,
         client_jobber_id: q.client?.id,
         client_name: q.client?.name,
         client_email: q.client?.emails?.[0]?.address,
@@ -314,7 +324,10 @@ const JOBS_QUERY = (cursor: string | null) => `
         jobNumber
         title
         jobStatus
-        total
+        amounts {
+          totalPrice
+          invoicedTotal
+        }
         client {
           id
           name
@@ -349,7 +362,10 @@ interface JobberJob {
   jobNumber: number;
   title: string;
   jobStatus: string;
-  total: number;
+  amounts?: {
+    totalPrice?: number;
+    invoicedTotal?: number;
+  };
   client?: {
     id: string;
     name: string;
@@ -394,7 +410,8 @@ async function syncJobs(accessToken: string): Promise<number> {
         job_number: j.jobNumber,
         title: j.title,
         status: j.jobStatus?.toLowerCase().replace(/_/g, '_'),
-        total: j.total || 0,
+        total: j.amounts?.totalPrice || 0,
+        invoiced_total: j.amounts?.invoicedTotal || 0,
         client_jobber_id: j.client?.id,
         client_name: j.client?.name,
         service_street: addr?.street,
