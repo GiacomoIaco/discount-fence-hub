@@ -11,7 +11,7 @@ interface SalespersonPerformanceProps {
   filters: ResidentialFilters;
 }
 
-type SortField = 'name' | 'total_opps' | 'won_opps' | 'win_rate' | 'won_value';
+type SortField = 'name' | 'total_opps' | 'won_opps' | 'win_rate' | 'total_value' | 'won_value' | 'value_win_rate';
 type SortDirection = 'asc' | 'desc';
 
 export function SalespersonPerformance({ filters }: SalespersonPerformanceProps) {
@@ -137,9 +137,21 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
                 </th>
                 <th
                   className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('total_value')}
+                >
+                  Opp Value <SortIcon field="total_value" />
+                </th>
+                <th
+                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
                   onClick={() => handleSort('won_value')}
                 >
                   Won Value <SortIcon field="won_value" />
+                </th>
+                <th
+                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('value_win_rate')}
+                >
+                  Value Win % <SortIcon field="value_win_rate" />
                 </th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">vs Avg</th>
               </tr>
@@ -233,8 +245,16 @@ function SalespersonRow({
             {formatResidentialPercent(person.win_rate)}
           </span>
         </td>
-        <td className="py-3 px-4 text-right font-medium text-gray-900">
+        <td className="py-3 px-4 text-right text-gray-600">
+          {formatResidentialCurrency(person.total_value)}
+        </td>
+        <td className="py-3 px-4 text-right font-medium text-green-600">
           {formatResidentialCurrency(person.won_value)}
+        </td>
+        <td className="py-3 px-4 text-right">
+          <span className={`font-semibold ${getWinRateColor(person.value_win_rate)}`}>
+            {formatResidentialPercent(person.value_win_rate)}
+          </span>
         </td>
         <td className="py-3 px-4 text-right">
           <span className={`flex items-center justify-end gap-1 ${getDiffColor(diff)}`}>
@@ -255,7 +275,7 @@ function SalespersonRow({
 
       {isExpanded && (
         <tr>
-          <td colSpan={7} className="p-0">
+          <td colSpan={10} className="p-0">
             <SalespersonDetail salesperson={person.salesperson} filters={filters} />
           </td>
         </tr>
@@ -297,7 +317,9 @@ function SalespersonDetail({
               <th className="text-right py-2 px-3 font-medium text-gray-600">Opps</th>
               <th className="text-right py-2 px-3 font-medium text-gray-600">Won</th>
               <th className="text-right py-2 px-3 font-medium text-gray-600">Win Rate</th>
+              <th className="text-right py-2 px-3 font-medium text-gray-600">Opp Value</th>
               <th className="text-right py-2 px-3 font-medium text-gray-600">Won Value</th>
+              <th className="text-right py-2 px-3 font-medium text-gray-600">Value Win %</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -311,8 +333,16 @@ function SalespersonDetail({
                     {formatResidentialPercent(month.win_rate)}
                   </span>
                 </td>
-                <td className="py-2 px-3 text-right text-gray-900">
+                <td className="py-2 px-3 text-right text-gray-600">
+                  {formatResidentialCurrency(month.total_value)}
+                </td>
+                <td className="py-2 px-3 text-right text-green-600">
                   {formatResidentialCurrency(month.won_value)}
+                </td>
+                <td className="py-2 px-3 text-right">
+                  <span className={`font-medium ${getWinRateColor(month.value_win_rate)}`}>
+                    {formatResidentialPercent(month.value_win_rate)}
+                  </span>
                 </td>
               </tr>
             ))}

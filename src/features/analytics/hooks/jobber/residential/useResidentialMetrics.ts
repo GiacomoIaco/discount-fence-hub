@@ -287,7 +287,7 @@ export function useResidentialSalespersonMonthly(
 
         let query = supabase
           .from('jobber_residential_opportunities')
-          .select('first_quote_date, is_won, won_value')
+          .select('first_quote_date, is_won, won_value, total_quoted_value, quote_count')
           .eq('salesperson', salesperson);
 
         if (dateRange.start) {
@@ -307,15 +307,20 @@ export function useResidentialSalespersonMonthly(
         }
 
         // Group by month
-        const monthlyMap = new Map<string, { total: number; won: number; value: number }>();
+        const monthlyMap = new Map<string, { total: number; won: number; value: number; totalValue: number }>();
         for (const row of data || []) {
           if (!row.first_quote_date) continue;
           const month = row.first_quote_date.substring(0, 7); // YYYY-MM
-          const existing = monthlyMap.get(month) || { total: 0, won: 0, value: 0 };
+          const existing = monthlyMap.get(month) || { total: 0, won: 0, value: 0, totalValue: 0 };
           existing.total++;
+          const wonValue = Number(row.won_value) || 0;
+          const avgQuote = (Number(row.total_quoted_value) || 0) / (Number(row.quote_count) || 1);
           if (row.is_won) {
             existing.won++;
-            existing.value += Number(row.won_value) || 0;
+            existing.value += wonValue;
+            existing.totalValue += wonValue;
+          } else {
+            existing.totalValue += avgQuote;
           }
           monthlyMap.set(month, existing);
         }
@@ -331,8 +336,10 @@ export function useResidentialSalespersonMonthly(
             salesperson: salesperson,
             total_opps: stats.total,
             won_opps: stats.won,
-            win_rate: stats.total > 0 ? (stats.won / stats.total) * 100 : null,
+            win_rate: stats.total > 0 ? Math.round((stats.won / stats.total) * 1000) / 10 : null,
             won_value: stats.value,
+            total_value: stats.totalValue,
+            value_win_rate: stats.totalValue > 0 ? Math.round((stats.value / stats.totalValue) * 1000) / 10 : null,
           }))
           .sort((a, b) => b.month.localeCompare(a.month))
           .slice(0, months) as SalespersonMonthlyTrend[];

@@ -109,7 +109,9 @@ export function QuoteOptionsAnalysis({ filters }: QuoteOptionsAnalysisProps) {
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Opportunities</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Won</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Win Rate</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-700">Opp Value</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Won Value</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-700">Value Win %</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">vs Single</th>
               </tr>
             </thead>
@@ -125,7 +127,7 @@ export function QuoteOptionsAnalysis({ filters }: QuoteOptionsAnalysisProps) {
                 ) : (
                   <tr key={bucket} className="text-gray-400">
                     <td className="py-3 px-4">{bucket}</td>
-                    <td colSpan={5} className="py-3 px-4 text-center">No data</td>
+                    <td colSpan={7} className="py-3 px-4 text-center">No data</td>
                   </tr>
                 );
               })}
@@ -202,8 +204,16 @@ function QuoteCountRow({
           {formatResidentialPercent(metric.win_rate)}
         </span>
       </td>
-      <td className="py-3 px-4 text-right font-medium text-gray-900">
+      <td className="py-3 px-4 text-right text-gray-600">
+        {formatResidentialCurrency(metric.total_value)}
+      </td>
+      <td className="py-3 px-4 text-right font-medium text-green-600">
         {formatResidentialCurrency(metric.won_value)}
+      </td>
+      <td className="py-3 px-4 text-right">
+        <span className={`font-semibold ${getWinRateColor(metric.value_win_rate)}`}>
+          {formatResidentialPercent(metric.value_win_rate)}
+        </span>
       </td>
       <td className="py-3 px-4 text-right">
         {isBaseline ? (

@@ -261,6 +261,8 @@ export interface SalespersonMetrics {
   win_rate: number | null;
   closed_win_rate: number | null;
   won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
   avg_won_value: number | null;
   avg_days_to_quote: number | null;
 }
@@ -274,6 +276,7 @@ export interface BucketMetrics {
   closed_win_rate: number | null;
   won_value: number;
   total_value: number;
+  value_win_rate: number | null;
 }
 
 export interface SpeedMetrics {
@@ -284,6 +287,9 @@ export interface SpeedMetrics {
   win_rate: number | null;
   closed_win_rate: number | null;
   baseline_diff: number | null;
+  won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
 }
 
 export interface SpeedBySizeMetrics {
@@ -302,6 +308,8 @@ export interface QuoteCountMetrics {
   win_rate: number | null;
   closed_win_rate: number | null;
   won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
 }
 
 export interface MonthlyTrend {
@@ -311,6 +319,8 @@ export interface MonthlyTrend {
   won_opps: number;
   win_rate: number | null;
   won_value: number;
+  total_value: number;
+  value_win_rate: number | null;
 }
 
 // Enhanced MonthlyTotals with total_value and value_win_rate

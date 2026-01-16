@@ -4,7 +4,7 @@
 import { Clock, AlertTriangle, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useResidentialSpeedMetrics, useResidentialSpeedBySizeMatrix } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, SpeedMetrics } from '../../../../types/residential';
-import { formatResidentialPercent, SPEED_BUCKET_ORDER, REVENUE_BUCKET_ORDER } from '../../../../types/residential';
+import { formatResidentialCurrency, formatResidentialPercent, SPEED_BUCKET_ORDER, REVENUE_BUCKET_ORDER } from '../../../../types/residential';
 
 interface SpeedToQuoteAnalysisProps {
   filters: ResidentialFilters;
@@ -67,6 +67,9 @@ export function SpeedToQuoteAnalysis({ filters }: SpeedToQuoteAnalysisProps) {
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Opportunities</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Won</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">Win Rate</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-700">Opp Value</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-700">Won Value</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-700">Value Win %</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-700">vs Baseline</th>
               </tr>
             </thead>
@@ -174,6 +177,17 @@ function SpeedRow({ metric }: { metric: SpeedMetrics }) {
       <td className="py-3 px-4 text-right">
         <span className={`font-semibold ${getWinRateColor(metric.win_rate)}`}>
           {formatResidentialPercent(metric.win_rate)}
+        </span>
+      </td>
+      <td className="py-3 px-4 text-right text-gray-600">
+        {formatResidentialCurrency(metric.total_value)}
+      </td>
+      <td className="py-3 px-4 text-right font-medium text-green-600">
+        {formatResidentialCurrency(metric.won_value)}
+      </td>
+      <td className="py-3 px-4 text-right">
+        <span className={`font-semibold ${getWinRateColor(metric.value_win_rate)}`}>
+          {formatResidentialPercent(metric.value_win_rate)}
         </span>
       </td>
       <td className="py-3 px-4 text-right">
