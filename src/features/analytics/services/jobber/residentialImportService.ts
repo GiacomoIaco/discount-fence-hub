@@ -69,6 +69,7 @@ interface OpportunityBuilder {
 
   // Enrichment from requests
   assessmentDate: string | null;
+  requestDate: string | null;  // Fallback for days_to_quote when no assessment
 }
 
 // =====================
@@ -203,12 +204,13 @@ export async function importResidentialData(
     report('jobs', 65, `Linked ${linkedJobs} jobs to opportunities`);
 
     // =====================
-    // STEP 5: ENRICH WITH REQUESTS DATA (ASSESSMENT DATES)
+    // STEP 5: ENRICH WITH REQUESTS DATA (ASSESSMENT + REQUEST DATES)
     // =====================
-    report('requests', 70, 'Enriching with assessment dates from requests...');
+    report('requests', 70, 'Enriching with assessment and request dates...');
 
-    // Build lookup: Quote # -> earliest assessment date
+    // Build lookups: Quote # -> dates (assessment and request/fallback)
     const assessmentByQuote = new Map<number, string>();
+    const requestDateByQuote = new Map<number, string>();  // Fallback for days_to_quote
     const requestRows: ParsedRequestRow[] = [];
 
     for (let i = 0; i < requestsData.length; i++) {
@@ -220,28 +222,51 @@ export async function importResidentialData(
         requestRows.push(parsed);
       }
 
-      if (!parsed.assessment_date) continue;
+      // Skip if no quote linkage
+      if (parsed.quote_numbers.length === 0) continue;
 
       for (const qnStr of parsed.quote_numbers) {
         const qn = parseInt(qnStr, 10);
         if (isNaN(qn)) continue;
 
-        const existing = assessmentByQuote.get(qn);
-        if (!existing || parsed.assessment_date < existing) {
-          assessmentByQuote.set(qn, parsed.assessment_date);
+        // Track assessment date (if available)
+        if (parsed.assessment_date) {
+          const existing = assessmentByQuote.get(qn);
+          if (!existing || parsed.assessment_date < existing) {
+            assessmentByQuote.set(qn, parsed.assessment_date);
+          }
+        }
+
+        // Track request date (fallback for days_to_quote)
+        // Use assessment_date if available, otherwise requested_date
+        const requestDate = parsed.assessment_date || parsed.requested_date;
+        if (requestDate) {
+          const existing = requestDateByQuote.get(qn);
+          if (!existing || requestDate < existing) {
+            requestDateByQuote.set(qn, requestDate);
+          }
         }
       }
     }
 
-    // Apply assessment dates to opportunities
+    // Apply dates to opportunities
     let linkedRequests = 0;
     for (const opp of opportunities.values()) {
       for (const qn of opp.quoteNumbers) {
+        // Apply assessment date
         const assessDate = assessmentByQuote.get(qn);
         if (assessDate) {
           if (!opp.assessmentDate || assessDate < opp.assessmentDate) {
             opp.assessmentDate = assessDate;
             linkedRequests++;
+          }
+        }
+
+        // Apply request date (for days_to_quote fallback)
+        const reqDate = requestDateByQuote.get(qn);
+        if (reqDate) {
+          if (!opp.requestDate || reqDate < opp.requestDate) {
+            opp.requestDate = reqDate;
           }
         }
       }
@@ -466,6 +491,7 @@ export async function importResidentialData(
       closed_date: opp.closedDate,
       actual_revenue: opp.actualRevenue,
       assessment_date: opp.assessmentDate,
+      request_date: opp.requestDate,  // Fallback for days_to_quote when no assessment
       last_updated_at: new Date().toISOString(),
     }));
 
@@ -596,6 +622,7 @@ function createOpportunityBuilder(key: string, firstQuote: ParsedQuoteRow): Oppo
     closedDate: null,
     actualRevenue: null,
     assessmentDate: null,
+    requestDate: null,
   };
 }
 
