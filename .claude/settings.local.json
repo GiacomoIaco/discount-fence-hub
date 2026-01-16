@@ -418,7 +418,9 @@
       "Bash(git rev-parse:*)",
       "Bash(npx ts-node:*)",
       "WebFetch(domain:developer.getjobber.com)",
-      "WebFetch(domain:rollout.com)"
+      "WebFetch(domain:rollout.com)",
+      "Skill(frontend-design)",
+      "Bash(exit 0)"
     ],
     "deny": [],
     "ask": []

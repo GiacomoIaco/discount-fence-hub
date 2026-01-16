@@ -255,7 +255,7 @@ export async function importResidentialData(
     report('opportunities', 85, 'Saving to database...');
 
     // Save quotes first (deduplicate by quote_number - keep latest/last occurrence)
-    const quoteMap = new Map<string, typeof quoteRows[0]>();
+    const quoteMap = new Map<number, typeof quoteRows[0]>();
     for (const q of quoteRows) {
       if (q.quote_number) {
         quoteMap.set(q.quote_number, q); // Later entries overwrite earlier ones
