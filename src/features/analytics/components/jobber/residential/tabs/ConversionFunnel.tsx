@@ -2,7 +2,7 @@
 // Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend
 
 import { useState, useMemo } from 'react';
-import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList, BarChart3 } from 'lucide-react';
+import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList } from 'lucide-react';
 import {
   useResidentialFunnelMetrics,
   useResidentialEnhancedMonthlyTotals,
