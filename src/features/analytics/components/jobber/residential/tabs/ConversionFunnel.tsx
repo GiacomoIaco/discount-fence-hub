@@ -386,36 +386,6 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         </div>
       )}
 
-      {/* Funnel Visualization */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversion Funnel</h3>
-        <div className="flex items-end justify-center gap-8 h-64">
-          <FunnelBar
-            label="Quoted"
-            value={metrics.total_opportunities}
-            maxValue={metrics.total_opportunities}
-            color="bg-blue-500"
-          />
-          <FunnelBar
-            label="Won"
-            value={metrics.won_opportunities}
-            maxValue={metrics.total_opportunities}
-            color="bg-green-500"
-          />
-          <FunnelBar
-            label="Lost"
-            value={metrics.lost_opportunities}
-            maxValue={metrics.total_opportunities}
-            color="bg-red-400"
-          />
-          <FunnelBar
-            label="Pending"
-            value={metrics.pending_opportunities}
-            maxValue={metrics.total_opportunities}
-            color="bg-amber-400"
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -681,10 +651,15 @@ function OperationalTrendChart({
 
             return (
               <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0">
-                {/* Value on hover */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold mb-1"
+                {/* Value always visible above bar */}
+                <div className="text-[9px] font-bold mb-1 transition-transform group-hover:scale-110"
                      style={{ color: config.color }}>
-                  {formatValue(item.value)}
+                  {config.unit === '$'
+                    ? `${(item.value / 1000).toFixed(0)}k`
+                    : config.unit === '%'
+                      ? `${item.value.toFixed(0)}%`
+                      : item.value.toFixed(1)
+                  }
                 </div>
 
                 {/* Bar */}
@@ -765,33 +740,6 @@ function MetricCard({
       </div>
       <div className="text-2xl font-bold text-gray-900">{value}</div>
       {subValue && <div className="text-xs text-gray-500 mt-1">{subValue}</div>}
-    </div>
-  );
-}
-
-function FunnelBar({
-  label,
-  value,
-  maxValue,
-  color,
-}: {
-  label: string;
-  value: number;
-  maxValue: number;
-  color: string;
-}) {
-  const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-  const height = Math.max(percentage * 2, 20); // Min 20px height
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="text-sm font-medium text-gray-600 mb-2">{value.toLocaleString()}</div>
-      <div
-        className={`w-24 ${color} rounded-t-lg transition-all duration-500`}
-        style={{ height: `${height}px` }}
-      />
-      <div className="text-sm text-gray-700 mt-2">{label}</div>
-      <div className="text-xs text-gray-500">{percentage.toFixed(1)}%</div>
     </div>
   );
 }
