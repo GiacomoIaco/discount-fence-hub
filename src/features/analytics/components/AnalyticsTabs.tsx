@@ -1,14 +1,15 @@
-import { BarChart, TrendingUp, Camera, Briefcase, FileSpreadsheet } from 'lucide-react';
+import { BarChart, TrendingUp, Camera, Briefcase, FileSpreadsheet, Database } from 'lucide-react';
 import { OverviewTab } from './OverviewTab';
 import { RequestsTab } from './RequestsTab';
 import FsmAnalyticsTab from './FsmAnalyticsTab';
 import PhotoAnalytics from '../../photos/components/PhotoAnalytics';
 import { JobberDataTab } from './jobber/JobberDataTab';
+import { ResidentialApiDashboard } from './jobber/residential-api';
 import { DateRangePicker } from './DateRangePicker';
 import type { AnalyticsData, DateRange } from '../hooks/useAnalytics';
 import type { UserRole } from '../../../types';
 
-export type TabId = 'overview' | 'requests' | 'sales' | 'photos' | 'jobber';
+export type TabId = 'overview' | 'requests' | 'sales' | 'photos' | 'jobber' | 'residential-api';
 
 interface AnalyticsTabsProps {
   data: AnalyticsData | null;
@@ -28,6 +29,7 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
     { id: 'sales' as TabId, label: 'Sales & Ops', icon: Briefcase },
     { id: 'photos' as TabId, label: 'Photos', icon: Camera },
     { id: 'jobber' as TabId, label: 'Jobber Data', icon: FileSpreadsheet },
+    { id: 'residential-api' as TabId, label: 'Residential (API)', icon: Database },
   ];
 
   return (
@@ -36,8 +38,8 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
 
-        {/* Date Range Picker - Hide for Photos, Sales, and Jobber tabs since they have their own data loading */}
-        {activeTab !== 'photos' && activeTab !== 'sales' && activeTab !== 'jobber' && (
+        {/* Date Range Picker - Hide for Photos, Sales, Jobber, and Residential API tabs since they have their own data loading */}
+        {activeTab !== 'photos' && activeTab !== 'sales' && activeTab !== 'jobber' && activeTab !== 'residential-api' && (
           <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
         )}
       </div>
@@ -69,13 +71,15 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
 
       {/* Tab Content */}
       <div className="min-h-[600px]">
-        {/* Sales, Photos, and Jobber tabs load their own data, so show them regardless of main loading state */}
+        {/* Sales, Photos, Jobber, and Residential API tabs load their own data, so show them regardless of main loading state */}
         {activeTab === 'sales' ? (
           <FsmAnalyticsTab />
         ) : activeTab === 'photos' ? (
           <PhotoAnalytics onBack={() => onTabChange('overview')} />
         ) : activeTab === 'jobber' ? (
           <JobberDataTab />
+        ) : activeTab === 'residential-api' ? (
+          <ResidentialApiDashboard />
         ) : loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">

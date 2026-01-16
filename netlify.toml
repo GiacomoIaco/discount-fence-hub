@@ -63,6 +63,12 @@
 [functions."import-communities"]
   timeout = 60
 
+[functions."jobber-sync-residential"]
+  timeout = 300
+
+[functions."jobber-sync-manual"]
+  timeout = 300
+
 # Optimization settings
 [build.processing]
   skip_processing = false
