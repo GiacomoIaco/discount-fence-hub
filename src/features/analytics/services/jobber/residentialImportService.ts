@@ -254,8 +254,16 @@ export async function importResidentialData(
     // =====================
     report('opportunities', 85, 'Saving to database...');
 
-    // Save quotes first
-    const quotesToInsert = quoteRows.map(q => ({
+    // Save quotes first (deduplicate by quote_number - keep latest/last occurrence)
+    const quoteMap = new Map<string, typeof quoteRows[0]>();
+    for (const q of quoteRows) {
+      if (q.quote_number) {
+        quoteMap.set(q.quote_number, q); // Later entries overwrite earlier ones
+      }
+    }
+    const uniqueQuoteRows = Array.from(quoteMap.values());
+
+    const quotesToInsert = uniqueQuoteRows.map(q => ({
       quote_number: q.quote_number,
       opportunity_key: normalizeOpportunityKey(q.client_name, q.service_street),
       client_name: q.client_name,
