@@ -169,7 +169,7 @@ const QUOTES_QUERY = (cursor: string | null) => `
         title
         quoteStatus
         amounts {
-          totalPrice
+          total
           subtotal
           discountAmount
         }
@@ -224,7 +224,7 @@ interface JobberQuote {
   title: string;
   quoteStatus: string;
   amounts?: {
-    totalPrice?: number;
+    total?: number;
     subtotal?: number;
     discountAmount?: number;
   };
@@ -282,7 +282,7 @@ async function syncQuotes(accessToken: string): Promise<number> {
         quote_number: q.quoteNumber,
         title: q.title,
         status: q.quoteStatus?.toLowerCase().replace(/_/g, '_'),
-        total: q.amounts?.totalPrice || 0,
+        total: q.amounts?.total || 0,
         subtotal: q.amounts?.subtotal || 0,
         discount: q.amounts?.discountAmount || 0,
         client_jobber_id: q.client?.id,
@@ -324,10 +324,8 @@ const JOBS_QUERY = (cursor: string | null) => `
         jobNumber
         title
         jobStatus
-        amounts {
-          totalPrice
-          invoicedTotal
-        }
+        total
+        invoicedTotal
         client {
           id
           name
@@ -362,10 +360,8 @@ interface JobberJob {
   jobNumber: number;
   title: string;
   jobStatus: string;
-  amounts?: {
-    totalPrice?: number;
-    invoicedTotal?: number;
-  };
+  total?: number;
+  invoicedTotal?: number;
   client?: {
     id: string;
     name: string;
@@ -410,8 +406,8 @@ async function syncJobs(accessToken: string): Promise<number> {
         job_number: j.jobNumber,
         title: j.title,
         status: j.jobStatus?.toLowerCase().replace(/_/g, '_'),
-        total: j.amounts?.totalPrice || 0,
-        invoiced_total: j.amounts?.invoicedTotal || 0,
+        total: j.total || 0,
+        invoiced_total: j.invoicedTotal || 0,
         client_jobber_id: j.client?.id,
         client_name: j.client?.name,
         service_street: addr?.street,
