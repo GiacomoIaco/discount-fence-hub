@@ -370,10 +370,18 @@ export async function importResidentialData(
       }
     }
 
-    // Save requests
+    // Save requests (deduplicate by request_key - keep latest/last occurrence)
     let requestsSaved = 0;
     if (requestRows.length > 0) {
-      const requestsToInsert = requestRows.map(r => ({
+      const requestMap = new Map<string, typeof requestRows[0]>();
+      for (const r of requestRows) {
+        if (r.request_key) {
+          requestMap.set(r.request_key, r); // Later entries overwrite earlier ones
+        }
+      }
+      const uniqueRequestRows = Array.from(requestMap.values());
+
+      const requestsToInsert = uniqueRequestRows.map(r => ({
         request_key: r.request_key,
         client_name: r.client_name,
         client_name_normalized: r.client_name_normalized,
