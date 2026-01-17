@@ -256,11 +256,13 @@ export interface FunnelMetrics {
   quoted_value: number;
   total_value: number;
   value_win_rate: number | null;
-  avg_days_to_quote: number | null;
+  // P75 days to quote (replaces avg)
+  p75_days_to_quote: number | null;
   avg_days_to_decision: number | null;
-  avg_days_to_schedule: number | null;  // NEW: Converted → Job Scheduled
+  avg_days_to_schedule: number | null;  // Converted → Job Scheduled
   avg_days_to_close: number | null;
-  total_cycle_days: number | null;      // NEW: Assessment → Job Closed
+  total_cycle_days: number | null;      // Assessment → Job Closed
+  pct_same_day: number | null;          // % quoted same day
 }
 
 // Warranty metrics from job-level analytics
@@ -289,7 +291,13 @@ export interface SalespersonMetrics {
   total_value: number;
   value_win_rate: number | null;
   avg_won_value: number | null;
-  avg_days_to_quote: number | null;
+  // P75 days to quote (replaces avg)
+  p75_days_to_quote: number | null;
+  // Funnel metrics
+  requests_assigned: number;
+  pct_quoted: number | null;
+  pct_same_day: number | null;
+  avg_opp_value: number;
 }
 
 export interface BucketMetrics {

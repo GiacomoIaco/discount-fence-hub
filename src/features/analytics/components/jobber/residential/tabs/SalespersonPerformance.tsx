@@ -11,7 +11,7 @@ interface SalespersonPerformanceProps {
   filters: ResidentialFilters;
 }
 
-type SortField = 'name' | 'total_opps' | 'won_opps' | 'win_rate' | 'total_value' | 'won_value' | 'value_win_rate';
+type SortField = 'name' | 'total_opps' | 'won_opps' | 'win_rate' | 'total_value' | 'won_value' | 'value_win_rate' | 'requests_assigned' | 'pct_quoted' | 'pct_same_day' | 'avg_opp_value' | 'p75_days_to_quote';
 type SortDirection = 'asc' | 'desc';
 
 const MIN_OPPS_THRESHOLD = 10; // Minimum opportunities to be shown as individual salesperson
@@ -142,50 +142,73 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 w-8"></th>
+                <th className="text-left py-3 px-2 w-8"></th>
                 <th
-                  className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  className="text-left py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
                   onClick={() => handleSort('name')}
                 >
                   Salesperson <SortIcon field="name" />
                 </th>
                 <th
-                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
-                  onClick={() => handleSort('total_opps')}
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('requests_assigned')}
+                  title="Requests assigned to salesperson"
                 >
-                  Opportunities <SortIcon field="total_opps" />
+                  Requests <SortIcon field="requests_assigned" />
                 </th>
                 <th
-                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('pct_quoted')}
+                  title="% of requests that received at least 1 quote"
+                >
+                  % Quoted <SortIcon field="pct_quoted" />
+                </th>
+                <th
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('total_opps')}
+                >
+                  Opps <SortIcon field="total_opps" />
+                </th>
+                <th
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
                   onClick={() => handleSort('won_opps')}
                 >
                   Won <SortIcon field="won_opps" />
                 </th>
                 <th
-                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
                   onClick={() => handleSort('win_rate')}
                 >
-                  Win Rate <SortIcon field="win_rate" />
+                  Win % <SortIcon field="win_rate" />
                 </th>
                 <th
-                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
-                  onClick={() => handleSort('total_value')}
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('pct_same_day')}
+                  title="% of opportunities quoted same day"
                 >
-                  Opp Value <SortIcon field="total_value" />
+                  Same Day <SortIcon field="pct_same_day" />
                 </th>
                 <th
-                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('p75_days_to_quote')}
+                  title="P75 days from assessment to quote (75th percentile)"
+                >
+                  P75 Days <SortIcon field="p75_days_to_quote" />
+                </th>
+                <th
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                  onClick={() => handleSort('avg_opp_value')}
+                  title="Average opportunity value (1 opp = 1 weight)"
+                >
+                  Avg Opp <SortIcon field="avg_opp_value" />
+                </th>
+                <th
+                  className="text-right py-3 px-2 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
                   onClick={() => handleSort('won_value')}
                 >
-                  Won Value <SortIcon field="won_value" />
+                  Won $ <SortIcon field="won_value" />
                 </th>
-                <th
-                  className="text-right py-3 px-4 font-medium text-gray-700 cursor-pointer hover:text-blue-600"
-                  onClick={() => handleSort('value_win_rate')}
-                >
-                  Value Win % <SortIcon field="value_win_rate" />
-                </th>
-                <th className="text-right py-3 px-4 font-medium text-gray-700">vs Avg</th>
+                <th className="text-right py-3 px-2 font-medium text-gray-700">vs Avg</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -247,14 +270,14 @@ function SalespersonRow({
         className={`hover:bg-gray-50 cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
         onClick={onToggle}
       >
-        <td className="py-3 px-4">
+        <td className="py-3 px-2">
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-gray-400" />
           ) : (
             <ChevronRight className="w-4 h-4 text-gray-400" />
           )}
         </td>
-        <td className="py-3 px-4">
+        <td className="py-3 px-2">
           <div className="flex items-center gap-2">
             <span
               className={`w-6 h-6 flex items-center justify-center text-xs font-bold rounded-full ${
@@ -266,29 +289,42 @@ function SalespersonRow({
             <span className="font-medium text-gray-900">{person.salesperson}</span>
           </div>
         </td>
-        <td className="py-3 px-4 text-right text-gray-600">
+        <td className="py-3 px-2 text-right text-gray-600">
+          {person.requests_assigned?.toLocaleString() ?? '-'}
+        </td>
+        <td className="py-3 px-2 text-right">
+          <span className={person.pct_quoted && person.pct_quoted >= 80 ? 'text-green-600' : 'text-gray-600'}>
+            {formatResidentialPercent(person.pct_quoted)}
+          </span>
+        </td>
+        <td className="py-3 px-2 text-right text-gray-600">
           {person.total_opps.toLocaleString()}
         </td>
-        <td className="py-3 px-4 text-right text-green-600">
+        <td className="py-3 px-2 text-right text-green-600">
           {person.won_opps.toLocaleString()}
         </td>
-        <td className="py-3 px-4 text-right">
+        <td className="py-3 px-2 text-right">
           <span className={`font-semibold ${getWinRateColor(person.win_rate)}`}>
             {formatResidentialPercent(person.win_rate)}
           </span>
         </td>
-        <td className="py-3 px-4 text-right text-gray-600">
-          {formatResidentialCurrency(person.total_value)}
-        </td>
-        <td className="py-3 px-4 text-right font-medium text-green-600">
-          {formatResidentialCurrency(person.won_value)}
-        </td>
-        <td className="py-3 px-4 text-right">
-          <span className={`font-semibold ${getWinRateColor(person.value_win_rate)}`}>
-            {formatResidentialPercent(person.value_win_rate)}
+        <td className="py-3 px-2 text-right">
+          <span className={person.pct_same_day && person.pct_same_day >= 60 ? 'text-green-600 font-medium' : 'text-gray-600'}>
+            {formatResidentialPercent(person.pct_same_day)}
           </span>
         </td>
-        <td className="py-3 px-4 text-right">
+        <td className="py-3 px-2 text-right">
+          <span className={person.p75_days_to_quote && person.p75_days_to_quote <= 1 ? 'text-green-600' : 'text-gray-600'}>
+            {person.p75_days_to_quote ?? '-'}
+          </span>
+        </td>
+        <td className="py-3 px-2 text-right text-gray-600">
+          {formatResidentialCurrency(person.avg_opp_value ?? 0)}
+        </td>
+        <td className="py-3 px-2 text-right font-medium text-green-600">
+          {formatResidentialCurrency(person.won_value)}
+        </td>
+        <td className="py-3 px-2 text-right">
           <span className={`flex items-center justify-end gap-1 ${getDiffColor(diff)}`}>
             {diff > 0 ? (
               <TrendingUp className="w-4 h-4" />
@@ -307,7 +343,7 @@ function SalespersonRow({
 
       {isExpanded && (
         <tr>
-          <td colSpan={10} className="p-0">
+          <td colSpan={12} className="p-0">
             <SalespersonDetail salesperson={person.salesperson} filters={filters} />
           </td>
         </tr>

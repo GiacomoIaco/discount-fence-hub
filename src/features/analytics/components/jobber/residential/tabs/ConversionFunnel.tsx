@@ -137,9 +137,9 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         />
         <MetricCard
           icon={<Timer className="w-4 h-4 text-orange-600" />}
-          label="Days to Quote"
-          value={metrics.avg_days_to_quote?.toFixed(1) || '-'}
-          subValue="assess → sent"
+          label="P75 Days to Quote"
+          value={metrics.p75_days_to_quote?.toFixed(1) || '-'}
+          subValue="75th percentile"
           bgColor="bg-orange-50"
           compact
         />
