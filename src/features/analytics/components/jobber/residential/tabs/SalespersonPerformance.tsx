@@ -293,13 +293,13 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             {/* Group Header Row */}
             <thead>
               <tr className="border-b border-gray-300">
                 <th className="sticky left-0 bg-white z-10 w-8" rowSpan={2}></th>
                 <th
-                  className="sticky left-8 bg-white z-10 text-left py-2 px-2 font-semibold text-gray-700 cursor-pointer hover:text-blue-600 min-w-[100px]"
+                  className="sticky left-8 bg-white z-10 text-left py-2 px-2 font-semibold text-gray-700 cursor-pointer hover:text-blue-600 min-w-[140px]"
                   rowSpan={2}
                   onClick={() => handleSort('name')}
                 >
@@ -445,16 +445,16 @@ function SalespersonRow({
             <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
           )}
         </td>
-        <td className="sticky left-8 bg-inherit py-2 px-2 z-10">
+        <td className="sticky left-8 bg-inherit py-2 px-2 z-10 min-w-[140px]">
           <div className="flex items-center gap-1.5">
             <span
-              className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded-full ${
+              className={`w-5 h-5 flex-shrink-0 flex items-center justify-center text-[10px] font-bold rounded-full ${
                 rank <= 3 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
               }`}
             >
               {rank}
             </span>
-            <span className="font-medium text-gray-900 truncate max-w-[80px]" title={person.salesperson}>
+            <span className="font-medium text-gray-900">
               {person.salesperson}
             </span>
           </div>
@@ -502,7 +502,7 @@ function SalespersonDetail({ salesperson, filters }: { salesperson: string; filt
     <div className="px-10 py-3 bg-gray-50 border-t border-gray-200">
       <h4 className="text-xs font-semibold text-gray-700 mb-2">Monthly Trend (Last 6 Months)</h4>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-[10px]">
+        <table className="min-w-full text-xs">
           <thead>
             <tr className="border-b border-gray-200">
               <th className="text-left py-1.5 px-2 font-medium text-gray-500">Month</th>
