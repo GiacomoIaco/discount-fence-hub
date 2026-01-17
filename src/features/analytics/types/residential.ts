@@ -282,22 +282,26 @@ export interface RequestMetrics {
 
 export interface SalespersonMetrics {
   salesperson: string;
+  // Request metrics
+  requests_assigned: number;
+  pct_quoted: number | null;
+  // Quote count metrics
   total_opps: number;
   won_opps: number;
   lost_opps: number;
   win_rate: number | null;
   closed_win_rate: number | null;
-  won_value: number;
+  // Quote value metrics
   total_value: number;
+  won_value: number;
   value_win_rate: number | null;
   avg_won_value: number | null;
-  // P75 days to quote (replaces avg)
-  p75_days_to_quote: number | null;
-  // Funnel metrics
-  requests_assigned: number;
-  pct_quoted: number | null;
+  // Speed & efficiency metrics
   pct_same_day: number | null;
+  p75_days_to_quote: number | null;
   avg_opp_value: number;
+  pct_multi_quote: number | null;
+  median_days_to_decision: number | null;
 }
 
 export interface BucketMetrics {
