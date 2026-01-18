@@ -5,6 +5,9 @@ const JOBBER_API_URL = 'https://api.getjobber.com/api/graphql';
 const JOBBER_TOKEN_URL = 'https://api.getjobber.com/api/oauth/token';
 const PAGE_SIZE = 50; // Reduced from 100 to lower query cost
 
+// Only sync data from 2024 onwards - no need for older historical data
+const SYNC_CUTOFF_DATE = '2024-01-01T00:00:00Z';
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY!
@@ -363,11 +366,14 @@ async function fetchAllPages<T>(
 // SYNC FUNCTIONS (same as scheduled version)
 // ============================================
 
-// Simplified query - removed expensive nested connections (jobs.nodes, phones, emails)
-// to reduce query cost and avoid throttling
+// Simplified query with date filter - only sync 2024+ data
 const QUOTES_QUERY = (cursor: string | null) => `
   query SyncQuotes {
-    quotes(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
+    quotes(
+      first: ${PAGE_SIZE}
+      ${cursor ? `after: "${cursor}"` : ''}
+      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
+    ) {
       nodes {
         id
         quoteNumber
@@ -509,7 +515,11 @@ async function syncQuotes(accessToken: string): Promise<number> {
 
 const JOBS_QUERY = (cursor: string | null) => `
   query SyncJobs {
-    jobs(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
+    jobs(
+      first: ${PAGE_SIZE}
+      ${cursor ? `after: "${cursor}"` : ''}
+      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
+    ) {
       nodes {
         id
         jobNumber
@@ -626,10 +636,14 @@ async function syncJobs(accessToken: string): Promise<number> {
   return jobs.length;
 }
 
-// Simplified query - removed expensive nested quotes connection
+// Simplified query with date filter - only sync 2024+ data
 const REQUESTS_QUERY = (cursor: string | null) => `
   query SyncRequests {
-    requests(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
+    requests(
+      first: ${PAGE_SIZE}
+      ${cursor ? `after: "${cursor}"` : ''}
+      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
+    ) {
       nodes {
         id
         title

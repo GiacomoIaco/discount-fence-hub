@@ -5,6 +5,9 @@ const JOBBER_API_URL = 'https://api.getjobber.com/api/graphql';
 const JOBBER_TOKEN_URL = 'https://api.getjobber.com/api/oauth/token';
 const PAGE_SIZE = 50;
 
+// Only sync data from 2024 onwards - no need for older historical data
+const SYNC_CUTOFF_DATE = '2024-01-01T00:00:00Z';
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY!
@@ -142,10 +145,14 @@ async function graphqlQuery(
   throw lastError || new Error('GraphQL request failed after retries');
 }
 
-// Simplified queries (same as manual sync)
+// Queries with date filter - only sync 2024+ data
 const QUOTES_QUERY = (cursor: string | null) => `
   query SyncQuotes {
-    quotes(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
+    quotes(
+      first: ${PAGE_SIZE}
+      ${cursor ? `after: "${cursor}"` : ''}
+      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
+    ) {
       nodes {
         id
         quoteNumber
@@ -166,7 +173,11 @@ const QUOTES_QUERY = (cursor: string | null) => `
 
 const JOBS_QUERY = (cursor: string | null) => `
   query SyncJobs {
-    jobs(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
+    jobs(
+      first: ${PAGE_SIZE}
+      ${cursor ? `after: "${cursor}"` : ''}
+      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
+    ) {
       nodes {
         id
         jobNumber
@@ -188,7 +199,11 @@ const JOBS_QUERY = (cursor: string | null) => `
 
 const REQUESTS_QUERY = (cursor: string | null) => `
   query SyncRequests {
-    requests(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
+    requests(
+      first: ${PAGE_SIZE}
+      ${cursor ? `after: "${cursor}"` : ''}
+      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
+    ) {
       nodes {
         id
         title
