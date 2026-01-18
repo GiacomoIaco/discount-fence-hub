@@ -344,22 +344,30 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
           <div className="text-xs text-gray-400">across all salespeople</div>
         </div>
 
-        {/* Row 2: Averages */}
+        {/* Row 2: Averages (based on filtered/visible salespeople) */}
         <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-200 p-3">
-          <div className="text-xs text-blue-600">Group Avg Win %</div>
-          <div className="text-xl font-bold text-blue-700">{formatResidentialPercent(teamAvgWinRate)}</div>
-          <div className="text-xs text-blue-400">by count</div>
+          <div className="text-xs text-blue-600">Avg Win %</div>
+          <div className="text-xl font-bold text-blue-700">
+            {filteredData.length > 0
+              ? formatResidentialPercent(filteredData.reduce((sum, s) => sum + (s.win_rate || 0), 0) / filteredData.length)
+              : '-'}
+          </div>
+          <div className="text-xs text-blue-400">{filteredData.length} visible</div>
         </div>
         <div className="bg-purple-50 rounded-lg shadow-sm border border-purple-200 p-3">
-          <div className="text-xs text-purple-600">Group Avg Value Win %</div>
-          <div className="text-xl font-bold text-purple-700">{formatResidentialPercent(teamAvgValueWinRate)}</div>
+          <div className="text-xs text-purple-600">Avg Value Win %</div>
+          <div className="text-xl font-bold text-purple-700">
+            {filteredData.length > 0
+              ? formatResidentialPercent(filteredData.reduce((sum, s) => sum + (s.value_win_rate || 0), 0) / filteredData.length)
+              : '-'}
+          </div>
           <div className="text-xs text-purple-400">by $ value</div>
         </div>
         <div className="bg-teal-50 rounded-lg shadow-sm border border-teal-200 p-3">
           <div className="text-xs text-teal-600">Avg Same Day %</div>
           <div className="text-xl font-bold text-teal-700">
-            {comparisonData.length > 0
-              ? formatResidentialPercent(comparisonData.reduce((sum, s) => sum + (s.pct_same_day || 0), 0) / comparisonData.length)
+            {filteredData.length > 0
+              ? formatResidentialPercent(filteredData.reduce((sum, s) => sum + (s.pct_same_day || 0), 0) / filteredData.length)
               : '-'}
           </div>
           <div className="text-xs text-teal-400">quoting speed</div>
@@ -367,8 +375,8 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
         <div className="bg-orange-50 rounded-lg shadow-sm border border-orange-200 p-3">
           <div className="text-xs text-orange-600">Avg Deal Size</div>
           <div className="text-xl font-bold text-orange-700">
-            {comparisonData.length > 0
-              ? formatResidentialCurrency(comparisonData.reduce((sum, s) => sum + (s.avg_opp_value || 0), 0) / comparisonData.length)
+            {filteredData.length > 0
+              ? formatResidentialCurrency(filteredData.reduce((sum, s) => sum + (s.avg_opp_value || 0), 0) / filteredData.length)
               : '-'}
           </div>
           <div className="text-xs text-orange-400">per opportunity</div>

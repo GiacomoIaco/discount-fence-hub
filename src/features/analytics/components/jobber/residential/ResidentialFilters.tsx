@@ -1,7 +1,7 @@
 // Residential Analytics Filters
 // Time range, salesperson, project size, speed to quote, quote count
 
-import { Filter, Calendar, User, DollarSign, Clock, FileText, X } from 'lucide-react';
+import { Filter, Calendar, User, DollarSign, Clock, FileText, X, Upload } from 'lucide-react';
 import { useResidentialSalespersons } from '../../../hooks/jobber/residential';
 import type {
   ResidentialFilters as ResidentialFiltersType,
@@ -20,6 +20,8 @@ import {
 interface ResidentialFiltersProps {
   filters: ResidentialFiltersType;
   onChange: (filters: ResidentialFiltersType) => void;
+  onUploadClick?: () => void;
+  totalOpps?: number;
 }
 
 const TIME_PRESETS: { value: ResidentialTimePreset; label: string; divider?: boolean }[] = [
@@ -40,7 +42,7 @@ const TIME_PRESETS: { value: ResidentialTimePreset; label: string; divider?: boo
   { value: 'all_time', label: 'All Time' },
 ];
 
-export function ResidentialFilters({ filters, onChange }: ResidentialFiltersProps) {
+export function ResidentialFilters({ filters, onChange, onUploadClick, totalOpps }: ResidentialFiltersProps) {
   const { data: salespersons } = useResidentialSalespersons();
 
   const hasActiveFilters =
@@ -59,15 +61,31 @@ export function ResidentialFilters({ filters, onChange }: ResidentialFiltersProp
       <div className="flex items-center gap-2 mb-4">
         <Filter className="w-4 h-4 text-gray-500" />
         <span className="font-medium text-gray-900">Filters</span>
+        {totalOpps !== undefined && (
+          <span className="text-sm text-gray-500">
+            <span className="font-medium text-gray-700">{totalOpps.toLocaleString()}</span> opportunities
+          </span>
+        )}
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="ml-auto flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
           >
             <X className="w-3 h-3" />
             Clear all
           </button>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          {onUploadClick && (
+            <button
+              onClick={onUploadClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload CSV
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

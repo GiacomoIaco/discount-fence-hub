@@ -1,7 +1,8 @@
 // Conversion Funnel Tab - Core metrics and funnel visualization
-// Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend
+// Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend (stacked)
 
 import { useState, useMemo } from 'react';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, LabelList, Legend, Line } from 'recharts';
 import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList } from 'lucide-react';
 import {
   useResidentialFunnelMetrics,
@@ -259,86 +260,69 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         />
       </div>
 
-      {/* Two Charts Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Monthly Histogram with Toggle */}
-        {monthlyData && monthlyData.length > 0 && (
-          <div className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-stone-200">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
-                <h3 className="text-sm font-semibold text-stone-800">Monthly Trend</h3>
-              </div>
-              <div className="flex items-center gap-1 p-0.5 bg-stone-100 rounded-lg">
-                <button
-                  onClick={() => setViewMode('count')}
-                  className={`px-2 py-1 text-xs font-medium rounded transition-all duration-200 ${
-                    viewMode === 'count'
-                      ? 'bg-white text-stone-800 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
-                  }`}
-                >
-                  #
-                </button>
-                <button
-                  onClick={() => setViewMode('value')}
-                  className={`px-2 py-1 text-xs font-medium rounded transition-all duration-200 ${
-                    viewMode === 'value'
-                      ? 'bg-white text-stone-800 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
-                  }`}
-                >
-                  $
-                </button>
-              </div>
-            </div>
-
-            {/* Histogram Chart */}
-            <div className="p-4">
-              <MonthlyHistogram data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
+      {/* Monthly Trend Chart - Full Width, Recharts-based */}
+      {monthlyData && monthlyData.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Monthly Pipeline Trend</h3>
+            <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-lg">
+              <button
+                onClick={() => setViewMode('count')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-all ${
+                  viewMode === 'count'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Count (#)
+              </button>
+              <button
+                onClick={() => setViewMode('value')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-all ${
+                  viewMode === 'value'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Value ($)
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Operational Trends Section */}
-        {cycleTrends && cycleTrends.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {/* Header with Metric Selector */}
-            <div className="flex flex-col gap-2 px-4 py-3 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full" />
-                <h3 className="text-sm font-semibold text-gray-800">Operational Trends</h3>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {TREND_METRICS.map((metric) => (
-                  <button
-                    key={metric.key}
-                    onClick={() => setSelectedTrend(metric.key)}
-                    className={`px-2 py-1 text-[10px] font-medium rounded-full transition-all duration-200 ${
-                      selectedTrend === metric.key
-                        ? 'text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    style={selectedTrend === metric.key ? { backgroundColor: metric.color } : {}}
-                  >
-                    {metric.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <MonthlyTrendRechartsChart data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
+        </div>
+      )}
 
-            {/* Trend Chart */}
-            <div className="p-4">
-              <OperationalTrendChart
-                data={cycleTrends}
-                metric={selectedTrend}
-                config={TREND_METRICS.find(m => m.key === selectedTrend)!}
-              />
+      {/* Operational Trends Chart - Full Width, Recharts-based */}
+      {cycleTrends && cycleTrends.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Operational Trends</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {TREND_METRICS.map((metric) => (
+                <button
+                  key={metric.key}
+                  onClick={() => setSelectedTrend(metric.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
+                    selectedTrend === metric.key
+                      ? 'text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  style={selectedTrend === metric.key ? { backgroundColor: metric.color } : {}}
+                >
+                  {metric.label}
+                </button>
+              ))}
             </div>
           </div>
-        )}
-      </div>
+
+          <OperationalTrendRechartsChart
+            data={cycleTrends}
+            metric={selectedTrend}
+            config={TREND_METRICS.find(m => m.key === selectedTrend)!}
+          />
+        </div>
+      )}
 
       {/* Monthly Data Table - Always show all columns */}
       {monthlyData && monthlyData.length > 0 && (
@@ -391,110 +375,119 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   );
 }
 
-// Monthly Histogram Component - Hybrid Editorial + Modern Design
-function MonthlyHistogram({
+// Monthly Trend Chart with Recharts - Stacked bars with Win Rate line
+function MonthlyTrendRechartsChart({
   data,
   viewMode,
-  ltmTotals
+  ltmTotals,
 }: {
   data: MonthlyTotals[];
   viewMode: ViewMode;
   ltmTotals: { pipeline: number; won: number; winRateCount: number | null; winRateValue: number | null } | null;
 }) {
-  // Prepare chart data based on view mode
   const chartData = data.map((month) => ({
     label: month.month_label,
-    shortLabel: month.month_label.slice(0, 3),
     total: viewMode === 'count' ? month.total_opps : month.total_value,
     won: viewMode === 'count' ? month.won_opps : month.won_value,
     winRate: viewMode === 'count' ? month.win_rate : month.value_win_rate,
   }));
 
-  // Calculate max for scaling
-  const maxTotal = Math.max(...chartData.map((d) => d.total), 1);
+  const formatValue = (value: number) => {
+    if (viewMode === 'value') {
+      if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+      if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+      return `$${value.toFixed(0)}`;
+    }
+    return value.toLocaleString();
+  };
 
-  // Calculate average win rate
-  const validRates = chartData.filter((d) => d.winRate !== null);
-  const avgWinRate =
-    validRates.length > 0
-      ? validRates.reduce((sum, d) => sum + (d.winRate || 0), 0) / validRates.length
-      : 0;
-
-  // Reduced bar height for side-by-side layout
-  const barAreaHeight = 140;
+  const formatBarLabel = (value: number) => {
+    if (viewMode === 'value') {
+      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+      if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
+      return value.toString();
+    }
+    return value.toString();
+  };
 
   return (
-    <div className="relative">
-      {/* Chart Area - no grid lines to save space */}
-      <div className="relative">
-        {/* Bars Container - tighter gaps */}
-        <div className="flex items-end gap-1" style={{ height: barAreaHeight }}>
-          {chartData.map((item, idx) => {
-            const isHighPerformer = (item.winRate || 0) >= avgWinRate;
+    <div>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 25, right: 50, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6B7280' }} />
+            <YAxis
+              yAxisId="left"
+              tickFormatter={formatValue}
+              tick={{ fontSize: 12, fill: '#6B7280' }}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              domain={[0, 100]}
+              tickFormatter={(v) => `${v}%`}
+              tick={{ fontSize: 12, fill: '#6B7280' }}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => {
+                if (name === 'Win Rate') return [`${value?.toFixed(1)}%`, name];
+                return [viewMode === 'value' ? `$${value.toLocaleString()}` : value.toLocaleString(), name];
+              }}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar yAxisId="left" dataKey="total" name="Pipeline" fill="#94A3B8" radius={[4, 4, 0, 0]}>
+              <LabelList
+                dataKey="total"
+                position="top"
+                formatter={(value: unknown) => formatBarLabel(Number(value))}
+                fill="#374151"
+                fontSize={10}
+              />
+            </Bar>
+            <Bar yAxisId="left" dataKey="won" name="Won" fill="#10B981" radius={[4, 4, 0, 0]} />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="winRate"
+              name="Win Rate"
+              stroke="#8B5CF6"
+              strokeWidth={2}
+              dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 3 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
 
-            return (
-              <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0 h-full">
-                {/* Win Rate Label - always above bars */}
-                <div className="text-[9px] font-bold mb-0.5" style={{ color: isHighPerformer ? '#0D9488' : '#9CA3AF' }}>
-                  {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : ''}
-                </div>
-
-                {/* Bar Stack */}
-                <div className="relative w-full max-w-[20px]" style={{ height: barAreaHeight - 16 }}>
-                  {/* Total bar (background) */}
-                  <div
-                    className="absolute bottom-0 w-full bg-stone-200/80 rounded-t-sm"
-                    style={{ height: Math.max((item.total / maxTotal) * (barAreaHeight - 16), 2) }}
-                  />
-                  {/* Won bar (foreground) */}
-                  <div
-                    className="absolute bottom-0 w-full rounded-t-sm bg-gradient-to-t from-[#E07A5F] to-[#F2A490]"
-                    style={{ height: Math.max((item.won / maxTotal) * (barAreaHeight - 16), 0) }}
-                  />
-
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1
-                                  opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                    <div className="bg-white border border-stone-200 rounded shadow-lg px-2 py-1.5 min-w-[100px] text-[10px]">
-                      <div className="font-semibold text-stone-600 mb-1">{item.label}</div>
-                      <div className="flex justify-between"><span>Pipeline:</span><span className="font-medium">{viewMode === 'count' ? item.total : formatResidentialCurrency(item.total)}</span></div>
-                      <div className="flex justify-between text-[#E07A5F]"><span>Won:</span><span className="font-medium">{viewMode === 'count' ? item.won : formatResidentialCurrency(item.won)}</span></div>
-                      <div className="flex justify-between font-bold"><span>Win %:</span><span>{formatResidentialPercent(item.winRate)}</span></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Month Label */}
-                <span className="mt-1 text-[8px] font-medium text-stone-500">{item.shortLabel}</span>
+      {/* LTM Summary */}
+      {ltmTotals && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="text-xs text-gray-500 mb-2 text-center">Last 12 Months Summary</div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-sm text-gray-500">Pipeline</div>
+              <div className="text-lg font-semibold text-gray-900">{formatResidentialCurrency(ltmTotals.pipeline)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Won</div>
+              <div className="text-lg font-semibold text-green-600">{formatResidentialCurrency(ltmTotals.won)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Win Rate</div>
+              <div className="text-lg font-semibold text-purple-600">
+                {viewMode === 'count' ? formatResidentialPercent(ltmTotals.winRateCount) : formatResidentialPercent(ltmTotals.winRateValue)}
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Compact Legend */}
-      <div className="mt-2 pt-2 border-t border-stone-200 flex items-center justify-center gap-3 text-[10px]">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-stone-300 rounded-sm" />
-          <span className="text-stone-500">Pipeline</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-[#E07A5F] rounded-sm" />
-          <span className="text-stone-500">Won</span>
-        </div>
-        {ltmTotals && (
-          <>
-            <span className="text-stone-300">|</span>
-            <span className="text-stone-500">LTM: {formatResidentialCurrency(ltmTotals.won)} ({viewMode === 'count' ? formatResidentialPercent(ltmTotals.winRateCount) : formatResidentialPercent(ltmTotals.winRateValue)})</span>
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 }
 
-// Operational Trend Chart Component
-function OperationalTrendChart({
+// Operational Trend Chart with Recharts
+function OperationalTrendRechartsChart({
   data,
   metric,
   config,
@@ -520,72 +513,85 @@ function OperationalTrendChart({
 
   const chartData = data.map((item) => ({
     label: item.month_label,
-    shortLabel: item.month_label.slice(0, 3),
     value: getValue(item),
   }));
 
-  const maxValue = Math.max(...chartData.map((d) => d.value), 1);
   const avgValue = chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length;
-  const barAreaHeight = 140; // Reduced for side-by-side
 
   // Format value based on unit
   const formatValue = (val: number): string => {
-    if (config.unit === '$') return formatResidentialCurrency(val);
+    if (config.unit === '$') {
+      if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+      if (val >= 1000) return `$${(val / 1000).toFixed(0)}K`;
+      return `$${val.toFixed(0)}`;
+    }
     if (config.unit === '%') return `${val.toFixed(1)}%`;
     if (config.unit === 'days') return val.toFixed(1);
     return val.toLocaleString();
   };
 
-  const formatShortValue = (val: number): string => {
-    if (config.unit === '$') return `${(val / 1000).toFixed(0)}k`;
+  const formatBarLabel = (val: number): string => {
+    if (config.unit === '$') {
+      if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+      if (val >= 1000) return `${(val / 1000).toFixed(0)}K`;
+      return val.toString();
+    }
     if (config.unit === '%') return `${val.toFixed(0)}%`;
     if (config.unit === 'days') return val.toFixed(1);
     return val.toFixed(0);
   };
 
   return (
-    <div className="relative">
-      {/* Bars - tighter gaps */}
-      <div className="flex items-end gap-1" style={{ height: barAreaHeight }}>
-        {chartData.map((item, idx) => {
-          const heightPx = Math.max((item.value / maxValue) * (barAreaHeight - 16), 2);
-          const isAboveAvg = item.value >= avgValue;
-
-          return (
-            <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0">
-              {/* Value above bar */}
-              <div className="text-[8px] font-bold mb-0.5" style={{ color: config.color }}>
-                {formatShortValue(item.value)}
-              </div>
-
-              {/* Bar */}
-              <div
-                className="w-full max-w-[16px] rounded-t"
-                style={{
-                  height: heightPx,
-                  backgroundColor: isAboveAvg ? config.color : config.color + '60',
-                }}
+    <div>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 25, right: 30, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6B7280' }} />
+            <YAxis tickFormatter={(v) => formatValue(v)} tick={{ fontSize: 12, fill: '#6B7280' }} />
+            <Tooltip
+              formatter={(value: number) => [formatValue(value), config.label]}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Bar dataKey="value" name={config.label} fill={config.color} radius={[4, 4, 0, 0]}>
+              <LabelList
+                dataKey="value"
+                position="top"
+                formatter={(value: unknown) => formatBarLabel(Number(value))}
+                fill="#374151"
+                fontSize={10}
               />
-
-              {/* Month label */}
-              <span className="mt-1 text-[8px] font-medium text-gray-400">
-                {item.shortLabel}
-              </span>
-            </div>
-          );
-        })}
+            </Bar>
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
 
-      {/* Compact Summary */}
-      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-center gap-3 text-[10px]">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: config.color }} />
-          <span className="text-gray-500">{config.label}</span>
+      {/* Summary */}
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div className="text-sm text-gray-500">Average</div>
+            <div className="text-lg font-semibold" style={{ color: config.color }}>{formatValue(avgValue)}</div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500">Latest</div>
+            <div className="text-lg font-semibold text-gray-900">{formatValue(chartData[chartData.length - 1]?.value || 0)}</div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500">Trend</div>
+            <div className="text-lg font-semibold">
+              {chartData.length >= 2 ? (
+                chartData[chartData.length - 1].value > chartData[chartData.length - 2].value ? (
+                  <span className="text-amber-600">↑</span>
+                ) : chartData[chartData.length - 1].value < chartData[chartData.length - 2].value ? (
+                  <span className="text-green-600">↓</span>
+                ) : (
+                  <span className="text-gray-500">→</span>
+                )
+              ) : '-'}
+            </div>
+          </div>
         </div>
-        <span className="text-gray-300">|</span>
-        <span className="text-gray-500">Avg: {formatValue(avgValue)}</span>
-        <span className="text-gray-300">|</span>
-        <span className="text-gray-500">Latest: <span className="font-bold" style={{ color: config.color }}>{formatValue(chartData[chartData.length - 1]?.value || 0)}</span></span>
       </div>
     </div>
   );

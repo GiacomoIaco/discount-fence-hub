@@ -2,7 +2,6 @@
 // Conversion/win rate focused with 8 tabs + salesperson detail subpage
 
 import { useState } from 'react';
-import { Upload } from 'lucide-react';
 import { SalespersonDetailPage } from './SalespersonDetailPage';
 import { ResidentialFilters } from './ResidentialFilters';
 import { ConversionFunnel } from './tabs/ConversionFunnel';
@@ -52,26 +51,13 @@ export function ResidentialDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header with stats and upload button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">{totalOpps?.toLocaleString() || 0}</span>
-            {' '}opportunities in database
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-        >
-          <Upload className="w-4 h-4" />
-          Upload CSV Files
-        </button>
-      </div>
-
-      {/* Filters */}
-      <ResidentialFilters filters={filters} onChange={setFilters} />
+      {/* Filters with integrated upload button */}
+      <ResidentialFilters
+        filters={filters}
+        onChange={setFilters}
+        onUploadClick={() => setShowUploadModal(true)}
+        totalOpps={totalOpps}
+      />
 
       {/* Tab Navigation */}
       <div className="border-b border-gray-200">
