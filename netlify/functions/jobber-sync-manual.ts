@@ -853,6 +853,7 @@ export const handler: Handler = async (event) => {
           mode: 'test',
           account,
           data: result.data,
+          cost: result.cost,
           message: 'Connection test successful - API is accessible',
         }),
       };
@@ -863,6 +864,63 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({
           success: false,
           mode: 'test',
+          account,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      };
+    }
+  }
+
+  // Diagnostic mode - fetch just 1 page of each entity type
+  const isDiag = event.queryStringParameters?.diag === '1';
+  if (isDiag) {
+    try {
+      const accessToken = await getAccessToken(account);
+      const startTime = Date.now();
+
+      // Test quotes query (1 page)
+      console.log('Testing quotes query...');
+      const quotesQuery = QUOTES_QUERY(null);
+      const quotesResult = await graphqlQuery(accessToken, quotesQuery);
+      const quotesData = (quotesResult.data as { quotes: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } } }).quotes;
+
+      // Test jobs query (1 page)
+      await sleep(300);
+      console.log('Testing jobs query...');
+      const jobsQuery = JOBS_QUERY(null);
+      const jobsResult = await graphqlQuery(accessToken, jobsQuery);
+      const jobsData = (jobsResult.data as { jobs: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } } }).jobs;
+
+      // Test requests query (1 page)
+      await sleep(300);
+      console.log('Testing requests query...');
+      const requestsQuery = REQUESTS_QUERY(null);
+      const requestsResult = await graphqlQuery(accessToken, requestsQuery);
+      const requestsData = (requestsResult.data as { requests: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } } }).requests;
+
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: true,
+          mode: 'diagnostic',
+          account,
+          duration: (Date.now() - startTime) / 1000,
+          firstPage: {
+            quotes: { count: quotesData.nodes.length, hasMore: quotesData.pageInfo.hasNextPage, cost: quotesResult.cost },
+            jobs: { count: jobsData.nodes.length, hasMore: jobsData.pageInfo.hasNextPage, cost: jobsResult.cost },
+            requests: { count: requestsData.nodes.length, hasMore: requestsData.pageInfo.hasNextPage, cost: requestsResult.cost },
+          },
+          message: 'First page of each entity fetched successfully',
+        }),
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          mode: 'diagnostic',
           account,
           error: error instanceof Error ? error.message : String(error),
         }),
