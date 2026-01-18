@@ -1,7 +1,7 @@
 // Residential Analytics Filters
 // Time range, salesperson, project size, speed to quote, quote count
 
-import { Filter, Calendar, User, DollarSign, Clock, FileText, X, Upload } from 'lucide-react';
+import { Calendar, User, DollarSign, Clock, FileText, X, Upload } from 'lucide-react';
 import { useResidentialSalespersons } from '../../../hooks/jobber/residential';
 import type {
   ResidentialFilters as ResidentialFiltersType,
@@ -42,7 +42,7 @@ const TIME_PRESETS: { value: ResidentialTimePreset; label: string; divider?: boo
   { value: 'all_time', label: 'All Time' },
 ];
 
-export function ResidentialFilters({ filters, onChange, onUploadClick, totalOpps }: ResidentialFiltersProps) {
+export function ResidentialFilters({ filters, onChange, onUploadClick }: ResidentialFiltersProps) {
   const { data: salespersons } = useResidentialSalespersons();
 
   const hasActiveFilters =
@@ -57,161 +57,156 @@ export function ResidentialFilters({ filters, onChange, onUploadClick, totalOpps
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Filter className="w-4 h-4 text-gray-500" />
-        <span className="font-medium text-gray-900">Filters</span>
-        {totalOpps !== undefined && (
-          <span className="text-sm text-gray-500">
-            <span className="font-medium text-gray-700">{totalOpps.toLocaleString()}</span> opportunities
-          </span>
-        )}
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3">
+      <div className="flex items-end gap-3">
+        {/* Filters - compact inline */}
+        <div className="flex-1 grid grid-cols-5 gap-2">
+          {/* Time Range */}
+          <div>
+            <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
+              <Calendar className="w-3 h-3" />
+              Time Range
+            </label>
+            <select
+              value={filters.timePreset}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  timePreset: e.target.value as ResidentialTimePreset,
+                })
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {TIME_PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Salesperson */}
+          <div>
+            <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
+              <User className="w-3 h-3" />
+              Salesperson
+            </label>
+            <select
+              value={filters.salesperson || ''}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  salesperson: e.target.value || null,
+                })
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Salespeople</option>
+              {salespersons?.map((sp) => (
+                <option key={sp} value={sp}>
+                  {sp}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Project Size */}
+          <div>
+            <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
+              <DollarSign className="w-3 h-3" />
+              Project Size
+            </label>
+            <select
+              value={filters.revenueBucket || ''}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  revenueBucket: (e.target.value as RevenueBucket) || null,
+                })
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Sizes</option>
+              {REVENUE_BUCKET_ORDER.map((bucket) => (
+                <option key={bucket} value={bucket}>
+                  {bucket}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Speed to Quote */}
+          <div>
+            <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
+              <Clock className="w-3 h-3" />
+              Speed to Quote
+            </label>
+            <select
+              value={filters.speedBucket || ''}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  speedBucket: (e.target.value as SpeedToQuoteBucket) || null,
+                })
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Speeds</option>
+              {SPEED_BUCKET_ORDER.map((bucket) => (
+                <option key={bucket} value={bucket}>
+                  {bucket}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quote Count */}
+          <div>
+            <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
+              <FileText className="w-3 h-3" />
+              Quote Options
+            </label>
+            <select
+              value={filters.quoteCountBucket || ''}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  quoteCountBucket: (e.target.value as QuoteCountBucket) || null,
+                })
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Counts</option>
+              {QUOTE_COUNT_BUCKET_ORDER.map((bucket) => (
+                <option key={bucket} value={bucket}>
+                  {bucket}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Clear filters button */}
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+            className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
           >
             <X className="w-3 h-3" />
-            Clear all
+            Clear
           </button>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          {onUploadClick && (
-            <button
-              onClick={onUploadClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload CSV
-            </button>
-          )}
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {/* Time Range */}
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <Calendar className="w-3 h-3" />
-            Time Range
-          </label>
-          <select
-            value={filters.timePreset}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                timePreset: e.target.value as ResidentialTimePreset,
-              })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        {/* Upload button */}
+        {onUploadClick && (
+          <button
+            onClick={onUploadClick}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium whitespace-nowrap"
           >
-            {TIME_PRESETS.map((preset) => (
-              <option key={preset.value} value={preset.value}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Salesperson */}
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <User className="w-3 h-3" />
-            Salesperson
-          </label>
-          <select
-            value={filters.salesperson || ''}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                salesperson: e.target.value || null,
-              })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">All Salespeople</option>
-            {salespersons?.map((sp) => (
-              <option key={sp} value={sp}>
-                {sp}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Project Size */}
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <DollarSign className="w-3 h-3" />
-            Project Size
-          </label>
-          <select
-            value={filters.revenueBucket || ''}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                revenueBucket: (e.target.value as RevenueBucket) || null,
-              })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">All Sizes</option>
-            {REVENUE_BUCKET_ORDER.map((bucket) => (
-              <option key={bucket} value={bucket}>
-                {bucket}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Speed to Quote */}
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <Clock className="w-3 h-3" />
-            Speed to Quote
-          </label>
-          <select
-            value={filters.speedBucket || ''}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                speedBucket: (e.target.value as SpeedToQuoteBucket) || null,
-              })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">All Speeds</option>
-            {SPEED_BUCKET_ORDER.map((bucket) => (
-              <option key={bucket} value={bucket}>
-                {bucket}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Quote Count */}
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <FileText className="w-3 h-3" />
-            Quote Options
-          </label>
-          <select
-            value={filters.quoteCountBucket || ''}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                quoteCountBucket: (e.target.value as QuoteCountBucket) || null,
-              })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">All Counts</option>
-            {QUOTE_COUNT_BUCKET_ORDER.map((bucket) => (
-              <option key={bucket} value={bucket}>
-                {bucket}
-              </option>
-            ))}
-          </select>
-        </div>
+            <Upload className="w-4 h-4" />
+            Upload CSV
+          </button>
+        )}
       </div>
     </div>
   );

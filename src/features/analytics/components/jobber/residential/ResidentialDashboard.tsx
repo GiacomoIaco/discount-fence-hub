@@ -13,7 +13,6 @@ import { WinRateTrends } from './tabs/WinRateTrends';
 import { CycleTimeAnalysis } from './tabs/CycleTimeAnalysis';
 import { AcceptanceTimingAnalysis } from './tabs/AcceptanceTimingAnalysis';
 import { ResidentialUploadModal } from './ResidentialUploadModal';
-import { useResidentialOpportunityCount } from '../../../hooks/jobber/residential';
 import type {
   ResidentialFilters as ResidentialFiltersType,
   ResidentialDashboardTab,
@@ -25,8 +24,6 @@ export function ResidentialDashboard() {
   const [activeTab, setActiveTab] = useState<ResidentialDashboardTab>('funnel');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string | null>(null);
-
-  const { data: totalOpps } = useResidentialOpportunityCount();
 
   // Show salesperson detail page if one is selected
   if (selectedSalesperson) {
@@ -56,7 +53,6 @@ export function ResidentialDashboard() {
         filters={filters}
         onChange={setFilters}
         onUploadClick={() => setShowUploadModal(true)}
-        totalOpps={totalOpps}
       />
 
       {/* Tab Navigation */}

@@ -2,7 +2,7 @@
 // Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend (stacked)
 
 import { useState, useMemo } from 'react';
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, LabelList, Legend, Line } from 'recharts';
+import { Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, LabelList, Legend } from 'recharts';
 import { TrendingUp, CheckCircle, DollarSign, Percent, Timer, Clock, FileText, Calendar, Wrench, ClipboardList } from 'lucide-react';
 import {
   useResidentialFunnelMetrics,
@@ -21,12 +21,11 @@ interface ConversionFunnelProps {
 }
 
 type ViewMode = 'count' | 'value';
-type TrendMetric = 'days_to_quote' | 'avg_deal' | 'same_day' | 'multi_quote' | 'days_to_decision' | 'days_to_schedule' | 'days_to_close' | 'warranty';
+type TrendMetric = 'same_day' | 'avg_deal' | 'multi_quote' | 'days_to_decision' | 'days_to_schedule' | 'days_to_close' | 'warranty';
 
 const TREND_METRICS: { key: TrendMetric; label: string; color: string; unit: string }[] = [
-  { key: 'days_to_quote', label: 'Days to Quote', color: '#F97316', unit: 'days' },
-  { key: 'avg_deal', label: 'Avg Deal Size', color: '#10B981', unit: '$' },
   { key: 'same_day', label: '% Same Day', color: '#06B6D4', unit: '%' },
+  { key: 'avg_deal', label: 'Avg Deal Size', color: '#10B981', unit: '$' },
   { key: 'multi_quote', label: '% Multi-Quote', color: '#8B5CF6', unit: '%' },
   { key: 'days_to_decision', label: 'Days to Decision', color: '#3B82F6', unit: 'days' },
   { key: 'days_to_schedule', label: 'Days to Schedule', color: '#EC4899', unit: 'days' },
@@ -36,7 +35,7 @@ const TREND_METRICS: { key: TrendMetric; label: string; color: string; unit: str
 
 export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('count');
-  const [selectedTrend, setSelectedTrend] = useState<TrendMetric>('days_to_quote');
+  const [selectedTrend, setSelectedTrend] = useState<TrendMetric>('same_day');
   const { data: metrics, isLoading } = useResidentialFunnelMetrics(filters);
   const { data: monthlyData } = useResidentialEnhancedMonthlyTotals(13, filters.revenueBucket || undefined);
   const { data: speedMetrics } = useResidentialSpeedMetrics(filters);
@@ -375,7 +374,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   );
 }
 
-// Monthly Trend Chart with Recharts - Stacked bars with Win Rate line
+// Monthly Trend Chart with Recharts - Bars with Win Rate labels on top
 function MonthlyTrendRechartsChart({
   data,
   viewMode,
@@ -390,16 +389,8 @@ function MonthlyTrendRechartsChart({
     total: viewMode === 'count' ? month.total_opps : month.total_value,
     won: viewMode === 'count' ? month.won_opps : month.won_value,
     winRate: viewMode === 'count' ? month.win_rate : month.value_win_rate,
+    winRateLabel: (viewMode === 'count' ? month.win_rate : month.value_win_rate)?.toFixed(0) + '%',
   }));
-
-  const formatValue = (value: number) => {
-    if (viewMode === 'value') {
-      if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-      if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-      return `$${value.toFixed(0)}`;
-    }
-    return value.toLocaleString();
-  };
 
   const formatBarLabel = (value: number) => {
     if (viewMode === 'value') {
@@ -412,50 +403,39 @@ function MonthlyTrendRechartsChart({
 
   return (
     <div>
-      <div className="h-72">
+      <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 25, right: 50, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6B7280' }} />
-            <YAxis
-              yAxisId="left"
-              tickFormatter={formatValue}
-              tick={{ fontSize: 12, fill: '#6B7280' }}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              domain={[0, 100]}
-              tickFormatter={(v) => `${v}%`}
-              tick={{ fontSize: 12, fill: '#6B7280' }}
-            />
+          <ComposedChart data={chartData} margin={{ top: 35, right: 20, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === 'Win Rate') return [`${value?.toFixed(1)}%`, name];
                 return [viewMode === 'value' ? `$${value.toLocaleString()}` : value.toLocaleString(), name];
               }}
-              contentStyle={{ fontSize: 12 }}
+              contentStyle={{ fontSize: 14 }}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="left" dataKey="total" name="Pipeline" fill="#94A3B8" radius={[4, 4, 0, 0]}>
+            <Legend wrapperStyle={{ fontSize: 14, paddingTop: 10 }} />
+            <Bar dataKey="total" name="Pipeline" fill="#94A3B8" radius={[4, 4, 0, 0]}>
               <LabelList
                 dataKey="total"
                 position="top"
                 formatter={(value: unknown) => formatBarLabel(Number(value))}
                 fill="#374151"
-                fontSize={10}
+                fontSize={12}
+                fontWeight={600}
               />
             </Bar>
-            <Bar yAxisId="left" dataKey="won" name="Won" fill="#10B981" radius={[4, 4, 0, 0]} />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="winRate"
-              name="Win Rate"
-              stroke="#8B5CF6"
-              strokeWidth={2}
-              dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 3 }}
-            />
+            <Bar dataKey="won" name="Won" fill="#10B981" radius={[4, 4, 0, 0]}>
+              <LabelList
+                dataKey="winRateLabel"
+                position="top"
+                fill="#8B5CF6"
+                fontSize={11}
+                fontWeight={700}
+                offset={-2}
+              />
+            </Bar>
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -463,19 +443,19 @@ function MonthlyTrendRechartsChart({
       {/* LTM Summary */}
       {ltmTotals && (
         <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="text-xs text-gray-500 mb-2 text-center">Last 12 Months Summary</div>
+          <div className="text-sm text-gray-500 mb-2 text-center">Last 12 Months Summary</div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-sm text-gray-500">Pipeline</div>
-              <div className="text-lg font-semibold text-gray-900">{formatResidentialCurrency(ltmTotals.pipeline)}</div>
+              <div className="text-xl font-semibold text-gray-900">{formatResidentialCurrency(ltmTotals.pipeline)}</div>
             </div>
             <div>
               <div className="text-sm text-gray-500">Won</div>
-              <div className="text-lg font-semibold text-green-600">{formatResidentialCurrency(ltmTotals.won)}</div>
+              <div className="text-xl font-semibold text-green-600">{formatResidentialCurrency(ltmTotals.won)}</div>
             </div>
             <div>
               <div className="text-sm text-gray-500">Win Rate</div>
-              <div className="text-lg font-semibold text-purple-600">
+              <div className="text-xl font-semibold text-purple-600">
                 {viewMode === 'count' ? formatResidentialPercent(ltmTotals.winRateCount) : formatResidentialPercent(ltmTotals.winRateValue)}
               </div>
             </div>
@@ -499,9 +479,8 @@ function OperationalTrendRechartsChart({
   // Map metric key to data field
   const getValue = (item: MonthlyCycleTrends): number => {
     switch (metric) {
-      case 'days_to_quote': return item.avg_days_to_quote;
-      case 'avg_deal': return item.avg_won_deal;
       case 'same_day': return item.same_day_percent;
+      case 'avg_deal': return item.avg_won_deal;
       case 'multi_quote': return item.multi_quote_percent;
       case 'days_to_decision': return item.avg_days_to_decision;
       case 'days_to_schedule': return item.avg_days_to_schedule;
@@ -518,11 +497,11 @@ function OperationalTrendRechartsChart({
 
   const avgValue = chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length;
 
-  // Format value based on unit
+  // Format value based on unit - with one decimal for currency
   const formatValue = (val: number): string => {
     if (config.unit === '$') {
       if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
-      if (val >= 1000) return `$${(val / 1000).toFixed(0)}K`;
+      if (val >= 1000) return `$${(val / 1000).toFixed(1)}K`;
       return `$${val.toFixed(0)}`;
     }
     if (config.unit === '%') return `${val.toFixed(1)}%`;
@@ -533,7 +512,7 @@ function OperationalTrendRechartsChart({
   const formatBarLabel = (val: number): string => {
     if (config.unit === '$') {
       if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
-      if (val >= 1000) return `${(val / 1000).toFixed(0)}K`;
+      if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
       return val.toString();
     }
     if (config.unit === '%') return `${val.toFixed(0)}%`;
@@ -543,15 +522,14 @@ function OperationalTrendRechartsChart({
 
   return (
     <div>
-      <div className="h-64">
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 25, right: 30, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6B7280' }} />
-            <YAxis tickFormatter={(v) => formatValue(v)} tick={{ fontSize: 12, fill: '#6B7280' }} />
+          <ComposedChart data={chartData} margin={{ top: 30, right: 20, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(value: number) => [formatValue(value), config.label]}
-              contentStyle={{ fontSize: 12 }}
+              contentStyle={{ fontSize: 14 }}
             />
             <Bar dataKey="value" name={config.label} fill={config.color} radius={[4, 4, 0, 0]}>
               <LabelList
@@ -559,7 +537,8 @@ function OperationalTrendRechartsChart({
                 position="top"
                 formatter={(value: unknown) => formatBarLabel(Number(value))}
                 fill="#374151"
-                fontSize={10}
+                fontSize={12}
+                fontWeight={600}
               />
             </Bar>
           </ComposedChart>
@@ -571,15 +550,15 @@ function OperationalTrendRechartsChart({
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <div className="text-sm text-gray-500">Average</div>
-            <div className="text-lg font-semibold" style={{ color: config.color }}>{formatValue(avgValue)}</div>
+            <div className="text-xl font-semibold" style={{ color: config.color }}>{formatValue(avgValue)}</div>
           </div>
           <div>
             <div className="text-sm text-gray-500">Latest</div>
-            <div className="text-lg font-semibold text-gray-900">{formatValue(chartData[chartData.length - 1]?.value || 0)}</div>
+            <div className="text-xl font-semibold text-gray-900">{formatValue(chartData[chartData.length - 1]?.value || 0)}</div>
           </div>
           <div>
             <div className="text-sm text-gray-500">Trend</div>
-            <div className="text-lg font-semibold">
+            <div className="text-xl font-semibold">
               {chartData.length >= 2 ? (
                 chartData[chartData.length - 1].value > chartData[chartData.length - 2].value ? (
                   <span className="text-amber-600">↑</span>
