@@ -276,12 +276,14 @@ interface SpeedBucket {
   color: string;
 }
 
+// Speed bucket order matching the database values
+const SPEED_BUCKETS = ['Same day', '1-3 days', '4-7 days', '8+ days'] as const;
+
 function getSpeedDistribution(opportunities: ResidentialOpportunity[]): SpeedBucket[] {
   const buckets: Record<string, { count: number; won: number }> = {
     'Same day': { count: 0, won: 0 },
-    '1-2 days': { count: 0, won: 0 },
-    '3-4 days': { count: 0, won: 0 },
-    '5-7 days': { count: 0, won: 0 },
+    '1-3 days': { count: 0, won: 0 },
+    '4-7 days': { count: 0, won: 0 },
     '8+ days': { count: 0, won: 0 },
   };
 
@@ -300,17 +302,17 @@ function getSpeedDistribution(opportunities: ResidentialOpportunity[]): SpeedBuc
 
   const colors: Record<string, string> = {
     'Same day': 'bg-green-400',
-    '1-2 days': 'bg-blue-400',
-    '3-4 days': 'bg-amber-400',
-    '5-7 days': 'bg-orange-400',
+    '1-3 days': 'bg-blue-400',
+    '4-7 days': 'bg-amber-400',
     '8+ days': 'bg-red-400',
   };
 
-  return Object.entries(buckets).map(([label, data]) => ({
+  // Return in correct order
+  return SPEED_BUCKETS.map((label) => ({
     label,
-    count: data.count,
-    percentage: (data.count / totalWithSpeed) * 100,
-    winRate: data.count > 0 ? (data.won / data.count) * 100 : null,
+    count: buckets[label].count,
+    percentage: (buckets[label].count / totalWithSpeed) * 100,
+    winRate: buckets[label].count > 0 ? (buckets[label].won / buckets[label].count) * 100 : null,
     color: colors[label] || 'bg-gray-400',
   }));
 }

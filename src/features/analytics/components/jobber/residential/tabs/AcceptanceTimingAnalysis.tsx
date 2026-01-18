@@ -12,7 +12,7 @@ function useAcceptanceTimingData() {
     queryKey: ['residential-acceptance-timing'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('residential_opportunities')
+        .from('jobber_residential_opportunities')
         .select('days_to_decision, won_date, first_quote_date, won_value')
         .eq('is_won', true)
         .gte('first_quote_date', '2025-01-01')

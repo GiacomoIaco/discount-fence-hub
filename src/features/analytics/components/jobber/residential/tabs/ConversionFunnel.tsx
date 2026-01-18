@@ -259,85 +259,86 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         />
       </div>
 
-      {/* Monthly Histogram with Toggle */}
-      {monthlyData && monthlyData.length > 0 && (
-        <div className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-stone-200">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
-              <h3 className="text-lg font-semibold text-stone-800">Monthly Trend</h3>
-              <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Last 13 Months</span>
-            </div>
-            <div className="flex items-center gap-1 p-1 bg-stone-100 rounded-lg">
-              <button
-                onClick={() => setViewMode('count')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                  viewMode === 'count'
-                    ? 'bg-white text-stone-800 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                }`}
-              >
-                # Count
-              </button>
-              <button
-                onClick={() => setViewMode('value')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                  viewMode === 'value'
-                    ? 'bg-white text-stone-800 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                }`}
-              >
-                $ Value
-              </button>
-            </div>
-          </div>
-
-          {/* Histogram Chart */}
-          <div className="p-6">
-            <MonthlyHistogram data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
-          </div>
-        </div>
-      )}
-
-      {/* Operational Trends Section */}
-      {cycleTrends && cycleTrends.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {/* Header with Metric Selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-gray-200 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-8 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full" />
-              <h3 className="text-lg font-semibold text-gray-800">Operational Trends</h3>
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">13 Months</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {TREND_METRICS.map((metric) => (
+      {/* Two Charts Side by Side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Monthly Histogram with Toggle */}
+        {monthlyData && monthlyData.length > 0 && (
+          <div className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-stone-200">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
+                <h3 className="text-sm font-semibold text-stone-800">Monthly Trend</h3>
+              </div>
+              <div className="flex items-center gap-1 p-0.5 bg-stone-100 rounded-lg">
                 <button
-                  key={metric.key}
-                  onClick={() => setSelectedTrend(metric.key)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
-                    selectedTrend === metric.key
-                      ? 'text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  onClick={() => setViewMode('count')}
+                  className={`px-2 py-1 text-xs font-medium rounded transition-all duration-200 ${
+                    viewMode === 'count'
+                      ? 'bg-white text-stone-800 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
                   }`}
-                  style={selectedTrend === metric.key ? { backgroundColor: metric.color } : {}}
                 >
-                  {metric.label}
+                  #
                 </button>
-              ))}
+                <button
+                  onClick={() => setViewMode('value')}
+                  className={`px-2 py-1 text-xs font-medium rounded transition-all duration-200 ${
+                    viewMode === 'value'
+                      ? 'bg-white text-stone-800 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
+                  }`}
+                >
+                  $
+                </button>
+              </div>
+            </div>
+
+            {/* Histogram Chart */}
+            <div className="p-4">
+              <MonthlyHistogram data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
             </div>
           </div>
+        )}
 
-          {/* Trend Chart */}
-          <div className="p-6">
-            <OperationalTrendChart
-              data={cycleTrends}
-              metric={selectedTrend}
-              config={TREND_METRICS.find(m => m.key === selectedTrend)!}
-            />
+        {/* Operational Trends Section */}
+        {cycleTrends && cycleTrends.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {/* Header with Metric Selector */}
+            <div className="flex flex-col gap-2 px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full" />
+                <h3 className="text-sm font-semibold text-gray-800">Operational Trends</h3>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {TREND_METRICS.map((metric) => (
+                  <button
+                    key={metric.key}
+                    onClick={() => setSelectedTrend(metric.key)}
+                    className={`px-2 py-1 text-[10px] font-medium rounded-full transition-all duration-200 ${
+                      selectedTrend === metric.key
+                        ? 'text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    style={selectedTrend === metric.key ? { backgroundColor: metric.color } : {}}
+                  >
+                    {metric.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Trend Chart */}
+            <div className="p-4">
+              <OperationalTrendChart
+                data={cycleTrends}
+                metric={selectedTrend}
+                config={TREND_METRICS.find(m => m.key === selectedTrend)!}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Monthly Data Table - Always show all columns */}
       {monthlyData && monthlyData.length > 0 && (
@@ -419,161 +420,73 @@ function MonthlyHistogram({
       ? validRates.reduce((sum, d) => sum + (d.winRate || 0), 0) / validRates.length
       : 0;
 
-  // Fixed bar height in pixels for consistent rendering
-  const barAreaHeight = 200;
+  // Reduced bar height for side-by-side layout
+  const barAreaHeight = 140;
 
   return (
     <div className="relative">
-      {/* Horizontal Grid Lines */}
-      <div className="absolute inset-x-0 top-6 flex flex-col justify-between pointer-events-none" style={{ height: barAreaHeight }}>
-        {[100, 75, 50, 25, 0].map((pct, i) => (
-          <div key={pct} className="flex items-center gap-3">
-            <span className="text-[10px] font-medium text-stone-400 w-12 text-right tabular-nums">
-              {viewMode === 'count'
-                ? Math.round(maxTotal * (1 - i * 0.25)).toLocaleString()
-                : formatResidentialCurrency(maxTotal * (1 - i * 0.25))
-              }
-            </span>
-            <div className="flex-1 border-t border-stone-200/80" />
-          </div>
-        ))}
-      </div>
-
-      {/* Chart Area */}
-      <div className="relative ml-14 pt-8 pb-4">
-        {/* Win Rate Labels Row - Fixed position above bars */}
-        <div className="flex gap-3 mb-3">
+      {/* Chart Area - no grid lines to save space */}
+      <div className="relative">
+        {/* Bars Container - tighter gaps */}
+        <div className="flex items-end gap-1" style={{ height: barAreaHeight }}>
           {chartData.map((item, idx) => {
             const isHighPerformer = (item.winRate || 0) >= avgWinRate;
-            return (
-              <div key={idx} className="flex-1 text-center min-w-0">
-                <span className={`text-[11px] font-bold transition-all duration-200
-                               ${isHighPerformer ? 'text-teal-600' : 'text-stone-400'}`}>
-                  {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Average Line */}
-        <div
-          className="absolute left-0 right-0 border-t-2 border-dashed border-teal-400/60 pointer-events-none z-10"
-          style={{ top: 44 + barAreaHeight - (avgWinRate / 100) * barAreaHeight * 0.6 }}
-        />
-
-        {/* Bars Container */}
-        <div className="flex items-end gap-3" style={{ height: barAreaHeight - 20 }}>
-          {chartData.map((item, idx) => {
-            const effectiveBarHeight = barAreaHeight - 20;
-            const totalHeightPx = Math.max((item.total / maxTotal) * effectiveBarHeight, 2);
-            const wonHeightPx = Math.max((item.won / maxTotal) * effectiveBarHeight, 0);
 
             return (
               <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0 h-full">
+                {/* Win Rate Label - always above bars */}
+                <div className="text-[9px] font-bold mb-0.5" style={{ color: isHighPerformer ? '#0D9488' : '#9CA3AF' }}>
+                  {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : ''}
+                </div>
 
                 {/* Bar Stack */}
-                <div className="relative w-full max-w-[32px]" style={{ height: effectiveBarHeight }}>
-                  {/* Total bar (background) - warm stone */}
+                <div className="relative w-full max-w-[20px]" style={{ height: barAreaHeight - 16 }}>
+                  {/* Total bar (background) */}
                   <div
-                    className="absolute bottom-0 w-full bg-stone-200/80 rounded-t-sm transition-all duration-500 ease-out"
-                    style={{ height: totalHeightPx }}
+                    className="absolute bottom-0 w-full bg-stone-200/80 rounded-t-sm"
+                    style={{ height: Math.max((item.total / maxTotal) * (barAreaHeight - 16), 2) }}
                   />
-                  {/* Won bar (foreground) - coral/salmon accent */}
+                  {/* Won bar (foreground) */}
                   <div
-                    className="absolute bottom-0 w-full rounded-t-sm transition-all duration-500 ease-out
-                               bg-gradient-to-t from-[#E07A5F] to-[#F2A490]
-                               group-hover:from-[#D66B4F] group-hover:to-[#E8937E]
-                               group-hover:shadow-lg group-hover:shadow-[#E07A5F]/20"
-                    style={{ height: wonHeightPx }}
+                    className="absolute bottom-0 w-full rounded-t-sm bg-gradient-to-t from-[#E07A5F] to-[#F2A490]"
+                    style={{ height: Math.max((item.won / maxTotal) * (barAreaHeight - 16), 0) }}
                   />
 
-                  {/* Glass Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3
-                                  opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100
-                                  transition-all duration-200 ease-out pointer-events-none z-20">
-                    <div className="bg-white/95 backdrop-blur-sm border border-stone-200
-                                    rounded-lg shadow-xl shadow-stone-200/50 px-3 py-2.5 min-w-[140px]">
-                      <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1.5">
-                        {item.label}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-stone-500">Pipeline</span>
-                          <span className="font-semibold text-stone-700 tabular-nums">
-                            {viewMode === 'count' ? item.total.toLocaleString() : formatResidentialCurrency(item.total)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-[#E07A5F]">Won</span>
-                          <span className="font-semibold text-[#E07A5F] tabular-nums">
-                            {viewMode === 'count' ? item.won.toLocaleString() : formatResidentialCurrency(item.won)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs pt-1.5 mt-1.5 border-t border-stone-100">
-                          <span className="text-stone-500">Win Rate</span>
-                          <span className="font-bold text-stone-800">{formatResidentialPercent(item.winRate)}</span>
-                        </div>
-                      </div>
-                      {/* Tooltip Arrow */}
-                      <div className="absolute top-full left-1/2 -translate-x-1/2
-                                      border-[6px] border-transparent border-t-white/95" />
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1
+                                  opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                    <div className="bg-white border border-stone-200 rounded shadow-lg px-2 py-1.5 min-w-[100px] text-[10px]">
+                      <div className="font-semibold text-stone-600 mb-1">{item.label}</div>
+                      <div className="flex justify-between"><span>Pipeline:</span><span className="font-medium">{viewMode === 'count' ? item.total : formatResidentialCurrency(item.total)}</span></div>
+                      <div className="flex justify-between text-[#E07A5F]"><span>Won:</span><span className="font-medium">{viewMode === 'count' ? item.won : formatResidentialCurrency(item.won)}</span></div>
+                      <div className="flex justify-between font-bold"><span>Win %:</span><span>{formatResidentialPercent(item.winRate)}</span></div>
                     </div>
                   </div>
                 </div>
 
                 {/* Month Label */}
-                <span className="mt-2 text-[10px] font-medium text-stone-500 uppercase tracking-wide
-                               group-hover:text-stone-700 transition-colors">
-                  {item.shortLabel}
-                </span>
+                <span className="mt-1 text-[8px] font-medium text-stone-500">{item.shortLabel}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Legend with LTM Stats */}
-      <div className="mt-4 pt-4 border-t border-stone-200">
-        {/* Legend Pills */}
-        <div className="flex items-center justify-center gap-4 mb-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 rounded-full">
-            <div className="w-3 h-3 bg-stone-300 rounded-sm" />
-            <span className="text-xs font-medium text-stone-600">Total Pipeline</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#E07A5F]/10 rounded-full">
-            <div className="w-3 h-3 bg-gradient-to-t from-[#E07A5F] to-[#F2A490] rounded-sm" />
-            <span className="text-xs font-medium text-[#C86A52]">Won</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-full">
-            <div className="w-6 h-0.5 border-t-2 border-dashed border-teal-400" />
-            <span className="text-xs font-medium text-teal-700">Avg: {formatResidentialPercent(avgWinRate)}</span>
-          </div>
+      {/* Compact Legend */}
+      <div className="mt-2 pt-2 border-t border-stone-200 flex items-center justify-center gap-3 text-[10px]">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 bg-stone-300 rounded-sm" />
+          <span className="text-stone-500">Pipeline</span>
         </div>
-
-        {/* LTM Summary Stats */}
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 bg-[#E07A5F] rounded-sm" />
+          <span className="text-stone-500">Won</span>
+        </div>
         {ltmTotals && (
-          <div className="flex items-center justify-center gap-6 pt-3 border-t border-stone-100">
-            <div className="text-center">
-              <div className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">LTM Pipeline</div>
-              <div className="text-sm font-bold text-stone-700">{formatResidentialCurrency(ltmTotals.pipeline)}</div>
-            </div>
-            <div className="w-px h-8 bg-stone-200" />
-            <div className="text-center">
-              <div className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">LTM Won</div>
-              <div className="text-sm font-bold text-[#E07A5F]">{formatResidentialCurrency(ltmTotals.won)}</div>
-            </div>
-            <div className="w-px h-8 bg-stone-200" />
-            <div className="text-center">
-              <div className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">LTM Win Rate</div>
-              <div className="text-sm font-bold text-teal-600">
-                {viewMode === 'count'
-                  ? formatResidentialPercent(ltmTotals.winRateCount)
-                  : formatResidentialPercent(ltmTotals.winRateValue)
-                }
-              </div>
-            </div>
-          </div>
+          <>
+            <span className="text-stone-300">|</span>
+            <span className="text-stone-500">LTM: {formatResidentialCurrency(ltmTotals.won)} ({viewMode === 'count' ? formatResidentialPercent(ltmTotals.winRateCount) : formatResidentialPercent(ltmTotals.winRateValue)})</span>
+          </>
         )}
       </div>
     </div>
@@ -613,7 +526,7 @@ function OperationalTrendChart({
 
   const maxValue = Math.max(...chartData.map((d) => d.value), 1);
   const avgValue = chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length;
-  const barAreaHeight = 160;
+  const barAreaHeight = 140; // Reduced for side-by-side
 
   // Format value based on unit
   const formatValue = (val: number): string => {
@@ -623,80 +536,56 @@ function OperationalTrendChart({
     return val.toLocaleString();
   };
 
+  const formatShortValue = (val: number): string => {
+    if (config.unit === '$') return `${(val / 1000).toFixed(0)}k`;
+    if (config.unit === '%') return `${val.toFixed(0)}%`;
+    if (config.unit === 'days') return val.toFixed(1);
+    return val.toFixed(0);
+  };
+
   return (
     <div className="relative">
-      {/* Chart Area */}
-      <div className="relative ml-12">
-        {/* Y-axis labels */}
-        <div className="absolute -left-12 top-0 flex flex-col justify-between h-full text-[10px] text-gray-400 font-medium" style={{ height: barAreaHeight }}>
-          <span>{formatValue(maxValue)}</span>
-          <span>{formatValue(maxValue / 2)}</span>
-          <span>0</span>
-        </div>
+      {/* Bars - tighter gaps */}
+      <div className="flex items-end gap-1" style={{ height: barAreaHeight }}>
+        {chartData.map((item, idx) => {
+          const heightPx = Math.max((item.value / maxValue) * (barAreaHeight - 16), 2);
+          const isAboveAvg = item.value >= avgValue;
 
-        {/* Average line */}
-        <div
-          className="absolute left-0 right-0 border-t-2 border-dashed pointer-events-none z-10"
-          style={{
-            borderColor: config.color + '60',
-            top: barAreaHeight - (avgValue / maxValue) * barAreaHeight,
-          }}
-        />
-
-        {/* Bars */}
-        <div className="flex items-end gap-2" style={{ height: barAreaHeight }}>
-          {chartData.map((item, idx) => {
-            const heightPx = Math.max((item.value / maxValue) * barAreaHeight, 2);
-            const isAboveAvg = item.value >= avgValue;
-
-            return (
-              <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0">
-                {/* Value always visible above bar */}
-                <div className="text-[9px] font-bold mb-1 transition-transform group-hover:scale-110"
-                     style={{ color: config.color }}>
-                  {config.unit === '$'
-                    ? `${(item.value / 1000).toFixed(0)}k`
-                    : config.unit === '%'
-                      ? `${item.value.toFixed(0)}%`
-                      : item.value.toFixed(1)
-                  }
-                </div>
-
-                {/* Bar */}
-                <div
-                  className="w-full max-w-[24px] rounded-t transition-all duration-300 group-hover:opacity-80"
-                  style={{
-                    height: heightPx,
-                    backgroundColor: isAboveAvg ? config.color : config.color + '60',
-                  }}
-                />
-
-                {/* Month label */}
-                <span className="mt-2 text-[9px] font-medium text-gray-400 uppercase tracking-wide">
-                  {item.shortLabel}
-                </span>
+          return (
+            <div key={idx} className="flex-1 flex flex-col items-center justify-end group min-w-0">
+              {/* Value above bar */}
+              <div className="text-[8px] font-bold mb-0.5" style={{ color: config.color }}>
+                {formatShortValue(item.value)}
               </div>
-            );
-          })}
-        </div>
+
+              {/* Bar */}
+              <div
+                className="w-full max-w-[16px] rounded-t"
+                style={{
+                  height: heightPx,
+                  backgroundColor: isAboveAvg ? config.color : config.color + '60',
+                }}
+              />
+
+              {/* Month label */}
+              <span className="mt-1 text-[8px] font-medium text-gray-400">
+                {item.shortLabel}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Summary Stats */}
-      <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-gray-100">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ backgroundColor: config.color + '15' }}>
-          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: config.color }} />
-          <span className="text-xs font-medium" style={{ color: config.color }}>{config.label}</span>
+      {/* Compact Summary */}
+      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-center gap-3 text-[10px]">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: config.color }} />
+          <span className="text-gray-500">{config.label}</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full">
-          <div className="w-6 h-0.5 border-t-2 border-dashed" style={{ borderColor: config.color + '60' }} />
-          <span className="text-xs font-medium text-gray-600">Avg: {formatValue(avgValue)}</span>
-        </div>
-        <div className="text-center px-3">
-          <span className="text-xs text-gray-400">Latest: </span>
-          <span className="text-xs font-bold" style={{ color: config.color }}>
-            {chartData.length > 0 ? formatValue(chartData[chartData.length - 1].value) : '-'}
-          </span>
-        </div>
+        <span className="text-gray-300">|</span>
+        <span className="text-gray-500">Avg: {formatValue(avgValue)}</span>
+        <span className="text-gray-300">|</span>
+        <span className="text-gray-500">Latest: <span className="font-bold" style={{ color: config.color }}>{formatValue(chartData[chartData.length - 1]?.value || 0)}</span></span>
       </div>
     </div>
   );

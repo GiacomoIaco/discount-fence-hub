@@ -74,9 +74,12 @@ export function SpeedToQuoteAnalysis({ filters }: SpeedToQuoteAnalysisProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {speedMetrics?.map((metric) => (
-                <SpeedRow key={metric.speed_bucket} metric={metric} />
-              ))}
+              {speedMetrics
+                ?.slice()
+                .sort((a, b) => SPEED_BUCKET_ORDER.indexOf(a.speed_bucket) - SPEED_BUCKET_ORDER.indexOf(b.speed_bucket))
+                .map((metric) => (
+                  <SpeedRow key={metric.speed_bucket} metric={metric} />
+                ))}
             </tbody>
           </table>
         </div>

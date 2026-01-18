@@ -308,17 +308,18 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
         </div>
       </div>
 
-      {/* Summary Cards - Leader focused, not explicit averages */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Summary Cards - 8 cards in 2 rows */}
+      <div className="grid grid-cols-4 gap-3">
+        {/* Row 1: Group & Top Performers */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
           <div className="text-xs text-gray-500">Comparison Group</div>
-          <div className="text-xl font-bold text-blue-600">{comparisonData.length} people</div>
-          <div className="text-xs text-gray-400">Used for rankings</div>
+          <div className="text-xl font-bold text-blue-600">{comparisonData.length}</div>
+          <div className="text-xs text-gray-400">salespeople</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-amber-300 bg-amber-50 p-3">
           <div className="flex items-center gap-1 text-xs text-amber-700">
             <Star className="w-3 h-3" />
-            Top Performer (Win %)
+            Top Win %
           </div>
           <div className="text-sm font-bold text-gray-900 truncate">{sortedData[0]?.salesperson || '-'}</div>
           <div className="text-xs text-gray-500">{formatResidentialPercent(sortedData[0]?.win_rate || null)}</div>
@@ -326,7 +327,7 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
         <div className="bg-white rounded-lg shadow-sm border border-green-300 bg-green-50 p-3">
           <div className="flex items-center gap-1 text-xs text-green-700">
             <Star className="w-3 h-3" />
-            Top Performer (Won $)
+            Top Won $
           </div>
           <div className="text-sm font-bold text-gray-900 truncate">
             {[...filteredData].sort((a, b) => b.won_value - a.won_value)[0]?.salesperson || '-'}
@@ -334,6 +335,43 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
           <div className="text-xs text-gray-500">
             {formatResidentialCurrency([...filteredData].sort((a, b) => b.won_value - a.won_value)[0]?.won_value || 0)}
           </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+          <div className="text-xs text-gray-500">Total Opportunities</div>
+          <div className="text-xl font-bold text-gray-900">
+            {filteredData.reduce((sum, s) => sum + s.total_opps, 0).toLocaleString()}
+          </div>
+          <div className="text-xs text-gray-400">across all salespeople</div>
+        </div>
+
+        {/* Row 2: Averages */}
+        <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-200 p-3">
+          <div className="text-xs text-blue-600">Group Avg Win %</div>
+          <div className="text-xl font-bold text-blue-700">{formatResidentialPercent(teamAvgWinRate)}</div>
+          <div className="text-xs text-blue-400">by count</div>
+        </div>
+        <div className="bg-purple-50 rounded-lg shadow-sm border border-purple-200 p-3">
+          <div className="text-xs text-purple-600">Group Avg Value Win %</div>
+          <div className="text-xl font-bold text-purple-700">{formatResidentialPercent(teamAvgValueWinRate)}</div>
+          <div className="text-xs text-purple-400">by $ value</div>
+        </div>
+        <div className="bg-teal-50 rounded-lg shadow-sm border border-teal-200 p-3">
+          <div className="text-xs text-teal-600">Avg Same Day %</div>
+          <div className="text-xl font-bold text-teal-700">
+            {comparisonData.length > 0
+              ? formatResidentialPercent(comparisonData.reduce((sum, s) => sum + (s.pct_same_day || 0), 0) / comparisonData.length)
+              : '-'}
+          </div>
+          <div className="text-xs text-teal-400">quoting speed</div>
+        </div>
+        <div className="bg-orange-50 rounded-lg shadow-sm border border-orange-200 p-3">
+          <div className="text-xs text-orange-600">Avg Deal Size</div>
+          <div className="text-xl font-bold text-orange-700">
+            {comparisonData.length > 0
+              ? formatResidentialCurrency(comparisonData.reduce((sum, s) => sum + (s.avg_opp_value || 0), 0) / comparisonData.length)
+              : '-'}
+          </div>
+          <div className="text-xs text-orange-400">per opportunity</div>
         </div>
       </div>
 
