@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const JOBBER_API_URL = 'https://api.getjobber.com/api/graphql';
 const JOBBER_TOKEN_URL = 'https://api.getjobber.com/api/oauth/token';
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50; // Reduced from 100 to lower query cost
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -148,7 +148,7 @@ function sleep(ms: number): Promise<void> {
 async function graphqlQuery(
   accessToken: string,
   query: string,
-  retries: number = 3,
+  retries: number = 5, // Increased from 3 to handle throttling better
   baseDelayMs: number = 1000
 ): Promise<{ data: unknown; cost?: { requestedQueryCost: number; actualQueryCost: number; throttleStatus: string } }> {
   let lastError: Error | null = null;
@@ -229,7 +229,8 @@ async function graphqlQuery(
         );
 
         if (isThrottled) {
-          const waitTime = baseDelayMs * Math.pow(2, attempt);
+          // Throttled - wait longer (at least 3 seconds, increasing with attempts)
+          const waitTime = Math.max(3000, baseDelayMs * Math.pow(2, attempt + 1));
           lastError = new Error(`GraphQL throttled: ${errorMessages}`);
           console.warn(`GraphQL throttled. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
           await sleep(waitTime);
@@ -298,7 +299,7 @@ async function fetchAllPages<T>(
   let hasMore = true;
   let pageNum = 0;
   let consecutiveThrottles = 0;
-  let delayMs = 500; // Start with 500ms between requests (increased from 200ms)
+  let delayMs = 1000; // Start with 1 second between requests to avoid throttling
 
   while (hasMore) {
     pageNum++;
@@ -791,6 +792,11 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
     try {
       const testResult = await graphqlQuery(accessToken, testQuery, 1, 500);
       console.log('API connection test successful:', JSON.stringify(testResult.data));
+
+      // Wait 2 seconds after test to let rate limit points restore
+      // (Jobber restores 500 points/second, our queries cost ~500-1000 points each)
+      console.log('Waiting 2s for rate limit points to restore...');
+      await sleep(2000);
     } catch (testError) {
       const errorMsg = testError instanceof Error ? testError.message : String(testError);
       console.error('API connection test failed:', errorMsg);
