@@ -27,6 +27,14 @@ interface SyncStats {
 async function refreshToken(account: string, refreshTokenValue: string): Promise<string> {
   console.log(`Refreshing token for ${account}...`);
 
+  // Check for required environment variables
+  if (!process.env.JOBBER_CLIENT_ID) {
+    throw new Error('JOBBER_CLIENT_ID environment variable is not set');
+  }
+  if (!process.env.JOBBER_CLIENT_SECRET) {
+    throw new Error('JOBBER_CLIENT_SECRET environment variable is not set');
+  }
+
   const response = await fetch(JOBBER_TOKEN_URL, {
     method: 'POST',
     headers: {
@@ -36,24 +44,44 @@ async function refreshToken(account: string, refreshTokenValue: string): Promise
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshTokenValue,
-      client_id: process.env.JOBBER_CLIENT_ID!,
-      client_secret: process.env.JOBBER_CLIENT_SECRET!,
+      client_id: process.env.JOBBER_CLIENT_ID,
+      client_secret: process.env.JOBBER_CLIENT_SECRET,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+
+    // Parse specific error types from Jobber
+    let errorMessage = `Token refresh failed: ${response.status}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.error === 'invalid_grant') {
+        errorMessage = 'Refresh token is invalid or expired. Please reconnect the Jobber integration at /settings/integrations.';
+      } else if (errorJson.error === 'unauthorized_client') {
+        errorMessage = 'App is not authorized. Please reconnect the Jobber integration.';
+      } else if (errorJson.error_description) {
+        errorMessage = `Token refresh failed: ${errorJson.error_description}`;
+      }
+    } catch {
+      errorMessage += ` - ${errorText}`;
+    }
+
+    throw new Error(errorMessage);
   }
 
   const token = await response.json();
+
+  if (!token.access_token) {
+    throw new Error('Token refresh response missing access_token');
+  }
 
   // Update stored tokens
   const now = new Date();
   const expiresIn = token.expires_in || 3600;
   const accessTokenExpiresAt = new Date(now.getTime() + expiresIn * 1000);
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('jobber_tokens')
     .update({
       access_token: token.access_token,
@@ -63,12 +91,17 @@ async function refreshToken(account: string, refreshTokenValue: string): Promise
     })
     .eq('id', account);
 
-  console.log('Token refreshed successfully');
+  if (updateError) {
+    console.error('Failed to save refreshed token:', updateError);
+    // Don't throw - we can still use the token even if we couldn't save it
+  }
+
+  console.log(`Token refreshed successfully, valid until ${accessTokenExpiresAt.toISOString()}`);
   return token.access_token;
 }
 
 /**
- * Get valid access token (refreshing if expired)
+ * Get valid access token (refreshing if expired or about to expire)
  */
 async function getAccessToken(account: string): Promise<string> {
   const { data: tokenData, error: tokenError } = await supabase
@@ -77,51 +110,155 @@ async function getAccessToken(account: string): Promise<string> {
     .eq('id', account)
     .single();
 
-  if (tokenError || !tokenData) {
-    throw new Error(`No token found for ${account}. Please connect via OAuth first.`);
+  if (tokenError) {
+    console.error('Token lookup error:', tokenError);
+    throw new Error(`Failed to look up token for ${account}: ${tokenError.message}`);
   }
 
-  const isExpired = new Date(tokenData.access_token_expires_at) < new Date();
+  if (!tokenData) {
+    throw new Error(`No token found for ${account}. Please connect via OAuth first at /settings/integrations.`);
+  }
 
-  if (isExpired) {
-    console.log('Access token expired, refreshing...');
+  const expiresAt = new Date(tokenData.access_token_expires_at);
+  const now = new Date();
+  const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+
+  // Proactively refresh if expiring within 5 minutes (sync may take a while)
+  const isExpiredOrExpiringSoon = expiresAt < fiveMinutesFromNow;
+
+  if (isExpiredOrExpiringSoon) {
+    console.log(`Access token ${expiresAt < now ? 'expired' : 'expiring soon'}, refreshing...`);
     return refreshToken(account, tokenData.refresh_token);
   }
 
+  console.log(`Token valid until ${expiresAt.toISOString()}`);
   return tokenData.access_token;
 }
 
 /**
- * Make GraphQL query to Jobber API
+ * Sleep for a given number of milliseconds
  */
-async function graphqlQuery(accessToken: string, query: string) {
-  const response = await fetch(JOBBER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-      'X-JOBBER-GRAPHQL-VERSION': process.env.JOBBER_API_VERSION || '2025-01-20',
-    },
-    body: JSON.stringify({ query }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`GraphQL request failed: ${response.status} - ${errorText}`);
-  }
-
-  const result = await response.json();
-
-  if (result.errors) {
-    console.error('GraphQL errors:', JSON.stringify(result.errors, null, 2));
-    throw new Error(`GraphQL errors: ${result.errors[0]?.message || 'Unknown error'}`);
-  }
-
-  return result.data;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Fetch all pages of a GraphQL query
+ * Make GraphQL query to Jobber API with retry logic and rate limit handling
+ */
+async function graphqlQuery(
+  accessToken: string,
+  query: string,
+  retries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<{ data: unknown; cost?: { requestedQueryCost: number; actualQueryCost: number; throttleStatus: string } }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await fetch(JOBBER_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-JOBBER-GRAPHQL-VERSION': process.env.JOBBER_API_VERSION || '2025-01-20',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      // Handle rate limiting (429 Too Many Requests)
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : baseDelayMs * Math.pow(2, attempt);
+        console.warn(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+        await sleep(waitTime);
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        // Check for auth errors that shouldn't be retried
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(`Auth error: ${response.status} - ${errorText}`);
+        }
+
+        // Other errors - retry with backoff
+        console.warn(`Request failed (${response.status}). Retry ${attempt + 1}/${retries}...`);
+        lastError = new Error(`GraphQL request failed: ${response.status} - ${errorText}`);
+        await sleep(baseDelayMs * Math.pow(2, attempt));
+        continue;
+      }
+
+      const result = await response.json();
+
+      // Check for throttled status in extensions
+      const cost = result.extensions?.cost;
+      if (cost) {
+        console.log(`Query cost: ${cost.actualQueryCost}/${cost.requestedQueryCost}, Status: ${cost.throttleStatus}`);
+
+        // If we're being throttled, wait before continuing
+        if (cost.throttleStatus === 'THROTTLED') {
+          const waitTime = baseDelayMs * Math.pow(2, attempt);
+          console.warn(`Throttled by Jobber. Waiting ${waitTime}ms...`);
+          await sleep(waitTime);
+        }
+      }
+
+      // Check for GraphQL-level errors
+      if (result.errors) {
+        const errorMessages = result.errors.map((e: { message?: string }) => e.message || 'Unknown').join(', ');
+
+        // Check for rate limit errors in GraphQL response
+        const isThrottled = result.errors.some((e: { message?: string; extensions?: { code?: string } }) =>
+          e.message?.toLowerCase().includes('throttl') ||
+          e.extensions?.code === 'THROTTLED'
+        );
+
+        if (isThrottled) {
+          const waitTime = baseDelayMs * Math.pow(2, attempt);
+          console.warn(`GraphQL throttled. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          await sleep(waitTime);
+          continue;
+        }
+
+        // Check for temporary errors that might be retried
+        const isTemporary = result.errors.some((e: { message?: string; extensions?: { code?: string } }) =>
+          e.message?.toLowerCase().includes('timeout') ||
+          e.message?.toLowerCase().includes('temporarily') ||
+          e.extensions?.code === 'INTERNAL_SERVER_ERROR'
+        );
+
+        if (isTemporary && attempt < retries - 1) {
+          console.warn(`Temporary error: ${errorMessages}. Retry ${attempt + 1}/${retries}...`);
+          await sleep(baseDelayMs * Math.pow(2, attempt));
+          continue;
+        }
+
+        console.error('GraphQL errors:', JSON.stringify(result.errors, null, 2));
+        throw new Error(`GraphQL errors: ${errorMessages}`);
+      }
+
+      return { data: result.data, cost };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry auth errors
+      if (lastError.message.includes('Auth error')) {
+        throw lastError;
+      }
+
+      if (attempt < retries - 1) {
+        console.warn(`Request error: ${lastError.message}. Retry ${attempt + 1}/${retries}...`);
+        await sleep(baseDelayMs * Math.pow(2, attempt));
+      }
+    }
+  }
+
+  throw lastError || new Error('GraphQL request failed after all retries');
+}
+
+/**
+ * Fetch all pages of a GraphQL query with adaptive rate limiting
  */
 async function fetchAllPages<T>(
   accessToken: string,
@@ -132,23 +269,36 @@ async function fetchAllPages<T>(
   let cursor: string | null = null;
   let hasMore = true;
   let pageNum = 0;
+  let consecutiveThrottles = 0;
+  let delayMs = 500; // Start with 500ms between requests (increased from 200ms)
 
   while (hasMore) {
     pageNum++;
     console.log(`Fetching page ${pageNum}...`);
 
     const query = queryBuilder(cursor);
-    const data = await graphqlQuery(accessToken, query);
-    const { nodes, pageInfo } = extractData(data);
+    const result = await graphqlQuery(accessToken, query);
+    const { nodes, pageInfo } = extractData(result.data);
 
     allItems.push(...nodes);
 
     hasMore = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
 
-    // Rate limiting - wait 200ms between requests
+    // Adaptive rate limiting based on cost feedback
+    if (result.cost?.throttleStatus === 'THROTTLED') {
+      consecutiveThrottles++;
+      delayMs = Math.min(delayMs * 2, 5000); // Double delay up to 5 seconds
+      console.warn(`Throttled - increasing delay to ${delayMs}ms`);
+    } else if (consecutiveThrottles > 0) {
+      consecutiveThrottles = 0;
+      // Gradually reduce delay when not throttled
+      delayMs = Math.max(delayMs * 0.8, 500);
+    }
+
+    // Wait between requests to avoid rate limits
     if (hasMore) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await sleep(delayMs);
     }
   }
 
