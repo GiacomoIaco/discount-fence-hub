@@ -86,36 +86,28 @@ export function useAllSalespersonMappings() {
 }
 
 /**
- * Get list of distinct salespeople from Jobber data
+ * Get list of salespeople who are in the comparison group
+ * (configured in Jobber Data > Salesperson page)
  */
 export function useDistinctSalespeople() {
   return useQuery({
-    queryKey: ['distinct_salespeople'],
+    queryKey: ['distinct_salespeople_comparison_group'],
     queryFn: async (): Promise<string[]> => {
+      // Query from residential_salesperson_config where is_comparison_group = true
       const { data, error } = await supabase
-        .rpc('get_distinct_salespeople');
+        .from('residential_salesperson_config')
+        .select('salesperson_name')
+        .eq('is_comparison_group', true)
+        .order('salesperson_name');
 
       if (error) {
-        // Fallback: query directly from jobber_builder_jobs
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('jobber_builder_jobs')
-          .select('effective_salesperson')
-          .not('effective_salesperson', 'is', null)
-          .order('effective_salesperson');
-
-        if (fallbackError) {
-          console.error('Error fetching salespeople:', fallbackError);
-          return [];
-        }
-
-        // Get unique values
-        const unique = [...new Set(fallbackData?.map(d => d.effective_salesperson).filter(Boolean))];
-        return unique as string[];
+        console.error('Error fetching comparison group salespeople:', error);
+        return [];
       }
 
-      return data?.map((d: { salesperson_name: string }) => d.salesperson_name) || [];
+      return data?.map(d => d.salesperson_name).filter(Boolean) || [];
     },
-    staleTime: 300000, // Cache for 5 minutes
+    staleTime: 60000, // Cache for 1 minute (same as comparison group)
   });
 }
 
