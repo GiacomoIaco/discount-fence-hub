@@ -241,6 +241,7 @@ async function graphqlQuery(
       return { data: result.data, cost };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`Attempt ${attempt + 1} failed:`, lastError.message);
 
       // Don't retry auth errors
       if (lastError.message.includes('Auth error')) {
@@ -248,13 +249,15 @@ async function graphqlQuery(
       }
 
       if (attempt < retries - 1) {
-        console.warn(`Request error: ${lastError.message}. Retry ${attempt + 1}/${retries}...`);
-        await sleep(baseDelayMs * Math.pow(2, attempt));
+        const waitTime = baseDelayMs * Math.pow(2, attempt);
+        console.warn(`Request error: ${lastError.message}. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+        await sleep(waitTime);
       }
     }
   }
 
-  throw lastError || new Error('GraphQL request failed after all retries');
+  // Preserve the actual error message
+  throw new Error(`GraphQL request failed after ${retries} retries: ${lastError?.message || 'Unknown error'}`);
 }
 
 /**
@@ -741,9 +744,24 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
       }, { onConflict: 'id' });
 
     // Get access token
+    console.log('Getting access token...');
     const accessToken = await getAccessToken(account);
+    console.log('Access token obtained successfully');
+
+    // Test connection with a simple query first
+    console.log('Testing API connection...');
+    const testQuery = `query TestConnection { account { name } }`;
+    try {
+      const testResult = await graphqlQuery(accessToken, testQuery, 1, 500);
+      console.log('API connection test successful:', JSON.stringify(testResult.data));
+    } catch (testError) {
+      const errorMsg = testError instanceof Error ? testError.message : String(testError);
+      console.error('API connection test failed:', errorMsg);
+      throw new Error(`Jobber API connection failed: ${errorMsg}`);
+    }
 
     // Sync all data
+    console.log('Starting data sync...');
     stats.quotesProcessed = await syncQuotes(accessToken);
     stats.jobsProcessed = await syncJobs(accessToken);
     stats.requestsProcessed = await syncRequests(accessToken);
