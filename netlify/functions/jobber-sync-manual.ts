@@ -520,7 +520,6 @@ const JOBS_QUERY = (cursor: string | null) => `
         createdAt
         startAt
         endAt
-        closedAt
         quote {
           id
           quoteNumber
@@ -556,7 +555,6 @@ interface JobberJob {
   createdAt?: string;
   startAt?: string;
   endAt?: string;
-  closedAt?: string;
   quote?: {
     id: string;
     quoteNumber: number;
@@ -596,7 +594,7 @@ async function syncJobs(accessToken: string): Promise<number> {
         created_at_jobber: j.createdAt,
         scheduled_start_at: j.startAt,
         completed_at: j.endAt,
-        closed_at: j.closedAt,
+        // Removed: closed_at (field doesn't exist in Jobber API)
         quote_jobber_id: j.quote?.id,
         quote_number: j.quote?.quoteNumber,
         synced_at: new Date().toISOString(),
