@@ -259,11 +259,11 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         />
       </div>
 
-      {/* Monthly Trend Chart - Full Width, Recharts-based */}
+      {/* Monthly Charts - Win Rate + Pipeline with shared toggle */}
       {monthlyData && monthlyData.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Monthly Pipeline Trend</h3>
+        <div className="space-y-4">
+          {/* Shared Toggle */}
+          <div className="flex items-center justify-end">
             <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-lg">
               <button
                 onClick={() => setViewMode('count')}
@@ -288,7 +288,19 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
             </div>
           </div>
 
-          <MonthlyTrendRechartsChart data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
+          {/* Monthly Win Rate Chart */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Monthly Win Rate {viewMode === 'count' ? '(by #)' : '(by $)'}
+            </h3>
+            <MonthlyWinRateChart data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
+          </div>
+
+          {/* Monthly Pipeline Trend Chart */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Pipeline Trend</h3>
+            <MonthlyTrendRechartsChart data={monthlyData} viewMode={viewMode} ltmTotals={ltmTotals} />
+          </div>
         </div>
       )}
 
@@ -374,7 +386,71 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
   );
 }
 
-// Monthly Trend Chart with Recharts - Bars with Win Rate labels on top
+// Monthly Win Rate Chart - Dedicated chart for win rate visibility
+function MonthlyWinRateChart({
+  data,
+  viewMode,
+  ltmTotals,
+}: {
+  data: MonthlyTotals[];
+  viewMode: ViewMode;
+  ltmTotals: { pipeline: number; won: number; winRateCount: number | null; winRateValue: number | null } | null;
+}) {
+  const chartData = data.map((month) => ({
+    label: month.month_label,
+    winRate: viewMode === 'count' ? month.win_rate : month.value_win_rate,
+  }));
+
+  const avgWinRate = chartData.reduce((sum, d) => sum + (d.winRate || 0), 0) / chartData.length;
+
+  return (
+    <div>
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 30, right: 20, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
+            <Tooltip
+              formatter={(value: number) => [`${value?.toFixed(1)}%`, 'Win Rate']}
+              contentStyle={{ fontSize: 14 }}
+            />
+            <Bar dataKey="winRate" name="Win Rate" fill="#8B5CF6" radius={[4, 4, 0, 0]}>
+              <LabelList
+                dataKey="winRate"
+                position="top"
+                formatter={(value: unknown) => `${Number(value)?.toFixed(0)}%`}
+                fill="#8B5CF6"
+                fontSize={14}
+                fontWeight={700}
+                offset={8}
+              />
+            </Bar>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* LTM Win Rate Summary */}
+      {ltmTotals && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <div className="text-sm text-gray-500">LTM Win Rate</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {viewMode === 'count' ? formatResidentialPercent(ltmTotals.winRateCount) : formatResidentialPercent(ltmTotals.winRateValue)}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Average</div>
+              <div className="text-2xl font-bold text-gray-700">{avgWinRate.toFixed(1)}%</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Monthly Trend Chart with Recharts - Pipeline and Won values
 function MonthlyTrendRechartsChart({
   data,
   viewMode,
@@ -388,8 +464,6 @@ function MonthlyTrendRechartsChart({
     label: month.month_label,
     total: viewMode === 'count' ? month.total_opps : month.total_value,
     won: viewMode === 'count' ? month.won_opps : month.won_value,
-    winRate: viewMode === 'count' ? month.win_rate : month.value_win_rate,
-    winRateLabel: (viewMode === 'count' ? month.win_rate : month.value_win_rate)?.toFixed(0) + '%',
   }));
 
   const formatBarLabel = (value: number) => {
@@ -403,14 +477,13 @@ function MonthlyTrendRechartsChart({
 
   return (
     <div>
-      <div className="h-80">
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 35, right: 20, left: 20, bottom: 5 }}>
+          <ComposedChart data={chartData} margin={{ top: 30, right: 20, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(value: number, name: string) => {
-                if (name === 'Win Rate') return [`${value?.toFixed(1)}%`, name];
                 return [viewMode === 'value' ? `$${value.toLocaleString()}` : value.toLocaleString(), name];
               }}
               contentStyle={{ fontSize: 14 }}
@@ -421,19 +494,21 @@ function MonthlyTrendRechartsChart({
                 dataKey="total"
                 position="top"
                 formatter={(value: unknown) => formatBarLabel(Number(value))}
-                fill="#374151"
+                fill="#64748B"
                 fontSize={12}
                 fontWeight={600}
+                offset={8}
               />
             </Bar>
             <Bar dataKey="won" name="Won" fill="#10B981" radius={[4, 4, 0, 0]}>
               <LabelList
-                dataKey="winRateLabel"
+                dataKey="won"
                 position="top"
-                fill="#8B5CF6"
-                fontSize={11}
-                fontWeight={700}
-                offset={-2}
+                formatter={(value: unknown) => formatBarLabel(Number(value))}
+                fill="#059669"
+                fontSize={12}
+                fontWeight={600}
+                offset={8}
               />
             </Bar>
           </ComposedChart>
@@ -444,7 +519,7 @@ function MonthlyTrendRechartsChart({
       {ltmTotals && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="text-sm text-gray-500 mb-2 text-center">Last 12 Months Summary</div>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 gap-4 text-center">
             <div>
               <div className="text-sm text-gray-500">Pipeline</div>
               <div className="text-xl font-semibold text-gray-900">{formatResidentialCurrency(ltmTotals.pipeline)}</div>
@@ -452,12 +527,6 @@ function MonthlyTrendRechartsChart({
             <div>
               <div className="text-sm text-gray-500">Won</div>
               <div className="text-xl font-semibold text-green-600">{formatResidentialCurrency(ltmTotals.won)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Win Rate</div>
-              <div className="text-xl font-semibold text-purple-600">
-                {viewMode === 'count' ? formatResidentialPercent(ltmTotals.winRateCount) : formatResidentialPercent(ltmTotals.winRateValue)}
-              </div>
             </div>
           </div>
         </div>
