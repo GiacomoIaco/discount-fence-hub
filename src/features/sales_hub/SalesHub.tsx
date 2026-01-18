@@ -12,6 +12,7 @@ import {
   PinOff,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTabRoute } from '../../hooks/useTabRoute';
 import type { SalesHubView } from './types';
 import { SalesDashboard } from './components';
 
@@ -57,6 +58,13 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
   const [activeView, setActiveView] = useState<SalesHubView>(initialView);
   const { user, profile } = useAuth();
   const userRole = (profile?.role || 'sales') as UserRole;
+
+  // Sync view state with URL
+  const { navigateToTab } = useTabRoute<SalesHubView>({
+    section: 'sales-hub',
+    activeTab: activeView,
+    setActiveTab: setActiveView,
+  });
 
   // Load initial state from localStorage (hover-to-expand pattern)
   const getInitialSidebarState = () => {
@@ -155,7 +163,7 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
-        return <SalesDashboard onNavigate={setActiveView} />;
+        return <SalesDashboard onNavigate={navigateToTab} />;
       case 'sales-coach':
         return (
           <Suspense fallback={<LoadingFallback />}>
@@ -227,7 +235,7 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
             return (
               <button
                 key={item.key}
-                onClick={() => setActiveView(item.key)}
+                onClick={() => navigateToTab(item.key)}
                 className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-white/20 text-white shadow-lg'

@@ -17,6 +17,7 @@ import {
   parseEntityUrl,
   buildEntityUrl,
   getBestMatchingSection,
+  parseTabUrl,
   type Section,
   type EntityType
 } from '../lib/routes';
@@ -138,6 +139,12 @@ export function useRouteSync({
     // Don't update URL if we're on an entity route (let entity navigation handle it)
     const currentEntityInfo = parseEntityUrl(location.pathname);
     if (currentEntityInfo) {
+      return;
+    }
+
+    // Don't update URL if we're on a tab route for the same section (let tab navigation handle it)
+    const tabRoute = parseTabUrl(location.pathname);
+    if (tabRoute && tabRoute.section === activeSection) {
       return;
     }
 

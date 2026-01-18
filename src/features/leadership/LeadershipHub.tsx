@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Monitor } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useIsDesktop } from './hooks/useLeadershipPermissions';
 import { useFunctionsQuery } from './hooks/useLeadershipQuery';
 import LeadershipLayout from './LeadershipLayout';
@@ -7,6 +8,9 @@ import FunctionWorkspace from './components/FunctionWorkspace';
 import ProgressDashboard from './components/ProgressDashboard';
 import NewFunctionModal from './components/NewFunctionModal';
 import SettingsHub from './components/Settings/SettingsHub';
+import { buildTabUrl, getTabFromPath } from '../../lib/routes';
+
+type LeadershipView = 'functions' | 'reports' | 'settings';
 
 interface LeadershipHubProps {
   onBack?: () => void;
@@ -20,6 +24,63 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
 
   const isDesktop = useIsDesktop();
   const { data: functions } = useFunctionsQuery();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Derive current view from state
+  const getCurrentView = (): LeadershipView => {
+    if (showingSettings) return 'settings';
+    if (showingReports) return 'reports';
+    return 'functions';
+  };
+
+  // Sync URL with view state
+  useEffect(() => {
+    const currentView = getCurrentView();
+    const targetPath = buildTabUrl('leadership', currentView);
+    if (location.pathname !== targetPath) {
+      navigate(targetPath, { replace: true });
+    }
+  }, [showingReports, showingSettings, location.pathname, navigate]);
+
+  // Sync view state with URL on mount/navigation
+  useEffect(() => {
+    const tabFromUrl = getTabFromPath('leadership', location.pathname) as LeadershipView;
+    if (tabFromUrl === 'reports' && !showingReports) {
+      setShowingReports(true);
+      setShowingSettings(false);
+      setSelectedFunctionId(null);
+    } else if (tabFromUrl === 'settings' && !showingSettings) {
+      setShowingSettings(true);
+      setShowingReports(false);
+      setSelectedFunctionId(null);
+    } else if (tabFromUrl === 'functions' && (showingReports || showingSettings)) {
+      setShowingReports(false);
+      setShowingSettings(false);
+    }
+  }, [location.pathname]);
+
+  // Navigation handlers that update URL
+  const handleReportsClick = () => {
+    setShowingReports(true);
+    setShowingSettings(false);
+    setSelectedFunctionId(null);
+    navigate(buildTabUrl('leadership', 'reports'));
+  };
+
+  const handleSettingsClick = () => {
+    setShowingSettings(true);
+    setShowingReports(false);
+    setSelectedFunctionId(null);
+    navigate(buildTabUrl('leadership', 'settings'));
+  };
+
+  const handleSelectFunction = (functionId: string) => {
+    setSelectedFunctionId(functionId);
+    setShowingReports(false);
+    setShowingSettings(false);
+    navigate(buildTabUrl('leadership', 'functions'));
+  };
 
   // Desktop-only check
   if (!isDesktop) {
@@ -57,21 +118,9 @@ export default function LeadershipHub({ onBack }: LeadershipHubProps) {
   return (
     <LeadershipLayout
       selectedFunctionId={selectedFunctionId}
-      onSelectFunction={(functionId) => {
-        setSelectedFunctionId(functionId);
-        setShowingReports(false);
-        setShowingSettings(false);
-      }}
-      onReportsClick={() => {
-        setShowingReports(true);
-        setShowingSettings(false);
-        setSelectedFunctionId(null);
-      }}
-      onSettingsClick={() => {
-        setShowingSettings(true);
-        setShowingReports(false);
-        setSelectedFunctionId(null);
-      }}
+      onSelectFunction={handleSelectFunction}
+      onReportsClick={handleReportsClick}
+      onSettingsClick={handleSettingsClick}
       onNewFunctionClick={() => setShowNewFunctionModal(true)}
       showingReports={showingReports}
       showingSettings={showingSettings}

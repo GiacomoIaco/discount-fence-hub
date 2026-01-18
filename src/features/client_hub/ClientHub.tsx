@@ -13,6 +13,7 @@ import PriceBooksList from './components/PriceBooksList';
 import ClientDetailPage from './pages/ClientDetailPage';
 import PropertyDetailPage from './pages/PropertyDetailPage';
 import CommunityDetailPage from './pages/CommunityDetailPage';
+import { useTabRoute } from '../../hooks/useTabRoute';
 import type { EntityContext } from '../../hooks/useRouteSync';
 import type { EntityType } from '../../lib/routes';
 
@@ -35,6 +36,13 @@ export default function ClientHub({
   onClearEntity,
 }: ClientHubProps) {
   const [activeTab, setActiveTab] = useState<Tab>('clients');
+
+  // Sync tab state with URL (only when not viewing an entity)
+  const { navigateToTab } = useTabRoute<Tab>({
+    section: 'client-hub',
+    activeTab,
+    setActiveTab,
+  });
 
   // Handle entity context from URL - switch to appropriate tab when viewing an entity
   useEffect(() => {
@@ -127,7 +135,7 @@ export default function ClientHub({
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => navigateToTab(tab.id)}
                 className={`flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'

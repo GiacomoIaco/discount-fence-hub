@@ -302,3 +302,127 @@ function matchPattern(path: string, pattern: string): Record<string, string> | n
 export function isEntityRoute(path: string): boolean {
   return parseEntityUrl(path) !== null;
 }
+
+/**
+ * Tab route configuration for sections with internal tabs
+ * Maps section + tab to URL path (and vice versa)
+ */
+export type TabRouteConfig = {
+  section: Section;
+  defaultTab: string;
+  tabs: Record<string, string>; // tab id -> URL path segment
+};
+
+export const TAB_ROUTES: Record<string, TabRouteConfig> = {
+  // Analytics tabs
+  'analytics': {
+    section: 'analytics',
+    defaultTab: 'overview',
+    tabs: {
+      'overview': '',
+      'requests': 'requests',
+      'sales': 'sales',
+      'photos': 'photos',
+      'jobber': 'jobber',
+      'residential-api': 'residential',
+    },
+  },
+  // Client Hub tabs
+  'client-hub': {
+    section: 'client-hub',
+    defaultTab: 'clients',
+    tabs: {
+      'clients': '',
+      'communities': 'communities',
+      'price-books': 'price-books',
+      'rate-sheets': 'rate-sheets',
+    },
+  },
+  // Sales Hub tabs
+  'sales-hub': {
+    section: 'sales-hub',
+    defaultTab: 'dashboard',
+    tabs: {
+      'dashboard': '',
+      'sales-coach': 'coach',
+      'presentation': 'presentation',
+      'photo-gallery': 'photos',
+      'stain-calculator': 'stain-calc',
+      'sales-resources': 'resources',
+    },
+  },
+  // Leadership Hub tabs (main navigation, not function tabs)
+  'leadership': {
+    section: 'leadership',
+    defaultTab: 'functions',
+    tabs: {
+      'functions': '',
+      'reports': 'reports',
+      'settings': 'settings',
+    },
+  },
+};
+
+/**
+ * Build a tab URL for a section
+ * @example buildTabUrl('analytics', 'requests') => '/analytics/requests'
+ * @example buildTabUrl('analytics', 'overview') => '/analytics'
+ */
+export function buildTabUrl(section: Section, tab: string): string {
+  const config = TAB_ROUTES[section];
+  if (!config) {
+    return sectionToPath(section);
+  }
+
+  const basePath = ROUTE_CONFIG[section];
+  const tabPath = config.tabs[tab];
+
+  if (tabPath === undefined || tabPath === '') {
+    return '/' + basePath;
+  }
+
+  return '/' + basePath + '/' + tabPath;
+}
+
+/**
+ * Parse a URL path to extract section and tab
+ * @example parseTabUrl('/analytics/requests') => { section: 'analytics', tab: 'requests' }
+ * @example parseTabUrl('/analytics') => { section: 'analytics', tab: 'overview' }
+ */
+export function parseTabUrl(path: string): { section: Section; tab: string } | null {
+  const cleanPath = path.replace(/^\/+|\/+$/g, '');
+
+  // Check each tab route config
+  for (const [, config] of Object.entries(TAB_ROUTES)) {
+    const basePath = ROUTE_CONFIG[config.section];
+
+    // Check if path matches this section
+    if (cleanPath === basePath) {
+      return { section: config.section, tab: config.defaultTab };
+    }
+
+    // Check if path matches a sub-tab
+    for (const [tabId, tabPath] of Object.entries(config.tabs)) {
+      if (tabPath && cleanPath === basePath + '/' + tabPath) {
+        return { section: config.section, tab: tabId };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get the current tab for a section from a URL path
+ * Returns the default tab if no specific tab is in the URL
+ */
+export function getTabFromPath(section: Section, path: string): string {
+  const result = parseTabUrl(path);
+  if (result && result.section === section) {
+    return result.tab;
+  }
+
+  // Return default tab for the section
+  const config = TAB_ROUTES[section];
+  return config?.defaultTab || '';
+}
