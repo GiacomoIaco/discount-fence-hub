@@ -3,3 +3,4 @@ export * from './useMessages';
 export * from './useQuickReplies';
 export * from './useNotifications';
 export * from './useMessageCenterUnread';
+export * from './useUnifiedUnreadCount';

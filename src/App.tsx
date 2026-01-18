@@ -20,8 +20,7 @@ import type { Request } from './features/requests/lib/requests';
 
 // Layout components
 import Sidebar from './layouts/Sidebar';
-import MobileHeader from './layouts/MobileHeader';
-import QuickRecordingFAB from './components/QuickRecordingFAB';
+import MobileAppContent from './layouts/MobileAppContent';
 
 // View components
 import Dashboard from './components/views/Dashboard';
@@ -797,16 +796,21 @@ function App() {
     return (
       <ToastProvider>
         <RightPaneProvider>
-        <div className="min-h-screen bg-gray-50">
-          <MobileHeader
+          <MobileAppContent
+            activeSection={activeSection}
+            onNavigate={navigateTo}
+            userId={user?.id}
             profileAvatarUrl={profile?.avatar_url}
             profileFullName={userName}
+            userRole={userRole}
             setViewMode={setViewMode}
-            setShowProfileView={setShowProfileView}
             mobileLayout={mobileLayout}
             setMobileLayout={setMobileLayout}
-          />
-          <div className="pb-20">
+            showProfileView={showProfileView}
+            setShowProfileView={setShowProfileView}
+            showProfileEditor={showProfileEditor}
+            setShowProfileEditor={setShowProfileEditor}
+          >
             <ErrorBoundary>
               <SalesRepView
                 activeSection={activeSection}
@@ -825,54 +829,7 @@ function App() {
                 userRole={userRole}
               />
             </ErrorBoundary>
-          </div>
-
-          {/* Quick Recording FAB - only show on home screen */}
-          {activeSection === 'home' && (
-            <QuickRecordingFAB
-              onNavigate={setActiveSection}
-              userId={user?.id}
-            />
-          )}
-
-          {/* Install App Banner */}
-          <InstallAppBanner />
-
-          {/* PWA Update Prompt */}
-          <PWAUpdatePrompt />
-
-          {/* Push Notification Banner */}
-          <PushNotificationBanner />
-
-          {/* Profile Modals */}
-          {showProfileView && (
-            <Suspense fallback={<LoadingFallback />}>
-              <UserProfileView
-                onClose={() => setShowProfileView(false)}
-                onEdit={() => {
-                  setShowProfileView(false);
-                  setShowProfileEditor(true);
-                }}
-              />
-            </Suspense>
-          )}
-
-          {showProfileEditor && (
-            <Suspense fallback={<LoadingFallback />}>
-              <UserProfileEditor
-                onClose={() => setShowProfileEditor(false)}
-                onSave={() => {
-                  setShowProfileEditor(false);
-                  window.location.reload(); // Reload to refresh profile data
-                }}
-              />
-            </Suspense>
-          )}
-
-          {/* Right-Pane Messaging - accessible from anywhere in the app */}
-          {activeSection !== 'message-center' && <FloatingMessageButton />}
-          <RightPaneMessaging />
-        </div>
+          </MobileAppContent>
         </RightPaneProvider>
       </ToastProvider>
     );
