@@ -84,27 +84,62 @@ async function getAccessToken(account: string): Promise<string> {
   return tokenData.access_token;
 }
 
-async function graphqlQuery(accessToken: string, query: string): Promise<{ data: unknown; cost?: unknown }> {
-  const response = await fetch(JOBBER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-      'X-JOBBER-GRAPHQL-VERSION': process.env.JOBBER_API_VERSION || '2025-01-20',
-    },
-    body: JSON.stringify({ query }),
-  });
+async function graphqlQuery(
+  accessToken: string,
+  query: string,
+  retries: number = 5
+): Promise<{ data: unknown; cost?: unknown }> {
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    throw new Error(`GraphQL request failed: ${response.status}`);
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await fetch(JOBBER_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-JOBBER-GRAPHQL-VERSION': process.env.JOBBER_API_VERSION || '2025-01-20',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (response.status === 429) {
+        // Rate limited - wait and retry
+        const waitTime = 3000 * Math.pow(2, attempt);
+        console.log(`Rate limited (429), waiting ${waitTime}ms...`);
+        await sleep(waitTime);
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`GraphQL request failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.errors) {
+        const errorMsg = result.errors[0]?.message || 'Unknown error';
+        // Check for throttle error
+        if (errorMsg.toLowerCase().includes('throttl')) {
+          const waitTime = 3000 * Math.pow(2, attempt);
+          console.log(`Throttled, waiting ${waitTime}ms before retry...`);
+          lastError = new Error(`GraphQL errors: ${errorMsg}`);
+          await sleep(waitTime);
+          continue;
+        }
+        throw new Error(`GraphQL errors: ${errorMsg}`);
+      }
+
+      return { data: result.data, cost: result.extensions?.cost };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < retries - 1) {
+        await sleep(2000 * Math.pow(2, attempt));
+      }
+    }
   }
 
-  const result = await response.json();
-  if (result.errors) {
-    throw new Error(`GraphQL errors: ${result.errors[0]?.message}`);
-  }
-
-  return { data: result.data, cost: result.extensions?.cost };
+  throw lastError || new Error('GraphQL request failed after retries');
 }
 
 // Simplified queries (same as manual sync)
@@ -177,7 +212,8 @@ async function syncEntity<T>(
   let cursor: string | null = null;
   let hasMore = true;
   let totalItems = 0;
-  let delayMs = 1000;
+  // Start with 3 second delay - queries cost ~1000-1500 points, restore is 500/sec
+  let delayMs = 3000;
 
   while (hasMore) {
     const query = queryBuilder(cursor);
@@ -188,15 +224,33 @@ async function syncEntity<T>(
       const records = nodes.map(mapRecord);
       await supabase.from(tableName).upsert(records, { onConflict: 'jobber_id' });
       totalItems += nodes.length;
+      console.log(`${tableName}: synced ${totalItems} items so far`);
     }
 
     hasMore = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
 
-    // Adaptive delay based on cost
-    const throttleStatus = (result.cost as { throttleStatus?: { currentlyAvailable?: number } })?.throttleStatus;
-    if (throttleStatus?.currentlyAvailable !== undefined && throttleStatus.currentlyAvailable < 3000) {
-      delayMs = Math.max(2000, delayMs);
+    // Adaptive delay based on remaining points
+    const throttleStatus = (result.cost as {
+      throttleStatus?: { currentlyAvailable?: number; restoreRate?: number };
+      actualQueryCost?: number;
+    })?.throttleStatus;
+
+    if (throttleStatus?.currentlyAvailable !== undefined) {
+      const available = throttleStatus.currentlyAvailable;
+      const queryCost = (result.cost as { actualQueryCost?: number })?.actualQueryCost || 1500;
+      const restoreRate = throttleStatus.restoreRate || 500;
+
+      if (available < queryCost * 2) {
+        // Low on points - calculate wait time to restore enough
+        const pointsNeeded = queryCost * 2 - available;
+        const waitTime = Math.ceil((pointsNeeded / restoreRate) * 1000) + 500;
+        console.log(`Low points (${available}), waiting ${waitTime}ms`);
+        delayMs = Math.max(waitTime, delayMs);
+      } else if (available > 6000) {
+        // Good headroom - can reduce delay slightly
+        delayMs = Math.max(2500, delayMs * 0.95);
+      }
     }
 
     if (hasMore) {
