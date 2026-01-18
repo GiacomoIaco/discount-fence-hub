@@ -254,6 +254,15 @@ async function graphqlQuery(
         throw new Error(`GraphQL errors: ${errorMessages}`);
       }
 
+      // Validate we got data
+      if (!result.data) {
+        console.error('No data in response:', JSON.stringify(result, null, 2).substring(0, 500));
+        lastError = new Error('GraphQL response missing data field');
+        await sleep(baseDelayMs * Math.pow(2, attempt));
+        continue;
+      }
+
+      console.log('GraphQL request successful');
       return { data: result.data, cost };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -297,7 +306,19 @@ async function fetchAllPages<T>(
 
     const query = queryBuilder(cursor);
     const result = await graphqlQuery(accessToken, query);
-    const { nodes, pageInfo } = extractData(result.data);
+
+    let nodes: T[];
+    let pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    try {
+      const extracted = extractData(result.data);
+      nodes = extracted.nodes;
+      pageInfo = extracted.pageInfo;
+    } catch (extractError) {
+      const errorMsg = extractError instanceof Error ? extractError.message : String(extractError);
+      console.error('Failed to extract data from response:', errorMsg);
+      console.error('Response data:', JSON.stringify(result.data, null, 2).substring(0, 1000));
+      throw new Error(`Failed to extract data from GraphQL response: ${errorMsg}`);
+    }
 
     allItems.push(...nodes);
 
