@@ -831,11 +831,44 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
 /**
  * Manual sync trigger
  * GET /.netlify/functions/jobber-sync-manual?account=residential
+ * GET /.netlify/functions/jobber-sync-manual?account=residential&test=1  (quick test)
  *
  * Can be used to test sync without waiting for schedule
  */
 export const handler: Handler = async (event) => {
   const account = (event.queryStringParameters?.account || 'residential') as JobberAccount;
+  const isTest = event.queryStringParameters?.test === '1';
+
+  // Quick test mode - just verify connection
+  if (isTest) {
+    try {
+      const accessToken = await getAccessToken(account);
+      const testQuery = `query TestConnection { account { name } }`;
+      const result = await graphqlQuery(accessToken, testQuery, 1, 500);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: true,
+          mode: 'test',
+          account,
+          data: result.data,
+          message: 'Connection test successful - API is accessible',
+        }),
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          mode: 'test',
+          account,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      };
+    }
+  }
 
   // Only allow residential for now (others not yet set up)
   if (account !== 'residential') {
