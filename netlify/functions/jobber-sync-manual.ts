@@ -176,6 +176,7 @@ async function graphqlQuery(
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`HTTP ${response.status} response:`, errorText.substring(0, 500));
 
         // Check for auth errors that shouldn't be retried
         if (response.status === 401 || response.status === 403) {
@@ -183,13 +184,24 @@ async function graphqlQuery(
         }
 
         // Other errors - retry with backoff
+        lastError = new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
         console.warn(`Request failed (${response.status}). Retry ${attempt + 1}/${retries}...`);
-        lastError = new Error(`GraphQL request failed: ${response.status} - ${errorText}`);
         await sleep(baseDelayMs * Math.pow(2, attempt));
         continue;
       }
 
-      const result = await response.json();
+      const responseText = await response.text();
+      console.log(`Response length: ${responseText.length} chars`);
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', responseText.substring(0, 500));
+        lastError = new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
+        await sleep(baseDelayMs * Math.pow(2, attempt));
+        continue;
+      }
 
       // Check for throttled status in extensions
       const cost = result.extensions?.cost;
