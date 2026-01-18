@@ -950,7 +950,55 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  console.log(`Manual sync triggered for ${account}...`);
+  // Check if we should run async (background mode)
+  // The UI can poll the sync status endpoint to check progress
+  const runAsync = event.queryStringParameters?.async === '1';
+
+  console.log(`Manual sync triggered for ${account} (async=${runAsync})...`);
+
+  if (runAsync) {
+    // Trigger background function
+    // Background functions have a 15 min timeout and return immediately
+    const bgUrl = `${process.env.URL || 'https://discount-fence-hub.netlify.app'}/.netlify/functions/jobber-sync-background`;
+
+    try {
+      const bgResponse = await fetch(bgUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account }),
+      });
+
+      if (bgResponse.status === 202) {
+        return {
+          statusCode: 202,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: true,
+            message: 'Sync started in background. Check sync status for progress.',
+            account,
+          }),
+        };
+      } else {
+        return {
+          statusCode: 500,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: `Failed to start background sync: ${bgResponse.status}`,
+          }),
+        };
+      }
+    } catch (error) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          error: `Failed to trigger background sync: ${error instanceof Error ? error.message : String(error)}`,
+        }),
+      };
+    }
+  }
 
   const stats = await runSync(account);
 

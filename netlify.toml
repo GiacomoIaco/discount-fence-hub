@@ -69,6 +69,9 @@
 [functions."jobber-sync-manual"]
   timeout = 300
 
+[functions."jobber-sync-background"]
+  timeout = 900  # 15 minutes for background sync
+
 # Optimization settings
 [build.processing]
   skip_processing = false
