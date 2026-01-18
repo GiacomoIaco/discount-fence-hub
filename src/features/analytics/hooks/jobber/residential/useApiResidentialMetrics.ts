@@ -363,6 +363,10 @@ export function useApiRawDataCounts() {
 // TRIGGER MANUAL SYNC
 // =====================
 
+/**
+ * Trigger manual sync using async/background mode
+ * Returns immediately after starting, use useApiSyncStatus to poll for completion
+ */
 export async function triggerManualSync(): Promise<{
   success: boolean;
   message?: string;
@@ -376,7 +380,8 @@ export async function triggerManualSync(): Promise<{
   errors?: string[];
 }> {
   try {
-    const response = await fetch('/.netlify/functions/jobber-sync-manual?account=residential');
+    // Use async mode to trigger background sync (avoids 40s gateway timeout)
+    const response = await fetch('/.netlify/functions/jobber-sync-manual?account=residential&async=1');
     const data = await response.json();
     return data;
   } catch (error) {

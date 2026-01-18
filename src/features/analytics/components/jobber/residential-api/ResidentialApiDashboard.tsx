@@ -50,19 +50,52 @@ export function ResidentialApiDashboard() {
 
     try {
       const result = await triggerManualSync();
-      setSyncResult(result);
 
-      // Refresh data after sync
       if (result.success) {
-        refetchSyncStatus();
-        refetchRawCounts();
+        // Sync started in background - poll for completion
+        setSyncResult({ success: true, message: 'Sync started. Checking progress...' });
+
+        // Poll sync status every 5 seconds until complete
+        const pollInterval = setInterval(async () => {
+          const status = await refetchSyncStatus();
+          const currentStatus = status.data?.last_sync_status;
+
+          if (currentStatus === 'success') {
+            clearInterval(pollInterval);
+            setIsSyncing(false);
+            setSyncResult({ success: true, message: 'Sync completed successfully!' });
+            refetchRawCounts();
+          } else if (currentStatus === 'failed') {
+            clearInterval(pollInterval);
+            setIsSyncing(false);
+            setSyncResult({
+              success: false,
+              message: status.data?.last_error || 'Sync failed',
+            });
+          }
+          // Still in_progress - keep polling
+        }, 5000);
+
+        // Stop polling after 10 minutes max
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (isSyncing) {
+            setIsSyncing(false);
+            setSyncResult({
+              success: false,
+              message: 'Sync timed out. Check status later.',
+            });
+          }
+        }, 10 * 60 * 1000);
+      } else {
+        setSyncResult(result);
+        setIsSyncing(false);
       }
     } catch (error) {
       setSyncResult({
         success: false,
         message: error instanceof Error ? error.message : 'Sync failed',
       });
-    } finally {
       setIsSyncing(false);
     }
   };
