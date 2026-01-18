@@ -299,7 +299,9 @@ async function fetchAllPages<T>(
   let hasMore = true;
   let pageNum = 0;
   let consecutiveThrottles = 0;
-  let delayMs = 300; // Start with 300ms between requests (queries are now simpler)
+  // Queries cost ~1000-1500 points, restore rate is 500/sec
+  // Start at 1s, adaptive throttling will increase if needed
+  let delayMs = 1000;
 
   while (hasMore) {
     pageNum++;
@@ -326,19 +328,29 @@ async function fetchAllPages<T>(
     hasMore = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
 
-    // Adaptive rate limiting based on cost feedback
-    if (result.cost?.throttleStatus === 'THROTTLED') {
-      consecutiveThrottles++;
-      delayMs = Math.min(delayMs * 2, 5000); // Double delay up to 5 seconds
-      console.warn(`Throttled - increasing delay to ${delayMs}ms`);
-    } else if (consecutiveThrottles > 0) {
-      consecutiveThrottles = 0;
-      // Gradually reduce delay when not throttled
-      delayMs = Math.max(delayMs * 0.8, 500);
+    // Adaptive rate limiting based on remaining points
+    const throttleStatus = result.cost?.throttleStatus as { currentlyAvailable?: number; restoreRate?: number } | undefined;
+    if (throttleStatus?.currentlyAvailable !== undefined) {
+      const available = throttleStatus.currentlyAvailable;
+      const queryCost = result.cost?.actualQueryCost || 1500;
+
+      // If we're running low on points, wait for restore
+      if (available < queryCost * 2) {
+        // Calculate how long to wait to restore enough points
+        const restoreRate = throttleStatus.restoreRate || 500;
+        const pointsNeeded = queryCost * 2 - available;
+        const waitTime = Math.ceil((pointsNeeded / restoreRate) * 1000);
+        console.log(`Low on points (${available}), waiting ${waitTime}ms to restore`);
+        delayMs = Math.max(waitTime, delayMs);
+      } else if (available > 7000) {
+        // Plenty of headroom, can speed up slightly
+        delayMs = Math.max(800, delayMs * 0.9);
+      }
     }
 
     // Wait between requests to avoid rate limits
     if (hasMore) {
+      console.log(`Waiting ${delayMs}ms before next page (${allItems.length} items so far)`);
       await sleep(delayMs);
     }
   }
