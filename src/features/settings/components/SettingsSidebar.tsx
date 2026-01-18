@@ -15,6 +15,7 @@ import {
   PinOff,
   MapPin,
   ShieldCheck,
+  Link2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -26,6 +27,7 @@ export type SettingsPage =
   | 'app'
   | 'notifications'
   | 'team'
+  | 'salesperson-mapping'
   | 'request-settings'
   | 'menu-visibility'
   | 'qbo-classes'
@@ -47,6 +49,7 @@ const GENERAL_NAV_ITEMS: NavItem[] = [
 
 const TEAM_NAV_ITEMS: NavItem[] = [
   { id: 'team', label: 'Team Management', icon: Users },
+  { id: 'salesperson-mapping', label: 'Salesperson Mapping', icon: Link2 },
 ];
 
 const CONFIG_NAV_ITEMS: NavItem[] = [

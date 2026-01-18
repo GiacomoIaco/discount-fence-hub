@@ -11,6 +11,7 @@ import FSMSettings from './components/FSMSettings';
 import CustomFieldsSettings from './components/CustomFieldsSettings';
 import QuoteApprovalSettings from './components/QuoteApprovalSettings';
 import { TerritoriesPage } from './territories';
+import { SalespersonMappingSettings } from '../analytics';
 import type { UserRole } from '../../types';
 
 // Declare build time from vite config
@@ -92,6 +93,15 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
           <div className="p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-6">Team Management</h1>
             <TeamManagement userRole={userRole} />
+          </div>
+        );
+
+      case 'salesperson-mapping':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Salesperson Mapping</h1>
+            <p className="text-gray-600 mb-6">Link app users to their Jobber salesperson data for mobile analytics.</p>
+            <SalespersonMappingSettings />
           </div>
         );
 

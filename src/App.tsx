@@ -38,6 +38,7 @@ const SalesCoachAdmin = lazy(() => import('./features/ai-coach').then(module => 
 const PhotoGalleryRefactored = lazy(() => import('./features/photos').then(module => ({ default: module.PhotoGalleryRefactored })));
 const SalesResources = lazy(() => import('./features/sales-resources').then(module => ({ default: module.SalesResources })));
 const Analytics = lazy(() => import('./features/analytics').then(module => ({ default: module.Analytics })));
+const MobileAnalyticsView = lazy(() => import('./features/analytics').then(module => ({ default: module.MobileAnalyticsView })));
 const Settings = lazy(() => import('./features/settings').then(module => ({ default: module.Settings })));
 const MessageComposer = lazy(() => import('./features/communication').then(module => ({ default: module.MessageComposer })));
 const TeamCommunication = lazy(() => import('./features/communication').then(module => ({ default: module.TeamCommunication })));
@@ -812,22 +813,28 @@ function App() {
             setShowProfileEditor={setShowProfileEditor}
           >
             <ErrorBoundary>
-              <SalesRepView
-                activeSection={activeSection}
-                onNavigate={navigateTo}
-                viewMode={viewMode}
-                mobileLayout={mobileLayout}
-                unreadAnnouncementsCount={unreadAnnouncementsCount}
-                announcementEngagementCount={announcementEngagementCount}
-                userId={user?.id}
-                userName={profile?.full_name}
-                onMarkAsRead={markRequestAsRead}
-                onUnreadCountChange={setUnreadAnnouncementsCount}
-                onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
-                teamCommunicationRefresh={teamCommunicationRefresh}
-                navigationItems={visibleNavigationItems}
-                userRole={userRole}
-              />
+              {activeSection === 'analytics' ? (
+                <Suspense fallback={<LoadingFallback />}>
+                  <MobileAnalyticsView onBack={() => navigateTo('home')} />
+                </Suspense>
+              ) : (
+                <SalesRepView
+                  activeSection={activeSection}
+                  onNavigate={navigateTo}
+                  viewMode={viewMode}
+                  mobileLayout={mobileLayout}
+                  unreadAnnouncementsCount={unreadAnnouncementsCount}
+                  announcementEngagementCount={announcementEngagementCount}
+                  userId={user?.id}
+                  userName={profile?.full_name}
+                  onMarkAsRead={markRequestAsRead}
+                  onUnreadCountChange={setUnreadAnnouncementsCount}
+                  onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
+                  teamCommunicationRefresh={teamCommunicationRefresh}
+                  navigationItems={visibleNavigationItems}
+                  userRole={userRole}
+                />
+              )}
             </ErrorBoundary>
           </MobileAppContent>
         </RightPaneProvider>

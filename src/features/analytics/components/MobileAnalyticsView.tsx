@@ -5,10 +5,9 @@
  */
 
 import { useState } from 'react';
-import { AlertCircle, ChevronDown, User, Settings } from 'lucide-react';
+import { AlertCircle, ChevronDown, User } from 'lucide-react';
 import { useAnalyticsFilter, useDistinctSalespeople } from '../hooks/useUserSalespersonMapping';
 import { SalespersonDetailPage } from './jobber/residential/SalespersonDetailPage';
-import { UserSalespersonMappingAdmin } from './UserSalespersonMappingAdmin';
 import { cn } from '../../../lib/utils';
 
 interface MobileAnalyticsViewProps {
@@ -27,7 +26,6 @@ export function MobileAnalyticsView({ onBack }: MobileAnalyticsViewProps) {
   // For admin "view as" functionality
   const [selectedSalesperson, setSelectedSalesperson] = useState<string | null>(null);
   const [showSelector, setShowSelector] = useState(false);
-  const [showMappingAdmin, setShowMappingAdmin] = useState(false);
 
   // Get list of salespeople for admin dropdown
   const { data: salespeople = [] } = useDistinctSalespeople();
@@ -114,14 +112,6 @@ export function MobileAnalyticsView({ onBack }: MobileAnalyticsViewProps) {
               <ChevronDown className={cn('w-4 h-4 transition-transform', showSelector && 'rotate-180')} />
             </button>
 
-            <button
-                onClick={() => setShowMappingAdmin(true)}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                title="Manage user mappings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-
             {showSelector && (
               <>
                 <div
@@ -164,11 +154,6 @@ export function MobileAnalyticsView({ onBack }: MobileAnalyticsViewProps) {
         salesperson={effectiveSalesperson}
         onBack={onBack || (() => {})}
       />
-
-      {/* Admin Mapping Panel */}
-      {showMappingAdmin && (
-        <UserSalespersonMappingAdmin onClose={() => setShowMappingAdmin(false)} />
-      )}
     </div>
   );
 }
