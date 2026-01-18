@@ -154,6 +154,7 @@ async function graphqlQuery(
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
+    console.log(`GraphQL attempt ${attempt + 1}/${retries}...`);
     try {
       const response = await fetch(JOBBER_API_URL, {
         method: 'POST',
@@ -169,6 +170,7 @@ async function graphqlQuery(
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After');
         const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : baseDelayMs * Math.pow(2, attempt);
+        lastError = new Error(`Rate limited (429)`);
         console.warn(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
         await sleep(waitTime);
         continue;
@@ -228,6 +230,7 @@ async function graphqlQuery(
 
         if (isThrottled) {
           const waitTime = baseDelayMs * Math.pow(2, attempt);
+          lastError = new Error(`GraphQL throttled: ${errorMessages}`);
           console.warn(`GraphQL throttled. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
           await sleep(waitTime);
           continue;
@@ -241,6 +244,7 @@ async function graphqlQuery(
         );
 
         if (isTemporary && attempt < retries - 1) {
+          lastError = new Error(`Temporary error: ${errorMessages}`);
           console.warn(`Temporary error: ${errorMessages}. Retry ${attempt + 1}/${retries}...`);
           await sleep(baseDelayMs * Math.pow(2, attempt));
           continue;
