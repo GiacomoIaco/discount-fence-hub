@@ -2,13 +2,15 @@
 // Sections: Requests, Quotes (#), Quoted Value ($), Speed & Efficiency
 
 import { useState, useEffect, useMemo } from 'react';
-import { User, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Filter, Settings2, X } from 'lucide-react';
-import { useResidentialSalespersonMetrics, useResidentialSalespersonMonthly } from '../../../../hooks/jobber/residential';
+import { User, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Filter, Settings2, X, Users, Star, AlertTriangle } from 'lucide-react';
+import { useResidentialSalespersonMetrics, useResidentialSalespersonMonthly, useComparisonGroup } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, SalespersonMetrics } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
+import { ManageSalespeopleModal } from '../ManageSalespeopleModal';
 
 interface SalespersonPerformanceProps {
   filters: ResidentialFilters;
+  onSelectSalesperson?: (name: string) => void;
 }
 
 // Column definitions with grouping
@@ -71,13 +73,15 @@ type SortDirection = 'asc' | 'desc';
 
 const MIN_OPPS_THRESHOLD = 10;
 
-export function SalespersonPerformance({ filters }: SalespersonPerformanceProps) {
+export function SalespersonPerformance({ filters, onSelectSalesperson }: SalespersonPerformanceProps) {
   const { data: salespersonMetrics, isLoading } = useResidentialSalespersonMetrics(filters);
+  const { data: comparisonGroup } = useComparisonGroup();
   const [sortField, setSortField] = useState<SortField>('won_value');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
   const [showAllSalespeople, setShowAllSalespeople] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -96,18 +100,46 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
     ? (salespersonMetrics || [])
     : (salespersonMetrics || []).filter((s) => s.total_opps >= MIN_OPPS_THRESHOLD);
 
-  // Calculate team averages for comparison
+  // Get comparison group members only for calculating averages
+  const comparisonData = useMemo(() => {
+    if (!comparisonGroup || comparisonGroup.length === 0) {
+      // Fall back to filtered data if no comparison group defined
+      return filteredData;
+    }
+    return filteredData.filter((s) => comparisonGroup.includes(s.salesperson));
+  }, [filteredData, comparisonGroup]);
+
+  // Calculate team averages based on comparison group only
   const teamAvgWinRate = useMemo(() => {
-    if (!filteredData.length) return 0;
-    const total = filteredData.reduce((sum, s) => sum + (s.win_rate || 0), 0);
-    return total / filteredData.length;
-  }, [filteredData]);
+    if (!comparisonData.length) return 0;
+    const total = comparisonData.reduce((sum, s) => sum + (s.win_rate || 0), 0);
+    return total / comparisonData.length;
+  }, [comparisonData]);
 
   const teamAvgValueWinRate = useMemo(() => {
-    if (!filteredData.length) return 0;
-    const total = filteredData.reduce((sum, s) => sum + (s.value_win_rate || 0), 0);
-    return total / filteredData.length;
-  }, [filteredData]);
+    if (!comparisonData.length) return 0;
+    const total = comparisonData.reduce((sum, s) => sum + (s.value_win_rate || 0), 0);
+    return total / comparisonData.length;
+  }, [comparisonData]);
+
+  // Calculate percentile rankings within comparison group for tier messaging
+  const percentileInfo = useMemo(() => {
+    if (!comparisonData.length) return new Map<string, { percentile: number; isTop: boolean }>();
+
+    // Sort by win rate descending
+    const sorted = [...comparisonData].sort((a, b) => (b.win_rate || 0) - (a.win_rate || 0));
+    const result = new Map<string, { percentile: number; isTop: boolean }>();
+
+    sorted.forEach((person, index) => {
+      const percentile = ((sorted.length - index) / sorted.length) * 100;
+      result.set(person.salesperson, {
+        percentile,
+        isTop: index === 0, // Top performer is rank #1
+      });
+    });
+
+    return result;
+  }, [comparisonData]);
 
   const sortedData = useMemo(() => {
     return [...filteredData].sort((a, b) => {
@@ -189,6 +221,11 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600">
             {filteredData.length} of {salespersonMetrics?.length || 0} salespeople
+            {comparisonGroup && comparisonGroup.length > 0 && (
+              <span className="text-blue-600 ml-1">
+                ({comparisonGroup.length} in comparison group)
+              </span>
+            )}
           </span>
           <button
             onClick={() => setShowAllSalespeople(!showAllSalespeople)}
@@ -200,6 +237,13 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
           >
             <Filter className="w-3.5 h-3.5" />
             {showAllSalespeople ? 'All' : `≥${MIN_OPPS_THRESHOLD} opps`}
+          </button>
+          <button
+            onClick={() => setShowManageModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Manage Group
           </button>
         </div>
 
@@ -259,23 +303,26 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* Summary Cards - Leader focused, not explicit averages */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-          <div className="text-xs text-gray-500">Team Avg Win %</div>
-          <div className="text-xl font-bold text-blue-600">{formatResidentialPercent(teamAvgWinRate)}</div>
+          <div className="text-xs text-gray-500">Comparison Group</div>
+          <div className="text-xl font-bold text-blue-600">{comparisonData.length} people</div>
+          <div className="text-xs text-gray-400">Used for rankings</div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-          <div className="text-xs text-gray-500">Team Avg Value %</div>
-          <div className="text-xl font-bold text-green-600">{formatResidentialPercent(teamAvgValueWinRate)}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-          <div className="text-xs text-gray-500">Top by Win %</div>
+        <div className="bg-white rounded-lg shadow-sm border border-amber-300 bg-amber-50 p-3">
+          <div className="flex items-center gap-1 text-xs text-amber-700">
+            <Star className="w-3 h-3" />
+            Top Performer (Win %)
+          </div>
           <div className="text-sm font-bold text-gray-900 truncate">{sortedData[0]?.salesperson || '-'}</div>
           <div className="text-xs text-gray-500">{formatResidentialPercent(sortedData[0]?.win_rate || null)}</div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-          <div className="text-xs text-gray-500">Top by Won $</div>
+        <div className="bg-white rounded-lg shadow-sm border border-green-300 bg-green-50 p-3">
+          <div className="flex items-center gap-1 text-xs text-green-700">
+            <Star className="w-3 h-3" />
+            Top Performer (Won $)
+          </div>
           <div className="text-sm font-bold text-gray-900 truncate">
             {[...filteredData].sort((a, b) => b.won_value - a.won_value)[0]?.salesperson || '-'}
           </div>
@@ -344,10 +391,13 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
                   columns={visibleColumnDefs}
                   teamAvgWinRate={teamAvgWinRate}
                   teamAvgValueWinRate={teamAvgValueWinRate}
+                  percentileInfo={percentileInfo.get(person.salesperson)}
+                  isInComparisonGroup={comparisonGroup?.includes(person.salesperson) ?? false}
                   isExpanded={expandedPerson === person.salesperson}
                   onToggle={() =>
                     setExpandedPerson(expandedPerson === person.salesperson ? null : person.salesperson)
                   }
+                  onSelect={onSelectSalesperson}
                   filters={filters}
                   totalColumns={totalColumns}
                 />
@@ -361,10 +411,20 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
       <div className="text-xs text-gray-500 flex flex-wrap gap-4">
         <span>Click row to expand monthly detail</span>
         <span>•</span>
-        <span className="text-green-600">Green = above average</span>
+        <span className="flex items-center gap-1">
+          <Star className="w-3 h-3 text-amber-500" /> Top Performer
+        </span>
         <span>•</span>
-        <span className="text-red-600">Red = below average</span>
+        <span className="flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3 text-red-500" /> Bottom 20%
+        </span>
       </div>
+
+      {/* Manage Salespeople Modal */}
+      <ManageSalespeopleModal
+        isOpen={showManageModal}
+        onClose={() => setShowManageModal(false)}
+      />
     </div>
   );
 }
@@ -383,8 +443,11 @@ function SalespersonRow({
   columns,
   teamAvgWinRate,
   teamAvgValueWinRate,
+  percentileInfo,
+  isInComparisonGroup,
   isExpanded,
   onToggle,
+  onSelect,
   filters,
   totalColumns,
 }: {
@@ -393,13 +456,52 @@ function SalespersonRow({
   columns: ColumnDef[];
   teamAvgWinRate: number;
   teamAvgValueWinRate: number;
+  percentileInfo?: { percentile: number; isTop: boolean };
+  isInComparisonGroup: boolean;
   isExpanded: boolean;
   onToggle: () => void;
+  onSelect?: (name: string) => void;
   filters: ResidentialFilters;
   totalColumns: number;
 }) {
   const winRateDiff = (person.win_rate || 0) - teamAvgWinRate;
   const valueWinRateDiff = (person.value_win_rate || 0) - teamAvgValueWinRate;
+
+  // Tier-based messaging based on percentile
+  // Top performer = rank #1, Below average = 20-50%, Bottom performer = 0-20%
+  const getTierBadge = () => {
+    if (!isInComparisonGroup || !percentileInfo) return null;
+
+    if (percentileInfo.isTop) {
+      return (
+        <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-800 border border-amber-300">
+          <Star className="w-2.5 h-2.5" />
+          Top Performer
+        </span>
+      );
+    }
+
+    if (percentileInfo.percentile <= 20) {
+      return (
+        <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-800 border border-red-300">
+          <AlertTriangle className="w-2.5 h-2.5" />
+          Bottom Performer
+        </span>
+      );
+    }
+
+    if (percentileInfo.percentile <= 50) {
+      return (
+        <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-700 border border-amber-200">
+          <TrendingDown className="w-2.5 h-2.5" />
+          Below Average
+        </span>
+      );
+    }
+
+    // 50%+ but not top - no badge (neutral)
+    return null;
+  };
 
   const renderCell = (col: ColumnDef, idx: number) => {
     const isFirstInGroup = idx === 0 || columns[idx - 1].group !== col.group;
@@ -454,7 +556,23 @@ function SalespersonRow({
             >
               {rank}
             </span>
-            <span className="font-medium text-gray-900">{person.salesperson}</span>
+            {onSelect ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(person.salesperson);
+                }}
+                className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {person.salesperson}
+              </button>
+            ) : (
+              <span className="font-medium text-gray-900">{person.salesperson}</span>
+            )}
+            {!isInComparisonGroup && (
+              <span className="text-[10px] text-gray-400 italic">(not in group)</span>
+            )}
+            {getTierBadge()}
           </div>
         </td>
         {columns.map((col, idx) => renderCell(col, idx))}

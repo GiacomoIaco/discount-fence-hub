@@ -5,3 +5,6 @@ export * from './useResidentialImport';
 
 // Residential analytics hooks (API-based - corrected cycle times)
 export * from './useApiResidentialMetrics';
+
+// Salesperson configuration
+export * from './useSalespersonConfig';

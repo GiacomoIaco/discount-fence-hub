@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
 // Load environment variables
 dotenv.config();
@@ -12,6 +13,8 @@ if (!supabaseUrl || !serviceKey) {
   console.error('❌ Missing Supabase credentials');
   process.exit(1);
 }
+
+const supabase = createClient(supabaseUrl, serviceKey);
 
 async function applyMigration(migrationFile: string) {
   console.log(`🔄 Applying migration: ${migrationFile}\n`);
@@ -33,71 +36,25 @@ async function applyMigration(migrationFile: string) {
     console.log('━'.repeat(80));
     console.log('');
 
-    // Execute SQL using Supabase REST API
-    // We'll use the /rest/v1/rpc endpoint to call a custom function
-    // or directly execute via the PostgREST query endpoint
+    // Execute SQL using supabase-js RPC
+    const { error } = await supabase.rpc('exec_sql', { sql_string: sql });
 
-    // For now, we'll use fetch to execute SQL via Supabase's query endpoint
-    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': serviceKey,
-        'Authorization': `Bearer ${serviceKey}`,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({ sql_string: sql })
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-
-      // If exec_sql doesn't exist, provide instructions
-      if (response.status === 404) {
+    if (error) {
+      console.error('❌ Failed to apply migration:', error.message);
+      if (error.code === 'PGRST202' || error.message.includes('function') && error.message.includes('does not exist')) {
+        console.log('');
         console.log('⚠️  The exec_sql function does not exist in your database.');
         console.log('');
-        console.log('To enable direct SQL execution, you need to create this function:');
-        console.log('');
-        console.log('━'.repeat(80));
-        console.log(`-- Run this in Supabase SQL Editor first:
-CREATE OR REPLACE FUNCTION exec_sql(sql_string TEXT)
-RETURNS VOID AS $$
-BEGIN
-  EXECUTE sql_string;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Grant execute permission to service role
-GRANT EXECUTE ON FUNCTION exec_sql(TEXT) TO service_role;`);
-        console.log('━'.repeat(80));
-        console.log('');
-        console.log('After creating this function, run this script again.');
-        console.log('');
-        console.log('OR you can apply the migration manually via Supabase SQL Editor:');
-        console.log('');
-        console.log('━'.repeat(80));
-        console.log(sql);
-        console.log('━'.repeat(80));
-        process.exit(1);
+        console.log('To enable direct SQL execution, run migrations/000_enable_direct_migrations.sql');
+        console.log('in Supabase SQL Editor first.');
       }
-
-      console.error('❌ Failed to apply migration:', error);
+      console.log('');
+      console.log('You can apply the migration manually via Supabase SQL Editor:');
+      console.log('');
+      console.log('━'.repeat(80));
+      console.log(sql);
+      console.log('━'.repeat(80));
       process.exit(1);
-    }
-
-    // exec_sql returns VOID, so response might be empty
-    // Check if response has content before parsing
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      const text = await response.text();
-      if (text && text.trim()) {
-        try {
-          const result = JSON.parse(text);
-          // Response parsed successfully
-        } catch (e) {
-          // Ignore JSON parse errors for empty responses
-        }
-      }
     }
 
     console.log('✅ Migration applied successfully!');

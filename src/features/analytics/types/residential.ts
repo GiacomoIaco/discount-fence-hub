@@ -487,7 +487,8 @@ export type ResidentialDashboardTab =
   | 'speed'
   | 'options'
   | 'trends'
-  | 'cycletime';
+  | 'cycletime'
+  | 'acceptance';
 
 export const RESIDENTIAL_TAB_LABELS: Record<ResidentialDashboardTab, string> = {
   funnel: 'Conversion Funnel',
@@ -497,6 +498,7 @@ export const RESIDENTIAL_TAB_LABELS: Record<ResidentialDashboardTab, string> = {
   options: 'Quote Options',
   trends: 'Win Rate Trends',
   cycletime: 'Cycle Time',
+  acceptance: 'Acceptance Timing',
 };
 
 // =====================

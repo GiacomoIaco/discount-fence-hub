@@ -1,8 +1,9 @@
 // Residential Division Analytics Dashboard
-// Conversion/win rate focused with 7 tabs
+// Conversion/win rate focused with 8 tabs + salesperson detail subpage
 
 import { useState } from 'react';
 import { Upload } from 'lucide-react';
+import { SalespersonDetailPage } from './SalespersonDetailPage';
 import { ResidentialFilters } from './ResidentialFilters';
 import { ConversionFunnel } from './tabs/ConversionFunnel';
 import { SalespersonPerformance } from './tabs/SalespersonPerformance';
@@ -11,6 +12,7 @@ import { SpeedToQuoteAnalysis } from './tabs/SpeedToQuoteAnalysis';
 import { QuoteOptionsAnalysis } from './tabs/QuoteOptionsAnalysis';
 import { WinRateTrends } from './tabs/WinRateTrends';
 import { CycleTimeAnalysis } from './tabs/CycleTimeAnalysis';
+import { AcceptanceTimingAnalysis } from './tabs/AcceptanceTimingAnalysis';
 import { ResidentialUploadModal } from './ResidentialUploadModal';
 import { useResidentialOpportunityCount } from '../../../hooks/jobber/residential';
 import type {
@@ -23,8 +25,19 @@ export function ResidentialDashboard() {
   const [filters, setFilters] = useState<ResidentialFiltersType>(DEFAULT_RESIDENTIAL_FILTERS);
   const [activeTab, setActiveTab] = useState<ResidentialDashboardTab>('funnel');
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string | null>(null);
 
   const { data: totalOpps } = useResidentialOpportunityCount();
+
+  // Show salesperson detail page if one is selected
+  if (selectedSalesperson) {
+    return (
+      <SalespersonDetailPage
+        salesperson={selectedSalesperson}
+        onBack={() => setSelectedSalesperson(null)}
+      />
+    );
+  }
 
   const tabs: ResidentialDashboardTab[] = [
     'funnel',
@@ -34,6 +47,7 @@ export function ResidentialDashboard() {
     'options',
     'trends',
     'cycletime',
+    'acceptance',
   ];
 
   return (
@@ -81,12 +95,18 @@ export function ResidentialDashboard() {
       {/* Tab Content */}
       <div className="min-h-[600px]">
         {activeTab === 'funnel' && <ConversionFunnel filters={filters} />}
-        {activeTab === 'salespeople' && <SalespersonPerformance filters={filters} />}
+        {activeTab === 'salespeople' && (
+          <SalespersonPerformance
+            filters={filters}
+            onSelectSalesperson={setSelectedSalesperson}
+          />
+        )}
         {activeTab === 'size' && <ProjectSizeAnalysis filters={filters} />}
         {activeTab === 'speed' && <SpeedToQuoteAnalysis filters={filters} />}
         {activeTab === 'options' && <QuoteOptionsAnalysis filters={filters} />}
         {activeTab === 'trends' && <WinRateTrends filters={filters} />}
         {activeTab === 'cycletime' && <CycleTimeAnalysis filters={filters} />}
+        {activeTab === 'acceptance' && <AcceptanceTimingAnalysis />}
       </div>
 
       {/* Upload Modal */}
