@@ -351,6 +351,8 @@ async function fetchAllPages<T>(
 // SYNC FUNCTIONS (same as scheduled version)
 // ============================================
 
+// Simplified query - removed expensive nested connections (jobs.nodes, phones, emails)
+// to reduce query cost and avoid throttling
 const QUOTES_QUERY = (cursor: string | null) => `
   query SyncQuotes {
     quotes(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
@@ -373,12 +375,6 @@ const QUOTES_QUERY = (cursor: string | null) => `
             province
             postalCode
           }
-          phones {
-            number
-          }
-          emails {
-            address
-          }
         }
         property {
           address {
@@ -393,11 +389,6 @@ const QUOTES_QUERY = (cursor: string | null) => `
         lastTransitioned {
           approvedAt
           convertedAt
-        }
-        jobs {
-          nodes {
-            id
-          }
         }
         request {
           id
@@ -430,8 +421,6 @@ interface JobberQuote {
       province?: string;
       postalCode?: string;
     };
-    phones?: Array<{ number?: string }>;
-    emails?: Array<{ address?: string }>;
   };
   property?: {
     address?: {
@@ -446,9 +435,6 @@ interface JobberQuote {
   lastTransitioned?: {
     approvedAt?: string;
     convertedAt?: string;
-  };
-  jobs?: {
-    nodes?: Array<{ id: string }>;
   };
   request?: {
     id: string;
@@ -482,8 +468,7 @@ async function syncQuotes(accessToken: string): Promise<number> {
         discount: q.amounts?.discountAmount || 0,
         client_jobber_id: q.client?.id,
         client_name: q.client?.name,
-        client_email: q.client?.emails?.[0]?.address,
-        client_phone: q.client?.phones?.[0]?.number,
+        // Removed: client_email, client_phone, job_jobber_ids (too expensive to query)
         service_street: addr?.street,
         service_city: addr?.city,
         service_state: addr?.province,
@@ -492,7 +477,6 @@ async function syncQuotes(accessToken: string): Promise<number> {
         sent_at: q.sentAt,
         approved_at: q.lastTransitioned?.approvedAt,
         converted_at: q.lastTransitioned?.convertedAt,
-        job_jobber_ids: q.jobs?.nodes?.map((j) => j.id) || [],
         request_jobber_id: q.request?.id,
         synced_at: new Date().toISOString(),
         raw_data: q,
@@ -632,6 +616,7 @@ async function syncJobs(accessToken: string): Promise<number> {
   return jobs.length;
 }
 
+// Simplified query - removed expensive nested quotes connection
 const REQUESTS_QUERY = (cursor: string | null) => `
   query SyncRequests {
     requests(first: ${PAGE_SIZE}${cursor ? `, after: "${cursor}"` : ''}) {
@@ -654,11 +639,6 @@ const REQUESTS_QUERY = (cursor: string | null) => `
         assessment {
           startAt
           completedAt
-        }
-        quotes {
-          nodes {
-            id
-          }
         }
       }
       pageInfo {
@@ -688,9 +668,6 @@ interface JobberRequest {
   assessment?: {
     startAt?: string;
     completedAt?: string;
-  };
-  quotes?: {
-    nodes?: Array<{ id: string }>;
   };
 }
 
@@ -723,7 +700,7 @@ async function syncRequests(accessToken: string): Promise<number> {
         service_zip: addr?.postalCode,
         assessment_start_at: r.assessment?.startAt,
         assessment_completed_at: r.assessment?.completedAt,
-        quote_jobber_ids: r.quotes?.nodes?.map((q) => q.id) || [],
+        // Removed: quote_jobber_ids (too expensive to query, link via quote.request_id instead)
         synced_at: new Date().toISOString(),
         raw_data: r,
       };
