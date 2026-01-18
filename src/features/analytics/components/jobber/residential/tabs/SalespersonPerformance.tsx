@@ -2,7 +2,7 @@
 // Sections: Requests, Quotes (#), Quoted Value ($), Speed & Efficiency
 
 import { useState, useEffect, useMemo } from 'react';
-import { User, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Filter, Settings2, X, Users, Star, AlertTriangle } from 'lucide-react';
+import { User, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Filter, Settings2, X, Users, Star } from 'lucide-react';
 import { useResidentialSalespersonMetrics, useResidentialSalespersonMonthly, useComparisonGroup } from '../../../../hooks/jobber/residential';
 import type { ResidentialFilters, SalespersonMetrics } from '../../../../types/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../../../types/residential';
@@ -80,6 +80,7 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
   const [showAllSalespeople, setShowAllSalespeople] = useState(false);
+  const [showComparisonOnly, setShowComparisonOnly] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(() => {
@@ -96,9 +97,21 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
     localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
-  const filteredData = showAllSalespeople
-    ? (salespersonMetrics || [])
-    : (salespersonMetrics || []).filter((s) => s.total_opps >= MIN_OPPS_THRESHOLD);
+  const filteredData = useMemo(() => {
+    let data = salespersonMetrics || [];
+
+    // Filter by minimum opportunities
+    if (!showAllSalespeople) {
+      data = data.filter((s) => s.total_opps >= MIN_OPPS_THRESHOLD);
+    }
+
+    // Filter by comparison group
+    if (showComparisonOnly && comparisonGroup && comparisonGroup.length > 0) {
+      data = data.filter((s) => comparisonGroup.includes(s.salesperson));
+    }
+
+    return data;
+  }, [salespersonMetrics, showAllSalespeople, showComparisonOnly, comparisonGroup]);
 
   // Get comparison group members only for calculating averages
   const comparisonData = useMemo(() => {
@@ -120,25 +133,6 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
     if (!comparisonData.length) return 0;
     const total = comparisonData.reduce((sum, s) => sum + (s.value_win_rate || 0), 0);
     return total / comparisonData.length;
-  }, [comparisonData]);
-
-  // Calculate percentile rankings within comparison group for tier messaging
-  const percentileInfo = useMemo(() => {
-    if (!comparisonData.length) return new Map<string, { percentile: number; isTop: boolean }>();
-
-    // Sort by win rate descending
-    const sorted = [...comparisonData].sort((a, b) => (b.win_rate || 0) - (a.win_rate || 0));
-    const result = new Map<string, { percentile: number; isTop: boolean }>();
-
-    sorted.forEach((person, index) => {
-      const percentile = ((sorted.length - index) / sorted.length) * 100;
-      result.set(person.salesperson, {
-        percentile,
-        isTop: index === 0, // Top performer is rank #1
-      });
-    });
-
-    return result;
   }, [comparisonData]);
 
   const sortedData = useMemo(() => {
@@ -239,11 +233,22 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
             {showAllSalespeople ? 'All' : `≥${MIN_OPPS_THRESHOLD} opps`}
           </button>
           <button
+            onClick={() => setShowComparisonOnly(!showComparisonOnly)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
+              showComparisonOnly
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            {showComparisonOnly ? 'Comparison Only' : 'All People'}
+          </button>
+          <button
             onClick={() => setShowManageModal(true)}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
           >
-            <Users className="w-3.5 h-3.5" />
-            Manage Group
+            <Settings2 className="w-3.5 h-3.5" />
+            Manage
           </button>
         </div>
 
@@ -391,7 +396,6 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
                   columns={visibleColumnDefs}
                   teamAvgWinRate={teamAvgWinRate}
                   teamAvgValueWinRate={teamAvgValueWinRate}
-                  percentileInfo={percentileInfo.get(person.salesperson)}
                   isInComparisonGroup={comparisonGroup?.includes(person.salesperson) ?? false}
                   isExpanded={expandedPerson === person.salesperson}
                   onToggle={() =>
@@ -411,13 +415,7 @@ export function SalespersonPerformance({ filters, onSelectSalesperson }: Salespe
       <div className="text-xs text-gray-500 flex flex-wrap gap-4">
         <span>Click row to expand monthly detail</span>
         <span>•</span>
-        <span className="flex items-center gap-1">
-          <Star className="w-3 h-3 text-amber-500" /> Top Performer
-        </span>
-        <span>•</span>
-        <span className="flex items-center gap-1">
-          <AlertTriangle className="w-3 h-3 text-red-500" /> Bottom 20%
-        </span>
+        <span>Click name to view detailed metrics with performance badges</span>
       </div>
 
       {/* Manage Salespeople Modal */}
@@ -443,7 +441,6 @@ function SalespersonRow({
   columns,
   teamAvgWinRate,
   teamAvgValueWinRate,
-  percentileInfo,
   isInComparisonGroup,
   isExpanded,
   onToggle,
@@ -456,7 +453,6 @@ function SalespersonRow({
   columns: ColumnDef[];
   teamAvgWinRate: number;
   teamAvgValueWinRate: number;
-  percentileInfo?: { percentile: number; isTop: boolean };
   isInComparisonGroup: boolean;
   isExpanded: boolean;
   onToggle: () => void;
@@ -466,42 +462,6 @@ function SalespersonRow({
 }) {
   const winRateDiff = (person.win_rate || 0) - teamAvgWinRate;
   const valueWinRateDiff = (person.value_win_rate || 0) - teamAvgValueWinRate;
-
-  // Tier-based messaging based on percentile
-  // Top performer = rank #1, Below average = 20-50%, Bottom performer = 0-20%
-  const getTierBadge = () => {
-    if (!isInComparisonGroup || !percentileInfo) return null;
-
-    if (percentileInfo.isTop) {
-      return (
-        <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-800 border border-amber-300">
-          <Star className="w-2.5 h-2.5" />
-          Top Performer
-        </span>
-      );
-    }
-
-    if (percentileInfo.percentile <= 20) {
-      return (
-        <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-800 border border-red-300">
-          <AlertTriangle className="w-2.5 h-2.5" />
-          Bottom Performer
-        </span>
-      );
-    }
-
-    if (percentileInfo.percentile <= 50) {
-      return (
-        <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-700 border border-amber-200">
-          <TrendingDown className="w-2.5 h-2.5" />
-          Below Average
-        </span>
-      );
-    }
-
-    // 50%+ but not top - no badge (neutral)
-    return null;
-  };
 
   const renderCell = (col: ColumnDef, idx: number) => {
     const isFirstInGroup = idx === 0 || columns[idx - 1].group !== col.group;
@@ -572,7 +532,6 @@ function SalespersonRow({
             {!isInComparisonGroup && (
               <span className="text-[10px] text-gray-400 italic">(not in group)</span>
             )}
-            {getTierBadge()}
           </div>
         </td>
         {columns.map((col, idx) => renderCell(col, idx))}
