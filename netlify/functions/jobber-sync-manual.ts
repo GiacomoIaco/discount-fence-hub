@@ -648,6 +648,8 @@ const REQUESTS_QUERY = (cursor: string | null) => `
         id
         title
         requestStatus
+        source
+        createdAt
         client {
           id
           name
@@ -663,6 +665,13 @@ const REQUESTS_QUERY = (cursor: string | null) => `
         assessment {
           startAt
           completedAt
+          assignedUsers {
+            nodes {
+              name {
+                full
+              }
+            }
+          }
         }
       }
       pageInfo {
@@ -677,6 +686,8 @@ interface JobberRequest {
   id: string;
   title: string;
   requestStatus: string;
+  source?: string;
+  createdAt?: string;
   client?: {
     id: string;
     name: string;
@@ -692,6 +703,13 @@ interface JobberRequest {
   assessment?: {
     startAt?: string;
     completedAt?: string;
+    assignedUsers?: {
+      nodes?: Array<{
+        name?: {
+          full?: string;
+        };
+      }>;
+    };
   };
 }
 
@@ -711,11 +729,16 @@ async function syncRequests(accessToken: string): Promise<number> {
 
     const records = batch.map((r) => {
       const addr = r.property?.address;
+      // Extract salesperson from assessment.assignedUsers (first assigned user)
+      const salesperson = r.assessment?.assignedUsers?.nodes?.[0]?.name?.full || null;
 
       return {
         jobber_id: r.id,
         title: r.title,
         status: r.requestStatus?.toLowerCase().replace(/_/g, '_'),
+        lead_source: r.source || null,
+        created_at_jobber: r.createdAt || null,
+        salesperson,
         client_jobber_id: r.client?.id,
         client_name: r.client?.name,
         service_street: addr?.street,
@@ -724,7 +747,6 @@ async function syncRequests(accessToken: string): Promise<number> {
         service_zip: addr?.postalCode,
         assessment_start_at: r.assessment?.startAt,
         assessment_completed_at: r.assessment?.completedAt,
-        // Removed: quote_jobber_ids (too expensive to query, link via quote.request_id instead)
         synced_at: new Date().toISOString(),
         raw_data: r,
       };

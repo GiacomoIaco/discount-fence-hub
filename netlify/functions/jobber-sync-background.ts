@@ -208,9 +208,15 @@ const REQUESTS_QUERY = (cursor: string | null) => `
         id
         title
         requestStatus
+        source
+        createdAt
         client { id name }
         property { address { street city province postalCode } }
-        assessment { startAt completedAt }
+        assessment {
+          startAt
+          completedAt
+          assignedUsers { nodes { name { full } } }
+        }
       }
       pageInfo { hasNextPage endCursor }
     }
@@ -381,19 +387,27 @@ export const handler: BackgroundHandler = async (event) => {
         const client = request.client as Record<string, unknown> | undefined;
         const property = request.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
         const addr = property?.address;
-        const assessment = request.assessment as Record<string, string> | undefined;
+        const assessment = request.assessment as Record<string, unknown> | undefined;
+
+        // Extract salesperson from assessment.assignedUsers
+        const assignedUsers = assessment?.assignedUsers as { nodes?: Array<{ name?: { full?: string } }> } | undefined;
+        const salesperson = assignedUsers?.nodes?.[0]?.name?.full || null;
+
         return {
           jobber_id: request.id,
           title: request.title,
           status: (request.requestStatus as string)?.toLowerCase(),
+          lead_source: request.source as string || null,
+          created_at_jobber: request.createdAt as string || null,
+          salesperson,
           client_jobber_id: client?.id,
           client_name: client?.name,
           service_street: addr?.street,
           service_city: addr?.city,
           service_state: addr?.province,
           service_zip: addr?.postalCode,
-          assessment_start_at: assessment?.startAt,
-          assessment_completed_at: assessment?.completedAt,
+          assessment_start_at: (assessment?.startAt as string) || null,
+          assessment_completed_at: (assessment?.completedAt as string) || null,
           synced_at: new Date().toISOString(),
           raw_data: request,
         };
