@@ -86,28 +86,53 @@ export function useAllSalespersonMappings() {
 }
 
 /**
- * Get list of salespeople who are in the comparison group
- * (configured in Jobber Data > Salesperson page)
+ * Get list of salespeople from both Residential and Builder Jobber accounts
+ * Deduplicates by name (same person may appear in both)
  */
 export function useDistinctSalespeople() {
   return useQuery({
-    queryKey: ['distinct_salespeople_comparison_group'],
+    queryKey: ['distinct_salespeople_all_accounts'],
     queryFn: async (): Promise<string[]> => {
-      // Query from residential_salesperson_config where is_comparison_group = true
-      const { data, error } = await supabase
-        .from('residential_salesperson_config')
-        .select('salesperson_name')
-        .eq('is_comparison_group', true)
-        .order('salesperson_name');
+      // Query from both residential and builder tables in parallel
+      const [residentialResult, builderResult] = await Promise.all([
+        // Residential: from opportunities table
+        supabase
+          .from('jobber_residential_opportunities')
+          .select('salesperson')
+          .not('salesperson', 'is', null)
+          .neq('salesperson', ''),
+        // Builder: from jobs table
+        supabase
+          .from('jobber_builder_jobs')
+          .select('effective_salesperson')
+          .not('effective_salesperson', 'is', null)
+          .neq('effective_salesperson', ''),
+      ]);
 
-      if (error) {
-        console.error('Error fetching comparison group salespeople:', error);
-        return [];
+      const allNames: string[] = [];
+
+      // Add residential salespeople
+      if (!residentialResult.error && residentialResult.data) {
+        residentialResult.data.forEach(d => {
+          if (d.salesperson) allNames.push(d.salesperson);
+        });
       }
 
-      return data?.map(d => d.salesperson_name).filter(Boolean) || [];
+      // Add builder salespeople
+      if (!builderResult.error && builderResult.data) {
+        builderResult.data.forEach(d => {
+          if (d.effective_salesperson) allNames.push(d.effective_salesperson);
+        });
+      }
+
+      // Deduplicate and sort
+      const unique = [...new Set(allNames)].sort((a, b) =>
+        a.toLowerCase().localeCompare(b.toLowerCase())
+      );
+
+      return unique;
     },
-    staleTime: 60000, // Cache for 1 minute (same as comparison group)
+    staleTime: 300000, // Cache for 5 minutes
   });
 }
 

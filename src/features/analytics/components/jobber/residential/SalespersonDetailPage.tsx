@@ -411,7 +411,7 @@ function KeyMetricCard({
   );
 }
 
-// Tier Badge Component
+// Tier Badge Component - Always shows text label (not hidden on mobile)
 function TierBadge({ tier }: { tier: TierType }) {
   if (!tier) return null;
 
@@ -439,7 +439,7 @@ function TierBadge({ tier }: { tier: TierType }) {
   return (
     <div className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg border ${config.classes}`}>
       <IconComponent className="w-3 h-3" />
-      <span className="hidden sm:inline">{config.label}</span>
+      <span>{config.label}</span>
     </div>
   );
 }
