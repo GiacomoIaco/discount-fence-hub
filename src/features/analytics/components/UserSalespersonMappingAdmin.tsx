@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react';
 import { X, User, Link2, Check, AlertCircle, Trash2, Search, Pencil, Wand2, Sparkles } from 'lucide-react';
-import { useAllSalespersonMappings, useDistinctSalespeople, useUpdateSalespersonMapping, useDeleteSalespersonMapping } from '../hooks/useUserSalespersonMapping';
+import { useAllSalespersonMappings, useAllJobberSalespeople, useUpdateSalespersonMapping, useDeleteSalespersonMapping } from '../hooks/useUserSalespersonMapping';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { cn } from '../../../lib/utils';
@@ -112,7 +112,7 @@ function UserSalespersonMappingContent() {
   const { data: mappings = [], isLoading: mappingsLoading } = useAllSalespersonMappings();
 
   // Fetch available salespeople from Jobber data (both residential and builder)
-  const { data: salespeople = [] } = useDistinctSalespeople();
+  const { data: salespeople = [] } = useAllJobberSalespeople();
 
   // Mutations
   const updateMapping = useUpdateSalespersonMapping();

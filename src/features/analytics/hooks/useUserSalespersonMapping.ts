@@ -86,12 +86,39 @@ export function useAllSalespersonMappings() {
 }
 
 /**
- * Get list of salespeople from both Residential and Builder Jobber accounts
- * Deduplicates by name (same person may appear in both)
+ * Get list of salespeople who are in the comparison group
+ * Used by MobileAnalyticsView for the "view as" dropdown
  */
 export function useDistinctSalespeople() {
   return useQuery({
-    queryKey: ['distinct_salespeople_all_accounts'],
+    queryKey: ['distinct_salespeople_comparison_group'],
+    queryFn: async (): Promise<string[]> => {
+      // Query from residential_salesperson_config where is_comparison_group = true
+      const { data, error } = await supabase
+        .from('residential_salesperson_config')
+        .select('salesperson_name')
+        .eq('is_comparison_group', true)
+        .order('salesperson_name');
+
+      if (error) {
+        console.error('Error fetching comparison group salespeople:', error);
+        return [];
+      }
+
+      return data?.map(d => d.salesperson_name).filter(Boolean) || [];
+    },
+    staleTime: 60000, // Cache for 1 minute
+  });
+}
+
+/**
+ * Get list of ALL salespeople from both Residential and Builder Jobber accounts
+ * Used by the admin mapping UI to link users to any salesperson
+ * Deduplicates by name (same person may appear in both)
+ */
+export function useAllJobberSalespeople() {
+  return useQuery({
+    queryKey: ['all_jobber_salespeople'],
     queryFn: async (): Promise<string[]> => {
       // Query from both residential and builder tables in parallel
       const [residentialResult, builderResult] = await Promise.all([
