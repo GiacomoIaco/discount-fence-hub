@@ -229,8 +229,8 @@ async function graphqlQuery(
         );
 
         if (isThrottled) {
-          // Throttled - wait longer (at least 3 seconds, increasing with attempts)
-          const waitTime = Math.max(3000, baseDelayMs * Math.pow(2, attempt + 1));
+          // Throttled - wait for rate limit to recover (1.5s minimum, increases with attempts)
+          const waitTime = Math.max(1500, baseDelayMs * Math.pow(2, attempt));
           lastError = new Error(`GraphQL throttled: ${errorMessages}`);
           console.warn(`GraphQL throttled. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
           await sleep(waitTime);
@@ -299,7 +299,7 @@ async function fetchAllPages<T>(
   let hasMore = true;
   let pageNum = 0;
   let consecutiveThrottles = 0;
-  let delayMs = 1000; // Start with 1 second between requests to avoid throttling
+  let delayMs = 300; // Start with 300ms between requests (queries are now simpler)
 
   while (hasMore) {
     pageNum++;
@@ -770,10 +770,8 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
       const testResult = await graphqlQuery(accessToken, testQuery, 1, 500);
       console.log('API connection test successful:', JSON.stringify(testResult.data));
 
-      // Wait 2 seconds after test to let rate limit points restore
-      // (Jobber restores 500 points/second, our queries cost ~500-1000 points each)
-      console.log('Waiting 2s for rate limit points to restore...');
-      await sleep(2000);
+      // Brief pause after test before starting full sync
+      await sleep(500);
     } catch (testError) {
       const errorMsg = testError instanceof Error ? testError.message : String(testError);
       console.error('API connection test failed:', errorMsg);
