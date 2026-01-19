@@ -330,16 +330,33 @@ export interface NotificationGroup {
 // UNIFIED INBOX TYPES
 // ============================================================================
 
-export type UnifiedMessageType = 'sms' | 'team_announcement' | 'system_notification';
+export type UnifiedMessageType = 'sms' | 'team_chat' | 'team_announcement' | 'system_notification';
 
 export type UnifiedActionType =
   | 'conversation'
+  | 'team_chat'
   | 'quote'
   | 'invoice'
   | 'job'
   | 'request'
   | 'announcement'
   | 'generic';
+
+// Team chat conversation from get_user_conversations RPC
+export interface TeamChatConversation {
+  conversation_id: string;
+  conversation_name: string | null;
+  is_group: boolean;
+  other_user_id: string | null;
+  other_user_name: string | null;
+  other_user_email: string | null;
+  other_user_status: 'online' | 'away' | 'offline';
+  participant_count: number;
+  last_message: string | null;
+  last_message_at: string;
+  unread_count: number;
+  last_read_at: string;
+}
 
 export interface UnifiedMessage {
   id: string;
@@ -353,7 +370,7 @@ export interface UnifiedMessage {
   iconBgColor: string;
   actionType: UnifiedActionType;
   actionId: string;
-  rawData: Conversation | CompanyMessage | SystemNotification;
+  rawData: Conversation | CompanyMessage | SystemNotification | TeamChatConversation;
 }
 
 export type UnifiedInboxFilter = 'all' | 'sms' | 'team' | 'alerts';

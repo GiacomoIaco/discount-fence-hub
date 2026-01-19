@@ -85,10 +85,15 @@ export function MobileUnifiedInbox({
         break;
       }
 
+      case 'team_chat': {
+        // Navigate to Chat section with the conversation ID
+        onNavigate('direct-messages', { conversationId: message.actionId });
+        break;
+      }
+
       case 'team_announcement': {
-        // For now, announcements don't have a detail view
-        // Could navigate to a dedicated announcement page in the future
-        console.log('Announcement tapped:', message.actionId);
+        // Navigate to Announcements section
+        onNavigate('team-communication');
         break;
       }
 

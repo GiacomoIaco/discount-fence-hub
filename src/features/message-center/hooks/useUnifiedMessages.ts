@@ -17,6 +17,7 @@ import type {
   CompanyMessage,
   SystemNotification,
   NotificationType,
+  TeamChatConversation,
 } from '../types';
 
 interface UseUnifiedMessagesOptions {
@@ -135,6 +136,33 @@ function notificationToUnified(notif: SystemNotification): UnifiedMessage {
   };
 }
 
+// Transform team chat conversation to UnifiedMessage
+function teamChatToUnified(chat: TeamChatConversation): UnifiedMessage {
+  // For group chats, use group name; for 1:1 use other user's name
+  const title = chat.is_group
+    ? (chat.conversation_name || 'Group Chat')
+    : (chat.other_user_name || 'Unknown');
+
+  const preview = chat.last_message
+    ? (chat.last_message.length > 80 ? chat.last_message.substring(0, 80) + '...' : chat.last_message)
+    : 'No messages yet';
+
+  return {
+    id: `team-chat-${chat.conversation_id}`,
+    type: 'team_chat',
+    title,
+    preview,
+    timestamp: chat.last_message_at ? new Date(chat.last_message_at) : new Date(),
+    isUnread: chat.unread_count > 0,
+    icon: chat.is_group ? 'Users' : 'User',
+    iconColor: 'text-green-600',
+    iconBgColor: 'bg-green-100',
+    actionType: 'team_chat',
+    actionId: chat.conversation_id,
+    rawData: chat,
+  };
+}
+
 async function fetchUnifiedMessages(
   options: UseUnifiedMessagesOptions
 ): Promise<{ messages: UnifiedMessage[]; counts: UnifiedMessagesResult['counts'] }> {
@@ -154,7 +182,7 @@ async function fetchUnifiedMessages(
     const fetchAlerts = filter === 'all' || filter === 'alerts';
 
     // Parallel fetch all required data
-    const [smsResult, teamResult, alertsResult] = await Promise.all([
+    const [smsResult, announcementsResult, teamChatsResult, alertsResult] = await Promise.all([
       fetchSms
         ? supabase
             .from('mc_conversations')
@@ -180,6 +208,7 @@ async function fetchUnifiedMessages(
             .limit(limit)
         : Promise.resolve({ data: [], error: null }),
 
+      // Team announcements from company_messages
       fetchTeam
         ? supabase
             .from('company_messages')
@@ -201,6 +230,11 @@ async function fetchUnifiedMessages(
             .limit(limit)
         : Promise.resolve({ data: [], error: null }),
 
+      // Team chats (1:1 and group DMs) from get_user_conversations RPC
+      fetchTeam
+        ? supabase.rpc('get_user_conversations')
+        : Promise.resolve({ data: [], error: null }),
+
       fetchAlerts
         ? supabase
             .from('mc_system_notifications')
@@ -219,15 +253,22 @@ async function fetchUnifiedMessages(
       counts.sms = smsMessages.filter((m) => m.isUnread).length;
     }
 
-    // Process announcements
-    if (teamResult.data && !teamResult.error) {
-      const teamMessages = teamResult.data.map((msg) => {
+    // Process team announcements
+    if (announcementsResult.data && !announcementsResult.error) {
+      const announcementMessages = announcementsResult.data.map((msg) => {
         const reads = msg.company_message_reads as Array<{ user_id: string }> | null;
         const isRead = reads?.some((r) => r.user_id === userId) ?? false;
         return announcementToUnified({ ...msg, isRead } as CompanyMessage & { isRead: boolean });
       });
-      messages.push(...teamMessages);
-      counts.team = teamMessages.filter((m) => m.isUnread).length;
+      messages.push(...announcementMessages);
+      counts.team += announcementMessages.filter((m) => m.isUnread).length;
+    }
+
+    // Process team chats (1:1 and group DMs)
+    if (teamChatsResult.data && !teamChatsResult.error) {
+      const teamChatMessages = (teamChatsResult.data as TeamChatConversation[]).map(teamChatToUnified);
+      messages.push(...teamChatMessages);
+      counts.team += teamChatMessages.filter((m) => m.isUnread).length;
     }
 
     // Process notifications
@@ -267,10 +308,15 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
     if (!data?.messages) return [];
     if (filter === 'all') return data.messages;
 
+    // Team filter includes both team_chat and team_announcement
+    if (filter === 'team') {
+      return data.messages.filter((m) => m.type === 'team_chat' || m.type === 'team_announcement');
+    }
+
     const typeMap: Record<UnifiedInboxFilter, UnifiedMessage['type'] | null> = {
       all: null,
       sms: 'sms',
-      team: 'team_announcement',
+      team: 'team_chat', // fallback, handled above
       alerts: 'system_notification',
     };
 
@@ -309,6 +355,17 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mc_system_notifications', filter: `user_id=eq.${userId}` },
+        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+      )
+      // Team chats - direct_messages table
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'direct_messages' },
+        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations' },
         () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
       )
       .subscribe();
