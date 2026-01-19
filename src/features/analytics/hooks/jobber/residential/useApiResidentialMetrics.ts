@@ -63,10 +63,9 @@ export function useApiSyncStatus() {
 // =====================
 
 export interface ApiFunnelMetrics extends FunnelMetrics {
-  avg_total_cycle: number | null;
-  same_day_quote_pct: number | null;
-  multi_quote_pct: number | null;
-  avg_days_to_quote: number | null;
+  // Override some fields with API-specific naming
+  avg_days_to_quote: number | null;  // API uses this name
+  same_day_quote_pct: number | null; // % quoted same day
 }
 
 export function useApiResidentialFunnelMetrics(filters?: ResidentialFilters) {
