@@ -229,7 +229,7 @@ function QuoteCountRow({
             )}
             <span className="font-medium">
               {diff > 0 ? '+' : ''}
-              {diff.toFixed(1)}%
+              {(diff ?? 0).toFixed(1)}%
             </span>
           </span>
         )}

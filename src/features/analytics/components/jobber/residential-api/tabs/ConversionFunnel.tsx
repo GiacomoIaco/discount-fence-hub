@@ -442,7 +442,7 @@ function MonthlyWinRateChart({
             </div>
             <div>
               <div className="text-sm text-gray-500">Average</div>
-              <div className="text-2xl font-bold text-gray-700">{avgWinRate.toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-gray-700">{(avgWinRate ?? 0).toFixed(1)}%</div>
             </div>
           </div>
         </div>

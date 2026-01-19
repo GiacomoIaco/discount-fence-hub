@@ -239,7 +239,7 @@ function HistogramChart({
           {rateType === 'count' ? 'Win Rate' : 'Value Win Rate'} Trend ({timeView === 'monthly' ? 'Monthly' : 'Weekly'})
         </h3>
         <div className="text-sm text-gray-500">
-          Avg: <span className="font-semibold text-blue-600">{avgWinRate.toFixed(1)}%</span>
+          Avg: <span className="font-semibold text-blue-600">{(avgWinRate ?? 0).toFixed(1)}%</span>
         </div>
       </div>
 
@@ -327,7 +327,7 @@ function SummaryMetrics({
             <Minus className="w-6 h-6" />
           )}
           {trendDiff > 0 ? '+' : ''}
-          {trendDiff.toFixed(1)}%
+          {(trendDiff ?? 0).toFixed(1)}%
         </div>
         <div className="text-sm text-gray-500">vs previous {timeView === 'monthly' ? 'months' : 'weeks'}</div>
       </div>
@@ -494,7 +494,7 @@ function SalespersonTrendTable({
                   {sp.trend !== null ? (
                     <span className={`flex items-center justify-end gap-1 ${getTrendColor(sp.trend)}`}>
                       {sp.trend > 2 ? <TrendingUp className="w-4 h-4" /> : sp.trend < -2 ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-                      <span className="font-medium">{sp.trend > 0 ? '+' : ''}{sp.trend.toFixed(1)}%</span>
+                      <span className="font-medium">{sp.trend > 0 ? '+' : ''}{(sp.trend ?? 0).toFixed(1)}%</span>
                     </span>
                   ) : (
                     <span className="text-gray-400">-</span>

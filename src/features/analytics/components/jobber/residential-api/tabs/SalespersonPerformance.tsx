@@ -85,7 +85,7 @@ export function SalespersonPerformance({ filters }: SalespersonPerformanceProps)
             <Target className="w-4 h-4 text-green-600" />
             <span className="text-sm font-medium text-gray-700">Team Win Rate</span>
           </div>
-          <div className="text-2xl font-bold text-green-600">{teamAvgWinRate.toFixed(1)}%</div>
+          <div className="text-2xl font-bold text-green-600">{(teamAvgWinRate ?? 0).toFixed(1)}%</div>
           <div className="text-sm text-gray-500">{teamTotals.wonOpps.toLocaleString()} won</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -218,7 +218,7 @@ function SalespersonRow({
           )}
           <span className="font-medium">
             {diff > 0 ? '+' : ''}
-            {diff.toFixed(1)}%
+            {(diff ?? 0).toFixed(1)}%
           </span>
         </span>
       </td>

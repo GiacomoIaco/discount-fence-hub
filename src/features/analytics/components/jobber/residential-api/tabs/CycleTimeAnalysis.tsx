@@ -141,7 +141,7 @@ export function CycleTimeAnalysis({ filters }: CycleTimeAnalysisProps) {
             <div>
               <div className="font-semibold text-amber-800">Quoting Bottleneck Detected</div>
               <div className="text-sm text-amber-700 mt-1">
-                Average time to quote is <span className="font-bold">{avgDaysToQuote.toFixed(1)} days</span>.
+                Average time to quote is <span className="font-bold">{(avgDaysToQuote ?? 0).toFixed(1)} days</span>.
                 {' '}Target same-day or next-day quotes to improve win rates by up to 15%.
               </div>
             </div>
@@ -243,7 +243,7 @@ function StageBox({
     <div className={`flex-1 p-4 rounded-lg border-2 ${color} text-center`}>
       <div className="font-semibold text-gray-900">{label}</div>
       {avgDays !== null && (
-        <div className="text-sm text-gray-600 mt-1">{avgDays.toFixed(1)} days</div>
+        <div className="text-sm text-gray-600 mt-1">{(avgDays ?? 0).toFixed(1)} days</div>
       )}
     </div>
   );

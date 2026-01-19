@@ -207,7 +207,7 @@ function SpeedRow({ metric }: { metric: SpeedMetrics }) {
             )}
             <span className="font-medium">
               {diffValue > 0 ? '+' : ''}
-              {diffValue.toFixed(1)}%
+              {(diffValue ?? 0).toFixed(1)}%
             </span>
           </span>
         )}
