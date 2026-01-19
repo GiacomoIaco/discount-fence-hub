@@ -486,8 +486,8 @@ function MonthlyTrendRechartsChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
             <Tooltip
-              formatter={(value: number | null | undefined, name: string) => {
-                const v = value ?? 0;
+              formatter={(value, name: string) => {
+                const v = Number(value) || 0;
                 return [viewMode === 'value' ? `$${v.toLocaleString()}` : v.toLocaleString(), name];
               }}
               contentStyle={{ fontSize: 14 }}
