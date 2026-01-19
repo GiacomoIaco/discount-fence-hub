@@ -789,8 +789,8 @@ export default function QuoteDetailPage({
             entityType="quote"
             entityId={quoteId}
             entityLabel={`Quote ${quote.quote_number}`}
-            contactPhone={quote.client?.phone}
-            contactName={quote.client?.name}
+            contactPhone={quote.client?.primary_contact_phone}
+            contactName={quote.client?.primary_contact_name || quote.client?.name}
           />
         )}
 

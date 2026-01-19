@@ -3,35 +3,39 @@
 ## Goal
 Replace CSV-based Residential Analytics dashboard with live API data, using webhooks for real-time updates.
 
-## Current State (Jan 2025)
+## Current State (Jan 2026)
 
 | Entity | Count | Notes |
 |--------|-------|-------|
 | Quotes | 10,528 | Synced from 2024+ |
 | Jobs | 4,250 | Synced from 2024+ |
-| Requests | 2,000 | Capped during testing - need full sync |
+| Requests | 10,328 | ✓ Full sync completed |
 | Opportunities | 7,565 | Computed from quotes |
-| Opps with Salesperson | 1,322 | Linked through requests |
+| **Opps with Salesperson** | **6,148 (81.3%)** | ✓ Above 80% target |
 
-### Issues Identified
+### Phase 1 Completed (Jan 19, 2026)
+- Full requests sync completed (10,328 requests)
+- Salesperson coverage now 81.3% (up from 17.5%)
+- Key fixes: reduced PAGE_SIZE to 35 (query cost was >10K), added token refresh
+
+### Remaining Issues
 1. `/analytics/residential` page uses CSV table (`jobber_residential_opportunities`) not API table (`jobber_api_opportunities`)
-2. Requests sync was capped at 2,000 for testing
-3. Webhooks not implemented - requires manual sync
-4. Migration numbering conflicts (247-250 duplicate existing CSV migrations)
+2. Webhooks not implemented - requires manual sync
+3. Migration files need cleanup (duplicates 246*, 249*, 250*)
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Complete Historical Sync
+### Phase 1: Complete Historical Sync ✓ COMPLETED
 **Goal:** Get all historical data from Jobber API
 
-- [ ] Run full requests sync (remove 100-page cap)
-- [ ] Verify total request count matches expectations
-- [ ] Recompute opportunities with full salesperson linkage
-- [ ] Validate data completeness vs CSV counts
+- [x] Run full requests sync (removed cap, fixed query cost issue)
+- [x] Verify total request count: 10,328 requests synced
+- [x] Recompute opportunities with full salesperson linkage
+- [x] Validate salesperson coverage: 81.3% (6,148/7,565)
 
-**Estimated requests:** 5,000-8,000 based on quote count
+**Actual requests synced:** 10,328
 
 ### Phase 2: Switch Dashboard to API Data
 **Goal:** Wire `/analytics/residential` to use API tables
@@ -128,20 +132,23 @@ Jobber API
 
 ## Migration Cleanup
 
-Current conflicts to resolve:
-| My Migration | Conflicts With | Action |
-|--------------|----------------|--------|
-| 247_add_salesperson_to_requests.sql | 247_fix_opportunity_value_normalization.sql | Rename to 259 |
-| 248_add_salesperson_to_compute.sql | 248_fix_warranty_rpc_and_add_trends.sql | Rename to 260 |
-| 249*.sql (a,b,c,d) | 249_use_median_for_cycle_times.sql | Rename to 261* |
-| 250_update_sync_status.sql | 250b_fix_warranty_all_time.sql | Rename to 262 |
+**Status:** Untracked migration files need cleanup. Next available migration: **259**
+
+| File | Status | Action |
+|------|--------|--------|
+| 246_optimize_compute_opportunities.sql | Untracked | Delete or rename to 259 |
+| 246b,c,d_*.sql | Untracked | Delete (step-by-step versions) |
+| 248_add_salesperson_to_compute.sql | Applied via migrate:direct | Track or delete |
+| 249_recompute_opportunities.sql | Untracked | Delete |
+| 249a,b,c,d_*.sql | Applied via migrate:direct | Delete (one-time use) |
+| 250_update_sync_status.sql | Untracked | Delete or rename to 259 |
 
 ---
 
 ## Success Criteria
 
-- [ ] All requests synced (expected 5,000+)
-- [ ] Opportunities computed with salesperson coverage > 80%
+- [x] All requests synced: 10,328 (expected 5,000+) ✓
+- [x] Opportunities with salesperson coverage > 80%: 81.3% ✓
 - [ ] Dashboard metrics match CSV dashboard (within 5% tolerance)
 - [ ] Webhooks receiving events and updating data
 - [ ] Weekly sync running as fallback

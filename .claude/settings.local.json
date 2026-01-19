@@ -420,7 +420,11 @@
       "WebFetch(domain:developer.getjobber.com)",
       "WebFetch(domain:rollout.com)",
       "Skill(frontend-design)",
-      "Bash(exit 0)"
+      "Bash(exit 0)",
+      "Bash(for f in \"C:\\\\Users\\\\giaco\\\\discount-fence-hub\\\\migrations\"/*.sql)",
+      "Bash(do if grep -q \"CREATE TABLE.*company_messages\" \"$f\")",
+      "Bash(then echo \"$f\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []

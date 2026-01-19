@@ -528,7 +528,7 @@ export default function RequestDetailPage({
             entityType="request"
             entityId={requestId}
             entityLabel={`Request ${request.request_number}`}
-            contactPhone={request.contact_phone}
+            contactPhone={request.contact_phone ?? undefined}
             contactName={request.contact_name || request.client?.name}
           />
         )}

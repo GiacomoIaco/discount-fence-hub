@@ -8,7 +8,6 @@ import { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare,
   Send,
-  User,
   Phone,
   Mail,
   Loader2,

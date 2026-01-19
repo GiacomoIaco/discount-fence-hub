@@ -556,7 +556,6 @@ export default function JobDetailPage({
             entityType="job"
             entityId={jobId}
             entityLabel={`Job ${job.job_number}`}
-            contactPhone={job.client?.phone}
             contactName={job.client?.name}
           />
         )}

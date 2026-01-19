@@ -5,7 +5,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import type { UnifiedMessage, Conversation, CompanyMessage, NewMessage } from '../types';
+import type { UnifiedMessage, Conversation } from '../types';
 
 interface ReplyParams {
   message: UnifiedMessage;
