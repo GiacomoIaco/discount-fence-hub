@@ -139,6 +139,11 @@ export const handler: Handler = async (event) => {
 
     console.log(`Processed inbound SMS from ${fromPhone}: ${messageSid}`);
 
+    // Auto-add salesperson to conversation (async, don't wait)
+    autoAddSalespersonToConversation(contact, conversation.id).catch(err => {
+      console.error('Failed to auto-add salesperson:', err);
+    });
+
     // Send push notifications to relevant users (async, don't wait)
     sendPushNotifications(contact, body || 'New message', conversation.id).catch(err => {
       console.error('Failed to send push notifications:', err);
@@ -303,6 +308,148 @@ async function handleOptIn(phone: string) {
     .or(`phone_primary.ilike.%${last10}%,phone_secondary.ilike.%${last10}%`);
 
   console.log(`Contact opted in: ${phone}`);
+}
+
+// Find salesperson for a client (priority: projects > requests > quotes)
+async function findSalespersonForClient(clientId: string): Promise<string | null> {
+  if (!clientId) return null;
+
+  // 1. Check most recent active project's assigned rep
+  const { data: project } = await supabase
+    .from('projects')
+    .select('assigned_rep_user_id')
+    .eq('client_id', clientId)
+    .neq('assigned_rep_user_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (project?.assigned_rep_user_id) {
+    console.log(`[AutoAdd] Found salesperson from project: ${project.assigned_rep_user_id}`);
+    return project.assigned_rep_user_id;
+  }
+
+  // 2. Check most recent service request's salesperson
+  const { data: request } = await supabase
+    .from('service_requests')
+    .select('salesperson_id')
+    .eq('client_id', clientId)
+    .neq('salesperson_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (request?.salesperson_id) {
+    console.log(`[AutoAdd] Found salesperson from request: ${request.salesperson_id}`);
+    return request.salesperson_id;
+  }
+
+  // 3. Check most recent quote's salesperson
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('salesperson_id')
+    .eq('client_id', clientId)
+    .neq('salesperson_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (quote?.salesperson_id) {
+    console.log(`[AutoAdd] Found salesperson from quote: ${quote.salesperson_id}`);
+    return quote.salesperson_id;
+  }
+
+  console.log(`[AutoAdd] No salesperson found for client ${clientId}`);
+  return null;
+}
+
+// Auto-add salesperson to SMS conversation when inbound message arrives
+async function autoAddSalespersonToConversation(
+  contact: { id: string; client_id?: string; display_name: string },
+  conversationId: string
+): Promise<void> {
+  // Skip if no client linked
+  if (!contact.client_id) {
+    console.log(`[AutoAdd] Contact ${contact.id} has no linked client, skipping`);
+    return;
+  }
+
+  // Find the salesperson for this client
+  const salespersonUserId = await findSalespersonForClient(contact.client_id);
+  if (!salespersonUserId) {
+    return;
+  }
+
+  // Get or create mc_contact for the salesperson (employee)
+  let { data: salespersonContact } = await supabase
+    .from('mc_contacts')
+    .select('id')
+    .eq('employee_id', salespersonUserId)
+    .single();
+
+  if (!salespersonContact) {
+    // Create mc_contact for the employee
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('full_name, email, avatar_url')
+      .eq('id', salespersonUserId)
+      .single();
+
+    const { data: newContact, error } = await supabase
+      .from('mc_contacts')
+      .insert({
+        contact_type: 'employee',
+        display_name: userProfile?.full_name || 'Unknown',
+        email_primary: userProfile?.email,
+        avatar_url: userProfile?.avatar_url,
+        employee_id: salespersonUserId,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[AutoAdd] Failed to create salesperson contact:', error);
+      return;
+    }
+    salespersonContact = newContact;
+  }
+
+  // Check if salesperson is already a participant
+  const { data: existingParticipant } = await supabase
+    .from('mc_conversation_participants')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('contact_id', salespersonContact.id)
+    .is('left_at', null)
+    .single();
+
+  if (existingParticipant) {
+    console.log(`[AutoAdd] Salesperson already in conversation ${conversationId}`);
+    return;
+  }
+
+  // Add salesperson as participant
+  const { error: addError } = await supabase
+    .from('mc_conversation_participants')
+    .insert({
+      conversation_id: conversationId,
+      contact_id: salespersonContact.id,
+      role: 'member',
+      added_by: null, // System auto-add
+    });
+
+  if (addError) {
+    console.error('[AutoAdd] Failed to add salesperson to conversation:', addError);
+    return;
+  }
+
+  // Mark conversation as group
+  await supabase
+    .from('mc_conversations')
+    .update({ is_group: true })
+    .eq('id', conversationId);
+
+  console.log(`[AutoAdd] Added salesperson ${salespersonUserId} to conversation ${conversationId}`);
 }
 
 // Send push notifications for new message

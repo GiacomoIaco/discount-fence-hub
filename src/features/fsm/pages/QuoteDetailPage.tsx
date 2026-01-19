@@ -39,6 +39,9 @@ import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection
 import { QuoteProgress } from '../components/shared/WorkflowProgress';
 import { TotalsDisplay } from '../components/shared/TotalsDisplay';
 import { EntityHeader } from '../components/shared/EntityHeader';
+import { EntityMessagesTab } from '../components/EntityMessagesTab';
+import { useEntityMessageCount } from '../../message-center/hooks/useEntityMessages';
+import { MessageSquare } from 'lucide-react';
 
 // Lost reason options
 const LOST_REASONS = [
@@ -52,7 +55,7 @@ const LOST_REASONS = [
   'Other',
 ] as const;
 
-type Tab = 'overview' | 'line-items' | 'activity';
+type Tab = 'overview' | 'line-items' | 'messages' | 'activity';
 
 interface QuoteDetailPageProps {
   quoteId: string;
@@ -90,6 +93,7 @@ export default function QuoteDetailPage({
   const [showJobDropdown, setShowJobDropdown] = useState(false);
 
   const { data: quote, isLoading, error } = useQuote(quoteId);
+  const { data: messageCount } = useEntityMessageCount('quote', quoteId);
   const updateStatusMutation = useUpdateQuoteStatus();
   const updateQuoteMutation = useUpdateQuote();
   const sendQuoteMutation = useSendQuote();
@@ -341,6 +345,7 @@ export default function QuoteDetailPage({
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <FileText className="w-4 h-4" /> },
     { id: 'line-items', label: 'Line Items', icon: <Package className="w-4 h-4" /> },
+    { id: 'messages', label: `Messages${messageCount ? ` (${messageCount})` : ''}`, icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'activity', label: 'Activity', icon: <History className="w-4 h-4" /> },
   ];
 
@@ -777,6 +782,16 @@ export default function QuoteDetailPage({
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'messages' && (
+          <EntityMessagesTab
+            entityType="quote"
+            entityId={quoteId}
+            entityLabel={`Quote ${quote.quote_number}`}
+            contactPhone={quote.client?.phone}
+            contactName={quote.client?.name}
+          />
         )}
 
         {activeTab === 'activity' && (

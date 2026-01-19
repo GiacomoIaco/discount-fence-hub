@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Minimize2, MessageSquare, Phone, Mail, User, Loader2, ArrowLeft, Inbox } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../../../lib/utils';
 import { useRightPane } from '../context/RightPaneContext';
 import { useMessages, useSendMessage } from '../hooks/useMessages';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
+import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
 import { MessageComposer } from './MessageComposer';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
@@ -38,6 +39,10 @@ export function RightPaneMessaging() {
     userId: user?.id,
     filter: inboxFilter,
   });
+
+  // Reply and acknowledge mutations for unified inbox
+  const replyMutation = useReplyToUnifiedMessage();
+  const acknowledgeMutation = useAcknowledgeUnifiedItem();
 
   // Track if we're viewing the inbox vs a specific conversation
   const showUnifiedInbox = !selectedContact && !selectedConversation;
@@ -131,6 +136,18 @@ export function RightPaneMessaging() {
     }
   };
 
+  // Handle replying to an SMS from unified inbox
+  const handleUnifiedReply = useCallback(async (message: UnifiedMessage, body: string) => {
+    if (!user?.id) return;
+    await replyMutation.mutateAsync({ message, replyBody: body, fromUserId: user.id });
+  }, [replyMutation, user?.id]);
+
+  // Handle acknowledging an announcement or notification
+  const handleUnifiedAcknowledge = useCallback(async (message: UnifiedMessage) => {
+    if (!user?.id) return;
+    await acknowledgeMutation.mutateAsync({ message, userId: user.id });
+  }, [acknowledgeMutation, user?.id]);
+
   // Don't render if not open
   if (!isOpen) return null;
 
@@ -220,6 +237,9 @@ export function RightPaneMessaging() {
                   key={message.id}
                   message={message}
                   onClick={handleUnifiedItemClick}
+                  onReply={handleUnifiedReply}
+                  onAcknowledge={handleUnifiedAcknowledge}
+                  isReplying={replyMutation.isPending}
                 />
               ))}
             </div>

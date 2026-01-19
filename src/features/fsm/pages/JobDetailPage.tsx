@@ -45,8 +45,10 @@ const BU_TYPE_COLORS: Record<string, string> = {
 import CustomFieldsSection from '../../client_hub/components/CustomFieldsSection';
 import { EntityHeader } from '../components/shared/EntityHeader';
 import { JobProgress } from '../components/shared/WorkflowProgress';
+import { EntityMessagesTab } from '../components/EntityMessagesTab';
+import { useEntityMessageCount } from '../../message-center/hooks/useEntityMessages';
 
-type Tab = 'overview' | 'visits' | 'issues' | 'activity';
+type Tab = 'overview' | 'visits' | 'issues' | 'messages' | 'activity';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -68,6 +70,7 @@ export default function JobDetailPage({
 
   const { data: job, isLoading, error } = useJob(jobId);
   const { data: jobIssues } = useJobIssues(jobId);
+  const { data: messageCount } = useEntityMessageCount('job', jobId);
   const scheduleJob = useScheduleJob();
   const completeJob = useCompleteJob();
   const createInvoice = useCreateInvoiceFromJob();
@@ -259,7 +262,7 @@ export default function JobDetailPage({
       >
         {/* Tabs */}
         <div className="px-6 pt-4 -mx-6 flex gap-1 border-t">
-          {(['overview', 'visits', 'issues', 'activity'] as Tab[]).map((tab) => (
+          {(['overview', 'visits', 'issues', 'messages', 'activity'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -277,6 +280,7 @@ export default function JobDetailPage({
                   Issues{jobIssues?.length ? ` (${jobIssues.length})` : ''}
                 </span>
               )}
+              {tab === 'messages' && `Messages${messageCount ? ` (${messageCount})` : ''}`}
               {tab === 'activity' && 'Activity'}
             </button>
           ))}
@@ -545,6 +549,16 @@ export default function JobDetailPage({
 
         {activeTab === 'issues' && (
           <JobIssuesList jobId={jobId} />
+        )}
+
+        {activeTab === 'messages' && (
+          <EntityMessagesTab
+            entityType="job"
+            entityId={jobId}
+            entityLabel={`Job ${job.job_number}`}
+            contactPhone={job.client?.phone}
+            contactName={job.client?.name}
+          />
         )}
 
         {activeTab === 'activity' && (

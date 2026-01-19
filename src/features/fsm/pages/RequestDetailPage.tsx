@@ -38,8 +38,11 @@ import {
 import { hasValidCoordinates, formatCoordinates } from '../../shared/types/location';
 import { RequestProgress } from '../components/shared/WorkflowProgress';
 import { EntityHeader } from '../components/shared/EntityHeader';
+import { EntityMessagesTab } from '../components/EntityMessagesTab';
+import { useEntityMessageCount } from '../../message-center/hooks/useEntityMessages';
+import { MessageSquare } from 'lucide-react';
 
-type Tab = 'overview' | 'assessment' | 'activity';
+type Tab = 'overview' | 'assessment' | 'messages' | 'activity';
 
 interface RequestDetailPageProps {
   requestId: string;
@@ -65,6 +68,7 @@ export default function RequestDetailPage({
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   const { data: request, isLoading, error } = useRequest(requestId);
+  const { data: messageCount } = useEntityMessageCount('request', requestId);
   const scheduleAssessmentMutation = useScheduleAssessment();
   const completeAssessmentMutation = useCompleteAssessment();
   const convertToJobMutation = useConvertRequestToJob();
@@ -152,6 +156,7 @@ export default function RequestDetailPage({
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <FileText className="w-4 h-4" /> },
     { id: 'assessment', label: 'Assessment', icon: <Clipboard className="w-4 h-4" /> },
+    { id: 'messages', label: `Messages${messageCount ? ` (${messageCount})` : ''}`, icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'activity', label: 'Activity', icon: <History className="w-4 h-4" /> },
   ];
 
@@ -516,6 +521,16 @@ export default function RequestDetailPage({
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'messages' && (
+          <EntityMessagesTab
+            entityType="request"
+            entityId={requestId}
+            entityLabel={`Request ${request.request_number}`}
+            contactPhone={request.contact_phone}
+            contactName={request.contact_name || request.client?.name}
+          />
         )}
 
         {activeTab === 'activity' && (

@@ -8,6 +8,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
+import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { InboxSkeleton } from './InboxSkeleton';
@@ -41,6 +42,8 @@ export function MobileUnifiedInbox({
   });
 
   const markAsReadMutation = useMarkUnifiedItemRead();
+  const replyMutation = useReplyToUnifiedMessage();
+  const acknowledgeMutation = useAcknowledgeUnifiedItem();
 
   // Handle pull-to-refresh
   const handleRefresh = useCallback(() => {
@@ -56,6 +59,18 @@ export function MobileUnifiedInbox({
       console.error('Failed to mark as read:', error);
     }
   }, [markAsReadMutation, user?.id]);
+
+  // Handle replying to an SMS
+  const handleReply = useCallback(async (message: UnifiedMessage, body: string) => {
+    if (!user?.id) return;
+    await replyMutation.mutateAsync({ message, replyBody: body, fromUserId: user.id });
+  }, [replyMutation, user?.id]);
+
+  // Handle acknowledging an announcement or notification
+  const handleAcknowledge = useCallback(async (message: UnifiedMessage) => {
+    if (!user?.id) return;
+    await acknowledgeMutation.mutateAsync({ message, userId: user.id });
+  }, [acknowledgeMutation, user?.id]);
 
   // Handle tapping on an inbox item
   const handleItemClick = useCallback(async (message: UnifiedMessage) => {
@@ -161,6 +176,9 @@ export function MobileUnifiedInbox({
                 key={message.id}
                 message={message}
                 onClick={handleItemClick}
+                onReply={handleReply}
+                onAcknowledge={handleAcknowledge}
+                isReplying={replyMutation.isPending}
               />
             ))}
           </div>

@@ -263,12 +263,11 @@ function App() {
       // Personal/Sales Section
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
       { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp },
-      { id: 'message-center' as Section, menuId: 'message-center', name: 'Messages', icon: Phone, badge: messageCenterUnreadCount },
-      { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
+      // Unified Inbox - combines SMS, team chat, announcements, and notifications
+      { id: 'message-center' as Section, menuId: 'message-center', name: 'Inbox', icon: Phone, badge: messageCenterUnreadCount + unreadAnnouncementsCount + teamCommunicationUnreadCount },
 
       // Admin/Management Section
       { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target, separator: true },
-      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
       { id: 'survey-hub' as Section, menuId: 'survey-hub', name: 'Surveys', icon: ClipboardList },
       { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
       { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
@@ -279,6 +278,9 @@ function App() {
       { id: 'photo-gallery' as Section, menuId: 'photo-gallery', name: 'Photo Gallery', icon: Image },
       { id: 'stain-calculator' as Section, menuId: 'stain-calculator', name: 'Pre-Stain Calculator', icon: DollarSign },
       { id: 'sales-resources' as Section, menuId: 'sales-resources', name: 'Sales Resources', icon: BookOpen },
+      // DEPRECATED: Chat and Announcements are now in unified Inbox (message-center)
+      { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
+      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
 
       // Settings
       { id: 'team' as Section, menuId: 'team', name: 'Settings', icon: SettingsIcon, separator: true },
