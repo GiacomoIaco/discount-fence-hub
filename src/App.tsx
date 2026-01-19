@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, MessageCircle, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package, Phone } from 'lucide-react';
+import { Home, DollarSign, Ticket, Image, BookOpen, Send, MessageSquare, Settings as SettingsIcon, Calculator, Target, ListTodo, Warehouse, Map, ClipboardList, Users, FlaskConical, Calendar, Briefcase, TrendingUp, Package, Phone, Inbox } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import InstallAppBanner from './components/InstallAppBanner';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
@@ -43,7 +43,7 @@ const MobileUnifiedInbox = lazy(() => import('./features/message-center/componen
 const Settings = lazy(() => import('./features/settings').then(module => ({ default: module.Settings })));
 const MessageComposer = lazy(() => import('./features/communication').then(module => ({ default: module.MessageComposer })));
 const TeamCommunication = lazy(() => import('./features/communication').then(module => ({ default: module.TeamCommunication })));
-const DirectMessages = lazy(() => import('./features/communication').then(module => ({ default: module.DirectMessages })));
+const FullPageInbox = lazy(() => import('./features/message-center/components/FullPageInbox').then(module => ({ default: module.FullPageInbox })));
 const UserProfileEditor = lazy(() => import('./features/user-profile').then(module => ({ default: module.UserProfileEditor })));
 const UserProfileView = lazy(() => import('./features/user-profile').then(module => ({ default: module.UserProfileView })));
 const RequestHub = lazy(() => import('./features/requests').then(module => ({ default: module.RequestHub })));
@@ -263,10 +263,10 @@ function App() {
       // Personal/Sales Section
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
       { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp },
-      // Message Center - Company SMS management (admin tool)
-      { id: 'message-center' as Section, menuId: 'message-center', name: 'Messages', icon: Phone, badge: messageCenterUnreadCount },
-      // Chat - Personal team chats (1o1 and groups)
-      { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Chat', icon: MessageCircle, badge: unreadAnnouncementsCount },
+      // Contact Center - Company SMS management (admin tool)
+      { id: 'message-center' as Section, menuId: 'message-center', name: 'Contact Center', icon: Phone, badge: messageCenterUnreadCount },
+      // Inbox - Unified personal inbox (team chats, SMS, announcements, tickets, notifications)
+      { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Inbox', icon: Inbox, badge: unreadAnnouncementsCount },
 
       // Admin/Management Section
       { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target, separator: true },
@@ -487,7 +487,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <DirectMessages onUnreadCountChange={setUnreadAnnouncementsCount} />
+            <FullPageInbox />
           </Suspense>
         </ErrorBoundary>
       );

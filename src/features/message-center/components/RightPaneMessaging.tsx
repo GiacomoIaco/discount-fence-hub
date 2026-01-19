@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Minimize2, MessageSquare, Phone, Mail, User, Loader2, ArrowLeft, Inbox } from 'lucide-react';
+import { X, Minimize2, MessageSquare, Phone, Mail, User, Loader2, ArrowLeft, Inbox, Plus, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../../../lib/utils';
 import { useRightPane } from '../context/RightPaneContext';
 import { useMessages, useSendMessage } from '../hooks/useMessages';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
+import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
 import { MessageComposer } from './MessageComposer';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
+import { ComposeSheet } from './ComposeSheet';
+import { InboxConversationView } from './InboxConversationView';
 import * as messageService from '../services/messageService';
 import * as quickReplyService from '../services/quickReplyService';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -35,12 +38,15 @@ export function RightPaneMessaging() {
 
   // Unified inbox state
   const [inboxFilter, setInboxFilter] = useState<UnifiedInboxFilter>('all');
-  const { messages: unifiedMessages, counts, isLoading: unifiedLoading } = useUnifiedMessages({
+  const [showCompose, setShowCompose] = useState(false);
+  const [selectedUnifiedMessage, setSelectedUnifiedMessage] = useState<UnifiedMessage | null>(null);
+  const { messages: unifiedMessages, counts, isLoading: unifiedLoading, isRefetching, refetch } = useUnifiedMessages({
     userId: user?.id,
     filter: inboxFilter,
   });
 
   // Reply and acknowledge mutations for unified inbox
+  const markAsReadMutation = useMarkUnifiedItemRead();
   const replyMutation = useReplyToUnifiedMessage();
   const acknowledgeMutation = useAcknowledgeUnifiedItem();
 
@@ -117,24 +123,42 @@ export function RightPaneMessaging() {
     }
   };
 
-  // Handle clicking on a unified inbox item
-  const handleUnifiedItemClick = async (message: UnifiedMessage) => {
-    if (message.type === 'sms' && message.rawData) {
-      // Navigate to the SMS conversation
-      const conv = message.rawData as Conversation;
-      setConversation(conv);
-      if (conv.contact) {
-        setContact(conv.contact);
-      }
-    } else if (message.type === 'team_announcement') {
-      // For announcements, just show a toast for now
-      // TODO: Could open announcement detail view
-      console.log('Announcement clicked:', message.actionId);
-    } else if (message.type === 'system_notification') {
-      // For notifications, could navigate to the related entity
-      console.log('Notification clicked:', message.actionType, message.actionId);
+  // Mark item as read
+  const markAsRead = useCallback(async (message: UnifiedMessage) => {
+    if (!user?.id || !message.isUnread) return;
+    try {
+      await markAsReadMutation.mutateAsync({ message, userId: user.id });
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
     }
-  };
+  }, [markAsReadMutation, user?.id]);
+
+  // Handle clicking on a unified inbox item
+  const handleUnifiedItemClick = useCallback(async (message: UnifiedMessage) => {
+    // Mark as read
+    await markAsRead(message);
+
+    // For system_notification, we don't open a conversation view
+    if (message.type === 'system_notification') {
+      console.log('Notification clicked:', message.actionType, message.actionId);
+      return;
+    }
+
+    // Open the conversation inline
+    setSelectedUnifiedMessage(message);
+  }, [markAsRead]);
+
+  // Handle going back from conversation view
+  const handleBackFromConversation = useCallback(() => {
+    setSelectedUnifiedMessage(null);
+    refetch();
+  }, [refetch]);
+
+  // Handle conversation created from compose sheet
+  const handleConversationCreated = useCallback(() => {
+    refetch();
+    setShowCompose(false);
+  }, [refetch]);
 
   // Handle replying to an SMS from unified inbox
   const handleUnifiedReply = useCallback(async (message: UnifiedMessage, body: string) => {
@@ -174,6 +198,18 @@ export function RightPaneMessaging() {
 
   // Unified Inbox View - shown when no specific conversation selected
   if (showUnifiedInbox) {
+    // If a message is selected, show the conversation view
+    if (selectedUnifiedMessage) {
+      return (
+        <div className="fixed right-0 top-0 h-full w-[400px] max-w-full bg-white shadow-2xl border-l flex flex-col z-50 animate-slide-in-right">
+          <InboxConversationView
+            message={selectedUnifiedMessage}
+            onBack={handleBackFromConversation}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="fixed right-0 top-0 h-full w-[400px] max-w-full bg-white shadow-2xl border-l flex flex-col z-50 animate-slide-in-right">
         {/* Header */}
@@ -183,13 +219,28 @@ export function RightPaneMessaging() {
               <Inbox className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Messages</h3>
+              <h3 className="font-semibold text-gray-900">Inbox</h3>
               <p className="text-xs text-gray-500">
                 {counts.all > 0 ? `${counts.all} unread` : 'All caught up'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={cn('w-4 h-4', isRefetching && 'animate-spin')} />
+            </button>
+            <button
+              onClick={() => setShowCompose(true)}
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              title="New message"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
             <button
               onClick={minimize}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -240,11 +291,20 @@ export function RightPaneMessaging() {
                   onReply={handleUnifiedReply}
                   onAcknowledge={handleUnifiedAcknowledge}
                   isReplying={replyMutation.isPending}
+                  hideInlineActions={true}
                 />
               ))}
             </div>
           )}
         </div>
+
+        {/* Compose Sheet */}
+        <ComposeSheet
+          isOpen={showCompose}
+          onClose={() => setShowCompose(false)}
+          onConversationCreated={handleConversationCreated}
+          currentUserId={user?.id}
+        />
       </div>
     );
   }
