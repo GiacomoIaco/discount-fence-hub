@@ -412,14 +412,14 @@ function MonthlyWinRateChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
             <Tooltip
-              formatter={(value: number) => [`${value?.toFixed(1)}%`, 'Win Rate']}
+              formatter={(value) => [`${(Number(value) || 0).toFixed(1)}%`, 'Win Rate']}
               contentStyle={{ fontSize: 14 }}
             />
             <Bar dataKey="winRate" name="Win Rate" fill="#8B5CF6" radius={[4, 4, 0, 0]}>
               <LabelList
                 dataKey="winRate"
                 position="top"
-                formatter={(value: unknown) => `${Number(value)?.toFixed(0)}%`}
+                formatter={(value: unknown) => `${(Number(value) || 0).toFixed(0)}%`}
                 fill="#8B5CF6"
                 fontSize={14}
                 fontWeight={700}
@@ -595,16 +595,16 @@ function OperationalTrendRechartsChart({
   metric: TrendMetric;
   config: { label: string; color: string; unit: string };
 }) {
-  // Map metric key to data field
+  // Map metric key to data field - with null safety
   const getValue = (item: ApiMonthlyCycleTrends): number => {
     switch (metric) {
-      case 'same_day': return item.same_day_percent;
-      case 'avg_deal': return item.avg_won_deal;
-      case 'multi_quote': return item.multi_quote_percent;
-      case 'days_to_decision': return item.avg_days_to_decision || 0;
-      case 'days_to_schedule': return item.avg_days_to_schedule || 0;
-      case 'days_to_close': return item.avg_days_to_close || 0;
-      case 'warranty': return item.warranty_count;
+      case 'same_day': return item.same_day_percent ?? 0;
+      case 'avg_deal': return item.avg_won_deal ?? 0;
+      case 'multi_quote': return item.multi_quote_percent ?? 0;
+      case 'days_to_decision': return item.avg_days_to_decision ?? 0;
+      case 'days_to_schedule': return item.avg_days_to_schedule ?? 0;
+      case 'days_to_close': return item.avg_days_to_close ?? 0;
+      case 'warranty': return item.warranty_count ?? 0;
       default: return 0;
     }
   };
@@ -618,27 +618,29 @@ function OperationalTrendRechartsChart({
     ? chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length
     : 0;
 
-  // Format value based on unit
-  const formatValue = (val: number): string => {
+  // Format value based on unit - with null safety
+  const formatValue = (val: number | null | undefined): string => {
+    const v = val ?? 0;
     if (config.unit === '$') {
-      if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
-      if (val >= 1000) return `$${(val / 1000).toFixed(1)}K`;
-      return `$${val.toFixed(0)}`;
+      if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+      if (v >= 1000) return `$${(v / 1000).toFixed(1)}K`;
+      return `$${v.toFixed(0)}`;
     }
-    if (config.unit === '%') return `${val.toFixed(1)}%`;
-    if (config.unit === 'days') return val.toFixed(1);
-    return val.toLocaleString();
+    if (config.unit === '%') return `${v.toFixed(1)}%`;
+    if (config.unit === 'days') return v.toFixed(1);
+    return v.toLocaleString();
   };
 
-  const formatBarLabel = (val: number): string => {
+  const formatBarLabel = (val: number | null | undefined): string => {
+    const v = val ?? 0;
     if (config.unit === '$') {
-      if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
-      if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
-      return val.toString();
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+      return v.toString();
     }
-    if (config.unit === '%') return `${val.toFixed(0)}%`;
-    if (config.unit === 'days') return val.toFixed(1);
-    return val.toFixed(0);
+    if (config.unit === '%') return `${v.toFixed(0)}%`;
+    if (config.unit === 'days') return v.toFixed(1);
+    return v.toFixed(0);
   };
 
   return (
