@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Plus } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
@@ -13,6 +13,7 @@ import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { InboxSkeleton } from './InboxSkeleton';
 import { InboxEmptyState } from './InboxEmptyState';
+import { ComposeSheet } from './ComposeSheet';
 import type { Section } from '../../../lib/routes';
 import type { UnifiedMessage, UnifiedInboxFilter, Conversation } from '../types';
 
@@ -29,6 +30,7 @@ export function MobileUnifiedInbox({
 }: MobileUnifiedInboxProps) {
   const { user } = useAuth();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
+  const [showCompose, setShowCompose] = useState(false);
 
   const {
     messages,
@@ -71,6 +73,13 @@ export function MobileUnifiedInbox({
     if (!user?.id) return;
     await acknowledgeMutation.mutateAsync({ message, userId: user.id });
   }, [acknowledgeMutation, user?.id]);
+
+  // Handle conversation created from compose sheet
+  const handleConversationCreated = useCallback((conversationId: string) => {
+    // Navigate to the chat with the new conversation
+    onNavigate('direct-messages', { conversationId });
+    refetch(); // Refresh the inbox
+  }, [onNavigate, refetch]);
 
   // Handle tapping on an inbox item
   const handleItemClick = useCallback(async (message: UnifiedMessage) => {
@@ -196,6 +205,23 @@ export function MobileUnifiedInbox({
           </div>
         )}
       </main>
+
+      {/* Floating Action Button - Compose */}
+      <button
+        onClick={() => setShowCompose(true)}
+        className="fixed bottom-24 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-20"
+        aria-label="New message"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Compose Sheet */}
+      <ComposeSheet
+        isOpen={showCompose}
+        onClose={() => setShowCompose(false)}
+        onConversationCreated={handleConversationCreated}
+        currentUserId={user?.id}
+      />
     </div>
   );
 }
