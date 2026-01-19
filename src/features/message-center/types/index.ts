@@ -325,3 +325,48 @@ export interface NotificationGroup {
   date: string;
   notifications: SystemNotification[];
 }
+
+// ============================================================================
+// UNIFIED INBOX TYPES
+// ============================================================================
+
+export type UnifiedMessageType = 'sms' | 'team_announcement' | 'system_notification';
+
+export type UnifiedActionType =
+  | 'conversation'
+  | 'quote'
+  | 'invoice'
+  | 'job'
+  | 'request'
+  | 'announcement'
+  | 'generic';
+
+export interface UnifiedMessage {
+  id: string;
+  type: UnifiedMessageType;
+  title: string;
+  preview: string;
+  timestamp: Date;
+  isUnread: boolean;
+  icon: string;
+  iconColor: string;
+  iconBgColor: string;
+  actionType: UnifiedActionType;
+  actionId: string;
+  rawData: Conversation | CompanyMessage | SystemNotification;
+}
+
+export type UnifiedInboxFilter = 'all' | 'sms' | 'team' | 'alerts';
+
+export interface CompanyMessage {
+  id: string;
+  title: string;
+  body: string;
+  message_type: 'announcement' | 'update' | 'alert';
+  status: 'draft' | 'published' | 'archived';
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  published_at?: string;
+  metadata?: Record<string, unknown>;
+}

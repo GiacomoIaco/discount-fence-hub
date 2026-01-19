@@ -10,7 +10,6 @@ import VoiceRecordingModal from '../components/VoiceRecordingModal';
 import InstallAppBanner from '../components/InstallAppBanner';
 import PushNotificationBanner from '../components/PushNotificationBanner';
 import { RightPaneMessaging } from '../features/message-center/components';
-import { useRightPane } from '../features/message-center/context/RightPaneContext';
 import { useUnifiedUnreadCount } from '../features/message-center/hooks';
 import type { Section } from '../lib/routes';
 
@@ -57,7 +56,6 @@ export function MobileAppContent({
   showProfileEditor,
   setShowProfileEditor,
 }: MobileAppContentProps) {
-  const { isOpen: isMessagingOpen, toggle: toggleMessaging } = useRightPane();
   const { total: unreadMessageCount } = useUnifiedUnreadCount({ userId, userRole });
   const [showVoiceRecording, setShowVoiceRecording] = useState(false);
 
@@ -91,10 +89,8 @@ export function MobileAppContent({
         activeSection={activeSection}
         onNavigate={onNavigate}
         onVoiceRecord={() => setShowVoiceRecording(true)}
-        onMessagesToggle={toggleMessaging}
         onRefresh={handleRefresh}
         unreadMessageCount={unreadMessageCount}
-        isMessagingOpen={isMessagingOpen}
       />
 
       {/* Voice Recording Modal */}

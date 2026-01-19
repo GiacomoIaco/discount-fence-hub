@@ -30,6 +30,7 @@ export type Section =
   | 'invoices'          // FSM invoices
   | 'my-todos'
   | 'message-center'
+  | 'mobile-inbox'
   | 'direct-messages'
   | 'team-communication'
   | 'leadership'
@@ -94,6 +95,7 @@ export const ROUTE_CONFIG: Record<Section, string> = {
 
   // Communication
   'message-center': 'messages',
+  'mobile-inbox': 'inbox',
   'direct-messages': 'chat',
   'team-communication': 'announcements',
 

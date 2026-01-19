@@ -6,10 +6,8 @@ interface MobileBottomNavProps {
   activeSection: Section;
   onNavigate: (section: Section) => void;
   onVoiceRecord: () => void;
-  onMessagesToggle: () => void;
   onRefresh: () => void;
   unreadMessageCount: number;
-  isMessagingOpen: boolean;
 }
 
 interface NavItem {
@@ -27,10 +25,8 @@ export default function MobileBottomNav({
   activeSection,
   onNavigate,
   onVoiceRecord,
-  onMessagesToggle,
   onRefresh,
   unreadMessageCount,
-  isMessagingOpen,
 }: MobileBottomNavProps) {
   const navItems: NavItem[] = [
     {
@@ -45,10 +41,10 @@ export default function MobileBottomNav({
       id: 'messages',
       label: 'Messages',
       icon: MessageSquare,
-      action: 'action',
-      onClick: onMessagesToggle,
+      action: 'navigate',
+      section: 'mobile-inbox',
       badge: unreadMessageCount,
-      isActive: isMessagingOpen,
+      isActive: activeSection === 'mobile-inbox',
     },
     {
       id: 'voice',

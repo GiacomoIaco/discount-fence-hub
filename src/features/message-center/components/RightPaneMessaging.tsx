@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Minimize2, MessageSquare, Phone, Mail, User, Loader2 } from 'lucide-react';
+import { X, Minimize2, MessageSquare, Phone, Mail, User, Loader2, ArrowLeft, Inbox } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../../../lib/utils';
 import { useRightPane } from '../context/RightPaneContext';
 import { useMessages, useSendMessage } from '../hooks/useMessages';
+import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { MessageComposer } from './MessageComposer';
+import { FilterPills } from './FilterPills';
+import { UnifiedInboxItem } from './UnifiedInboxItem';
 import * as messageService from '../services/messageService';
 import * as quickReplyService from '../services/quickReplyService';
-import type { Message, Conversation, ConversationWithContact, ShortcodeContext } from '../types';
+import { useAuth } from '../../../contexts/AuthContext';
+import type { Message, Conversation, ConversationWithContact, ShortcodeContext, UnifiedInboxFilter, UnifiedMessage } from '../types';
 
 export function RightPaneMessaging() {
   const {
@@ -19,12 +23,24 @@ export function RightPaneMessaging() {
     close,
     minimize,
     setConversation,
+    setContact,
     setPrefilledMessage
   } = useRightPane();
 
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setLocalConversation] = useState<ConversationWithContact | Conversation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Unified inbox state
+  const [inboxFilter, setInboxFilter] = useState<UnifiedInboxFilter>('all');
+  const { messages: unifiedMessages, counts, isLoading: unifiedLoading } = useUnifiedMessages({
+    userId: user?.id,
+    filter: inboxFilter,
+  });
+
+  // Track if we're viewing the inbox vs a specific conversation
+  const showUnifiedInbox = !selectedContact && !selectedConversation;
 
   // Fetch or create conversation when contact is selected
   useEffect(() => {
@@ -96,6 +112,25 @@ export function RightPaneMessaging() {
     }
   };
 
+  // Handle clicking on a unified inbox item
+  const handleUnifiedItemClick = async (message: UnifiedMessage) => {
+    if (message.type === 'sms' && message.rawData) {
+      // Navigate to the SMS conversation
+      const conv = message.rawData as Conversation;
+      setConversation(conv);
+      if (conv.contact) {
+        setContact(conv.contact);
+      }
+    } else if (message.type === 'team_announcement') {
+      // For announcements, just show a toast for now
+      // TODO: Could open announcement detail view
+      console.log('Announcement clicked:', message.actionId);
+    } else if (message.type === 'system_notification') {
+      // For notifications, could navigate to the related entity
+      console.log('Notification clicked:', message.actionType, message.actionId);
+    }
+  };
+
   // Don't render if not open
   if (!isOpen) return null;
 
@@ -108,21 +143,113 @@ export function RightPaneMessaging() {
       >
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5" />
-          {selectedContact && (
+          {selectedContact ? (
             <span className="text-sm font-medium max-w-[150px] truncate">
               {selectedContact.display_name}
             </span>
+          ) : (
+            <span className="text-sm font-medium">Messages</span>
           )}
         </div>
       </div>
     );
   }
 
+  // Unified Inbox View - shown when no specific conversation selected
+  if (showUnifiedInbox) {
+    return (
+      <div className="fixed right-0 top-0 h-full w-[400px] max-w-full bg-white shadow-2xl border-l flex flex-col z-50 animate-slide-in-right">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <Inbox className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Messages</h3>
+              <p className="text-xs text-gray-500">
+                {counts.all > 0 ? `${counts.all} unread` : 'All caught up'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={minimize}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Minimize"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={close}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Pills */}
+        <FilterPills
+          activeFilter={inboxFilter}
+          onFilterChange={setInboxFilter}
+          counts={counts}
+        />
+
+        {/* Messages List */}
+        <div className="flex-1 overflow-y-auto">
+          {unifiedLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : unifiedMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8">
+              <Inbox className="w-12 h-12 mb-3" />
+              <p className="text-sm font-medium">No messages</p>
+              <p className="text-xs text-center mt-1">
+                {inboxFilter === 'all'
+                  ? "You're all caught up!"
+                  : `No ${inboxFilter} messages`}
+              </p>
+            </div>
+          ) : (
+            <div>
+              {unifiedMessages.map((message) => (
+                <UnifiedInboxItem
+                  key={message.id}
+                  message={message}
+                  onClick={handleUnifiedItemClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Handle going back to inbox
+  const handleBackToInbox = () => {
+    setContact(null);
+    setConversation(null);
+    setLocalConversation(null);
+  };
+
   return (
     <div className="fixed right-0 top-0 h-full w-[400px] bg-white shadow-2xl border-l flex flex-col z-50 animate-slide-in-right">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
         <div className="flex items-center gap-3">
+          {/* Back Button */}
+          <button
+            onClick={handleBackToInbox}
+            className="p-2 -ml-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Back to inbox"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
           {/* Avatar */}
           <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
             {selectedContact?.avatar_url ? (

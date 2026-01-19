@@ -39,6 +39,7 @@ const PhotoGalleryRefactored = lazy(() => import('./features/photos').then(modul
 const SalesResources = lazy(() => import('./features/sales-resources').then(module => ({ default: module.SalesResources })));
 const Analytics = lazy(() => import('./features/analytics').then(module => ({ default: module.Analytics })));
 const MobileAnalyticsView = lazy(() => import('./features/analytics').then(module => ({ default: module.MobileAnalyticsView })));
+const MobileUnifiedInbox = lazy(() => import('./features/message-center/components/MobileUnifiedInbox'));
 const Settings = lazy(() => import('./features/settings').then(module => ({ default: module.Settings })));
 const MessageComposer = lazy(() => import('./features/communication').then(module => ({ default: module.MessageComposer })));
 const TeamCommunication = lazy(() => import('./features/communication').then(module => ({ default: module.TeamCommunication })));
@@ -816,6 +817,20 @@ function App() {
               {activeSection === 'analytics' ? (
                 <Suspense fallback={<LoadingFallback />}>
                   <MobileAnalyticsView onBack={() => navigateTo('home')} />
+                </Suspense>
+              ) : activeSection === 'mobile-inbox' ? (
+                <Suspense fallback={<LoadingFallback />}>
+                  <MobileUnifiedInbox
+                    onBack={() => navigateTo('home')}
+                    onNavigate={navigateTo}
+                    onOpenConversation={(_conv) => {
+                      // When opening a conversation from inbox, navigate to message-center
+                      // The RightPaneMessaging will handle displaying the conversation
+                      // For now, we use the existing right pane mechanism
+                      navigateTo('home');
+                      // TODO: Open conversation in dedicated view
+                    }}
+                  />
                 </Suspense>
               ) : (
                 <SalesRepView
