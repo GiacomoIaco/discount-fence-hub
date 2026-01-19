@@ -396,8 +396,8 @@ async function fetchUnifiedMessages(
         ? supabase
             .from('mc_system_notifications')
             .select('*')
-            .eq('user_id', userId)
-            .eq('is_dismissed', false)
+            .eq('target_user_id', userId)
+            .eq('is_read', false)
             .order('created_at', { ascending: false })
             .limit(limit)
         : Promise.resolve({ data: [], error: null }),
@@ -519,7 +519,7 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'mc_system_notifications', filter: `user_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'mc_system_notifications', filter: `target_user_id=eq.${userId}` },
         () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
       )
       // Team chats - direct_messages table

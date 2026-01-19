@@ -148,7 +148,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         <MetricCard
           icon={<Clock className="w-4 h-4 text-green-600" />}
           label="% Same Day"
-          value={sameDayPercent !== null ? `${sameDayPercent.toFixed(1)}%` : '-'}
+          value={sameDayPercent != null ? `${sameDayPercent.toFixed(1)}%` : '-'}
           subValue={sameDayData ? `win: ${sameDayData.win_rate?.toFixed(0) || '-'}%` : ''}
           bgColor="bg-green-50"
           compact
@@ -156,7 +156,7 @@ export function ConversionFunnel({ filters }: ConversionFunnelProps) {
         <MetricCard
           icon={<FileText className="w-4 h-4 text-violet-600" />}
           label="% Multi-Quote"
-          value={multiQuotePercent !== null ? `${multiQuotePercent.toFixed(1)}%` : '-'}
+          value={multiQuotePercent != null ? `${multiQuotePercent.toFixed(1)}%` : '-'}
           subValue={`${multiQuoteOpps} of ${totalQuoteOpps}`}
           bgColor="bg-violet-50"
           compact

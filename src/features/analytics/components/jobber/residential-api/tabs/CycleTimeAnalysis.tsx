@@ -52,21 +52,21 @@ export function CycleTimeAnalysis({ filters }: CycleTimeAnalysisProps) {
         <CycleCard
           icon={<Clock className="w-5 h-5 text-blue-600" />}
           label="Avg Days to Quote"
-          value={avgDaysToQuote !== null ? `${avgDaysToQuote.toFixed(1)} days` : '-'}
+          value={avgDaysToQuote != null ? `${avgDaysToQuote.toFixed(1)} days` : '-'}
           subValue={quoteStage ? `p75: ${quoteStage.p75_days?.toFixed(1) || '-'} days` : 'assessment → sent'}
           bgColor="bg-blue-50"
         />
         <CycleCard
           icon={<Timer className="w-5 h-5 text-purple-600" />}
           label="Avg Days to Decision"
-          value={avgDaysToDecision !== null ? `${avgDaysToDecision.toFixed(1)} days` : '-'}
+          value={avgDaysToDecision != null ? `${avgDaysToDecision.toFixed(1)} days` : '-'}
           subValue={decisionStage ? `p75: ${decisionStage.p75_days?.toFixed(1) || '-'} days` : 'sent → converted'}
           bgColor="bg-purple-50"
         />
         <CycleCard
           icon={<CheckCircle className="w-5 h-5 text-green-600" />}
           label="Avg Total Cycle"
-          value={totalCycle !== null ? `${totalCycle.toFixed(1)} days` : '-'}
+          value={totalCycle != null ? `${totalCycle.toFixed(1)} days` : '-'}
           subValue="Assessment → Closed"
           bgColor="bg-green-50"
         />
@@ -77,14 +77,14 @@ export function CycleTimeAnalysis({ filters }: CycleTimeAnalysisProps) {
         <CycleCard
           icon={<Clock className="w-5 h-5 text-cyan-600" />}
           label="Avg Days to Schedule"
-          value={avgDaysToSchedule !== null ? `${avgDaysToSchedule.toFixed(1)} days` : '-'}
+          value={avgDaysToSchedule != null ? `${avgDaysToSchedule.toFixed(1)} days` : '-'}
           subValue="converted → scheduled"
           bgColor="bg-cyan-50"
         />
         <CycleCard
           icon={<Timer className="w-5 h-5 text-orange-600" />}
           label="Avg Days to Close"
-          value={avgDaysToClose !== null ? `${avgDaysToClose.toFixed(1)} days` : '-'}
+          value={avgDaysToClose != null ? `${avgDaysToClose.toFixed(1)} days` : '-'}
           subValue="scheduled → closed"
           bgColor="bg-orange-50"
         />

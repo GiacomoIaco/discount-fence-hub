@@ -251,7 +251,7 @@ function HistogramChart({
           return (
             <div key={idx} className="flex-1 flex flex-col items-center group">
               <div className="text-xs font-medium text-gray-600 mb-1">
-                {item.winRate !== null ? `${item.winRate.toFixed(0)}%` : '-'}
+                {item.winRate != null ? `${item.winRate.toFixed(0)}%` : '-'}
               </div>
               <div
                 className={`w-full rounded-t transition-all ${isAboveAvg ? 'bg-green-400' : 'bg-amber-400'} hover:opacity-80`}

@@ -68,9 +68,8 @@ async function getUnifiedUnreadCounts(options?: UnifiedUnreadOptions): Promise<U
     const { count: notifCount, error: notifError } = await supabase
       .from('mc_system_notifications')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', options.userId)
-      .eq('is_read', false)
-      .eq('is_dismissed', false);
+      .eq('target_user_id', options.userId)
+      .eq('is_read', false);
 
     if (!notifError && notifCount !== null) {
       counts.notifications = notifCount;
@@ -156,7 +155,7 @@ export function useUnifiedUnreadCount(options?: UnifiedUnreadOptions) {
           event: '*',
           schema: 'public',
           table: 'mc_system_notifications',
-          filter: `user_id=eq.${options.userId}`,
+          filter: `target_user_id=eq.${options.userId}`,
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
