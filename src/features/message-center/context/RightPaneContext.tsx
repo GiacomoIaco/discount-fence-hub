@@ -72,7 +72,8 @@ export function RightPaneProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const minimize = useCallback(() => {
-    setState(prev => ({ ...prev, isMinimized: true }));
+    // Toggle minimized state - if already minimized, restore it
+    setState(prev => ({ ...prev, isMinimized: !prev.isMinimized }));
   }, []);
 
   const toggle = useCallback(() => {

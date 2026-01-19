@@ -179,6 +179,7 @@ export function MobileUnifiedInbox({
                 onReply={handleReply}
                 onAcknowledge={handleAcknowledge}
                 isReplying={replyMutation.isPending}
+                hideInlineActions={true}
               />
             ))}
           </div>

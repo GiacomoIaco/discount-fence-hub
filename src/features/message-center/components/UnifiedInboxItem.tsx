@@ -16,6 +16,8 @@ interface UnifiedInboxItemProps {
   onReply?: (message: UnifiedMessage, body: string) => Promise<void>;
   onAcknowledge?: (message: UnifiedMessage) => Promise<void>;
   isReplying?: boolean;
+  /** Hide inline actions (Reply, Mark Read, Open) - use for mobile where tap opens conversation */
+  hideInlineActions?: boolean;
 }
 
 // Icon component mapping
@@ -50,15 +52,17 @@ export function UnifiedInboxItem({
   onReply,
   onAcknowledge,
   isReplying: externalIsReplying,
+  hideInlineActions = false,
 }: UnifiedInboxItemProps) {
   const [showReplyComposer, setShowReplyComposer] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   const IconComponent = iconMap[message.icon as keyof typeof iconMap] || Bell;
 
-  // Determine if this message type supports inline reply
-  const canReply = message.type === 'sms' && onReply;
+  // Determine if this message type supports inline reply (only when actions are shown)
+  const canReply = !hideInlineActions && message.type === 'sms' && onReply;
   const canAcknowledge =
+    !hideInlineActions &&
     (message.type === 'team_announcement' || message.type === 'system_notification') &&
     message.isUnread &&
     onAcknowledge;
