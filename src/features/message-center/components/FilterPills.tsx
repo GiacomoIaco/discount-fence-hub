@@ -13,6 +13,7 @@ interface FilterPillsProps {
     all: number;
     sms: number;
     team: number;
+    tickets: number;
     alerts: number;
   };
 }
@@ -27,6 +28,7 @@ const filters: FilterOption[] = [
   { id: 'all', label: 'All', countKey: 'all' },
   { id: 'sms', label: 'SMS', countKey: 'sms' },
   { id: 'team', label: 'Team', countKey: 'team' },
+  { id: 'tickets', label: 'Tickets', countKey: 'tickets' },
   { id: 'alerts', label: 'Alerts', countKey: 'alerts' },
 ];
 

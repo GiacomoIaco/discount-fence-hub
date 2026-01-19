@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { MessageSquare, Megaphone, Bell, Reply, Check, ExternalLink, Users, User } from 'lucide-react';
+import { MessageSquare, Megaphone, Bell, Reply, Check, ExternalLink, Users, User, Ticket } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { InlineReplyComposer } from './InlineReplyComposer';
 import type { UnifiedMessage, Conversation } from '../types';
@@ -27,6 +27,7 @@ const iconMap = {
   Bell,
   Users,
   User,
+  Ticket,
 } as const;
 
 function formatTimestamp(date: Date): string {

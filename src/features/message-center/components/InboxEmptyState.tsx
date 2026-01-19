@@ -3,7 +3,7 @@
  * Shows different messages based on the active filter
  */
 
-import { Inbox, MessageSquare, Megaphone, Bell } from 'lucide-react';
+import { Inbox, MessageSquare, Megaphone, Bell, Ticket } from 'lucide-react';
 import type { UnifiedInboxFilter } from '../types';
 
 interface InboxEmptyStateProps {
@@ -37,6 +37,13 @@ const emptyStates: Record<UnifiedInboxFilter, {
     iconBgColor: 'bg-purple-50',
     title: 'No team announcements',
     description: 'Company updates and announcements will appear here.',
+  },
+  tickets: {
+    icon: Ticket,
+    iconColor: 'text-orange-400',
+    iconBgColor: 'bg-orange-50',
+    title: 'No ticket activity',
+    description: 'Chat updates from your tickets will appear here.',
   },
   alerts: {
     icon: Bell,

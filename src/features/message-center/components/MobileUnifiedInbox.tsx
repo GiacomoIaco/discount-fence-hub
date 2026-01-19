@@ -97,6 +97,12 @@ export function MobileUnifiedInbox({
         break;
       }
 
+      case 'ticket_chat': {
+        // Navigate to the ticket/request detail page
+        onNavigate('requests', { id: message.actionId });
+        break;
+      }
+
       case 'system_notification': {
         // Navigate to the related entity based on actionType
         switch (message.actionType) {

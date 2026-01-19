@@ -330,7 +330,7 @@ export interface NotificationGroup {
 // UNIFIED INBOX TYPES
 // ============================================================================
 
-export type UnifiedMessageType = 'sms' | 'team_chat' | 'team_announcement' | 'system_notification';
+export type UnifiedMessageType = 'sms' | 'team_chat' | 'team_announcement' | 'system_notification' | 'ticket_chat';
 
 export type UnifiedActionType =
   | 'conversation'
@@ -339,6 +339,7 @@ export type UnifiedActionType =
   | 'invoice'
   | 'job'
   | 'request'
+  | 'ticket'
   | 'announcement'
   | 'generic';
 
@@ -358,6 +359,19 @@ export interface TeamChatConversation {
   last_read_at: string;
 }
 
+// Ticket chat data for unified inbox (from request_notes)
+export interface TicketChatData {
+  request_id: string;
+  request_title: string;
+  request_type: string;
+  last_note_content: string;
+  last_note_at: string;
+  last_note_by: string | null;
+  last_note_by_name: string | null;
+  unread_count: number;
+  user_role: 'submitter' | 'assignee' | 'watcher';
+}
+
 export interface UnifiedMessage {
   id: string;
   type: UnifiedMessageType;
@@ -370,10 +384,10 @@ export interface UnifiedMessage {
   iconBgColor: string;
   actionType: UnifiedActionType;
   actionId: string;
-  rawData: Conversation | CompanyMessage | SystemNotification | TeamChatConversation;
+  rawData: Conversation | CompanyMessage | SystemNotification | TeamChatConversation | TicketChatData;
 }
 
-export type UnifiedInboxFilter = 'all' | 'sms' | 'team' | 'alerts';
+export type UnifiedInboxFilter = 'all' | 'sms' | 'team' | 'tickets' | 'alerts';
 
 export interface CompanyMessage {
   id: string;

@@ -18,6 +18,7 @@ import type {
   SystemNotification,
   NotificationType,
   TeamChatConversation,
+  TicketChatData,
 } from '../types';
 
 interface UseUnifiedMessagesOptions {
@@ -32,6 +33,7 @@ interface UnifiedMessagesResult {
     all: number;
     sms: number;
     team: number;
+    tickets: number;
     alerts: number;
   };
   isLoading: boolean;
@@ -163,26 +165,176 @@ function teamChatToUnified(chat: TeamChatConversation): UnifiedMessage {
   };
 }
 
+// Transform ticket chat to UnifiedMessage
+function ticketChatToUnified(ticket: TicketChatData): UnifiedMessage {
+  const preview = ticket.last_note_content
+    ? (ticket.last_note_content.length > 80 ? ticket.last_note_content.substring(0, 80) + '...' : ticket.last_note_content)
+    : 'No messages yet';
+
+  // Format title with ticket type prefix
+  const typeLabel = ticket.request_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const title = `${typeLabel}: ${ticket.request_title}`;
+
+  return {
+    id: `ticket-${ticket.request_id}`,
+    type: 'ticket_chat',
+    title,
+    preview: ticket.last_note_by_name ? `${ticket.last_note_by_name}: ${preview}` : preview,
+    timestamp: new Date(ticket.last_note_at),
+    isUnread: ticket.unread_count > 0,
+    icon: 'Ticket',
+    iconColor: 'text-orange-600',
+    iconBgColor: 'bg-orange-100',
+    actionType: 'ticket',
+    actionId: ticket.request_id,
+    rawData: ticket,
+  };
+}
+
+// Fetch tickets with recent chat activity for a user
+async function fetchUserTickets(userId: string, limit: number): Promise<TicketChatData[]> {
+  // Step 1: Get requests where user is submitter or assignee
+  const { data: directRequests } = await supabase
+    .from('requests')
+    .select('id, title, request_type, submitter_id, assigned_to')
+    .or(`submitter_id.eq.${userId},assigned_to.eq.${userId}`)
+    .in('stage', ['new', 'in_progress', 'pending', 'waiting_on_client']) // Open tickets only
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  // Step 2: Get watched request IDs
+  const { data: watchedRequests } = await supabase
+    .from('request_watchers')
+    .select('request_id')
+    .eq('user_id', userId);
+
+  // Combine all request IDs
+  const requestIds = new Set<string>();
+  const requestMap = new Map<string, { title: string; type: string; role: 'submitter' | 'assignee' | 'watcher' }>();
+
+  directRequests?.forEach((req) => {
+    requestIds.add(req.id);
+    const role = req.submitter_id === userId ? 'submitter' : 'assignee';
+    requestMap.set(req.id, { title: req.title, type: req.request_type, role });
+  });
+
+  watchedRequests?.forEach((w) => {
+    if (!requestIds.has(w.request_id)) {
+      requestIds.add(w.request_id);
+    }
+    // Update role to watcher if not already submitter/assignee
+    if (!requestMap.has(w.request_id)) {
+      requestMap.set(w.request_id, { title: '', type: '', role: 'watcher' });
+    }
+  });
+
+  if (requestIds.size === 0) return [];
+
+  // Step 3: Fetch request details for watched tickets that we don't have yet
+  const watchedIds = watchedRequests?.map(w => w.request_id).filter(id => !directRequests?.find(r => r.id === id)) || [];
+  if (watchedIds.length > 0) {
+    const { data: watchedDetails } = await supabase
+      .from('requests')
+      .select('id, title, request_type')
+      .in('id', watchedIds);
+
+    watchedDetails?.forEach((req) => {
+      const existing = requestMap.get(req.id);
+      requestMap.set(req.id, {
+        title: req.title,
+        type: req.request_type,
+        role: existing?.role || 'watcher'
+      });
+    });
+  }
+
+  // Step 4: Get latest comment note for each request
+  const requestIdArray = Array.from(requestIds);
+  const { data: latestNotes } = await supabase
+    .from('request_notes')
+    .select('request_id, content, created_at, user_id')
+    .in('request_id', requestIdArray)
+    .eq('note_type', 'comment')
+    .order('created_at', { ascending: false });
+
+  // Group by request_id and get only the latest
+  const latestNoteByRequest = new Map<string, { content: string; created_at: string; user_id: string }>();
+  latestNotes?.forEach((note) => {
+    if (!latestNoteByRequest.has(note.request_id)) {
+      latestNoteByRequest.set(note.request_id, note);
+    }
+  });
+
+  // Step 5: Get user names for note authors
+  const authorIds = new Set<string>();
+  latestNoteByRequest.forEach((note) => {
+    if (note.user_id) authorIds.add(note.user_id);
+  });
+
+  const { data: userProfiles } = authorIds.size > 0
+    ? await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', Array.from(authorIds))
+    : { data: [] };
+
+  const userNameMap = new Map<string, string>();
+  userProfiles?.forEach((p) => {
+    userNameMap.set(p.id, p.full_name || 'Unknown');
+  });
+
+  // Step 6: Get unread counts (notes created after user's last view)
+  // For simplicity, mark as unread if latest note is not by the current user
+  // TODO: Implement proper read tracking with request_note_reads table
+
+  // Step 7: Build TicketChatData array
+  const tickets: TicketChatData[] = [];
+  requestIdArray.forEach((requestId) => {
+    const reqInfo = requestMap.get(requestId);
+    const latestNote = latestNoteByRequest.get(requestId);
+
+    if (reqInfo && latestNote) {
+      tickets.push({
+        request_id: requestId,
+        request_title: reqInfo.title,
+        request_type: reqInfo.type,
+        last_note_content: latestNote.content,
+        last_note_at: latestNote.created_at,
+        last_note_by: latestNote.user_id,
+        last_note_by_name: latestNote.user_id ? userNameMap.get(latestNote.user_id) || null : null,
+        unread_count: latestNote.user_id !== userId ? 1 : 0, // Simple: unread if not from current user
+        user_role: reqInfo.role,
+      });
+    }
+  });
+
+  // Sort by last note timestamp
+  tickets.sort((a, b) => new Date(b.last_note_at).getTime() - new Date(a.last_note_at).getTime());
+
+  return tickets.slice(0, limit);
+}
+
 async function fetchUnifiedMessages(
   options: UseUnifiedMessagesOptions
 ): Promise<{ messages: UnifiedMessage[]; counts: UnifiedMessagesResult['counts'] }> {
   const { userId, filter = 'all', limit = 50 } = options;
 
   if (!userId) {
-    return { messages: [], counts: { all: 0, sms: 0, team: 0, alerts: 0 } };
+    return { messages: [], counts: { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 } };
   }
 
   const messages: UnifiedMessage[] = [];
-  const counts = { all: 0, sms: 0, team: 0, alerts: 0 };
+  const counts = { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 };
 
   try {
     // Fetch based on filter - optimize by only fetching what's needed
     const fetchSms = filter === 'all' || filter === 'sms';
     const fetchTeam = filter === 'all' || filter === 'team';
+    const fetchTickets = filter === 'all' || filter === 'tickets';
     const fetchAlerts = filter === 'all' || filter === 'alerts';
 
     // Parallel fetch all required data
-    const [smsResult, announcementsResult, teamChatsResult, alertsResult] = await Promise.all([
+    const [smsResult, announcementsResult, teamChatsResult, ticketsResult, alertsResult] = await Promise.all([
       fetchSms
         ? supabase
             .from('mc_conversations')
@@ -235,6 +387,11 @@ async function fetchUnifiedMessages(
         ? supabase.rpc('get_user_conversations')
         : Promise.resolve({ data: [], error: null }),
 
+      // Tickets with chat activity
+      fetchTickets
+        ? fetchUserTickets(userId, limit)
+        : Promise.resolve([]),
+
       fetchAlerts
         ? supabase
             .from('mc_system_notifications')
@@ -271,6 +428,13 @@ async function fetchUnifiedMessages(
       counts.team += teamChatMessages.filter((m) => m.isUnread).length;
     }
 
+    // Process tickets
+    if (ticketsResult && Array.isArray(ticketsResult)) {
+      const ticketMessages = ticketsResult.map(ticketChatToUnified);
+      messages.push(...ticketMessages);
+      counts.tickets = ticketMessages.filter((m) => m.isUnread).length;
+    }
+
     // Process notifications
     if (alertsResult.data && !alertsResult.error) {
       const alertMessages = (alertsResult.data as SystemNotification[]).map(notificationToUnified);
@@ -279,7 +443,7 @@ async function fetchUnifiedMessages(
     }
 
     // Calculate total unread
-    counts.all = counts.sms + counts.team + counts.alerts;
+    counts.all = counts.sms + counts.team + counts.tickets + counts.alerts;
 
     // Sort all messages by timestamp (newest first)
     messages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -287,7 +451,7 @@ async function fetchUnifiedMessages(
     return { messages, counts };
   } catch (error) {
     console.debug('[useUnifiedMessages] Error fetching messages:', error);
-    return { messages: [], counts: { all: 0, sms: 0, team: 0, alerts: 0 } };
+    return { messages: [], counts: { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 } };
   }
 }
 
@@ -317,6 +481,7 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
       all: null,
       sms: 'sms',
       team: 'team_chat', // fallback, handled above
+      tickets: 'ticket_chat',
       alerts: 'system_notification',
     };
 
@@ -368,6 +533,12 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
         { event: '*', schema: 'public', table: 'conversations' },
         () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
       )
+      // Ticket chats - request_notes table
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'request_notes' },
+        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+      )
       .subscribe();
 
     return () => {
@@ -377,7 +548,7 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
 
   return {
     messages: filteredMessages,
-    counts: data?.counts || { all: 0, sms: 0, team: 0, alerts: 0 },
+    counts: data?.counts || { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 },
     isLoading,
     isRefetching,
     refetch,
