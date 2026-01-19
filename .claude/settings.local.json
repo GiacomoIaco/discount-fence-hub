@@ -424,7 +424,8 @@
       "Bash(for f in \"C:\\\\Users\\\\giaco\\\\discount-fence-hub\\\\migrations\"/*.sql)",
       "Bash(do if grep -q \"CREATE TABLE.*company_messages\" \"$f\")",
       "Bash(then echo \"$f\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(npx vite:*)"
     ],
     "deny": [],
     "ask": []

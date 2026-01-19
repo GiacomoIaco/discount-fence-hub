@@ -400,7 +400,9 @@ function MonthlyWinRateChart({
     winRate: viewMode === 'count' ? month.win_rate : month.value_win_rate,
   }));
 
-  const avgWinRate = chartData.reduce((sum, d) => sum + (d.winRate || 0), 0) / chartData.length;
+  const avgWinRate = chartData.length > 0
+    ? chartData.reduce((sum, d) => sum + (d.winRate || 0), 0) / chartData.length
+    : 0;
 
   return (
     <div>
@@ -612,7 +614,9 @@ function OperationalTrendRechartsChart({
     value: getValue(item),
   }));
 
-  const avgValue = chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length;
+  const avgValue = chartData.length > 0
+    ? chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length
+    : 0;
 
   // Format value based on unit
   const formatValue = (val: number): string => {

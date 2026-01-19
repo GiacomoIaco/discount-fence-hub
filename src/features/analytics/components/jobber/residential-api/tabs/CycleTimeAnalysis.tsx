@@ -118,13 +118,13 @@ export function CycleTimeAnalysis({ filters }: CycleTimeAnalysisProps) {
                   .map((stage) => (
                     <tr key={stage.stage} className="hover:bg-gray-50">
                       <td className="py-3 px-4 font-medium text-gray-900 capitalize">{stage.stage.replace('_', ' ')}</td>
-                      <td className="py-3 px-4 text-right text-gray-600">{stage.sample_size.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-right font-semibold text-blue-600">{stage.avg_days.toFixed(1)}</td>
-                      <td className="py-3 px-4 text-right text-gray-600">{stage.median_days.toFixed(1)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500">{stage.p25_days.toFixed(1)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500">{stage.p75_days.toFixed(1)}</td>
-                      <td className="py-3 px-4 text-right text-gray-400">{stage.min_days.toFixed(0)}</td>
-                      <td className="py-3 px-4 text-right text-gray-400">{stage.max_days.toFixed(0)}</td>
+                      <td className="py-3 px-4 text-right text-gray-600">{stage.sample_size?.toLocaleString() ?? '-'}</td>
+                      <td className="py-3 px-4 text-right font-semibold text-blue-600">{stage.avg_days?.toFixed(1) ?? '-'}</td>
+                      <td className="py-3 px-4 text-right text-gray-600">{stage.median_days?.toFixed(1) ?? '-'}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{stage.p25_days?.toFixed(1) ?? '-'}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{stage.p75_days?.toFixed(1) ?? '-'}</td>
+                      <td className="py-3 px-4 text-right text-gray-400">{stage.min_days?.toFixed(0) ?? '-'}</td>
+                      <td className="py-3 px-4 text-right text-gray-400">{stage.max_days?.toFixed(0) ?? '-'}</td>
                     </tr>
                   ))}
               </tbody>
