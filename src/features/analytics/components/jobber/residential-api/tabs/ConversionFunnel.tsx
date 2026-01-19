@@ -1,5 +1,6 @@
 // Conversion Funnel Tab - Core metrics and funnel visualization (API Version)
 // Shows: 3 rows of metrics (Pipeline, Speed, Cycle Time) + Monthly Trend (stacked)
+// Build: 2026-01-19-v2
 
 import { useState, useMemo } from 'react';
 import { Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, LabelList, Legend } from 'recharts';
