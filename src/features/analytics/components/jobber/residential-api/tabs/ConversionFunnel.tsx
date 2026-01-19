@@ -468,13 +468,14 @@ function MonthlyTrendRechartsChart({
     won: viewMode === 'count' ? month.won_opps : month.won_value,
   }));
 
-  const formatBarLabel = (value: number) => {
+  const formatBarLabel = (value: number | null | undefined) => {
+    const v = value ?? 0;
     if (viewMode === 'value') {
-      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-      if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
-      return value.toString();
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+      if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
+      return v.toString();
     }
-    return value.toString();
+    return v.toString();
   };
 
   return (
@@ -485,8 +486,9 @@ function MonthlyTrendRechartsChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 14, fill: '#374151' }} axisLine={false} tickLine={false} />
             <Tooltip
-              formatter={(value: number, name: string) => {
-                return [viewMode === 'value' ? `$${value.toLocaleString()}` : value.toLocaleString(), name];
+              formatter={(value: number | null | undefined, name: string) => {
+                const v = value ?? 0;
+                return [viewMode === 'value' ? `$${v.toLocaleString()}` : v.toLocaleString(), name];
               }}
               contentStyle={{ fontSize: 14 }}
             />
