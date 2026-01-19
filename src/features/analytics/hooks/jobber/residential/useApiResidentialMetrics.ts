@@ -586,6 +586,171 @@ export function useApiResidentialSpeedSizeMatrix(filters?: ResidentialFilters) {
 }
 
 // =====================
+// WARRANTY METRICS
+// =====================
+
+export interface ApiWarrantyMetrics {
+  paid_count: number;
+  warranty_count: number;
+  warranty_percent: number | null;
+  paid_revenue: number;
+}
+
+export function useApiResidentialWarrantyMetrics(filters?: ResidentialFilters) {
+  const memoizedFilters = useMemo(() => filters, [
+    filters?.timePreset,
+    filters?.dateRange?.start?.getTime(),
+    filters?.dateRange?.end?.getTime(),
+  ]);
+
+  return useQuery({
+    queryKey: ['jobber-api-residential-warranty-metrics', memoizedFilters],
+    queryFn: async () => {
+      const dateRange = memoizedFilters?.timePreset && memoizedFilters.timePreset !== 'custom'
+        ? getResidentialDateRange(memoizedFilters.timePreset)
+        : memoizedFilters?.dateRange || { start: null, end: null };
+
+      const { data, error } = await supabase.rpc('get_api_residential_warranty_metrics', {
+        p_start_date: dateRange.start?.toISOString().split('T')[0] || null,
+        p_end_date: dateRange.end?.toISOString().split('T')[0] || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch API warranty metrics: ${error.message}`);
+      }
+
+      // RPC returns array, get first row
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as ApiWarrantyMetrics;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// REQUEST METRICS
+// =====================
+
+export interface ApiRequestMetrics {
+  total_requests: number;
+  assessments_scheduled: number;
+  assessments_completed: number;
+  conversion_rate: number | null;
+}
+
+export function useApiResidentialRequestMetrics(filters?: ResidentialFilters) {
+  const memoizedFilters = useMemo(() => filters, [
+    filters?.timePreset,
+    filters?.dateRange?.start?.getTime(),
+    filters?.dateRange?.end?.getTime(),
+  ]);
+
+  return useQuery({
+    queryKey: ['jobber-api-residential-request-metrics', memoizedFilters],
+    queryFn: async () => {
+      const dateRange = memoizedFilters?.timePreset && memoizedFilters.timePreset !== 'custom'
+        ? getResidentialDateRange(memoizedFilters.timePreset)
+        : memoizedFilters?.dateRange || { start: null, end: null };
+
+      const { data, error } = await supabase.rpc('get_api_residential_request_metrics', {
+        p_start_date: dateRange.start?.toISOString().split('T')[0] || null,
+        p_end_date: dateRange.end?.toISOString().split('T')[0] || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch API request metrics: ${error.message}`);
+      }
+
+      // RPC returns array, get first row
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as ApiRequestMetrics;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// MONTHLY CYCLE TRENDS
+// =====================
+
+export interface ApiMonthlyCycleTrends {
+  month: string;
+  month_label: string;
+  total_opps: number;
+  won_opps: number;
+  same_day_count: number;
+  same_day_percent: number;
+  multi_quote_count: number;
+  multi_quote_percent: number;
+  avg_won_deal: number;
+  avg_days_to_quote: number | null;
+  avg_days_to_decision: number | null;
+  avg_days_to_schedule: number | null;
+  avg_days_to_close: number | null;
+  warranty_count: number;
+}
+
+export function useApiResidentialMonthlyCycleTrends(months: number = 13) {
+  return useQuery({
+    queryKey: ['jobber-api-residential-monthly-cycle-trends', months],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_api_residential_monthly_cycle_trends', {
+        p_months: months,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch API monthly cycle trends: ${error.message}`);
+      }
+
+      return (data || []) as ApiMonthlyCycleTrends[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
+// ENHANCED MONTHLY TOTALS
+// =====================
+
+export interface ApiEnhancedMonthlyTotals {
+  month: string;
+  month_label: string;
+  total_opps: number;
+  won_opps: number;
+  lost_opps: number;
+  pending_opps: number;
+  win_rate: number | null;
+  closed_win_rate: number | null;
+  total_value: number;
+  won_value: number;
+  lost_value: number;
+  value_win_rate: number | null;
+  avg_won_deal: number | null;
+}
+
+export function useApiResidentialEnhancedMonthlyTotals(
+  months: number = 13,
+  revenueBucket?: string
+) {
+  return useQuery({
+    queryKey: ['jobber-api-residential-enhanced-monthly-totals', months, revenueBucket],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_api_residential_enhanced_monthly_totals', {
+        p_months: months,
+        p_revenue_bucket: revenueBucket || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch API enhanced monthly totals: ${error.message}`);
+      }
+
+      return (data || []) as ApiEnhancedMonthlyTotals[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// =====================
 // TRIGGER MANUAL SYNC
 // =====================
 
