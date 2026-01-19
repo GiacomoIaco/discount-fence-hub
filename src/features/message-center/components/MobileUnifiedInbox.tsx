@@ -1,6 +1,7 @@
 /**
  * MobileUnifiedInbox - Full-screen unified inbox for mobile
- * Shows SMS, Team Announcements, and System Notifications in a single feed
+ * Shows SMS, Team Chats, Announcements, Tickets, and System Notifications in a single feed
+ * Conversations open inline for reading and replying
  */
 
 import { useState, useCallback } from 'react';
@@ -14,6 +15,7 @@ import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { InboxSkeleton } from './InboxSkeleton';
 import { InboxEmptyState } from './InboxEmptyState';
 import { ComposeSheet } from './ComposeSheet';
+import { InboxConversationView } from './InboxConversationView';
 import type { Section } from '../../../lib/routes';
 import type { UnifiedMessage, UnifiedInboxFilter, Conversation } from '../types';
 
@@ -26,11 +28,11 @@ interface MobileUnifiedInboxProps {
 export function MobileUnifiedInbox({
   onBack,
   onNavigate,
-  onOpenConversation,
 }: MobileUnifiedInboxProps) {
   const { user } = useAuth();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
   const [showCompose, setShowCompose] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<UnifiedMessage | null>(null);
 
   const {
     messages,
@@ -62,7 +64,7 @@ export function MobileUnifiedInbox({
     }
   }, [markAsReadMutation, user?.id]);
 
-  // Handle replying to an SMS
+  // Handle replying to an SMS (for desktop inline replies)
   const handleReply = useCallback(async (message: UnifiedMessage, body: string) => {
     if (!user?.id) return;
     await replyMutation.mutateAsync({ message, replyBody: body, fromUserId: user.id });
@@ -76,9 +78,11 @@ export function MobileUnifiedInbox({
 
   // Handle conversation created from compose sheet
   const handleConversationCreated = useCallback((conversationId: string) => {
-    // Navigate to the chat with the new conversation
+    // After creating, refresh the inbox and let user tap the new conversation
+    refetch();
+    setShowCompose(false);
+    // Optionally navigate to it directly
     onNavigate('direct-messages', { conversationId });
-    refetch(); // Refresh the inbox
   }, [onNavigate, refetch]);
 
   // Handle tapping on an inbox item
@@ -86,63 +90,53 @@ export function MobileUnifiedInbox({
     // Mark as read first
     await markAsRead(message);
 
-    // Navigate based on message type
-    switch (message.type) {
-      case 'sms': {
-        const conversation = message.rawData as Conversation;
-        onOpenConversation(conversation);
-        break;
+    // For conversations (SMS, team_chat, ticket_chat, announcement), open inline
+    // For system_notification, navigate to the related entity
+    if (message.type === 'system_notification') {
+      // Navigate to the related entity based on actionType
+      switch (message.actionType) {
+        case 'quote':
+          onNavigate('quotes', { id: message.actionId });
+          break;
+        case 'invoice':
+          onNavigate('invoices', { id: message.actionId });
+          break;
+        case 'job':
+          onNavigate('jobs', { id: message.actionId });
+          break;
+        case 'request':
+          onNavigate('requests', { id: message.actionId });
+          break;
+        case 'ticket':
+          onNavigate('requests', { id: message.actionId });
+          break;
+        default:
+          // Generic notification - just mark as read
+          console.log('Notification tapped:', message.actionType, message.actionId);
       }
-
-      case 'team_chat': {
-        // Navigate to Chat section with the conversation ID
-        onNavigate('direct-messages', { conversationId: message.actionId });
-        break;
-      }
-
-      case 'team_announcement': {
-        // Navigate to Announcements section
-        onNavigate('team-communication');
-        break;
-      }
-
-      case 'ticket_chat': {
-        // Navigate to the ticket/request detail page
-        onNavigate('requests', { id: message.actionId });
-        break;
-      }
-
-      case 'system_notification': {
-        // Navigate to the related entity based on actionType
-        switch (message.actionType) {
-          case 'quote':
-            onNavigate('quotes', { id: message.actionId });
-            break;
-          case 'invoice':
-            onNavigate('invoices', { id: message.actionId });
-            break;
-          case 'job':
-            onNavigate('jobs', { id: message.actionId });
-            break;
-          case 'request':
-            onNavigate('requests', { id: message.actionId });
-            break;
-          case 'conversation': {
-            // For message_received notifications, open the conversation
-            const conv = message.rawData as Conversation;
-            if (conv) {
-              onOpenConversation(conv);
-            }
-            break;
-          }
-          default:
-            // Generic notification - no navigation
-            console.log('Notification tapped:', message.actionType, message.actionId);
-        }
-        break;
-      }
+    } else {
+      // Open conversation inline
+      setSelectedMessage(message);
     }
-  }, [markAsRead, onNavigate, onOpenConversation]);
+  }, [markAsRead, onNavigate]);
+
+  // Handle going back from conversation view
+  const handleBackFromConversation = useCallback(() => {
+    setSelectedMessage(null);
+    refetch(); // Refresh to update read status
+  }, [refetch]);
+
+  // If a message is selected, show the conversation view
+  if (selectedMessage) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <InboxConversationView
+          message={selectedMessage}
+          onBack={handleBackFromConversation}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
