@@ -815,6 +815,7 @@ function App() {
             setShowProfileView={setShowProfileView}
             showProfileEditor={showProfileEditor}
             setShowProfileEditor={setShowProfileEditor}
+            signOut={signOut}
           >
             <ErrorBoundary>
               {activeSection === 'analytics' ? (

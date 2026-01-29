@@ -38,6 +38,7 @@ interface MobileAppContentProps {
   setShowProfileView: (show: boolean) => void;
   showProfileEditor: boolean;
   setShowProfileEditor: (show: boolean) => void;
+  signOut: () => Promise<void>;
 }
 
 export function MobileAppContent({
@@ -55,6 +56,7 @@ export function MobileAppContent({
   setShowProfileView,
   showProfileEditor,
   setShowProfileEditor,
+  signOut,
 }: MobileAppContentProps) {
   const { total: unreadMessageCount } = useUnifiedUnreadCount({ userId, userRole });
   const [showVoiceRecording, setShowVoiceRecording] = useState(false);
@@ -77,6 +79,7 @@ export function MobileAppContent({
         setShowProfileView={setShowProfileView}
         mobileLayout={mobileLayout}
         setMobileLayout={setMobileLayout}
+        signOut={signOut}
       />
 
       {/* Main content with bottom padding for nav */}

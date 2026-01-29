@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, Settings, Monitor, LayoutGrid, LayoutList, X, Bell, BellOff } from 'lucide-react';
+import { User, Settings, Monitor, LayoutGrid, LayoutList, X, Bell, BellOff, LogOut } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { showSuccess, showError } from '../lib/toast';
 
@@ -10,6 +10,7 @@ interface MobileHeaderProps {
   setShowProfileView: (show: boolean) => void;
   mobileLayout: 'expanded' | 'compact';
   setMobileLayout: (layout: 'expanded' | 'compact') => void;
+  signOut: () => Promise<void>;
 }
 
 export default function MobileHeader({
@@ -18,7 +19,8 @@ export default function MobileHeader({
   setViewMode,
   setShowProfileView,
   mobileLayout,
-  setMobileLayout
+  setMobileLayout,
+  signOut
 }: MobileHeaderProps) {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -201,6 +203,19 @@ export default function MobileHeader({
                       </button>
                     </>
                   )}
+
+                  {/* Log Out */}
+                  <div className="my-3 border-t border-gray-100" />
+                  <button
+                    onClick={async () => {
+                      setShowSettings(false);
+                      await signOut();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Log Out</span>
+                  </button>
                 </div>
               </div>
             )}
