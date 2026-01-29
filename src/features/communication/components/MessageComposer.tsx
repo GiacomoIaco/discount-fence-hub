@@ -88,7 +88,7 @@ export default function MessageComposer({ onClose, onMessageSent, editingDraft }
     if (editingDraft) {
       setMessageType(editingDraft.message_type || 'announcement');
       setTitle(editingDraft.title || '');
-      setContent(editingDraft.content || '');
+      setContent(editingDraft.body || '');
       setPriority(editingDraft.priority || 'normal');
       setRequiresAcknowledgment(editingDraft.requires_acknowledgment || false);
       setTargetRoles(editingDraft.target_roles || ['sales', 'operations', 'sales-manager', 'admin']);
@@ -178,7 +178,7 @@ export default function MessageComposer({ onClose, onMessageSent, editingDraft }
       const messageData: any = {
         message_type: messageType,
         title: title.trim(),
-        content: content.trim(),
+        body: content.trim(),
         created_by: user.id,
         priority,
         requires_acknowledgment: requiresAcknowledgment,
@@ -273,7 +273,7 @@ export default function MessageComposer({ onClose, onMessageSent, editingDraft }
       const messageData: any = {
         message_type: messageType,
         title: title.trim(),
-        content: content.trim(),
+        body: content.trim(),
         created_by: user.id,
         priority,
         requires_acknowledgment: requiresAcknowledgment,

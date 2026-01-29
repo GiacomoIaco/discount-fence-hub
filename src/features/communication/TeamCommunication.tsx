@@ -44,7 +44,7 @@ interface CompanyMessage {
   id: string;
   message_type: string;
   title: string;
-  content: string;
+  body: string;
   created_by: string;
   created_at: string;
   priority: string;
@@ -197,7 +197,7 @@ export default function TeamCommunication({ onBack, onUnreadCountChange, refresh
       // Filter by search query
       const searchMatch = !searchQuery ||
         msg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        msg.content.toLowerCase().includes(searchQuery.toLowerCase());
+        (msg.body || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       return modeMatch && searchMatch;
     }) || [];
@@ -644,7 +644,7 @@ function SentMessagesList({ messages, expandedCards, onToggleExpand, getMessageC
           <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-gray-100 pt-3 md:pt-4">
             {/* Message Content */}
             <div className="prose max-w-none mb-4">
-              <p className="text-gray-700 whitespace-pre-wrap">{msg.content}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">{msg.body}</p>
             </div>
 
             {/* Comments Section */}

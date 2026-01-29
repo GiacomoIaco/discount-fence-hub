@@ -38,7 +38,7 @@ interface CompanyMessage {
   id: string;
   message_type: 'announcement' | 'urgent_alert' | 'recognition' | 'survey' | 'policy' | 'training' | 'discussion' | 'task' | 'event';
   title: string;
-  content: string;
+  body: string;
   created_by: string;
   created_at: string;
   target_roles: string[];
@@ -641,7 +641,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
     .filter(msg => {
       const matchesType = selectedType === 'all' || msg.message_type === selectedType;
       const matchesSearch = msg.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           msg.content.toLowerCase().includes(searchQuery.toLowerCase());
+                           (msg.body || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesType && matchesSearch;
     })
     .sort((a, b) => {
@@ -814,7 +814,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                           </div>
                           {!isExpanded && (
                             <p className="text-sm text-gray-600 line-clamp-2 mb-2">
-                              {message.content}
+                              {message.body}
                             </p>
                           )}
                           <div className="flex items-center space-x-3 text-xs text-gray-500 flex-wrap gap-y-1">
@@ -877,7 +877,7 @@ export default function AnnouncementsView({ onBack, onUnreadCountChange }: Annou
                   {isExpanded && (
                     <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-gray-100">
                       <div className="mt-4 prose max-w-none">
-                        <p className="text-gray-700 whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-gray-700 whitespace-pre-wrap">{message.body}</p>
                       </div>
 
                       {/* Recognition Details */}
