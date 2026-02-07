@@ -1,5 +1,167 @@
 # Project Standards for Claude Code
 
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Frontend | React + TypeScript | React 19, TS 5.9 |
+| Build | Vite | 7.x |
+| Styling | Tailwind CSS | 3.4 |
+| Data Fetching | TanStack Query (React Query) | 5.x |
+| Routing | React Router | 7.x |
+| Database | Supabase (PostgreSQL) | SDK 2.58 |
+| Hosting | Netlify (SPA + Functions) | - |
+| Serverless | Netlify Functions (esbuild) | Node 20 |
+| Validation | Zod | 4.x |
+| Charts | Recharts | 3.x |
+| Calendar | FullCalendar | 6.x |
+| Maps | Leaflet + react-leaflet | 1.9 |
+| PDF | jsPDF + autotable | - |
+| Drag & Drop | dnd-kit | - |
+| AI | Anthropic SDK, OpenAI SDK, AssemblyAI | - |
+| Email | SendGrid | - |
+| Integrations | QuickBooks Online, Jobber | OAuth |
+
+---
+
+## Codebase Architecture
+
+### Directory Structure
+
+```
+/
+├── src/                     # React application source
+│   ├── App.tsx              # Main app component (navigation, role switching)
+│   ├── AppRoutes.tsx        # Route config for public pages
+│   ├── main.tsx             # Entry point (React Query, Router, Auth providers)
+│   ├── sw.ts                # Service worker (PWA)
+│   ├── components/          # Shared UI components
+│   │   ├── auth/            # Login, OnboardingWizard
+│   │   ├── common/          # SmartLookup
+│   │   ├── shared/          # VoiceInput
+│   │   ├── sidebar/         # Navigation sidebar
+│   │   ├── skeletons/       # Loading skeletons
+│   │   └── views/           # Dashboard, SalesRepView
+│   ├── contexts/            # React Context providers
+│   │   ├── AuthContext.tsx
+│   │   ├── PermissionContext.tsx
+│   │   └── ToastContext.tsx
+│   ├── features/            # Feature modules (see below)
+│   ├── hooks/               # Global hooks
+│   ├── layouts/             # Sidebar, MobileHeader, MobileBottomNav
+│   ├── lib/                 # Utility libraries
+│   │   ├── routes.ts        # Route config (Section → URL mapping)
+│   │   ├── queryClient.ts   # TanStack Query setup with persistence
+│   │   ├── supabase.ts      # Supabase client init
+│   │   ├── validation.ts    # Zod schemas (1700+ lines)
+│   │   ├── claude.ts        # Anthropic integration
+│   │   ├── openai.ts        # OpenAI integration
+│   │   ├── offlineQueue.ts  # Offline request queuing
+│   │   └── permissions/     # Role-based permission helpers
+│   └── types/               # Shared type definitions
+├── migrations/              # SQL migration files (~345 files)
+├── netlify/functions/       # Serverless functions (40+ files)
+├── scripts/                 # Dev/admin utility scripts (120+)
+├── docs/                    # Project documentation
+├── public/                  # Static assets (logos, legal pages, PWA manifest)
+└── supabase/functions/      # Supabase edge functions (morning-digest)
+```
+
+### Feature Modules (`src/features/`)
+
+Each feature is self-contained with its own components, hooks, pages, and types.
+
+**Core FSM (Field Service Management):**
+- `fsm/` - Request → Quote → Job → Invoice pipeline (see FSM section below)
+- `projects_hub/` - Project dashboard and sidebar navigation wrapper
+- `schedule/` - Calendar/scheduling (FullCalendar integration)
+- `client_hub/` - Client and property management
+- `settings/` - Admin settings, team management, territories
+
+**Operations:**
+- `bom_calculator/` - Bill of Materials calculator (v1)
+- `bom_calculator_v2/` - BOM calculator with FormulaInterpreter engine
+- `sales_hub/` - Sales operations hub
+
+**Sales & Marketing:**
+- `sales-tools/` - StainCalculator, ClientPresentation
+- `sales-resources/` - Document/file library
+- `ai-coach/` - AI sales coaching with recording analysis
+
+**Communication:**
+- `communication/` - Team announcements and messaging
+- `message-center/` - Unified messaging hub (conversations, announcements, notifications, real-time)
+- `requests/` - Internal ticket/request system
+
+**Content & Analytics:**
+- `photos/` - Photo gallery with AI tagging
+- `analytics/` - Dashboards (Jobber, residential API)
+- `leadership/` - Goals, operating plans, strategy, KPIs
+- `roadmap/` - Roadmap management UI
+- `survey_hub/` - Survey distribution and management
+- `my-todos/` - Personal to-do list
+
+**Other:**
+- `user-profile/` - User profile management
+- `shared/` - Shared utilities, hooks, types
+- `FEATURE_TEMPLATE/` - Template for new features
+
+### Provider Hierarchy (main.tsx)
+
+```
+StrictMode → BrowserRouter → QueryClientProvider → AuthProvider → PermissionProvider → AppRoutes
+```
+
+### Key Architectural Patterns
+
+1. **Feature-based organization** - Each feature is a self-contained module
+2. **Custom hooks for data** - React Query hooks separated from UI components
+3. **Database-driven status** - FSM statuses computed by Postgres triggers, not manually set
+4. **Role-based access** - Menu visibility and permissions controlled via PermissionContext
+5. **Lazy loading** - Features are code-split in App.tsx
+6. **PWA** - Service worker with offline support and push notifications
+7. **Serverless backend** - Netlify Functions for AI, integrations, email
+
+---
+
+## Development
+
+### Commands
+
+```bash
+npm run dev          # Start Vite dev server (localhost:5173)
+npm run build        # TypeScript check + Vite build (tsc -b && vite build)
+npm run lint         # Run ESLint
+npm run preview      # Preview production build
+```
+
+### Build Requirements
+
+- The `build` command runs `tsc -b` first - **all TypeScript errors must be resolved**
+- Strict mode is enabled: no unused locals, no unused parameters, no fallthrough cases
+- Target: ES2022, module resolution: bundler
+
+### Environment Variables
+
+Client-side variables use `VITE_` prefix (embedded in bundle):
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- `VITE_NETLIFY_FUNCTIONS_URL`, `VITE_VAPID_PUBLIC_KEY`
+
+Server-side secrets (Netlify Functions only):
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `ASSEMBLYAI_API_KEY`, `GOOGLE_API_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`, `SENDGRID_API_KEY`
+- QBO and Jobber OAuth credentials
+
+See `.env.example` for the full list. **Never commit `.env` files.**
+
+### Testing
+
+No unit test framework is configured. Testing is done via:
+- Chrome DevTools MCP for automated browser testing
+- Manual verification on the live Netlify URL after deployment
+
+---
+
 ## Session Setup
 
 ### Chrome MCP (Browser Testing)
@@ -30,9 +192,10 @@ ON CONFLICT (version) DO NOTHING;
 ```
 
 **Naming conventions**:
-- Standard: `NNN_description.sql` (e.g., `220_new_feature.sql`)
-- Sub-migrations: `NNNx_description.sql` (e.g., `220b_fix.sql`) - These are NOT tracked by the system
+- Standard: `NNN_description.sql` (e.g., `272_new_feature.sql`)
+- Sub-migrations: `NNNx_description.sql` (e.g., `272b_fix.sql`) - These are NOT tracked by the system
 - Always use the next available number (check `npm run migrate:status` first)
+- Latest migration as of writing: `271_fix_api_metrics_formulas.sql`
 
 **Avoid duplicate versions**: Never create two files with the same 3-digit version number. The tracking system uses version as a unique key.
 
@@ -50,18 +213,77 @@ ON CONFLICT (version) DO NOTHING;
 - **Git pushes to `main` trigger automatic Netlify deployments**
 - After committing changes, push to `origin/main` to deploy
 - Netlify URL: https://discount-fence-hub.netlify.app/
+- Build: `npm run build` → output in `dist/`
+- Node 20 runtime
 
-## Development
+### Netlify Function Timeouts
 
-- React + TypeScript + Vite
-- TanStack Query (React Query) for data fetching
-- Tailwind CSS for styling
-- Supabase for backend database
+| Function Category | Timeout |
+|-------------------|---------|
+| Standard functions | 10s (default) |
+| AI functions (transcribe, analyze, ai-product-assistant) | 26s |
+| QBO functions (validate, import, search) | 60s |
+| Jobber sync functions | 300s |
+| Background jobs (jobber-sync-background) | 900s (15 min) |
 
-## Testing Changes
+### Redirects
 
-- After pushing, verify changes on the live Netlify URL
-- Use Chrome DevTools MCP for browser testing (see Session Setup above)
+- `/qr/*` → `qr.html` (QR code claim pages)
+- `/privacy`, `/terms` → static legal pages
+- `/*` → `index.html` (SPA catch-all)
+
+### Public Routes (no auth)
+
+- `/p/:projectCode` - Deep link for QR code scanning
+- `/client-quote/:token` - Public quote viewing
+- `/survey` - Public survey page
+
+---
+
+## Route Structure
+
+Routes are defined in `src/lib/routes.ts` as `Section → URL path` mappings:
+
+| Section | URL Path | Feature |
+|---------|----------|---------|
+| home | `/` | Dashboard |
+| dashboard | `/dashboard` | Dashboard |
+| schedule | `/schedule` | Calendar |
+| client-hub | `/clients` | Client management |
+| projects-hub | `/projects` | Projects dashboard |
+| sales-hub | `/sales` | Sales operations |
+| bom-calculator | `/ops` | BOM Calculator v1 |
+| bom-calculator-v2 | `/ops/v2` | BOM Calculator v2 |
+| yard | `/ops/yard` | Yard operations |
+| requests | `/requests` | FSM service requests |
+| quotes | `/quotes` | FSM quotes |
+| jobs | `/jobs` | FSM jobs |
+| invoices | `/invoices` | FSM invoices |
+| tickets | `/tickets` | Internal ticketing |
+| message-center | `/messages` | Unified messaging |
+| leadership | `/leadership` | Leadership dashboards |
+| analytics | `/analytics` | Analytics |
+| roadmap | `/roadmap` | Roadmap management |
+| team | `/settings` | Team management |
+| territories | `/settings/territories` | Territory management |
+| sales-coach | `/sales/coach` | AI sales coaching |
+| photo-gallery | `/sales/photos` | Photo gallery |
+
+---
+
+## Netlify Functions (`netlify/functions/`)
+
+**AI & Analysis:** ai-formula-assistant, ai-product-assistant, analyze-photo, analyze-recording, enhance-photo, expand-roadmap-idea, parse-knowledge-base, parse-operating-plan
+
+**Voice & Transcription:** transcribe-recording, check-transcription, classify-voice-intent, start-transcription, upload-recording, match-talking-points
+
+**Integrations:** qbo-auth, jobber-auth, jobber-callback, jobber-status, jobber-sync-background, jobber-sync-manual, jobber-sync-residential
+
+**Notifications & Email:** create-notification, send-request-notification, send-roadmap-notification, send-survey, send-weekly-reminder, send-weekly-summary
+
+**Surveys:** survey-analytics-snapshot, survey-email-webhook, survey-reminders, survey-scheduler, survey-sync-app-users, survey-unsubscribe
+
+**Other:** approve-quote, twilio-inbound-webhook, twilio-status-webhook, verify-phone-otp, delete-user, import-communities
 
 ---
 
