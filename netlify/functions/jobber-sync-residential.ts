@@ -149,14 +149,6 @@ async function determineSyncMode(): Promise<SyncConfig> {
     return { mode: 'full' };
   }
 
-  // If last full sync was >24h ago -> full (periodic catch-all)
-  const lastFullSync = status.last_full_sync_at ? new Date(status.last_full_sync_at) : null;
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  if (!lastFullSync || lastFullSync < twentyFourHoursAgo) {
-    console.log('Last full sync >24h ago, running full sync');
-    return { mode: 'full' };
-  }
-
   // Incremental: sync since last_sync_at minus buffer
   const lastSyncAt = new Date(status.last_sync_at);
   const syncSince = new Date(lastSyncAt.getTime() - SYNC_BUFFER_MINUTES * 60 * 1000);
