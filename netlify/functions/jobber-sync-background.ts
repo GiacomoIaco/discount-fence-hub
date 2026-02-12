@@ -56,9 +56,14 @@ async function determineSyncMode(account: string, forceFull: boolean): Promise<S
   return { mode: 'incremental', syncSince: syncSince.toISOString() };
 }
 
-function getFilterClause(config: SyncConfig): string {
+// Quotes support updatedAt filter; Jobs and Requests only support createdAt
+function getFilterClause(config: SyncConfig, entity: 'quotes' | 'jobs' | 'requests'): string {
   if (config.mode === 'incremental' && config.syncSince) {
-    return `filter: { updatedAt: { after: "${config.syncSince}" } }`;
+    if (entity === 'quotes') {
+      return `filter: { updatedAt: { after: "${config.syncSince}" } }`;
+    }
+    // Jobs and Requests don't support updatedAt filter
+    return `filter: { createdAt: { after: "${config.syncSince}" } }`;
   }
   return `filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }`;
 }
@@ -191,7 +196,7 @@ async function graphqlQuery(
 
 // Query builders that accept sync config for incremental/full mode
 function buildQuotesQuery(config: SyncConfig) {
-  const filterClause = getFilterClause(config);
+  const filterClause = getFilterClause(config, 'quotes');
   return (cursor: string | null) => `
     query SyncQuotes {
       quotes(
@@ -220,7 +225,7 @@ function buildQuotesQuery(config: SyncConfig) {
 }
 
 function buildJobsQuery(config: SyncConfig) {
-  const filterClause = getFilterClause(config);
+  const filterClause = getFilterClause(config, 'jobs');
   return (cursor: string | null) => `
     query SyncJobs {
       jobs(
@@ -250,7 +255,7 @@ function buildJobsQuery(config: SyncConfig) {
 }
 
 function buildRequestsQuery(config: SyncConfig) {
-  const filterClause = getFilterClause(config);
+  const filterClause = getFilterClause(config, 'requests');
   return (cursor: string | null) => `
     query SyncRequests {
       requests(
