@@ -79,9 +79,19 @@ export function ResidentialApiDashboard() {
     };
   }, []);
 
-  // Check if sync was already running when component mounts
+  // Check if sync was already running when component mounts, or if it's stale
   useEffect(() => {
     if (syncStatus?.last_sync_status === 'in_progress' && !isSyncing) {
+      // Check if sync has been "in_progress" for >20 minutes (likely crashed)
+      const updatedAt = syncStatus.updated_at ? new Date(syncStatus.updated_at).getTime() : 0;
+      const twentyMinutesAgo = Date.now() - 20 * 60 * 1000;
+      if (updatedAt < twentyMinutesAgo) {
+        setSyncResult({
+          success: false,
+          message: 'Previous sync appears to have stalled. Try syncing again.',
+        });
+        return;
+      }
       setIsSyncing(true);
       setSyncResult({ success: true, message: 'Sync in progress...' });
       startPolling();
