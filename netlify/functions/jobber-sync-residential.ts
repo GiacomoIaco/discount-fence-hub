@@ -137,23 +137,11 @@ async function graphqlQuery(accessToken: string, query: string, variables?: Reco
  * Determine the sync mode based on last sync status
  */
 async function determineSyncMode(): Promise<SyncConfig> {
-  const { data: status } = await supabase
-    .from('jobber_sync_status')
-    .select('last_sync_at, last_sync_status, last_full_sync_at')
-    .eq('id', ACCOUNT)
-    .single();
-
-  // No previous successful sync -> full
-  if (!status?.last_sync_at || status.last_sync_status !== 'success') {
-    console.log('No previous successful sync, running full sync');
-    return { mode: 'full' };
-  }
-
-  // Incremental: sync since last_sync_at minus buffer
-  const lastSyncAt = new Date(status.last_sync_at);
-  const syncSince = new Date(lastSyncAt.getTime() - SYNC_BUFFER_MINUTES * 60 * 1000);
-  console.log(`Incremental sync since ${syncSince.toISOString()}`);
-  return { mode: 'incremental', syncSince: syncSince.toISOString() };
+  // Scheduled cron always runs full sync to catch status changes on existing
+  // jobs/requests (their API doesn't support updatedAt filter).
+  // With parallel entity sync, full sync completes in ~5-7 min.
+  console.log('Scheduled cron: running full sync');
+  return { mode: 'full' };
 }
 
 // Quotes support updatedAt filter; Jobs and Requests only support createdAt
@@ -680,10 +668,15 @@ async function runSync(): Promise<SyncStats> {
     // Get access token
     const accessToken = await getAccessToken();
 
-    // Sync all data
-    stats.quotesProcessed = await syncQuotes(accessToken, config);
-    stats.jobsProcessed = await syncJobs(accessToken, config);
-    stats.requestsProcessed = await syncRequests(accessToken, config);
+    // Sync all data IN PARALLEL to stay within 15-min timeout
+    const [quotesCount, jobsCount, requestsCount] = await Promise.all([
+      syncQuotes(accessToken, config),
+      syncJobs(accessToken, config),
+      syncRequests(accessToken, config),
+    ]);
+    stats.quotesProcessed = quotesCount;
+    stats.jobsProcessed = jobsCount;
+    stats.requestsProcessed = requestsCount;
 
     // Compute opportunities
     stats.opportunitiesComputed = await computeOpportunities();
