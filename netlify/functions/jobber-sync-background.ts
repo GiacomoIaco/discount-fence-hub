@@ -127,9 +127,10 @@ async function getAccessToken(account: string): Promise<string> {
   }
 
   const expiresAt = new Date(tokenData.access_token_expires_at);
-  const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+  // Buffer must exceed max sync duration (~10 min parallel) to avoid mid-sync expiry
+  const fifteenMinutesFromNow = new Date(Date.now() + 15 * 60 * 1000);
 
-  if (expiresAt < fiveMinutesFromNow) {
+  if (expiresAt < fifteenMinutesFromNow) {
     return refreshToken(account, tokenData.refresh_token);
   }
 
@@ -137,11 +138,12 @@ async function getAccessToken(account: string): Promise<string> {
 }
 
 async function graphqlQuery(
-  accessToken: string,
+  initialAccessToken: string,
   query: string,
   retries: number = 5
 ): Promise<{ data: unknown; cost?: unknown }> {
   let lastError: Error | null = null;
+  let accessToken = initialAccessToken;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
@@ -160,6 +162,13 @@ async function graphqlQuery(
         const waitTime = 3000 * Math.pow(2, attempt);
         console.log(`Rate limited (429), waiting ${waitTime}ms...`);
         await sleep(waitTime);
+        continue;
+      }
+
+      if (response.status === 401) {
+        // Token expired mid-sync - refresh and retry
+        console.log('Token expired (401), refreshing...');
+        accessToken = await getAccessToken('residential');
         continue;
       }
 
