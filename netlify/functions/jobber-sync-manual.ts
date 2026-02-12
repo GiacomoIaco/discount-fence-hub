@@ -8,18 +8,28 @@ const PAGE_SIZE = 50; // Reduced from 100 to lower query cost
 // Only sync data from 2024 onwards - no need for older historical data
 const SYNC_CUTOFF_DATE = '2024-01-01T00:00:00Z';
 
+// Buffer to avoid missing records modified during previous sync window
+const SYNC_BUFFER_MINUTES = 5;
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY!
 );
 
 type JobberAccount = 'residential' | 'builders' | 'commercial';
+type SyncMode = 'full' | 'incremental';
+
+interface SyncConfig {
+  mode: SyncMode;
+  syncSince?: string; // ISO timestamp for incremental
+}
 
 interface SyncStats {
   quotesProcessed: number;
   jobsProcessed: number;
   requestsProcessed: number;
   opportunitiesComputed: number;
+  syncMode: SyncMode;
   errors: string[];
   duration: number;
 }
@@ -143,6 +153,49 @@ async function getAccessToken(account: string): Promise<string> {
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Determine the sync mode based on last sync status
+ */
+async function determineSyncMode(account: string, forceFull: boolean): Promise<SyncConfig> {
+  if (forceFull) {
+    console.log('Forced full sync requested');
+    return { mode: 'full' };
+  }
+
+  const { data: status } = await supabase
+    .from('jobber_sync_status')
+    .select('last_sync_at, last_sync_status, last_full_sync_at')
+    .eq('id', account)
+    .single();
+
+  // No previous successful sync -> full
+  if (!status?.last_sync_at || status.last_sync_status !== 'success') {
+    console.log('No previous successful sync, running full sync');
+    return { mode: 'full' };
+  }
+
+  // If last full sync was >24h ago -> full (periodic catch-all)
+  const lastFullSync = status.last_full_sync_at ? new Date(status.last_full_sync_at) : null;
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  if (!lastFullSync || lastFullSync < twentyFourHoursAgo) {
+    console.log('Last full sync >24h ago, running full sync');
+    return { mode: 'full' };
+  }
+
+  // Incremental: sync since last_sync_at minus buffer
+  const lastSyncAt = new Date(status.last_sync_at);
+  const syncSince = new Date(lastSyncAt.getTime() - SYNC_BUFFER_MINUTES * 60 * 1000);
+  console.log(`Incremental sync since ${syncSince.toISOString()}`);
+  return { mode: 'incremental', syncSince: syncSince.toISOString() };
+}
+
+function getFilterClause(config: SyncConfig): string {
+  if (config.mode === 'incremental' && config.syncSince) {
+    return `filter: { updatedAt: { after: "${config.syncSince}" } }`;
+  }
+  return `filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }`;
 }
 
 /**
@@ -366,59 +419,63 @@ async function fetchAllPages<T>(
 // SYNC FUNCTIONS (same as scheduled version)
 // ============================================
 
-// Simplified query with date filter - only sync 2024+ data
-const QUOTES_QUERY = (cursor: string | null) => `
-  query SyncQuotes {
-    quotes(
-      first: ${PAGE_SIZE}
-      ${cursor ? `after: "${cursor}"` : ''}
-      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
-    ) {
-      nodes {
-        id
-        quoteNumber
-        title
-        quoteStatus
-        amounts {
-          total
-          subtotal
-          discountAmount
-        }
-        client {
+// Query builder that accepts sync config for incremental/full mode
+function buildQuotesQuery(config: SyncConfig) {
+  const filterClause = getFilterClause(config);
+  return (cursor: string | null) => `
+    query SyncQuotes {
+      quotes(
+        first: ${PAGE_SIZE}
+        ${cursor ? `after: "${cursor}"` : ''}
+        ${filterClause}
+      ) {
+        nodes {
           id
-          name
-          billingAddress {
-            street
-            city
-            province
-            postalCode
+          quoteNumber
+          title
+          quoteStatus
+          amounts {
+            total
+            subtotal
+            discountAmount
+          }
+          client {
+            id
+            name
+            billingAddress {
+              street
+              city
+              province
+              postalCode
+            }
+          }
+          property {
+            address {
+              street
+              city
+              province
+              postalCode
+            }
+          }
+          createdAt
+          updatedAt
+          sentAt
+          lastTransitioned {
+            approvedAt
+            convertedAt
+          }
+          request {
+            id
           }
         }
-        property {
-          address {
-            street
-            city
-            province
-            postalCode
-          }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
-        createdAt
-        sentAt
-        lastTransitioned {
-          approvedAt
-          convertedAt
-        }
-        request {
-          id
-        }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
       }
     }
-  }
-`;
+  `;
+}
 
 interface JobberQuote {
   id: string;
@@ -449,6 +506,7 @@ interface JobberQuote {
     };
   };
   createdAt?: string;
+  updatedAt?: string;
   sentAt?: string;
   lastTransitioned?: {
     approvedAt?: string;
@@ -459,12 +517,12 @@ interface JobberQuote {
   };
 }
 
-async function syncQuotes(accessToken: string): Promise<number> {
-  console.log('Syncing quotes...');
+async function syncQuotes(accessToken: string, config: SyncConfig): Promise<number> {
+  console.log(`Syncing quotes (${config.mode})...`);
 
   const quotes = await fetchAllPages<JobberQuote>(
     accessToken,
-    QUOTES_QUERY,
+    buildQuotesQuery(config),
     (data) => (data as { quotes: { nodes: JobberQuote[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).quotes
   );
 
@@ -496,6 +554,7 @@ async function syncQuotes(accessToken: string): Promise<number> {
         approved_at: q.lastTransitioned?.approvedAt,
         converted_at: q.lastTransitioned?.convertedAt,
         request_jobber_id: q.request?.id,
+        updated_at_jobber: q.updatedAt,
         synced_at: new Date().toISOString(),
         raw_data: q,
       };
@@ -513,47 +572,51 @@ async function syncQuotes(accessToken: string): Promise<number> {
   return quotes.length;
 }
 
-const JOBS_QUERY = (cursor: string | null) => `
-  query SyncJobs {
-    jobs(
-      first: ${PAGE_SIZE}
-      ${cursor ? `after: "${cursor}"` : ''}
-      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
-    ) {
-      nodes {
-        id
-        jobNumber
-        title
-        jobStatus
-        total
-        invoicedTotal
-        client {
+function buildJobsQuery(config: SyncConfig) {
+  const filterClause = getFilterClause(config);
+  return (cursor: string | null) => `
+    query SyncJobs {
+      jobs(
+        first: ${PAGE_SIZE}
+        ${cursor ? `after: "${cursor}"` : ''}
+        ${filterClause}
+      ) {
+        nodes {
           id
-          name
-        }
-        property {
-          address {
-            street
-            city
-            province
-            postalCode
+          jobNumber
+          title
+          jobStatus
+          total
+          invoicedTotal
+          client {
+            id
+            name
+          }
+          property {
+            address {
+              street
+              city
+              province
+              postalCode
+            }
+          }
+          createdAt
+          updatedAt
+          startAt
+          endAt
+          quote {
+            id
+            quoteNumber
           }
         }
-        createdAt
-        startAt
-        endAt
-        quote {
-          id
-          quoteNumber
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
     }
-  }
-`;
+  `;
+}
 
 interface JobberJob {
   id: string;
@@ -575,6 +638,7 @@ interface JobberJob {
     };
   };
   createdAt?: string;
+  updatedAt?: string;
   startAt?: string;
   endAt?: string;
   quote?: {
@@ -583,12 +647,12 @@ interface JobberJob {
   };
 }
 
-async function syncJobs(accessToken: string): Promise<number> {
-  console.log('Syncing jobs...');
+async function syncJobs(accessToken: string, config: SyncConfig): Promise<number> {
+  console.log(`Syncing jobs (${config.mode})...`);
 
   const jobs = await fetchAllPages<JobberJob>(
     accessToken,
-    JOBS_QUERY,
+    buildJobsQuery(config),
     (data) => (data as { jobs: { nodes: JobberJob[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).jobs
   );
 
@@ -619,6 +683,7 @@ async function syncJobs(accessToken: string): Promise<number> {
         // Removed: closed_at (field doesn't exist in Jobber API)
         quote_jobber_id: j.quote?.id,
         quote_number: j.quote?.quoteNumber,
+        updated_at_jobber: j.updatedAt,
         synced_at: new Date().toISOString(),
         raw_data: j,
       };
@@ -636,51 +701,55 @@ async function syncJobs(accessToken: string): Promise<number> {
   return jobs.length;
 }
 
-// Simplified query with date filter - only sync 2024+ data
-const REQUESTS_QUERY = (cursor: string | null) => `
-  query SyncRequests {
-    requests(
-      first: ${PAGE_SIZE}
-      ${cursor ? `after: "${cursor}"` : ''}
-      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
-    ) {
-      nodes {
-        id
-        title
-        requestStatus
-        source
-        createdAt
-        client {
+// Query builder for requests with sync config
+function buildRequestsQuery(config: SyncConfig) {
+  const filterClause = getFilterClause(config);
+  return (cursor: string | null) => `
+    query SyncRequests {
+      requests(
+        first: ${PAGE_SIZE}
+        ${cursor ? `after: "${cursor}"` : ''}
+        ${filterClause}
+      ) {
+        nodes {
           id
-          name
-        }
-        property {
-          address {
-            street
-            city
-            province
-            postalCode
+          title
+          requestStatus
+          source
+          createdAt
+          updatedAt
+          client {
+            id
+            name
           }
-        }
-        assessment {
-          startAt
-          completedAt
-          assignedUsers {
-            nodes {
-              name {
-                full
+          property {
+            address {
+              street
+              city
+              province
+              postalCode
+            }
+          }
+          assessment {
+            startAt
+            completedAt
+            assignedUsers {
+              nodes {
+                name {
+                  full
+                }
               }
             }
           }
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
     }
-  }
-`;
+  `;
+}
 
 interface JobberRequest {
   id: string;
@@ -688,6 +757,7 @@ interface JobberRequest {
   requestStatus: string;
   source?: string;
   createdAt?: string;
+  updatedAt?: string;
   client?: {
     id: string;
     name: string;
@@ -713,12 +783,12 @@ interface JobberRequest {
   };
 }
 
-async function syncRequests(accessToken: string): Promise<number> {
-  console.log('Syncing requests...');
+async function syncRequests(accessToken: string, config: SyncConfig): Promise<number> {
+  console.log(`Syncing requests (${config.mode})...`);
 
   const requests = await fetchAllPages<JobberRequest>(
     accessToken,
-    REQUESTS_QUERY,
+    buildRequestsQuery(config),
     (data) => (data as { requests: { nodes: JobberRequest[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).requests
   );
 
@@ -747,6 +817,7 @@ async function syncRequests(accessToken: string): Promise<number> {
         service_zip: addr?.postalCode,
         assessment_start_at: r.assessment?.startAt,
         assessment_completed_at: r.assessment?.completedAt,
+        updated_at_jobber: r.updatedAt,
         synced_at: new Date().toISOString(),
         raw_data: r,
       };
@@ -782,12 +853,13 @@ async function computeOpportunities(): Promise<number> {
 // MAIN HANDLER
 // ============================================
 
-async function runSync(account: JobberAccount): Promise<SyncStats> {
+async function runSync(account: JobberAccount, forceFull = false): Promise<SyncStats> {
   const stats: SyncStats = {
     quotesProcessed: 0,
     jobsProcessed: 0,
     requestsProcessed: 0,
     opportunitiesComputed: 0,
+    syncMode: 'full',
     errors: [],
     duration: 0,
   };
@@ -795,6 +867,11 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
   const startTime = Date.now();
 
   try {
+    // Determine sync mode
+    const config = await determineSyncMode(account, forceFull);
+    stats.syncMode = config.mode;
+    console.log(`Sync mode: ${config.mode}${config.syncSince ? ` (since ${config.syncSince})` : ''}`);
+
     // Mark sync as in progress
     await supabase
       .from('jobber_sync_status')
@@ -816,7 +893,7 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
       const testResult = await graphqlQuery(accessToken, testQuery, 1, 500);
       console.log('API connection test successful:', JSON.stringify(testResult.data));
 
-      // Brief pause after test before starting full sync
+      // Brief pause after test before starting sync
       await sleep(500);
     } catch (testError) {
       const errorMsg = testError instanceof Error ? testError.message : String(testError);
@@ -825,10 +902,10 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
     }
 
     // Sync all data
-    console.log('Starting data sync...');
-    stats.quotesProcessed = await syncQuotes(accessToken);
-    stats.jobsProcessed = await syncJobs(accessToken);
-    stats.requestsProcessed = await syncRequests(accessToken);
+    console.log(`Starting ${config.mode} data sync...`);
+    stats.quotesProcessed = await syncQuotes(accessToken, config);
+    stats.jobsProcessed = await syncJobs(accessToken, config);
+    stats.requestsProcessed = await syncRequests(accessToken, config);
 
     // Compute opportunities (only for residential for now)
     if (account === 'residential') {
@@ -842,18 +919,19 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
       .from('jobber_sync_status')
       .update({
         last_sync_at: new Date().toISOString(),
-        last_sync_type: 'full',
+        last_sync_type: config.mode,
         last_sync_status: 'success',
         last_error: null,
         quotes_synced: stats.quotesProcessed,
         jobs_synced: stats.jobsProcessed,
         requests_synced: stats.requestsProcessed,
         opportunities_computed: stats.opportunitiesComputed,
+        ...(config.mode === 'full' ? { last_full_sync_at: new Date().toISOString() } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', account);
 
-    console.log(`Sync completed in ${stats.duration.toFixed(1)}s`);
+    console.log(`Sync completed (${config.mode}) in ${stats.duration.toFixed(1)}s`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     stats.errors.push(errorMessage);
@@ -884,6 +962,7 @@ async function runSync(account: JobberAccount): Promise<SyncStats> {
 export const handler: Handler = async (event) => {
   const account = (event.queryStringParameters?.account || 'residential') as JobberAccount;
   const isTest = event.queryStringParameters?.test === '1';
+  const requestedMode = event.queryStringParameters?.mode as SyncMode | undefined;
 
   // Quick test mode - just verify connection
   if (isTest) {
@@ -924,23 +1003,26 @@ export const handler: Handler = async (event) => {
       const accessToken = await getAccessToken(account);
       const startTime = Date.now();
 
+      // Diagnostic uses full sync config to test all records
+      const diagConfig: SyncConfig = { mode: 'full' };
+
       // Test quotes query (1 page)
       console.log('Testing quotes query...');
-      const quotesQuery = QUOTES_QUERY(null);
+      const quotesQuery = buildQuotesQuery(diagConfig)(null);
       const quotesResult = await graphqlQuery(accessToken, quotesQuery);
       const quotesData = (quotesResult.data as { quotes: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } } }).quotes;
 
       // Test jobs query (1 page)
       await sleep(300);
       console.log('Testing jobs query...');
-      const jobsQuery = JOBS_QUERY(null);
+      const jobsQuery = buildJobsQuery(diagConfig)(null);
       const jobsResult = await graphqlQuery(accessToken, jobsQuery);
       const jobsData = (jobsResult.data as { jobs: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } } }).jobs;
 
       // Test requests query (1 page)
       await sleep(300);
       console.log('Testing requests query...');
-      const requestsQuery = REQUESTS_QUERY(null);
+      const requestsQuery = buildRequestsQuery(diagConfig)(null);
       const requestsResult = await graphqlQuery(accessToken, requestsQuery);
       const requestsData = (requestsResult.data as { requests: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } } }).requests;
 
@@ -1001,7 +1083,7 @@ export const handler: Handler = async (event) => {
       const bgResponse = await fetch(bgUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account }),
+        body: JSON.stringify({ account, mode: requestedMode || 'incremental' }),
       });
 
       if (bgResponse.status === 202) {
@@ -1036,7 +1118,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  const stats = await runSync(account);
+  const stats = await runSync(account, requestedMode === 'full');
 
   if (stats.errors.length > 0) {
     return {

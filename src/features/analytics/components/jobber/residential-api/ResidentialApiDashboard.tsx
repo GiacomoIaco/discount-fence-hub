@@ -2,13 +2,14 @@
 // Uses data synced from Jobber API with CORRECTED cycle times
 // Days to Quote = Assessment → First SENT (not drafted)
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   RefreshCw,
   Database,
   Clock,
   CheckCircle,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { ResidentialFilters } from '../residential/ResidentialFilters';
 import {
@@ -52,50 +53,88 @@ export function ResidentialApiDashboard() {
   const [activeTab, setActiveTab] = useState<ApiDashboardTab>('funnel');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; message?: string } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync status
   const { data: syncStatus, refetch: refetchSyncStatus } = useApiSyncStatus();
   const { data: rawCounts, refetch: refetchRawCounts } = useApiRawDataCounts();
 
-  const handleManualSync = async () => {
+  // Re-check sync status when tab becomes visible again (fixes sync appearing stuck)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isSyncing) {
+        refetchSyncStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isSyncing, refetchSyncStatus]);
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  // Check if sync was already running when component mounts
+  useEffect(() => {
+    if (syncStatus?.last_sync_status === 'in_progress' && !isSyncing) {
+      setIsSyncing(true);
+      setSyncResult({ success: true, message: 'Sync in progress...' });
+      startPolling();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncStatus?.last_sync_status]);
+
+  const startPolling = useCallback(() => {
+    // Clear any existing polling
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+    pollRef.current = setInterval(async () => {
+      const status = await refetchSyncStatus();
+      const currentStatus = status.data?.last_sync_status;
+
+      if (currentStatus === 'success') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setIsSyncing(false);
+        setSyncResult({ success: true, message: 'Sync completed successfully!' });
+        refetchRawCounts();
+      } else if (currentStatus === 'failed') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setIsSyncing(false);
+        setSyncResult({
+          success: false,
+          message: status.data?.last_error || 'Sync failed',
+        });
+      }
+    }, 5000);
+
+    timeoutRef.current = setTimeout(() => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setIsSyncing(false);
+      setSyncResult({
+        success: false,
+        message: 'Sync timed out. Check status later.',
+      });
+    }, 10 * 60 * 1000);
+  }, [refetchSyncStatus, refetchRawCounts]);
+
+  const handleManualSync = async (mode?: 'full' | 'incremental') => {
     setIsSyncing(true);
     setSyncResult(null);
 
     try {
-      const result = await triggerManualSync();
+      const result = await triggerManualSync(mode);
 
       if (result.success) {
-        setSyncResult({ success: true, message: 'Sync started. Checking progress...' });
-
-        const pollInterval = setInterval(async () => {
-          const status = await refetchSyncStatus();
-          const currentStatus = status.data?.last_sync_status;
-
-          if (currentStatus === 'success') {
-            clearInterval(pollInterval);
-            setIsSyncing(false);
-            setSyncResult({ success: true, message: 'Sync completed successfully!' });
-            refetchRawCounts();
-          } else if (currentStatus === 'failed') {
-            clearInterval(pollInterval);
-            setIsSyncing(false);
-            setSyncResult({
-              success: false,
-              message: status.data?.last_error || 'Sync failed',
-            });
-          }
-        }, 5000);
-
-        setTimeout(() => {
-          clearInterval(pollInterval);
-          if (isSyncing) {
-            setIsSyncing(false);
-            setSyncResult({
-              success: false,
-              message: 'Sync timed out. Check status later.',
-            });
-          }
-        }, 10 * 60 * 1000);
+        setSyncResult({ success: true, message: `${mode === 'full' ? 'Full sync' : 'Sync'} started. Checking progress...` });
+        startPolling();
       } else {
         setSyncResult(result);
         setIsSyncing(false);
@@ -139,7 +178,12 @@ export function ResidentialApiDashboard() {
             <div className="text-right text-sm">
               <div className="flex items-center gap-1 text-gray-600">
                 <Clock className="w-3.5 h-3.5" />
-                <span>Last sync: {formatDate(syncStatus?.last_sync_at || null)}</span>
+                <span>
+                  Last sync: {formatDate(syncStatus?.last_sync_at || null)}
+                  {syncStatus?.last_sync_type && (
+                    <span className="ml-1 text-xs text-gray-400">({syncStatus.last_sync_type})</span>
+                  )}
+                </span>
               </div>
               {syncStatus?.last_sync_status === 'success' && (
                 <div className="flex items-center gap-1 text-green-600">
@@ -155,14 +199,25 @@ export function ResidentialApiDashboard() {
               )}
             </div>
 
-            <button
-              onClick={handleManualSync}
-              disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Syncing...' : 'Sync Now'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleManualSync()}
+                disabled={isSyncing}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+              <button
+                onClick={() => handleManualSync('full')}
+                disabled={isSyncing}
+                title="Force a complete resync of all records (slower)"
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Full Sync
+              </button>
+            </div>
           </div>
         </div>
 

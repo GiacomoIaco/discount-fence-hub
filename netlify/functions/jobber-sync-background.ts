@@ -8,15 +8,67 @@ const PAGE_SIZE = 50;
 // Only sync data from 2024 onwards - no need for older historical data
 const SYNC_CUTOFF_DATE = '2024-01-01T00:00:00Z';
 
+// Buffer to avoid missing records modified during previous sync window
+const SYNC_BUFFER_MINUTES = 5;
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY!
 );
 
 type JobberAccount = 'residential' | 'builders' | 'commercial';
+type SyncMode = 'full' | 'incremental';
+
+interface SyncConfig {
+  mode: SyncMode;
+  syncSince?: string; // ISO timestamp for incremental
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Determine the sync mode based on last sync status
+ */
+async function determineSyncMode(account: string, forceFull: boolean): Promise<SyncConfig> {
+  if (forceFull) {
+    console.log('Forced full sync requested');
+    return { mode: 'full' };
+  }
+
+  const { data: status } = await supabase
+    .from('jobber_sync_status')
+    .select('last_sync_at, last_sync_status, last_full_sync_at')
+    .eq('id', account)
+    .single();
+
+  // No previous successful sync -> full
+  if (!status?.last_sync_at || status.last_sync_status !== 'success') {
+    console.log('No previous successful sync, running full sync');
+    return { mode: 'full' };
+  }
+
+  // If last full sync was >24h ago -> full (periodic catch-all)
+  const lastFullSync = status.last_full_sync_at ? new Date(status.last_full_sync_at) : null;
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  if (!lastFullSync || lastFullSync < twentyFourHoursAgo) {
+    console.log('Last full sync >24h ago, running full sync');
+    return { mode: 'full' };
+  }
+
+  // Incremental: sync since last_sync_at minus buffer
+  const lastSyncAt = new Date(status.last_sync_at);
+  const syncSince = new Date(lastSyncAt.getTime() - SYNC_BUFFER_MINUTES * 60 * 1000);
+  console.log(`Incremental sync since ${syncSince.toISOString()}`);
+  return { mode: 'incremental', syncSince: syncSince.toISOString() };
+}
+
+function getFilterClause(config: SyncConfig): string {
+  if (config.mode === 'incremental' && config.syncSince) {
+    return `filter: { updatedAt: { after: "${config.syncSince}" } }`;
+  }
+  return `filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }`;
 }
 
 /**
@@ -145,83 +197,95 @@ async function graphqlQuery(
   throw lastError || new Error('GraphQL request failed after retries');
 }
 
-// Queries with date filter - only sync 2024+ data
-const QUOTES_QUERY = (cursor: string | null) => `
-  query SyncQuotes {
-    quotes(
-      first: ${PAGE_SIZE}
-      ${cursor ? `after: "${cursor}"` : ''}
-      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
-    ) {
-      nodes {
-        id
-        quoteNumber
-        title
-        quoteStatus
-        amounts { total subtotal discountAmount }
-        client { id name billingAddress { street city province postalCode } }
-        property { address { street city province postalCode } }
-        createdAt
-        sentAt
-        lastTransitioned { approvedAt convertedAt }
-        request { id }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`;
-
-const JOBS_QUERY = (cursor: string | null) => `
-  query SyncJobs {
-    jobs(
-      first: ${PAGE_SIZE}
-      ${cursor ? `after: "${cursor}"` : ''}
-      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
-    ) {
-      nodes {
-        id
-        jobNumber
-        title
-        jobStatus
-        total
-        invoicedTotal
-        client { id name }
-        property { address { street city province postalCode } }
-        createdAt
-        startAt
-        endAt
-        quote { id quoteNumber }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`;
-
-const REQUESTS_QUERY = (cursor: string | null) => `
-  query SyncRequests {
-    requests(
-      first: ${PAGE_SIZE}
-      ${cursor ? `after: "${cursor}"` : ''}
-      filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }
-    ) {
-      nodes {
-        id
-        title
-        requestStatus
-        source
-        createdAt
-        client { id name }
-        property { address { street city province postalCode } }
-        assessment {
-          startAt
-          completedAt
-          assignedUsers { nodes { name { full } } }
+// Query builders that accept sync config for incremental/full mode
+function buildQuotesQuery(config: SyncConfig) {
+  const filterClause = getFilterClause(config);
+  return (cursor: string | null) => `
+    query SyncQuotes {
+      quotes(
+        first: ${PAGE_SIZE}
+        ${cursor ? `after: "${cursor}"` : ''}
+        ${filterClause}
+      ) {
+        nodes {
+          id
+          quoteNumber
+          title
+          quoteStatus
+          amounts { total subtotal discountAmount }
+          client { id name billingAddress { street city province postalCode } }
+          property { address { street city province postalCode } }
+          createdAt
+          updatedAt
+          sentAt
+          lastTransitioned { approvedAt convertedAt }
+          request { id }
         }
+        pageInfo { hasNextPage endCursor }
       }
-      pageInfo { hasNextPage endCursor }
     }
-  }
-`;
+  `;
+}
+
+function buildJobsQuery(config: SyncConfig) {
+  const filterClause = getFilterClause(config);
+  return (cursor: string | null) => `
+    query SyncJobs {
+      jobs(
+        first: ${PAGE_SIZE}
+        ${cursor ? `after: "${cursor}"` : ''}
+        ${filterClause}
+      ) {
+        nodes {
+          id
+          jobNumber
+          title
+          jobStatus
+          total
+          invoicedTotal
+          client { id name }
+          property { address { street city province postalCode } }
+          createdAt
+          updatedAt
+          startAt
+          endAt
+          quote { id quoteNumber }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `;
+}
+
+function buildRequestsQuery(config: SyncConfig) {
+  const filterClause = getFilterClause(config);
+  return (cursor: string | null) => `
+    query SyncRequests {
+      requests(
+        first: ${PAGE_SIZE}
+        ${cursor ? `after: "${cursor}"` : ''}
+        ${filterClause}
+      ) {
+        nodes {
+          id
+          title
+          requestStatus
+          source
+          createdAt
+          updatedAt
+          client { id name }
+          property { address { street city province postalCode } }
+          assessment {
+            startAt
+            completedAt
+            assignedUsers { nodes { name { full } } }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `;
+}
 
 async function syncEntity<T>(
   accessToken: string,
@@ -284,14 +348,20 @@ async function syncEntity<T>(
 
 /**
  * Background function for Jobber sync
- * Triggered by: POST /.netlify/functions/jobber-sync-manual.background
+ * Triggered by: POST /.netlify/functions/jobber-sync-background
  */
 export const handler: BackgroundHandler = async (event) => {
-  const account = (JSON.parse(event.body || '{}').account || 'residential') as JobberAccount;
+  const body = JSON.parse(event.body || '{}');
+  const account = (body.account || 'residential') as JobberAccount;
+  const forceFull = body.mode === 'full';
 
-  console.log(`Background sync started for ${account}`);
+  console.log(`Background sync started for ${account} (requested mode: ${body.mode || 'auto'})`);
 
   try {
+    // Determine sync mode
+    const config = await determineSyncMode(account, forceFull);
+    console.log(`Sync mode: ${config.mode}${config.syncSince ? ` (since ${config.syncSince})` : ''}`);
+
     await supabase.from('jobber_sync_status').upsert({
       id: account,
       last_sync_status: 'in_progress',
@@ -305,7 +375,7 @@ export const handler: BackgroundHandler = async (event) => {
     // Sync quotes
     const quotesCount = await syncEntity(
       accessToken,
-      QUOTES_QUERY,
+      buildQuotesQuery(config),
       (data) => (data as { quotes: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).quotes,
       'jobber_api_quotes',
       (q: unknown) => {
@@ -334,6 +404,7 @@ export const handler: BackgroundHandler = async (event) => {
           approved_at: lastTransitioned?.approvedAt,
           converted_at: lastTransitioned?.convertedAt,
           request_jobber_id: (quote.request as Record<string, string> | undefined)?.id,
+          updated_at_jobber: quote.updatedAt,
           synced_at: new Date().toISOString(),
           raw_data: quote,
         };
@@ -343,7 +414,7 @@ export const handler: BackgroundHandler = async (event) => {
     // Sync jobs
     const jobsCount = await syncEntity(
       accessToken,
-      JOBS_QUERY,
+      buildJobsQuery(config),
       (data) => (data as { jobs: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).jobs,
       'jobber_api_jobs',
       (j: unknown) => {
@@ -370,6 +441,7 @@ export const handler: BackgroundHandler = async (event) => {
           completed_at: job.endAt,
           quote_jobber_id: quote?.id,
           quote_number: quote?.quoteNumber,
+          updated_at_jobber: job.updatedAt,
           synced_at: new Date().toISOString(),
           raw_data: job,
         };
@@ -379,7 +451,7 @@ export const handler: BackgroundHandler = async (event) => {
     // Sync requests
     const requestsCount = await syncEntity(
       accessToken,
-      REQUESTS_QUERY,
+      buildRequestsQuery(config),
       (data) => (data as { requests: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).requests,
       'jobber_api_requests',
       (r: unknown) => {
@@ -408,6 +480,7 @@ export const handler: BackgroundHandler = async (event) => {
           service_zip: addr?.postalCode,
           assessment_start_at: (assessment?.startAt as string) || null,
           assessment_completed_at: (assessment?.completedAt as string) || null,
+          updated_at_jobber: request.updatedAt,
           synced_at: new Date().toISOString(),
           raw_data: request,
         };
@@ -425,17 +498,18 @@ export const handler: BackgroundHandler = async (event) => {
 
     await supabase.from('jobber_sync_status').update({
       last_sync_at: new Date().toISOString(),
-      last_sync_type: 'full',
+      last_sync_type: config.mode,
       last_sync_status: 'success',
       last_error: null,
       quotes_synced: quotesCount,
       jobs_synced: jobsCount,
       requests_synced: requestsCount,
       opportunities_computed: oppsCount,
+      ...(config.mode === 'full' ? { last_full_sync_at: new Date().toISOString() } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', account);
 
-    console.log(`Background sync completed: ${quotesCount} quotes, ${jobsCount} jobs, ${requestsCount} requests in ${duration}s`);
+    console.log(`Background sync completed (${config.mode}): ${quotesCount} quotes, ${jobsCount} jobs, ${requestsCount} requests in ${duration}s`);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
