@@ -364,120 +364,121 @@ export const handler: BackgroundHandler = async (event) => {
     const accessToken = await getAccessToken(account);
     const startTime = Date.now();
 
-    // Sync quotes
-    const quotesCount = await syncEntity(
-      accessToken,
-      buildQuotesQuery(config),
-      (data) => (data as { quotes: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).quotes,
-      'jobber_api_quotes',
-      (q: unknown) => {
-        const quote = q as Record<string, unknown>;
-        const client = quote.client as Record<string, unknown> | undefined;
-        const property = quote.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
-        const addr = property?.address || (client?.billingAddress as Record<string, string> | undefined);
-        const amounts = quote.amounts as Record<string, number> | undefined;
-        const lastTransitioned = quote.lastTransitioned as Record<string, string> | undefined;
-        return {
-          jobber_id: quote.id,
-          quote_number: quote.quoteNumber,
-          title: quote.title,
-          status: (quote.quoteStatus as string)?.toLowerCase(),
-          total: amounts?.total || 0,
-          subtotal: amounts?.subtotal || 0,
-          discount: amounts?.discountAmount || 0,
-          client_jobber_id: client?.id,
-          client_name: client?.name,
-          service_street: addr?.street,
-          service_city: addr?.city,
-          service_state: addr?.province,
-          service_zip: addr?.postalCode,
-          drafted_at: quote.createdAt,
-          sent_at: quote.sentAt,
-          approved_at: lastTransitioned?.approvedAt,
-          converted_at: lastTransitioned?.convertedAt,
-          request_jobber_id: (quote.request as Record<string, string> | undefined)?.id,
-          updated_at_jobber: quote.updatedAt,
-          synced_at: new Date().toISOString(),
-          raw_data: quote,
-        };
-      }
-    );
+    // Sync quotes, jobs, and requests IN PARALLEL to stay within 15-min timeout
+    const [quotesCount, jobsCount, requestsCount] = await Promise.all([
+      // Sync quotes
+      syncEntity(
+        accessToken,
+        buildQuotesQuery(config),
+        (data) => (data as { quotes: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).quotes,
+        'jobber_api_quotes',
+        (q: unknown) => {
+          const quote = q as Record<string, unknown>;
+          const client = quote.client as Record<string, unknown> | undefined;
+          const property = quote.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
+          const addr = property?.address || (client?.billingAddress as Record<string, string> | undefined);
+          const amounts = quote.amounts as Record<string, number> | undefined;
+          const lastTransitioned = quote.lastTransitioned as Record<string, string> | undefined;
+          return {
+            jobber_id: quote.id,
+            quote_number: quote.quoteNumber,
+            title: quote.title,
+            status: (quote.quoteStatus as string)?.toLowerCase(),
+            total: amounts?.total || 0,
+            subtotal: amounts?.subtotal || 0,
+            discount: amounts?.discountAmount || 0,
+            client_jobber_id: client?.id,
+            client_name: client?.name,
+            service_street: addr?.street,
+            service_city: addr?.city,
+            service_state: addr?.province,
+            service_zip: addr?.postalCode,
+            drafted_at: quote.createdAt,
+            sent_at: quote.sentAt,
+            approved_at: lastTransitioned?.approvedAt,
+            converted_at: lastTransitioned?.convertedAt,
+            request_jobber_id: (quote.request as Record<string, string> | undefined)?.id,
+            updated_at_jobber: quote.updatedAt,
+            synced_at: new Date().toISOString(),
+            raw_data: quote,
+          };
+        }
+      ),
+      // Sync jobs
+      syncEntity(
+        accessToken,
+        buildJobsQuery(config),
+        (data) => (data as { jobs: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).jobs,
+        'jobber_api_jobs',
+        (j: unknown) => {
+          const job = j as Record<string, unknown>;
+          const client = job.client as Record<string, unknown> | undefined;
+          const property = job.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
+          const addr = property?.address;
+          const quote = job.quote as Record<string, unknown> | undefined;
+          return {
+            jobber_id: job.id,
+            job_number: job.jobNumber,
+            title: job.title,
+            status: (job.jobStatus as string)?.toLowerCase(),
+            total: job.total || 0,
+            invoiced_total: job.invoicedTotal || 0,
+            client_jobber_id: client?.id,
+            client_name: client?.name,
+            service_street: addr?.street,
+            service_city: addr?.city,
+            service_state: addr?.province,
+            service_zip: addr?.postalCode,
+            created_at_jobber: job.createdAt,
+            scheduled_start_at: job.startAt,
+            completed_at: job.endAt,
+            quote_jobber_id: quote?.id,
+            quote_number: quote?.quoteNumber,
+            updated_at_jobber: job.updatedAt,
+            synced_at: new Date().toISOString(),
+            raw_data: job,
+          };
+        }
+      ),
+      // Sync requests
+      syncEntity(
+        accessToken,
+        buildRequestsQuery(config),
+        (data) => (data as { requests: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).requests,
+        'jobber_api_requests',
+        (r: unknown) => {
+          const request = r as Record<string, unknown>;
+          const client = request.client as Record<string, unknown> | undefined;
+          const property = request.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
+          const addr = property?.address;
+          const assessment = request.assessment as Record<string, unknown> | undefined;
 
-    // Sync jobs
-    const jobsCount = await syncEntity(
-      accessToken,
-      buildJobsQuery(config),
-      (data) => (data as { jobs: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).jobs,
-      'jobber_api_jobs',
-      (j: unknown) => {
-        const job = j as Record<string, unknown>;
-        const client = job.client as Record<string, unknown> | undefined;
-        const property = job.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
-        const addr = property?.address;
-        const quote = job.quote as Record<string, unknown> | undefined;
-        return {
-          jobber_id: job.id,
-          job_number: job.jobNumber,
-          title: job.title,
-          status: (job.jobStatus as string)?.toLowerCase(),
-          total: job.total || 0,
-          invoiced_total: job.invoicedTotal || 0,
-          client_jobber_id: client?.id,
-          client_name: client?.name,
-          service_street: addr?.street,
-          service_city: addr?.city,
-          service_state: addr?.province,
-          service_zip: addr?.postalCode,
-          created_at_jobber: job.createdAt,
-          scheduled_start_at: job.startAt,
-          completed_at: job.endAt,
-          quote_jobber_id: quote?.id,
-          quote_number: quote?.quoteNumber,
-          updated_at_jobber: job.updatedAt,
-          synced_at: new Date().toISOString(),
-          raw_data: job,
-        };
-      }
-    );
+          // Extract salesperson from assessment.assignedUsers
+          const assignedUsers = assessment?.assignedUsers as { nodes?: Array<{ name?: { full?: string } }> } | undefined;
+          const salesperson = assignedUsers?.nodes?.[0]?.name?.full || null;
 
-    // Sync requests
-    const requestsCount = await syncEntity(
-      accessToken,
-      buildRequestsQuery(config),
-      (data) => (data as { requests: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }).requests,
-      'jobber_api_requests',
-      (r: unknown) => {
-        const request = r as Record<string, unknown>;
-        const client = request.client as Record<string, unknown> | undefined;
-        const property = request.property as Record<string, { street?: string; city?: string; province?: string; postalCode?: string }> | undefined;
-        const addr = property?.address;
-        const assessment = request.assessment as Record<string, unknown> | undefined;
-
-        // Extract salesperson from assessment.assignedUsers
-        const assignedUsers = assessment?.assignedUsers as { nodes?: Array<{ name?: { full?: string } }> } | undefined;
-        const salesperson = assignedUsers?.nodes?.[0]?.name?.full || null;
-
-        return {
-          jobber_id: request.id,
-          title: request.title,
-          status: (request.requestStatus as string)?.toLowerCase(),
-          lead_source: request.source as string || null,
-          created_at_jobber: request.createdAt as string || null,
-          salesperson,
-          client_jobber_id: client?.id,
-          client_name: client?.name,
-          service_street: addr?.street,
-          service_city: addr?.city,
-          service_state: addr?.province,
-          service_zip: addr?.postalCode,
-          assessment_start_at: (assessment?.startAt as string) || null,
-          assessment_completed_at: (assessment?.completedAt as string) || null,
-          updated_at_jobber: request.updatedAt,
-          synced_at: new Date().toISOString(),
-          raw_data: request,
-        };
-      }
-    );
+          return {
+            jobber_id: request.id,
+            title: request.title,
+            status: (request.requestStatus as string)?.toLowerCase(),
+            lead_source: request.source as string || null,
+            created_at_jobber: request.createdAt as string || null,
+            salesperson,
+            client_jobber_id: client?.id,
+            client_name: client?.name,
+            service_street: addr?.street,
+            service_city: addr?.city,
+            service_state: addr?.province,
+            service_zip: addr?.postalCode,
+            assessment_start_at: (assessment?.startAt as string) || null,
+            assessment_completed_at: (assessment?.completedAt as string) || null,
+            updated_at_jobber: request.updatedAt,
+            synced_at: new Date().toISOString(),
+            raw_data: request,
+          };
+        }
+      ),
+    ]);
 
     // Compute opportunities
     let oppsCount = 0;
