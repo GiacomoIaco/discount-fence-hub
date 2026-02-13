@@ -860,12 +860,13 @@ export async function runFullSync(account: JobberAccount, forceFull: boolean = f
 
     const accessToken = await getAccessToken(account);
 
-    // Sync all entities IN PARALLEL to stay within 15-min timeout
-    const [quotesCount, jobsCount, requestsCount] = await Promise.all([
-      syncQuotes(accessToken, account, config),
-      syncJobs(accessToken, account, config),
-      syncRequests(accessToken, account, config),
-    ]);
+    // Sync entities SEQUENTIALLY to share the API rate limit bucket.
+    // Parallel sync burns 3x the points (each entity fires independently),
+    // exhausting Jobber's 10K point budget in ~10 seconds.
+    // With the 100-day rolling window, sequential is fast enough.
+    const quotesCount = await syncQuotes(accessToken, account, config);
+    const jobsCount = await syncJobs(accessToken, account, config);
+    const requestsCount = await syncRequests(accessToken, account, config);
 
     stats.quotesProcessed = quotesCount;
     stats.jobsProcessed = jobsCount;
