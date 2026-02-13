@@ -13,8 +13,17 @@ import { createClient } from '@supabase/supabase-js';
 export const JOBBER_API_URL = 'https://api.getjobber.com/api/graphql';
 export const JOBBER_TOKEN_URL = 'https://api.getjobber.com/api/oauth/token';
 export const PAGE_SIZE = 50;
-export const SYNC_CUTOFF_DATE = '2024-01-01T00:00:00Z';
 export const SYNC_BUFFER_MINUTES = 5;
+
+// Full sync lookback: 100 days rolling window.
+// Projects complete within ~30 days, so 100 days gives 3x safety margin.
+// Old records stay in DB (upsert doesn't delete), we just stop re-fetching them.
+export const FULL_SYNC_LOOKBACK_DAYS = 100;
+
+function getFullSyncCutoffDate(): string {
+  const cutoff = new Date(Date.now() - FULL_SYNC_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  return cutoff.toISOString();
+}
 
 // ============================================
 // SUPABASE CLIENT
@@ -466,7 +475,7 @@ export function getFilterClause(config: SyncConfig, entity: 'quotes' | 'jobs' | 
     // Jobs and Requests don't support updatedAt filter in Jobber API
     return `filter: { createdAt: { after: "${config.syncSince}" } }`;
   }
-  return `filter: { createdAt: { after: "${SYNC_CUTOFF_DATE}" } }`;
+  return `filter: { createdAt: { after: "${getFullSyncCutoffDate()}" } }`;
 }
 
 // ============================================
