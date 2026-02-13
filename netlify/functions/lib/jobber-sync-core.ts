@@ -12,7 +12,9 @@ import { createClient } from '@supabase/supabase-js';
 
 export const JOBBER_API_URL = 'https://api.getjobber.com/api/graphql';
 export const JOBBER_TOKEN_URL = 'https://api.getjobber.com/api/oauth/token';
-export const PAGE_SIZE = 50;
+// Reduced from 50 to 25 to halve per-query cost (~750 pts instead of ~1500+).
+// More pages but each is cheaper, easier to stay within rate limits.
+export const PAGE_SIZE = 25;
 export const SYNC_BUFFER_MINUTES = 5;
 
 // Full sync lookback: 100 days rolling window.
@@ -683,8 +685,9 @@ export async function syncEntity<T>(
   let cursor: string | null = null;
   let hasMore = true;
   let totalItems = 0;
-  // Start with 3s delay - queries cost ~1000-1500 points, restore is 500/sec
-  let delayMs = 3000;
+  // Start with 5s delay. Restore rate is 500pts/sec, so 5s = 2500pts restored.
+  // PAGE_SIZE=25 queries cost ~750pts, so net +1750pts per cycle (sustainable).
+  let delayMs = 5000;
 
   while (hasMore) {
     const query = queryBuilder(cursor);
