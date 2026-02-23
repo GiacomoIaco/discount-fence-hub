@@ -63,8 +63,8 @@
 [functions."import-communities"]
   timeout = 60
 
-[functions."jobber-sync-residential"]
-  timeout = 300
+# jobber-sync-residential is a scheduled function (30s hard limit, no override)
+# It delegates to jobber-sync-background which has the 15-min timeout
 
 [functions."jobber-sync-manual"]
   timeout = 300

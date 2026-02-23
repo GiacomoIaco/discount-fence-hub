@@ -797,6 +797,19 @@ export async function computeOpportunities(): Promise<number> {
 // SYNC STATUS HELPERS
 // ============================================
 
+/**
+ * Record that the cron fired, independent of whether the sync succeeds.
+ * Uses 'cron_triggered' status so we can verify the schedule is working
+ * even if the background function hasn't started yet.
+ */
+export async function markCronTriggered(account: string): Promise<void> {
+  await supabase.from('jobber_sync_status').upsert({
+    id: account,
+    last_sync_status: 'cron_triggered',
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'id' });
+}
+
 export async function markSyncInProgress(account: string): Promise<void> {
   await supabase.from('jobber_sync_status').upsert({
     id: account,

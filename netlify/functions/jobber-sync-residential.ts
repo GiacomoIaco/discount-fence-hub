@@ -1,43 +1,57 @@
 /**
- * Jobber Residential Sync - Nightly Cron
+ * Jobber Residential Sync - Nightly Cron (Lightweight Trigger)
  *
- * Runs a full sync every night at 2am CST (8am UTC).
- * Always forces full sync because Jobs and Requests don't support
- * updatedAt filters, so incremental would miss status changes.
+ * Runs at 2am CST (8am UTC) daily.
+ * Delegates actual sync to jobber-sync-background (15-min timeout).
  *
- * All sync logic lives in ./lib/jobber-sync-core.ts
+ * Why: Netlify scheduled functions have a hard 30s timeout regardless of
+ * netlify.toml config. A full sync takes 10+ minutes. This function just
+ * POSTs to the background function and returns immediately (<1s).
  */
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
-import { schedule } from '@netlify/functions';
-import { runFullSync } from './lib/jobber-sync-core';
+import type { Config, Context } from '@netlify/functions';
+import { markCronTriggered } from './lib/jobber-sync-core';
 
-const syncHandler: Handler = async (_event: HandlerEvent, _context: HandlerContext) => {
-  console.log('Starting Jobber Residential nightly sync...');
+export default async function handler(req: Request, context: Context) {
+  console.log('[cron] Jobber Residential nightly sync triggered at', new Date().toISOString());
 
-  const stats = await runFullSync('residential', true);
+  try {
+    // Log that the cron fired (for observability, independent of sync success)
+    await markCronTriggered('residential');
 
-  if (stats.errors.length > 0) {
-    return {
-      statusCode: 500,
+    // Delegate to background function (15-min timeout)
+    const bgUrl = new URL('/.netlify/functions/jobber-sync-background', req.url);
+    const response = await fetch(bgUrl.toString(), {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: false,
-        errors: stats.errors,
-        stats,
-      }),
-    };
-  }
+      body: JSON.stringify({ account: 'residential', mode: 'full' }),
+    });
 
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    console.log(`[cron] Background function invoked, status: ${response.status}`);
+
+    return new Response(JSON.stringify({
       success: true,
-      message: 'Residential sync completed successfully',
-      stats,
-    }),
-  };
-};
+      message: 'Background sync triggered',
+      backgroundStatus: response.status,
+      triggeredAt: new Date().toISOString(),
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[cron] Failed to trigger background sync:', message);
 
-// Schedule: Run at 2am CST (8am UTC) daily
-export const handler = schedule('0 8 * * *', syncHandler);
+    return new Response(JSON.stringify({
+      success: false,
+      error: message,
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Modern Netlify scheduled function config
+export const config: Config = {
+  schedule: '0 8 * * *', // 8am UTC = 2am CST daily
+};
