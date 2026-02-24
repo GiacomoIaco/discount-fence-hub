@@ -66,7 +66,8 @@ export default function PWAUpdatePrompt() {
     return (
       <button
         onClick={handleForceRefresh}
-        className="fixed bottom-20 right-4 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 z-40"
+        className="fixed right-4 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 z-40"
+        style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
         title="Check for updates"
       >
         <RefreshCw className="w-5 h-5" />
@@ -75,7 +76,7 @@ export default function PWAUpdatePrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-blue-600 text-white rounded-lg shadow-2xl p-4 z-50 animate-slide-up">
+    <div className="fixed left-4 right-4 md:left-auto md:right-4 md:w-96 bg-blue-600 text-white rounded-lg shadow-2xl p-4 z-50 animate-slide-up" style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       <div className="flex items-start gap-3">
         <RefreshCw className="w-6 h-6 flex-shrink-0 mt-0.5" />
         <div className="flex-1">

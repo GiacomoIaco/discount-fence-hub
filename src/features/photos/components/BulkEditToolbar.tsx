@@ -33,8 +33,8 @@ export function BulkEditToolbar({
 
   return (
     <div
-      className={`fixed bottom-0 p-4 bg-white border-t-2 border-gray-300 shadow-lg z-40 ${
-        viewMode === 'desktop' ? 'left-64 right-0' : 'left-0 right-0'
+      className={`fixed p-4 bg-white border-t-2 border-gray-300 shadow-lg z-40 ${
+        viewMode === 'desktop' ? 'bottom-0 left-64 right-0' : 'left-0 right-0 above-mobile-nav'
       }`}
     >
       <div className="max-w-7xl mx-auto">

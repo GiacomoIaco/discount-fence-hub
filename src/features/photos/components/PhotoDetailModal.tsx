@@ -39,8 +39,8 @@ export function PhotoDetailModal({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* Top Controls */}
-      <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-10 flex justify-between items-start">
+      {/* Top Controls - safe-area-top clears iPhone notch/Dynamic Island */}
+      <div className="absolute top-0 left-0 right-0 p-4 safe-area-top bg-gradient-to-b from-black/60 to-transparent z-10 flex justify-between items-start">
         <button
           onClick={() => onToggleFavorite(photo)}
           className="p-2 rounded-full bg-white/20 backdrop-blur-sm"
@@ -100,8 +100,8 @@ export function PhotoDetailModal({
         </>
       )}
 
-      {/* Bottom Info */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
+      {/* Bottom Info - safe-area-bottom clears iPhone home indicator */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 safe-area-bottom bg-gradient-to-t from-black/60 to-transparent">
         {photo.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 justify-center">
             {photo.tags.map((tag) => (

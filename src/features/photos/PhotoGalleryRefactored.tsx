@@ -512,9 +512,10 @@ export function PhotoGalleryRefactored({
       {/* Floating Action Buttons */}
       {!editMode && (activeTab === 'gallery' || viewMode === 'mobile') && (
         <div
-          className={`fixed bottom-4 right-4 pointer-events-none ${
-            viewMode === 'desktop' ? 'left-auto' : 'left-4'
+          className={`fixed right-4 pointer-events-none ${
+            viewMode === 'desktop' ? 'bottom-4 left-auto' : 'left-4 above-mobile-nav'
           }`}
+          style={viewMode === 'mobile' ? { marginBottom: '0.5rem' } : undefined}
         >
           <div className="flex justify-between items-center pointer-events-auto">
             <button

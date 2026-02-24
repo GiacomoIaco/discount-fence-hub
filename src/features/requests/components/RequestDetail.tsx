@@ -1484,7 +1484,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
       </div>
 
       {/* Sticky Message Bar at Bottom - Mobile */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 shadow-lg z-20 lg:hidden ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
+      <div className={`fixed left-0 right-0 bg-white border-t border-gray-200 p-2 shadow-lg z-20 lg:hidden above-mobile-nav ${mobileTab !== 'chat' ? 'hidden' : ''}`}>
         <div className="flex gap-1.5 items-center">
           {/* Hidden file inputs for camera, gallery, and document */}
           <input

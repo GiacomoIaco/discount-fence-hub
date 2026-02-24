@@ -316,7 +316,7 @@ export function ComposeSheet({
               )}
 
               {/* Create button - fixed at bottom */}
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 sm:relative sm:border-0 sm:p-0 sm:pt-4">
+              <div className="fixed left-0 right-0 p-4 bg-white border-t border-gray-200 above-mobile-nav sm:relative sm:!bottom-auto sm:border-0 sm:p-0 sm:pt-4">
                 <button
                   onClick={createGroupConversation}
                   disabled={isCreating || !groupName.trim() || selectedParticipants.length === 0}

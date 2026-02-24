@@ -41,6 +41,16 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Position fixed elements above the mobile bottom nav (h-16 + safe area) */
+.above-mobile-nav {
+  bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Top safe area for fullscreen modals (notch/Dynamic Island) */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* Slide-up animation for modals/sheets */
 @keyframes slide-up {
   from {

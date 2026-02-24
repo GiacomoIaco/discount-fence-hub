@@ -226,7 +226,8 @@ export default function RequestHub({ onBack }: RequestHubProps) {
         {/* FAB - New Request */}
         <button
           onClick={() => setView('menu')}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-20"
+          className="fixed right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-20"
+          style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <Plus className="w-6 h-6" />
         </button>
