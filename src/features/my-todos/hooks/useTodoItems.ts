@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { TodoItem, TodoItemFollower, TodoItemComment } from '../types';
+import type { TodoItem, TodoItemFollower, TodoItemComment, TodoItemAttachment } from '../types';
 
 // ============================================
 // HELPER: Batch-fetch user profiles by IDs
@@ -518,16 +518,27 @@ export function useAddTodoItemComment() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ itemId, content }: { itemId: string; content: string }) => {
+    mutationFn: async ({ itemId, content, fileUrl, fileName, fileType }: {
+      itemId: string;
+      content: string;
+      fileUrl?: string;
+      fileName?: string;
+      fileType?: string;
+    }) => {
       if (!user) throw new Error('User not authenticated');
+
+      const insertData: Record<string, unknown> = {
+        item_id: itemId,
+        user_id: user.id,
+        content,
+      };
+      if (fileUrl) insertData.file_url = fileUrl;
+      if (fileName) insertData.file_name = fileName;
+      if (fileType) insertData.file_type = fileType;
 
       const { data, error } = await supabase
         .from('todo_item_comments')
-        .insert({
-          item_id: itemId,
-          user_id: user.id,
-          content,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -609,5 +620,143 @@ export function useTodoLastCommentsQuery(itemIds: string[]) {
     },
     enabled: itemIds.length > 0,
     staleTime: 30000,
+  });
+}
+
+// ============================================
+// ATTACHMENTS
+// ============================================
+
+function getFileType(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.includes('pdf') || mimeType.includes('word') || mimeType.includes('document') || mimeType.includes('sheet') || mimeType.includes('text')) return 'document';
+  return 'other';
+}
+
+/**
+ * Fetch attachments for a todo item
+ */
+export function useTodoItemAttachmentsQuery(itemId: string | null) {
+  return useQuery({
+    queryKey: ['todo-item-attachments', itemId],
+    queryFn: async (): Promise<TodoItemAttachment[]> => {
+      if (!itemId) return [];
+
+      const { data, error } = await supabase
+        .from('todo_item_attachments')
+        .select('*')
+        .eq('item_id', itemId)
+        .order('uploaded_at', { ascending: false });
+
+      if (error) {
+        console.warn('todo_item_attachments query failed:', error);
+        return [];
+      }
+
+      return data || [];
+    },
+    enabled: !!itemId,
+  });
+}
+
+/**
+ * Upload a file and create attachment + optional comment
+ */
+export function useUploadTodoAttachment() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ itemId, file, addComment = true }: {
+      itemId: string;
+      file: File;
+      addComment?: boolean;
+    }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const fileType = getFileType(file.type);
+      const filePath = `${user.id}/${itemId}/${Date.now()}-${file.name}`;
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('todo-attachments')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('todo-attachments')
+        .getPublicUrl(filePath);
+
+      const fileUrl = urlData.publicUrl;
+
+      // Create attachment record
+      const { data: attachment, error: attachError } = await supabase
+        .from('todo_item_attachments')
+        .insert({
+          item_id: itemId,
+          uploaded_by: user.id,
+          file_name: file.name,
+          file_url: fileUrl,
+          file_type: fileType,
+          file_size: file.size,
+          mime_type: file.type,
+        })
+        .select()
+        .single();
+
+      if (attachError) throw attachError;
+
+      // Also create a comment with the file for inline chat display
+      if (addComment) {
+        const isImage = file.type.startsWith('image/');
+        const content = isImage
+          ? `Shared an image: ${file.name}`
+          : `Shared a file: ${file.name}`;
+
+        await supabase
+          .from('todo_item_comments')
+          .insert({
+            item_id: itemId,
+            user_id: user.id,
+            content,
+            file_url: fileUrl,
+            file_name: file.name,
+            file_type: fileType,
+          });
+      }
+
+      return attachment;
+    },
+    onSuccess: (_, { itemId }) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-item-attachments', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['todo-item-comments', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['todo-last-comments'] });
+    },
+  });
+}
+
+/**
+ * Delete an attachment
+ */
+export function useDeleteTodoAttachment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ attachmentId, itemId }: { attachmentId: string; itemId: string }) => {
+      const { error } = await supabase
+        .from('todo_item_attachments')
+        .delete()
+        .eq('id', attachmentId);
+
+      if (error) throw error;
+      return { attachmentId, itemId };
+    },
+    onSuccess: (_, { itemId }) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-item-attachments', itemId] });
+    },
   });
 }

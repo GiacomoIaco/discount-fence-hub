@@ -90,6 +90,9 @@ export interface TodoItemComment {
   item_id: string;
   user_id: string;
   content: string;
+  file_url: string | null;
+  file_name: string | null;
+  file_type: string | null;
   created_at: string;
   updated_at: string;
   user?: {
@@ -97,4 +100,17 @@ export interface TodoItemComment {
     full_name: string;
     avatar_url: string | null;
   };
+}
+
+export interface TodoItemAttachment {
+  id: string;
+  item_id: string;
+  uploaded_by: string;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size: number | null;
+  mime_type: string | null;
+  description: string | null;
+  uploaded_at: string;
 }
