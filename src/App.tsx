@@ -221,12 +221,13 @@ function App() {
     localStorage.setItem('mobileLayout', mobileLayout);
   }, [mobileLayout]);
 
-  // Auto-collapse sidebar in Leadership and MyTodos modes for maximum screen space
+  // Sections with their own sidebar — hide main sidebar entirely
+  const hideMainSidebar = activeSection === 'leadership' || activeSection === 'my-todos';
   useEffect(() => {
-    if (activeSection === 'leadership' || activeSection === 'my-todos') {
+    if (hideMainSidebar) {
       setSidebarOpen(false);
     }
-  }, [activeSection]);
+  }, [hideMainSidebar]);
 
   // Browser back/forward is now handled by useRouteSync via React Router
 
@@ -853,22 +854,24 @@ function App() {
     <ToastProvider>
       <RightPaneProvider>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
-        <Sidebar
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          navigationItems={visibleNavigationItems}
-          activeSection={activeSection}
-          onNavigate={navigateTo}
-          profileFullName={profile?.full_name}
-          profileAvatarUrl={profile?.avatar_url}
-          userName={userName}
-          user={user}
-          signOut={signOut}
-          setViewMode={setViewMode}
-          setShowProfileView={setShowProfileView}
-          onCreateRequest={() => navigateToEntity('request', { id: 'new' })}
-          onCreateQuote={() => navigateToEntity('quote', { id: 'new' })}
-        />
+        {!hideMainSidebar && (
+          <Sidebar
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            navigationItems={visibleNavigationItems}
+            activeSection={activeSection}
+            onNavigate={navigateTo}
+            profileFullName={profile?.full_name}
+            profileAvatarUrl={profile?.avatar_url}
+            userName={userName}
+            user={user}
+            signOut={signOut}
+            setViewMode={setViewMode}
+            setShowProfileView={setShowProfileView}
+            onCreateRequest={() => navigateToEntity('request', { id: 'new' })}
+            onCreateQuote={() => navigateToEntity('quote', { id: 'new' })}
+          />
+        )}
 
         <div className="flex-1 overflow-auto">
           {isHubSection ? (
