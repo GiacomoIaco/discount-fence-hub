@@ -1,35 +1,52 @@
 export { default as MyTodos } from './components/MyTodos';
 export { default as TaskDetailModal } from './components/TaskDetailModal';
-export { default as TaskComments } from './components/TaskComments';
 export { default as TaskCommentsPanel } from './components/TaskCommentsPanel';
+
+// Re-export hooks
 export {
-  useMyTodosQuery,
-  useMyTodosStats,
-  useUpdateTaskStatus,
-  useUpdateTaskOrder,
-  useUpdateTaskField,
-  useCreateTask,
-  useDeleteTask,
-  useCreatePersonalInitiative,
-  usePersonalInitiativesQuery,
-  useUpdatePersonalInitiative,
-  useReorderPersonalInitiatives,
-  useReorderTasks,
-  useArchivePersonalInitiative,
-  // Task comments
-  useTaskCommentsQuery,
-  useAddTaskComment,
-  useDeleteTaskComment,
-  // Task owner and assignees
-  useUpdateTaskOwner,
-  useAddTaskAssignee,
-  useRemoveTaskAssignee,
+  // Lists
+  useTodoListsQuery,
+  useTodoListMembersQuery,
+  useCreateTodoList,
+  useUpdateTodoList,
+  useArchiveTodoList,
+  useReorderTodoLists,
+  useAddTodoListMember,
+  useRemoveTodoListMember,
+  useEnsureDefaultList,
+  // Sections
+  useTodoSectionsQuery,
+  useCreateTodoSection,
+  useUpdateTodoSection,
+  useDeleteTodoSection,
+  useReorderTodoSections,
+  // Items
+  useTodoItemsQuery,
+  useMyWorkQuery,
+  useCreateTodoItem,
+  useUpdateTodoItemStatus,
+  useUpdateTodoItem,
+  useDeleteTodoItem,
+  useReorderTodoItems,
+  useMoveTodoItem,
+  useAddTodoItemFollower,
+  useRemoveTodoItemFollower,
+  // Comments
+  useTodoItemCommentsQuery,
+  useAddTodoItemComment,
+  useDeleteTodoItemComment,
+  useTodoLastCommentsQuery,
+  // Task views (localStorage)
+  getTaskLastViewed,
+  setTaskViewed,
+  isCommentUnread,
   // Types
-  type TaskWithDetails,
-  type TaskAssignee,
-  type TaskComment,
-  type MyTasksData,
-  type TaskStats,
-  type PersonalInitiative,
+  type TodoList,
+  type TodoListMember,
+  type TodoSection,
+  type TodoItem,
+  type TodoItemFollower,
+  type TodoItemComment,
+  type TodoVisibility,
+  type TodoItemStatus,
 } from './hooks/useMyTodos';
-export { useInitiativeCommentsQuery, useAddComment, useDeleteComment } from './hooks/useInitiativeComments';

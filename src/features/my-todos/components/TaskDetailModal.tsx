@@ -1,31 +1,19 @@
 import { useState, useEffect } from 'react';
-import { X, Calendar, CheckCircle2, MessageSquare, Clock, Crown, UserCheck, Building2, User, Loader2, Edit3, Save, AlertTriangle } from 'lucide-react';
-import { useUpdateTaskStatus, useUpdateTaskField, useMyTodosQuery } from '../hooks/useMyTodos';
+import { X, Calendar, CheckCircle2, MessageSquare, Clock, User, Loader2, Edit3, Save, AlertTriangle } from 'lucide-react';
+import { useTodoItemsQuery, useUpdateTodoItemStatus, useUpdateTodoItem } from '../hooks/useTodoItems';
+import { useTodoSectionsQuery } from '../hooks/useTodoSections';
+import { useTodoListsQuery } from '../hooks/useTodoLists';
 import TaskCommentsPanel from './TaskCommentsPanel';
+import { InlineFollowersPicker } from './InlineEditors';
 import { getInitials } from '../../../lib/stringUtils';
+import { getAvatarColor } from '../utils/todoHelpers';
 
 interface TaskDetailModalProps {
   taskId: string;
+  listId: string;
   onClose: () => void;
 }
 
-// Get avatar color from user ID
-const getAvatarColor = (userId: string): string => {
-  const colors = [
-    'bg-blue-500',
-    'bg-green-500',
-    'bg-purple-500',
-    'bg-orange-500',
-    'bg-pink-500',
-    'bg-teal-500',
-    'bg-indigo-500',
-    'bg-red-500',
-  ];
-  const hash = userId.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
-  return colors[hash % colors.length];
-};
-
-// Status badge config
 const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
   todo: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'To Do' },
   in_progress: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'In Progress' },
@@ -33,10 +21,12 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
   blocked: { bg: 'bg-red-100', text: 'text-red-700', label: 'Blocked' },
 };
 
-export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
-  const { data } = useMyTodosQuery();
-  const updateStatus = useUpdateTaskStatus();
-  const updateField = useUpdateTaskField();
+export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailModalProps) {
+  const { data: items } = useTodoItemsQuery(listId);
+  const { data: sections } = useTodoSectionsQuery(listId);
+  const { data: lists } = useTodoListsQuery();
+  const updateStatus = useUpdateTodoItemStatus();
+  const updateItem = useUpdateTodoItem();
 
   const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -46,8 +36,9 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
   const [editDescription, setEditDescription] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
-  // Find the task from the data
-  const task = data?.tasks.find(t => t.id === taskId);
+  const task = items?.find(t => t.id === taskId);
+  const section = sections?.find(s => s.id === task?.section_id);
+  const list = lists?.find(l => l.id === listId);
 
   useEffect(() => {
     if (task) {
@@ -72,36 +63,33 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
   const statusInfo = statusConfig[task.status] || statusConfig.todo;
 
   const handleStatusChange = async (status: string) => {
-    await updateStatus.mutateAsync({ id: task.id, status });
+    await updateStatus.mutateAsync({ id: task.id, status, listId });
   };
 
   const handleSaveTitle = async () => {
     if (editTitle.trim() && editTitle !== task.title) {
-      await updateField.mutateAsync({ id: task.id, field: 'title', value: editTitle.trim() });
+      await updateItem.mutateAsync({ id: task.id, listId, title: editTitle.trim() });
     }
     setIsEditingTitle(false);
   };
 
   const handleSaveDescription = async () => {
     if (editDescription !== (task.description || '')) {
-      await updateField.mutateAsync({ id: task.id, field: 'description', value: editDescription || null });
+      await updateItem.mutateAsync({ id: task.id, listId, description: editDescription || null });
     }
     setIsEditingDescription(false);
   };
 
   const handleSaveNotes = async () => {
     if (editNotes !== (task.notes || '')) {
-      await updateField.mutateAsync({ id: task.id, field: 'notes', value: editNotes || null });
+      await updateItem.mutateAsync({ id: task.id, listId, notes: editNotes || null });
     }
     setIsEditingNotes(false);
   };
 
   const handleSaveDueDate = async (date: string | null) => {
-    await updateField.mutateAsync({ id: task.id, field: 'due_date', value: date });
+    await updateItem.mutateAsync({ id: task.id, listId, due_date: date });
   };
-
-  // Check user permissions
-  const canEdit = task.isOwner || task.isCreator;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -113,7 +101,7 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              {isEditingTitle && canEdit ? (
+              {isEditingTitle ? (
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -124,51 +112,24 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                     onBlur={handleSaveTitle}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSaveTitle();
-                      if (e.key === 'Escape') {
-                        setEditTitle(task.title);
-                        setIsEditingTitle(false);
-                      }
+                      if (e.key === 'Escape') { setEditTitle(task.title); setIsEditingTitle(false); }
                     }}
                   />
                 </div>
               ) : (
                 <h2
-                  className={`text-xl font-bold text-gray-900 ${canEdit ? 'cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2' : ''}`}
-                  onClick={() => canEdit && setIsEditingTitle(true)}
+                  className="text-xl font-bold text-gray-900 cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2"
+                  onClick={() => setIsEditingTitle(true)}
                 >
                   {task.title}
-                  {canEdit && <Edit3 className="w-4 h-4 inline ml-2 text-gray-400" />}
+                  <Edit3 className="w-4 h-4 inline ml-2 text-gray-400" />
                 </h2>
               )}
 
-              {/* Initiative/Function breadcrumb */}
+              {/* Breadcrumb: list > section */}
               <p className="text-sm text-gray-500 mt-1">
-                {task.initiative?.area?.function?.name && `${task.initiative.area.function.name} / `}
-                {task.initiative?.area?.name && `${task.initiative.area.name} / `}
-                {task.initiative?.title || 'Personal Initiative'}
+                {list?.title || 'List'} / {section?.title || 'Section'}
               </p>
-
-              {/* Role badges */}
-              <div className="flex items-center gap-2 mt-2">
-                {task.isOwner && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">
-                    <Crown className="w-3 h-3" />
-                    Owner
-                  </span>
-                )}
-                {task.isAssignee && !task.isOwner && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                    <UserCheck className="w-3 h-3" />
-                    Assignee
-                  </span>
-                )}
-                {task.isInMyFunction && !task.isOwner && !task.isAssignee && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
-                    <Building2 className="w-3 h-3" />
-                    My Function
-                  </span>
-                )}
-              </div>
             </div>
             <button
               onClick={onClose}
@@ -190,8 +151,7 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Clock className="w-4 h-4" />
-              Details
+              <Clock className="w-4 h-4" /> Details
             </button>
             <button
               onClick={() => setActiveTab('comments')}
@@ -201,8 +161,7 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              <MessageSquare className="w-4 h-4" />
-              Comments
+              <MessageSquare className="w-4 h-4" /> Comments
             </button>
           </div>
         </div>
@@ -211,9 +170,8 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'details' ? (
             <div className="space-y-6">
-              {/* Status, Due Date & Priority Row */}
+              {/* Status, Due Date & Priority */}
               <div className="flex flex-wrap gap-4 items-start">
-                {/* Status Selector */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Status</label>
                   <select
@@ -229,7 +187,6 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                   </select>
                 </div>
 
-                {/* Due Date */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Due Date</label>
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isOverdue ? 'bg-red-50' : 'bg-gray-50'}`}>
@@ -240,33 +197,27 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                       value={task.due_date || ''}
                       onChange={(e) => handleSaveDueDate(e.target.value || null)}
                       className={`text-sm font-medium bg-transparent border-none focus:ring-0 ${isOverdue ? 'text-red-700' : 'text-gray-700'}`}
-                      disabled={!canEdit}
                     />
                   </div>
-                  {isOverdue && (
-                    <p className="text-xs text-red-600 mt-1">This task is overdue!</p>
-                  )}
+                  {isOverdue && <p className="text-xs text-red-600 mt-1">This task is overdue!</p>}
                 </div>
 
-                {/* High Priority Toggle */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Priority</label>
                   <button
                     onClick={async () => {
-                      if (canEdit) {
-                        await updateField.mutateAsync({
-                          id: task.id,
-                          field: 'is_high_priority',
-                          value: !task.is_high_priority,
-                        });
-                      }
+                      await updateItem.mutateAsync({
+                        id: task.id,
+                        listId,
+                        is_high_priority: !task.is_high_priority,
+                      });
                     }}
-                    disabled={!canEdit || updateField.isPending}
+                    disabled={updateItem.isPending}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
                       task.is_high_priority
                         ? 'bg-red-50 border-red-300 text-red-700'
                         : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
-                    } ${!canEdit ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                    } cursor-pointer`}
                   >
                     <div className={`w-2 h-2 rounded-full ${task.is_high_priority ? 'bg-red-500' : 'bg-gray-400'}`} />
                     <span className="text-sm font-medium">
@@ -276,78 +227,44 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                 </div>
               </div>
 
-              {/* Owner */}
+              {/* Assigned To */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Owner</label>
-                {task.owner ? (
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Assigned To</label>
+                {task.assigned_user ? (
                   <div className="flex items-center gap-2">
-                    {task.owner.avatar_url ? (
-                      <img
-                        src={task.owner.avatar_url}
-                        alt={task.owner.full_name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                    {task.assigned_user.avatar_url ? (
+                      <img src={task.assigned_user.avatar_url} alt={task.assigned_user.full_name} className="w-8 h-8 rounded-full object-cover" />
                     ) : (
-                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(task.owner.id)} flex items-center justify-center`}>
-                        <span className="text-xs font-medium text-white">
-                          {getInitials(task.owner.full_name)}
-                        </span>
+                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(task.assigned_user.id)} flex items-center justify-center`}>
+                        <span className="text-xs font-medium text-white">{getInitials(task.assigned_user.full_name)}</span>
                       </div>
                     )}
-                    <span className="text-sm font-medium text-gray-900">{task.owner.full_name}</span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No owner assigned</p>
-                )}
-              </div>
-
-              {/* Assignees */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Assignee(s)</label>
-                {(task.assignees?.length || task.assigned_user) ? (
-                  <div className="flex flex-wrap gap-2">
-                    {task.assignees?.length ? (
-                      task.assignees.map((assignee) => (
-                        <div key={assignee.user_id} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
-                          {assignee.user?.avatar_url ? (
-                            <img
-                              src={assignee.user.avatar_url}
-                              alt={assignee.user.full_name || 'User'}
-                              className="w-6 h-6 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className={`w-6 h-6 rounded-full ${getAvatarColor(assignee.user_id)} flex items-center justify-center`}>
-                              <span className="text-xs font-medium text-white">
-                                {getInitials(assignee.user?.full_name || 'U')}
-                              </span>
-                            </div>
-                          )}
-                          <span className="text-sm text-gray-700">{assignee.user?.full_name || 'Unknown'}</span>
-                        </div>
-                      ))
-                    ) : task.assigned_user ? (
-                      <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
-                        {task.assigned_user.avatar_url ? (
-                          <img
-                            src={task.assigned_user.avatar_url}
-                            alt={task.assigned_user.full_name}
-                            className="w-6 h-6 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className={`w-6 h-6 rounded-full ${getAvatarColor(task.assigned_user.id)} flex items-center justify-center`}>
-                            <span className="text-xs font-medium text-white">
-                              {getInitials(task.assigned_user.full_name)}
-                            </span>
-                          </div>
-                        )}
-                        <span className="text-sm text-gray-700">{task.assigned_user.full_name}</span>
-                      </div>
-                    ) : null}
+                    <span className="text-sm font-medium text-gray-900">{task.assigned_user.full_name}</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-gray-500 text-sm">
                     <User className="w-4 h-4" />
-                    <span>No assignees</span>
+                    <span>No one assigned</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Followers */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Followers</label>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <InlineFollowersPicker task={task} listId={listId} />
+                </div>
+                {task.followers && task.followers.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {task.followers.map(f => (
+                      <div key={f.user_id} className="flex items-center gap-1.5 bg-purple-50 px-2 py-1 rounded text-sm">
+                        <div className={`w-5 h-5 rounded-full ${getAvatarColor(f.user_id)} text-white text-[10px] flex items-center justify-center`}>
+                          {getInitials(f.user?.full_name || 'U')}
+                        </div>
+                        <span className="text-purple-800">{f.user?.full_name || 'User'}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -356,41 +273,33 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-medium text-gray-500 uppercase">Description</label>
-                  {canEdit && !isEditingDescription && (
-                    <button
-                      onClick={() => setIsEditingDescription(true)}
-                      className="text-xs text-blue-600 hover:text-blue-700"
-                    >
+                  {!isEditingDescription && (
+                    <button onClick={() => setIsEditingDescription(true)} className="text-xs text-blue-600 hover:text-blue-700">
                       Edit
                     </button>
                   )}
                 </div>
-                {isEditingDescription && canEdit ? (
+                {isEditingDescription ? (
                   <div>
                     <textarea
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                       rows={3}
-                      placeholder="Add a description for this task..."
+                      placeholder="Add a description..."
                       autoFocus
                     />
                     <div className="flex justify-end gap-2 mt-2">
                       <button
-                        onClick={() => {
-                          setEditDescription(task.description || '');
-                          setIsEditingDescription(false);
-                        }}
+                        onClick={() => { setEditDescription(task.description || ''); setIsEditingDescription(false); }}
                         className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
-                      >
-                        Cancel
-                      </button>
+                      >Cancel</button>
                       <button
                         onClick={handleSaveDescription}
-                        disabled={updateField.isPending}
+                        disabled={updateItem.isPending}
                         className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
                       >
-                        {updateField.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        {updateItem.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                         Save
                       </button>
                     </div>
@@ -406,41 +315,33 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-medium text-gray-500 uppercase">Notes</label>
-                  {canEdit && !isEditingNotes && (
-                    <button
-                      onClick={() => setIsEditingNotes(true)}
-                      className="text-xs text-blue-600 hover:text-blue-700"
-                    >
+                  {!isEditingNotes && (
+                    <button onClick={() => setIsEditingNotes(true)} className="text-xs text-blue-600 hover:text-blue-700">
                       Edit
                     </button>
                   )}
                 </div>
-                {isEditingNotes && canEdit ? (
+                {isEditingNotes ? (
                   <div>
                     <textarea
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                       rows={3}
-                      placeholder="Add notes about this task..."
+                      placeholder="Add notes..."
                       autoFocus
                     />
                     <div className="flex justify-end gap-2 mt-2">
                       <button
-                        onClick={() => {
-                          setEditNotes(task.notes || '');
-                          setIsEditingNotes(false);
-                        }}
+                        onClick={() => { setEditNotes(task.notes || ''); setIsEditingNotes(false); }}
                         className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
-                      >
-                        Cancel
-                      </button>
+                      >Cancel</button>
                       <button
                         onClick={handleSaveNotes}
-                        disabled={updateField.isPending}
+                        disabled={updateItem.isPending}
                         className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
                       >
-                        {updateField.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        {updateItem.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                         Save
                       </button>
                     </div>
@@ -461,8 +362,7 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                       disabled={updateStatus.isPending}
                       className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Mark Complete
+                      <CheckCircle2 className="w-4 h-4" /> Mark Complete
                     </button>
                   )}
                   {task.status === 'todo' && (
@@ -471,8 +371,7 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                       disabled={updateStatus.isPending}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                     >
-                      <Clock className="w-4 h-4" />
-                      Start Working
+                      <Clock className="w-4 h-4" /> Start Working
                     </button>
                   )}
                   {task.status === 'done' && (
@@ -481,8 +380,7 @@ export default function TaskDetailModal({ taskId, onClose }: TaskDetailModalProp
                       disabled={updateStatus.isPending}
                       className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
                     >
-                      <Clock className="w-4 h-4" />
-                      Reopen Task
+                      <Clock className="w-4 h-4" /> Reopen Task
                     </button>
                   )}
                 </div>

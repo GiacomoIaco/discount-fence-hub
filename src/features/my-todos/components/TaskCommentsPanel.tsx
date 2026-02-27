@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Send, Trash2 } from 'lucide-react';
-import { useTaskCommentsQuery, useAddTaskComment, useDeleteTaskComment } from '../hooks/useMyTodos';
+import { useTodoItemCommentsQuery, useAddTodoItemComment, useDeleteTodoItemComment } from '../hooks/useTodoItems';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getInitials } from '../../../lib/stringUtils';
 
@@ -8,7 +8,6 @@ interface TaskCommentsPanelProps {
   taskId: string;
 }
 
-// Format relative time
 const formatRelativeTime = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();
@@ -26,9 +25,9 @@ const formatRelativeTime = (dateString: string): string => {
 
 export default function TaskCommentsPanel({ taskId }: TaskCommentsPanelProps) {
   const { user } = useAuth();
-  const { data: comments, isLoading } = useTaskCommentsQuery(taskId);
-  const addComment = useAddTaskComment();
-  const deleteComment = useDeleteTaskComment();
+  const { data: comments, isLoading } = useTodoItemCommentsQuery(taskId);
+  const addComment = useAddTodoItemComment();
+  const deleteComment = useDeleteTodoItemComment();
   const [newComment, setNewComment] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,7 +35,7 @@ export default function TaskCommentsPanel({ taskId }: TaskCommentsPanelProps) {
     if (!newComment.trim()) return;
 
     await addComment.mutateAsync({
-      taskId,
+      itemId: taskId,
       content: newComment.trim(),
     });
     setNewComment('');
@@ -44,7 +43,7 @@ export default function TaskCommentsPanel({ taskId }: TaskCommentsPanelProps) {
 
   const handleDelete = async (commentId: string) => {
     if (!window.confirm('Delete this comment?')) return;
-    await deleteComment.mutateAsync({ commentId, taskId });
+    await deleteComment.mutateAsync({ commentId, itemId: taskId });
   };
 
   if (isLoading) {
@@ -57,12 +56,10 @@ export default function TaskCommentsPanel({ taskId }: TaskCommentsPanelProps) {
 
   return (
     <div className="space-y-4">
-      {/* Comments List */}
       <div className="space-y-3 max-h-[300px] overflow-y-auto">
         {comments && comments.length > 0 ? (
           comments.map(comment => (
             <div key={comment.id} className="flex gap-3 group">
-              {/* Avatar */}
               {comment.user?.avatar_url ? (
                 <img
                   src={comment.user.avatar_url}
@@ -77,7 +74,6 @@ export default function TaskCommentsPanel({ taskId }: TaskCommentsPanelProps) {
                 </div>
               )}
 
-              {/* Comment Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm text-gray-900">
@@ -107,7 +103,6 @@ export default function TaskCommentsPanel({ taskId }: TaskCommentsPanelProps) {
         )}
       </div>
 
-      {/* Add Comment Form */}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <div className="flex-1">
           <textarea

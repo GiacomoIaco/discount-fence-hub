@@ -122,7 +122,7 @@ function App() {
   }, [profile]);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, Analytics, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'message-center' || activeSection === 'analytics';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'my-todos' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'message-center' || activeSection === 'analytics';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -875,7 +875,7 @@ function App() {
             // Hub sections take full screen with no wrapper padding
             renderContent()
           ) : (
-            <div className={activeSection === 'my-todos' ? 'p-6' : 'p-8 max-w-7xl mx-auto'}>
+            <div className="p-8 max-w-7xl mx-auto">
               {renderContent()}
             </div>
           )}

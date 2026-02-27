@@ -1,0 +1,100 @@
+// ============================================
+// Standalone To-Dos Types
+// ============================================
+
+export type TodoVisibility = 'open' | 'private' | 'personal';
+export type TodoItemStatus = 'todo' | 'in_progress' | 'done' | 'blocked';
+export type TodoListMemberRole = 'owner' | 'member';
+
+export interface TodoList {
+  id: string;
+  title: string;
+  description: string | null;
+  visibility: TodoVisibility;
+  color: string;
+  created_by: string;
+  archived_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  // Computed in queries
+  item_count?: number;
+  member_count?: number;
+}
+
+export interface TodoListMember {
+  id: string;
+  list_id: string;
+  user_id: string;
+  role: TodoListMemberRole;
+  created_at: string;
+  user?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
+
+export interface TodoSection {
+  id: string;
+  list_id: string;
+  title: string;
+  color: string;
+  is_collapsed: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TodoItem {
+  id: string;
+  section_id: string;
+  list_id: string;
+  title: string;
+  description: string | null;
+  notes: string | null;
+  status: TodoItemStatus;
+  assigned_to: string | null;
+  created_by: string;
+  due_date: string | null;
+  is_high_priority: boolean;
+  sort_order: number;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  assigned_user?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  } | null;
+  section?: TodoSection;
+  list?: TodoList;
+  followers?: TodoItemFollower[];
+}
+
+export interface TodoItemFollower {
+  id: string;
+  item_id: string;
+  user_id: string;
+  created_at: string;
+  user?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
+
+export interface TodoItemComment {
+  id: string;
+  item_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
