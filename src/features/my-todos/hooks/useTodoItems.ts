@@ -4,13 +4,28 @@ import { useAuth } from '../../../contexts/AuthContext';
 import type { TodoItem, TodoItemFollower, TodoItemComment } from '../types';
 
 // ============================================
-// SELECT CONSTANTS
+// HELPER: Batch-fetch user profiles by IDs
 // ============================================
 
-const ITEM_SELECT = `
-  *,
-  assigned_user:user_profiles!todo_items_assigned_to_fkey(id, full_name, avatar_url)
-`;
+interface UserProfile {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+}
+
+async function fetchUserProfiles(userIds: string[]): Promise<Record<string, UserProfile>> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (unique.length === 0) return {};
+
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, avatar_url')
+    .in('id', unique);
+
+  const map: Record<string, UserProfile> = {};
+  (data || []).forEach(u => { map[u.id] = u; });
+  return map;
+}
 
 // ============================================
 // QUERIES
@@ -27,36 +42,36 @@ export function useTodoItemsQuery(listId: string | null) {
 
       const { data: items, error } = await supabase
         .from('todo_items')
-        .select(ITEM_SELECT)
+        .select('*')
         .eq('list_id', listId)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
 
       if (error) throw error;
+      if (!items || items.length === 0) return [];
 
       // Fetch followers for all items
-      const itemIds = (items || []).map(i => i.id);
-      let followersMap: Record<string, TodoItemFollower[]> = {};
+      const itemIds = items.map(i => i.id);
+      const { data: followers } = await supabase
+        .from('todo_item_followers')
+        .select('*')
+        .in('item_id', itemIds);
 
-      if (itemIds.length > 0) {
-        const { data: followers } = await supabase
-          .from('todo_item_followers')
-          .select(`
-            *,
-            user:user_profiles!todo_item_followers_user_id_fkey(id, full_name, avatar_url)
-          `)
-          .in('item_id', itemIds);
+      // Collect all user IDs (assigned + followers)
+      const userIds: string[] = items.map(i => i.assigned_to).filter(Boolean);
+      (followers || []).forEach(f => userIds.push(f.user_id));
+      const userMap = await fetchUserProfiles(userIds);
 
-        if (followers) {
-          followers.forEach(f => {
-            if (!followersMap[f.item_id]) followersMap[f.item_id] = [];
-            followersMap[f.item_id].push(f);
-          });
-        }
-      }
+      // Build followers map with user data
+      const followersMap: Record<string, TodoItemFollower[]> = {};
+      (followers || []).forEach(f => {
+        if (!followersMap[f.item_id]) followersMap[f.item_id] = [];
+        followersMap[f.item_id].push({ ...f, user: userMap[f.user_id] || null });
+      });
 
-      return (items || []).map(item => ({
+      return items.map(item => ({
         ...item,
+        assigned_user: item.assigned_to ? userMap[item.assigned_to] || null : null,
         followers: followersMap[item.id] || [],
       }));
     },
@@ -75,11 +90,11 @@ export function useMyWorkQuery() {
     queryFn: async (): Promise<TodoItem[]> => {
       if (!user) return [];
 
-      // Items assigned to me
+      // Items assigned to me (with section + list data)
       const { data: assigned, error: assignedError } = await supabase
         .from('todo_items')
         .select(`
-          ${ITEM_SELECT},
+          *,
           section:todo_sections!todo_items_section_id_fkey(id, title, color, list_id),
           list:todo_lists!todo_items_list_id_fkey(id, title, color)
         `)
@@ -104,7 +119,7 @@ export function useMyWorkQuery() {
           const { data: followed } = await supabase
             .from('todo_items')
             .select(`
-              ${ITEM_SELECT},
+              *,
               section:todo_sections!todo_items_section_id_fkey(id, title, color, list_id),
               list:todo_lists!todo_items_list_id_fkey(id, title, color)
             `)
@@ -119,7 +134,7 @@ export function useMyWorkQuery() {
       const { data: created } = await supabase
         .from('todo_items')
         .select(`
-          ${ITEM_SELECT},
+          *,
           section:todo_sections!todo_items_section_id_fkey(id, title, color, list_id),
           list:todo_lists!todo_items_list_id_fkey(id, title, color)
         `)
@@ -136,27 +151,38 @@ export function useMyWorkQuery() {
         }
       }
 
+      // Fetch user profiles for assigned_to
+      const userIds: string[] = all.map(i => i.assigned_to).filter((id): id is string => !!id);
+
       // Fetch followers for all items
       if (all.length > 0) {
         const itemIds = all.map(i => i.id);
         const { data: followers } = await supabase
           .from('todo_item_followers')
-          .select(`
-            *,
-            user:user_profiles!todo_item_followers_user_id_fkey(id, full_name, avatar_url)
-          `)
+          .select('*')
           .in('item_id', itemIds);
 
         if (followers) {
+          followers.forEach(f => userIds.push(f.user_id));
+          const userMap = await fetchUserProfiles(userIds);
+
           const followersMap: Record<string, TodoItemFollower[]> = {};
           followers.forEach(f => {
             if (!followersMap[f.item_id]) followersMap[f.item_id] = [];
-            followersMap[f.item_id].push(f);
+            followersMap[f.item_id].push({ ...f, user: userMap[f.user_id] || null });
           });
+
           all.forEach(item => {
+            item.assigned_user = item.assigned_to ? userMap[item.assigned_to] || null : null;
             item.followers = followersMap[item.id] || [];
           });
         }
+      } else {
+        // No items, but still resolve user profiles if needed
+        const userMap = await fetchUserProfiles(userIds);
+        all.forEach(item => {
+          item.assigned_user = item.assigned_to ? userMap[item.assigned_to] || null : null;
+        });
       }
 
       return all.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
@@ -462,10 +488,7 @@ export function useTodoItemCommentsQuery(itemId: string | null) {
 
       const { data, error } = await supabase
         .from('todo_item_comments')
-        .select(`
-          *,
-          user:user_profiles!todo_item_comments_user_id_fkey(id, full_name, avatar_url)
-        `)
+        .select('*')
         .eq('item_id', itemId)
         .order('created_at', { ascending: true });
 
@@ -474,7 +497,14 @@ export function useTodoItemCommentsQuery(itemId: string | null) {
         return [];
       }
 
-      return data || [];
+      // Fetch user profiles for comment authors
+      const userIds = (data || []).map(c => c.user_id);
+      const userMap = await fetchUserProfiles(userIds);
+
+      return (data || []).map(c => ({
+        ...c,
+        user: userMap[c.user_id] || null,
+      }));
     },
     enabled: !!itemId,
   });
@@ -498,10 +528,7 @@ export function useAddTodoItemComment() {
           user_id: user.id,
           content,
         })
-        .select(`
-          *,
-          user:user_profiles!todo_item_comments_user_id_fkey(id, full_name, avatar_url)
-        `)
+        .select()
         .single();
 
       if (error) throw error;
@@ -548,10 +575,7 @@ export function useTodoLastCommentsQuery(itemIds: string[]) {
 
       const { data, error } = await supabase
         .from('todo_item_comments')
-        .select(`
-          id, item_id, content, created_at,
-          user:user_profiles!todo_item_comments_user_id_fkey(id, full_name)
-        `)
+        .select('id, item_id, content, created_at, user_id')
         .in('item_id', itemIds)
         .order('created_at', { ascending: false });
 
@@ -560,20 +584,28 @@ export function useTodoLastCommentsQuery(itemIds: string[]) {
         return {};
       }
 
-      const lastComments: Record<string, { id: string; content: string; created_at: string; user: { id: string; full_name: string } | null }> = {};
+      // Collect unique user IDs from latest comments
+      const latestByItem: Record<string, typeof data[0]> = {};
       (data || []).forEach(comment => {
-        if (!lastComments[comment.item_id]) {
-          const user = Array.isArray(comment.user) ? comment.user[0] : comment.user;
-          lastComments[comment.item_id] = {
-            id: comment.id,
-            content: comment.content,
-            created_at: comment.created_at,
-            user: user || null,
-          };
+        if (!latestByItem[comment.item_id]) {
+          latestByItem[comment.item_id] = comment;
         }
       });
 
-      return lastComments;
+      const userIds = Object.values(latestByItem).map(c => c.user_id);
+      const userMap = await fetchUserProfiles(userIds);
+
+      const result: Record<string, { id: string; content: string; created_at: string; user: { id: string; full_name: string } | null }> = {};
+      for (const [itemId, comment] of Object.entries(latestByItem)) {
+        result[itemId] = {
+          id: comment.id,
+          content: comment.content,
+          created_at: comment.created_at,
+          user: userMap[comment.user_id] || null,
+        };
+      }
+
+      return result;
     },
     enabled: itemIds.length > 0,
     staleTime: 30000,
