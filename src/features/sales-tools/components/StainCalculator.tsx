@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, DollarSign, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
 
@@ -32,6 +33,7 @@ interface MediaItem {
 
 const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
   const { profile } = useAuth();
+  const { hasPermission } = usePermission();
   const [fenceLength, setFenceLength] = useState<number>(100);
   const [fenceHeight, setFenceHeight] = useState<number>(6);
   const [showResults, setShowResults] = useState<boolean>(false);
@@ -354,7 +356,7 @@ const StainCalculator: React.FC<StainCalculatorProps> = ({ onBack }) => {
               )}
 
               {/* Upload button - Admin only */}
-              {profile?.role === 'admin' && (
+              {hasPermission('manage_settings') && (
                 <label className={`mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-red-600 hover:bg-red-50'}`}>
                   {uploading ? (
                     <>

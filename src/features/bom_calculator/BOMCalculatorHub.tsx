@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Monitor } from 'lucide-react';
+import { usePermission } from '../../contexts/PermissionContext';
 import { HubLayout, type BOMHubPage } from './components/layout';
 import { BOMCalculator } from './BOMCalculator';
 import MaterialsPage from './pages/MaterialsPage';
@@ -23,7 +24,6 @@ const BOMCalculatorHub2 = lazy(() => import('../bom_calculator_v2').then(m => ({
 
 interface BOMCalculatorHubProps {
   onBack: () => void;
-  userRole: 'operations' | 'admin';
   userId?: string;
   userName?: string;
   startOnMobile?: boolean; // For yard role - auto-opens Mobile View
@@ -47,7 +47,8 @@ export interface ProjectToOpen {
   mode: 'edit' | 'duplicate';
 }
 
-export default function BOMCalculatorHub({ onBack, userRole, userId, userName, startOnMobile }: BOMCalculatorHubProps) {
+export default function BOMCalculatorHub({ onBack, userId, userName, startOnMobile }: BOMCalculatorHubProps) {
+  const { hasPermission } = usePermission();
   // If startOnMobile is true (yard role), start on mobile view
   const [activePage, setActivePage] = useState<BOMHubPage>(startOnMobile ? 'yard-mobile' : 'calculator');
   const [selectedSKU, setSelectedSKU] = useState<SelectedSKU | null>(null);
@@ -55,7 +56,7 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
   const [showV2, setShowV2] = useState(false);
   const [claimCode, setClaimCode] = useState<string | undefined>(undefined);
   const isDesktop = useIsDesktop();
-  const isAdmin = userRole === 'admin';
+  const isAdmin = hasPermission('manage_settings');
 
   // Check for claim code from QR scan (stored in sessionStorage by App.tsx)
   // This auto-navigates to mobile view with the project code pre-filled
@@ -147,7 +148,6 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
       }>
         <BOMCalculatorHub2
           onBack={() => setShowV2(false)}
-          userRole={userRole}
           userId={userId}
           userName={userName}
         />
@@ -162,7 +162,6 @@ export default function BOMCalculatorHub({ onBack, userRole, userId, userName, s
         return (
           <BOMCalculator
             onBack={onBack}
-            userRole={userRole}
             userId={userId}
             userName={userName}
             hideHeader={true}

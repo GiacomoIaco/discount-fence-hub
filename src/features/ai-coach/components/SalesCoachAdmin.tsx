@@ -3,6 +3,7 @@ import { Plus, Trash2, Save, BookOpen, Settings, ArrowLeft, Mic, Upload, Loader2
 import { getSalesProcesses, saveSalesProcess, deleteSalesProcess, getKnowledgeBase, saveKnowledgeBase, getAllRecordingsForAdmin, deleteRecordingAdmin, type SalesProcess, type KnowledgeBase, type Recording } from '../lib/recordings';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
+import { usePermission } from '../../../contexts/PermissionContext';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
@@ -12,10 +13,10 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.j
 
 interface SalesCoachAdminProps {
   onBack: () => void;
-  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 }
 
-export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoachAdminProps) {
+export default function SalesCoachAdmin({ onBack }: SalesCoachAdminProps) {
+  const { hasPermission } = usePermission();
   const [activeTab, setActiveTab] = useState<'processes' | 'knowledge' | 'recordings'>('processes');
   const [processes, setProcesses] = useState<SalesProcess[]>([]);
   const [selectedProcess, setSelectedProcess] = useState<SalesProcess | null>(null);
@@ -112,7 +113,7 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
     }
 
     // Only admin can delete
-    if (userRole !== 'admin') {
+    if (!hasPermission('manage_settings')) {
       showSuccess('Only admins can delete sales processes');
       return;
     }
@@ -468,7 +469,7 @@ export default function SalesCoachAdmin({ onBack, userRole = 'admin' }: SalesCoa
                         <p className="text-sm text-gray-600">{proc.steps.length} steps</p>
                       </div>
                       {/* Only show delete button for non-default processes and admin role */}
-                      {proc.id !== 'standard' && userRole === 'admin' && (
+                      {proc.id !== 'standard' && hasPermission('manage_settings') && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

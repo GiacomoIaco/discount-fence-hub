@@ -52,8 +52,6 @@ export {
   DEFAULT_ROLE_SECTIONS,
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSION_CATEGORIES,
-  LEGACY_ROLE_MAP,
-  mapLegacyRole,
 } from './defaults';
 
 // Components

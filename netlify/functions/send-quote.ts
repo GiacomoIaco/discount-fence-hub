@@ -46,7 +46,7 @@ export const handler: Handler = async (event) => {
         *,
         client:clients(id, name, primary_contact_name, primary_contact_email, primary_contact_phone),
         community:communities(id, name),
-        sales_rep:sales_reps(id, name, email, phone),
+        sales_rep_profile:user_profiles!sales_rep_user_id(id, full_name, email, phone),
         line_items:quote_line_items(*)
       `)
       .eq('id', quoteId)
@@ -118,9 +118,9 @@ export const handler: Handler = async (event) => {
           total: quote.total,
           validUntil: quote.valid_until,
           quoteUrl,
-          salesRepName: quote.sales_rep?.name || 'Your Sales Rep',
-          salesRepPhone: quote.sales_rep?.phone,
-          salesRepEmail: quote.sales_rep?.email,
+          salesRepName: quote.sales_rep_profile?.full_name || 'Your Sales Rep',
+          salesRepPhone: quote.sales_rep_profile?.phone,
+          salesRepEmail: quote.sales_rep_profile?.email,
           customMessage: message,
         });
         emailSent = true;

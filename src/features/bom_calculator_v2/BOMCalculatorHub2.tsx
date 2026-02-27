@@ -15,6 +15,7 @@
 
 import { useState, useEffect } from 'react';
 import { Monitor, ArrowLeft, FlaskConical, Package, DollarSign, Wrench, Settings, PanelLeft, PanelLeftClose } from 'lucide-react';
+import { usePermission } from '../../contexts/PermissionContext';
 import { SKUCatalogPage, SKUBuilderPage, CalculatorPage, ComponentTypesPage, ProductTypeManagerPage } from './pages';
 // Shared pages from V1
 import MaterialsPage from '../bom_calculator/pages/MaterialsPage';
@@ -28,7 +29,6 @@ const STORAGE_KEY = 'sidebar-collapsed-bom-hub-v2';
 
 interface BOMCalculatorHub2Props {
   onBack: () => void;
-  userRole: 'operations' | 'admin';
   userId?: string;      // Will be used for project ownership
   userName?: string;    // Will be used for display/audit
 }
@@ -38,7 +38,7 @@ const useIsDesktop = () => {
   return typeof window !== 'undefined' && window.innerWidth >= 1024;
 };
 
-export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: _userName }: BOMCalculatorHub2Props) {
+export default function BOMCalculatorHub2({ onBack, userId, userName: _userName }: BOMCalculatorHub2Props) {
   const [activePage, setActivePage] = useState<Hub2Page>('calculator');
   const [editingSKUId, setEditingSKUId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -47,7 +47,8 @@ export default function BOMCalculatorHub2({ onBack, userRole, userId, userName: 
     return stored === 'true';
   });
   const isDesktop = useIsDesktop();
-  const isAdmin = userRole === 'admin';
+  const { hasPermission } = usePermission();
+  const isAdmin = hasPermission('manage_settings');
 
   // Persist collapsed state
   useEffect(() => {

@@ -7,6 +7,7 @@ import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import PushNotificationBanner from './components/PushNotificationBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './contexts/AuthContext';
+import { usePermission } from './contexts/PermissionContext';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { useRequestNotifications } from './hooks/useRequestNotifications';
@@ -75,7 +76,6 @@ const LoadingFallback = () => (
   </div>
 );
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 // Section type is now imported from './lib/routes'
 
 function App() {
@@ -83,15 +83,8 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Get role and name from authenticated profile, with fallback for role switching
-  const [userRole, setUserRole] = useState<UserRole>(profile?.role || 'sales');
-
-  // Update userRole from profile when it changes
-  useEffect(() => {
-    if (profile?.role) {
-      setUserRole(profile.role);
-    }
-  }, [profile]);
+  // Permission system - single source of truth for access control
+  const { role: appRole, hasPermission, hasSection } = usePermission();
 
   const userName = profile?.full_name || 'User';
   const [activeSection, setActiveSection] = useState<Section>('home');
@@ -186,13 +179,13 @@ function App() {
 
   // Auto-redirect yard role users to Yard section (Mobile View)
   useEffect(() => {
-    if (userRole === 'yard' && activeSection !== 'yard' && activeSection !== 'bom-calculator') {
+    if (appRole === 'yard' && activeSection !== 'yard' && activeSection !== 'bom-calculator') {
       setActiveSection('yard');
     }
-  }, [userRole, activeSection]);
+  }, [appRole, activeSection]);
 
   // Enable escalation engine for operations/admin roles
-  const isOperationsRole = ['operations', 'sales-manager', 'admin'].includes(userRole);
+  const isOperationsRole = hasPermission('manage_schedule') || hasPermission('manage_settings');
   useEscalationEngine(isOperationsRole);
 
   // Menu visibility control
@@ -212,7 +205,7 @@ function App() {
 
   // Message Center unread count (sidebar badge)
   const messageCenterUnreadCount = useMessageCenterUnread(
-    user ? { userId: user.id, userRole: userRole } : undefined
+    user ? { userId: user.id, userRole: appRole || 'sales_rep' } : undefined
   );
 
   // Refresh trigger for team communication (incremented when a new message is sent)
@@ -331,7 +324,7 @@ function App() {
       return false;
     }
     // Check both role visibility AND platform availability
-    return canSeeMenuItem(item.menuId, { overrideRole: userRole, platform: currentPlatform });
+    return canSeeMenuItem(item.menuId, { platform: currentPlatform });
   });
 
   const renderContent = () => {
@@ -401,7 +394,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <PhotoGalleryRefactored onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
+            <PhotoGalleryRefactored onBack={() => setActiveSection('home')} viewMode={viewMode} userId={user?.id} userName={profile?.full_name} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -428,7 +421,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <SalesCoachAdmin onBack={() => setActiveSection('home')} userRole={userRole} />
+            <SalesCoachAdmin onBack={() => setActiveSection('home')} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -436,7 +429,7 @@ function App() {
     if (activeSection === 'dashboard') {
       return (
         <ErrorBoundary>
-          <Dashboard userRole={userRole} />
+          <Dashboard />
         </ErrorBoundary>
       );
     }
@@ -444,7 +437,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <Analytics userRole={userRole} />
+            <Analytics />
           </Suspense>
         </ErrorBoundary>
       );
@@ -453,7 +446,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <Settings onBack={() => setActiveSection('home')} userRole={userRole} />
+            <Settings onBack={() => setActiveSection('home')} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -462,7 +455,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <SalesResources onBack={() => setActiveSection('home')} userRole={userRole} viewMode={viewMode} />
+            <SalesResources onBack={() => setActiveSection('home')} viewMode={viewMode} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -502,17 +495,16 @@ function App() {
       );
     }
     if (activeSection === 'bom-calculator') {
-      // Show to operations, admin, and yard roles
-      if (userRole === 'operations' || userRole === 'admin' || userRole === 'yard') {
+      // Show to users with yard section access
+      if (hasSection('yard') || hasSection('calculator')) {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
               <BOMCalculatorHub
                 onBack={() => setActiveSection('home')}
-                userRole={userRole === 'yard' ? 'operations' : userRole}
                 userId={user?.id}
                 userName={profile?.full_name}
-                startOnMobile={userRole === 'yard'}
+                startOnMobile={appRole === 'yard'}
               />
             </Suspense>
           </ErrorBoundary>
@@ -524,13 +516,12 @@ function App() {
     }
     if (activeSection === 'bom-calculator-v2') {
       // V2 Calculator - operations and admin only (desktop-only)
-      if (userRole === 'operations' || userRole === 'admin') {
+      if (hasSection('calculator') || hasPermission('manage_settings')) {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
               <BOMCalculatorHub2
                 onBack={() => setActiveSection('home')}
-                userRole={userRole}
                 userId={user?.id}
                 userName={profile?.full_name}
               />
@@ -544,13 +535,12 @@ function App() {
     }
     if (activeSection === 'yard') {
       // Direct entry to Yard Mobile View - for mobile users with bom-yard access
-      if (userRole === 'operations' || userRole === 'admin' || userRole === 'yard') {
+      if (hasSection('yard')) {
         return (
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
               <BOMCalculatorHub
                 onBack={() => setActiveSection('home')}
-                userRole={userRole === 'yard' ? 'operations' : userRole}
                 userId={user?.id}
                 userName={profile?.full_name}
                 startOnMobile={true}
@@ -705,7 +695,7 @@ function App() {
     // Default home view
     return (
       <ErrorBoundary>
-        <Dashboard userRole={userRole} />
+        <Dashboard />
       </ErrorBoundary>
     );
   };
@@ -807,7 +797,6 @@ function App() {
             userId={user?.id}
             profileAvatarUrl={profile?.avatar_url}
             profileFullName={userName}
-            userRole={userRole}
             setViewMode={setViewMode}
             mobileLayout={mobileLayout}
             setMobileLayout={setMobileLayout}
@@ -851,7 +840,6 @@ function App() {
                   onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
                   teamCommunicationRefresh={teamCommunicationRefresh}
                   navigationItems={visibleNavigationItems}
-                  userRole={userRole}
                 />
               )}
             </ErrorBoundary>
@@ -871,9 +859,6 @@ function App() {
           navigationItems={visibleNavigationItems}
           activeSection={activeSection}
           onNavigate={navigateTo}
-          userRole={userRole}
-          setUserRole={setUserRole}
-          profileRole={profile?.role}
           profileFullName={profile?.full_name}
           profileAvatarUrl={profile?.avatar_url}
           userName={userName}
@@ -906,7 +891,7 @@ function App() {
         <PushNotificationBanner />
 
         {/* Floating Action Button for Composing Messages (Admin/Manager only) */}
-        {(userRole === 'admin' || userRole === 'sales-manager') && activeSection === 'team-communication' && (
+        {hasPermission('manage_team') && activeSection === 'team-communication' && (
           <button
             onClick={() => setShowMessageComposer(true)}
             className="fixed bottom-8 right-8 w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 z-40"

@@ -3,10 +3,10 @@ import { ArrowLeft, Download, Star, Heart, Flag as FlagIcon, Image as ImageIcon,
 import { supabase } from '../../../lib/supabase';
 import { showError, showSuccess } from '../../../lib/toast';
 import { fixAllPhotoAttribution, fixMyPhotoAttribution } from '../lib/fixPhotoAttribution';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface PhotoAnalyticsProps {
   onBack: () => void;
-  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 }
 
 interface UploaderStats {
@@ -24,7 +24,8 @@ interface UploaderStats {
 
 type TimeFrame = '7days' | '30days' | '90days' | 'all';
 
-const PhotoAnalytics = ({ onBack, userRole }: PhotoAnalyticsProps) => {
+const PhotoAnalytics = ({ onBack }: PhotoAnalyticsProps) => {
+  const { hasPermission, hasSection } = usePermission();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('30days');
   const [uploaderStats, setUploaderStats] = useState<UploaderStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +158,7 @@ const PhotoAnalytics = ({ onBack, userRole }: PhotoAnalyticsProps) => {
 
     setFixing(true);
     try {
-      const result = userRole === 'admin' || userRole === 'operations'
+      const result = hasPermission('manage_settings') || hasSection('yard')
         ? await fixAllPhotoAttribution()
         : await fixMyPhotoAttribution();
 

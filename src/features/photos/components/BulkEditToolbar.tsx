@@ -1,10 +1,10 @@
 import { Sparkles } from 'lucide-react';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface BulkEditToolbarProps {
   show: boolean;
   viewMode: 'mobile' | 'desktop';
   activeTab: 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   selectedCount: number;
   isEnhancing: boolean;
   onSelectAll: () => void;
@@ -19,7 +19,6 @@ export function BulkEditToolbar({
   show,
   viewMode,
   activeTab,
-  userRole,
   selectedCount,
   isEnhancing,
   onSelectAll,
@@ -29,6 +28,8 @@ export function BulkEditToolbar({
   onBulkEnhance,
   onBulkDelete,
 }: BulkEditToolbarProps) {
+  const { hasPermission } = usePermission();
+
   if (!show) return null;
 
   return (
@@ -102,7 +103,7 @@ export function BulkEditToolbar({
           )}
 
           {/* Enhance Selected (Admin only) */}
-          {userRole === 'admin' && (
+          {hasPermission('manage_settings') && (
             <button
               onClick={onBulkEnhance}
               disabled={selectedCount === 0 || isEnhancing}
@@ -114,7 +115,7 @@ export function BulkEditToolbar({
           )}
 
           {/* Delete (Admin only, not shown on Gallery tab) */}
-          {userRole === 'admin' && activeTab !== 'gallery' && (
+          {hasPermission('manage_settings') && activeTab !== 'gallery' && (
             <button
               onClick={onBulkDelete}
               disabled={selectedCount === 0}

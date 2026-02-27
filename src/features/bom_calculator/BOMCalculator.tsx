@@ -29,7 +29,6 @@ interface LaborCode {
 
 interface BOMCalculatorProps {
   onBack: () => void;
-  userRole: 'operations' | 'admin';
   userId?: string;
   userName?: string;
   hideHeader?: boolean;

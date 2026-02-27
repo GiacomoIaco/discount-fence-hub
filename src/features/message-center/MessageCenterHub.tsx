@@ -12,6 +12,7 @@ import { useMessages, useSendMessage } from './hooks/useMessages';
 import { buildShortcodeContext } from './services/quickReplyService';
 import * as messageService from './services/messageService';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../contexts/PermissionContext';
 import { showSuccess, showError } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
 import type { ConversationWithContact, ConversationFilter, Contact, ConversationParticipant, ClientFilters } from './types';
@@ -25,6 +26,7 @@ const BUSINESS_UNIT_OPTIONS = [
 
 export function MessageCenterHub() {
   const { profile } = useAuth();
+  const { role: appRole } = usePermission();
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>('all');
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithContact | null>(null);
   const [isMobileThreadView, setIsMobileThreadView] = useState(false);
@@ -41,7 +43,7 @@ export function MessageCenterHub() {
   const activeClientFilters = activeFilter === 'clients' ? clientFilters : undefined;
 
   // Create user context for conversation filtering (sales reps only see invited conversations)
-  const userContext = profile ? { userId: profile.id, userRole: profile.role } : undefined;
+  const userContext = profile ? { userId: profile.id, userRole: appRole || profile.role || 'sales_rep' } : undefined;
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations(activeFilter, activeClientFilters, userContext);
   const { data: counts = { all: 0, team: 0, clients: 0, requests: 0, archived: 0 } } = useConversationCounts(userContext);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(selectedConversation?.id || null);

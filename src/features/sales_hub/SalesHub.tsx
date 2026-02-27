@@ -12,6 +12,7 @@ import {
   PinOff,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../contexts/PermissionContext';
 import { useTabRoute } from '../../hooks/useTabRoute';
 import type { SalesHubView } from './types';
 import { SalesDashboard } from './components';
@@ -28,8 +29,6 @@ const ClientPresentation = lazy(() => import('../sales-tools').then(m => ({ defa
 const PhotoGallery = lazy(() => import('../photos').then(m => ({ default: m.PhotoGalleryRefactored })));
 const StainCalculator = lazy(() => import('../sales-tools').then(m => ({ default: m.StainCalculator })));
 const SalesResources = lazy(() => import('../sales-resources').then(m => ({ default: m.SalesResources })));
-
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-[400px]">
@@ -57,7 +56,7 @@ interface SalesHubProps {
 export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }: SalesHubProps) {
   const [activeView, setActiveView] = useState<SalesHubView>(initialView);
   const { user, profile } = useAuth();
-  const userRole = (profile?.role || 'sales') as UserRole;
+  const { role } = usePermission();
 
   // Sync view state with URL
   const { navigateToTab } = useTabRoute<SalesHubView>({
@@ -179,7 +178,7 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
       case 'photo-gallery':
         return (
           <Suspense fallback={<LoadingFallback />}>
-            <PhotoGallery onBack={() => setActiveView('dashboard')} userRole={userRole} viewMode="desktop" />
+            <PhotoGallery onBack={() => setActiveView('dashboard')} viewMode="desktop" />
           </Suspense>
         );
       case 'stain-calculator':
@@ -191,7 +190,7 @@ export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }:
       case 'sales-resources':
         return (
           <Suspense fallback={<LoadingFallback />}>
-            <SalesResources onBack={() => setActiveView('dashboard')} userRole={userRole} />
+            <SalesResources onBack={() => setActiveView('dashboard')} />
           </Suspense>
         );
       default:

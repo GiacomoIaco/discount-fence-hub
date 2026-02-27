@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, StickyNote, Save, Edit2, X, Check, Download, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
 
@@ -29,6 +30,7 @@ interface Note {
 
 export default function PresentationViewer({ presentation, onBack, isMobile = false }: PresentationViewerProps) {
   const { user } = useAuth();
+  const { hasPermission } = usePermission();
   const [currentSlide, setCurrentSlide] = useState(1);
   const [slides, setSlides] = useState<Slide[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -324,7 +326,7 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
                 </h3>
               )}
 
-              {(userRole === 'admin' || userRole === 'sales-manager') && (
+              {hasPermission('manage_team') && (
                 <div className="flex gap-2 ml-2">
                   {editingTalkingPoints ? (
                     <>

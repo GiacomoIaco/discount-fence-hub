@@ -2,13 +2,8 @@ import { useState } from 'react';
 import { useAnalytics, type DateRange } from './hooks/useAnalytics';
 import { AnalyticsTabs, type TabId } from './components/AnalyticsTabs';
 import { useTabRoute } from '../../hooks/useTabRoute';
-import type { UserRole } from '../../types';
 
-interface AnalyticsProps {
-  userRole: UserRole;
-}
-
-export default function Analytics({ userRole }: AnalyticsProps) {
+export default function Analytics() {
   const [dateRange, setDateRange] = useState<DateRange>('30days');
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const { data, loading, error } = useAnalytics(dateRange);
@@ -27,7 +22,6 @@ export default function Analytics({ userRole }: AnalyticsProps) {
       data={data}
       loading={loading}
       error={error}
-      userRole={userRole}
       dateRange={dateRange}
       onDateRangeChange={setDateRange}
       activeTab={activeTab}

@@ -30,7 +30,6 @@ interface MobileAppContentProps {
   userId?: string;
   profileAvatarUrl?: string;
   profileFullName?: string;
-  userRole?: string;
   setViewMode: (mode: 'mobile' | 'desktop') => void;
   mobileLayout: 'expanded' | 'compact';
   setMobileLayout: (layout: 'expanded' | 'compact') => void;
@@ -48,7 +47,6 @@ export function MobileAppContent({
   userId,
   profileAvatarUrl,
   profileFullName,
-  userRole,
   setViewMode,
   mobileLayout,
   setMobileLayout,
@@ -58,7 +56,7 @@ export function MobileAppContent({
   setShowProfileEditor,
   signOut,
 }: MobileAppContentProps) {
-  const { total: unreadMessageCount } = useUnifiedUnreadCount({ userId, userRole });
+  const { total: unreadMessageCount } = useUnifiedUnreadCount({ userId });
   const [showVoiceRecording, setShowVoiceRecording] = useState(false);
 
   // Handle refresh - clear caches and reload

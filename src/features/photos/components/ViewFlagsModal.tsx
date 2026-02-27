@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import type { Photo } from '../lib/photos';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface PhotoFlag {
   id: string;
@@ -17,7 +18,6 @@ interface ViewFlagsModalProps {
   show: boolean;
   photo: Photo | null;
   flags: PhotoFlag[];
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   onClose: () => void;
   onResolveFlag: (flagId: string) => void;
   onDismissFlag: (flagId: string) => void;
@@ -28,15 +28,16 @@ export function ViewFlagsModal({
   show,
   photo,
   flags,
-  userRole,
   onClose,
   onResolveFlag,
   onDismissFlag,
   onEditPhoto,
 }: ViewFlagsModalProps) {
+  const { hasPermission } = usePermission();
+
   if (!show || !photo) return null;
 
-  const isManager = userRole === 'sales-manager' || userRole === 'admin';
+  const isManager = hasPermission('manage_team');
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

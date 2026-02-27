@@ -60,7 +60,6 @@ interface SalesRepViewProps {
   onTeamCommunicationUnreadCountChange?: (count: number) => void;
   teamCommunicationRefresh?: number;
   navigationItems?: NavigationItem[];
-  userRole?: string;
 }
 
 export default function SalesRepView({
@@ -77,7 +76,6 @@ export default function SalesRepView({
   onTeamCommunicationUnreadCountChange,
   teamCommunicationRefresh,
   navigationItems = [],
-  userRole: _userRole
 }: SalesRepViewProps) {
   // Internal ticketing (formerly "requests")
   if (activeSection === 'tickets') {
@@ -135,7 +133,7 @@ export default function SalesRepView({
   if (activeSection === 'photo-gallery') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <PhotoGalleryRefactored onBack={() => onNavigate('home')} userRole="sales" viewMode="mobile" userId={userId} userName={userName} />
+        <PhotoGalleryRefactored onBack={() => onNavigate('home')} viewMode="mobile" userId={userId} userName={userName} />
       </Suspense>
     );
   }
@@ -143,7 +141,7 @@ export default function SalesRepView({
   if (activeSection === 'sales-resources') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <SalesResources onBack={() => onNavigate('home')} userRole="sales" viewMode={viewMode} />
+        <SalesResources onBack={() => onNavigate('home')} viewMode={viewMode} />
       </Suspense>
     );
   }
@@ -167,7 +165,7 @@ export default function SalesRepView({
   if (activeSection === 'team') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <Settings onBack={() => onNavigate('home')} userRole="sales" />
+        <Settings onBack={() => onNavigate('home')} />
       </Suspense>
     );
   }
@@ -185,7 +183,6 @@ export default function SalesRepView({
       <Suspense fallback={<LoadingFallback />}>
         <BOMCalculatorHub
           onBack={() => onNavigate('home')}
-          userRole="operations"
           userId={userId}
           userName={userName}
           startOnMobile={true}

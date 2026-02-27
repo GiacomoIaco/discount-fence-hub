@@ -15,8 +15,9 @@ import type {
 // CONVERSATIONS
 // ============================================================================
 
-// Roles that have full access to all conversations (Front Desk)
-const FULL_ACCESS_ROLES = ['admin', 'operations'];
+// Roles that have full access to all conversations
+// Includes both legacy role strings and AppRole values for backward compatibility
+const FULL_ACCESS_ROLES = ['admin', 'owner', 'operations', 'ops_manager', 'front_desk'];
 
 export interface UserContext {
   userId: string;

@@ -2,14 +2,10 @@ import { Link } from 'react-router-dom';
 import { TrendingUp, DollarSign, Percent, Clock, ChevronRight, BarChart3 } from 'lucide-react';
 import { useResidentialFunnelMetrics, useResidentialEnhancedMonthlyTotals } from '../../features/analytics/hooks/jobber/residential';
 import { formatResidentialCurrency, formatResidentialPercent } from '../../features/analytics/types/residential';
+import { usePermission } from '../../contexts/PermissionContext';
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
-
-interface DashboardProps {
-  userRole: UserRole;
-}
-
-export default function Dashboard({ userRole }: DashboardProps) {
+export default function Dashboard() {
+  const { role } = usePermission();
   // Fetch residential metrics (all time for overview)
   const { data: funnelMetrics, isLoading: loadingFunnel } = useResidentialFunnelMetrics();
   const { data: monthlyData, isLoading: loadingMonthly } = useResidentialEnhancedMonthlyTotals(6);
@@ -150,7 +146,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
       {/* Role-based content placeholder */}
       <div className="bg-gray-50 border-2 border-dashed border-gray-300 p-8 rounded-xl text-center">
         <p className="text-gray-500">
-          Role-specific widgets will appear here for: <span className="font-semibold capitalize">{userRole}</span>
+          Role-specific widgets will appear here for: <span className="font-semibold capitalize">{role || 'user'}</span>
         </p>
       </div>
     </div>

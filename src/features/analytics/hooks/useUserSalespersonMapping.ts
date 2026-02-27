@@ -1,11 +1,19 @@
 /**
  * Hook to manage user-salesperson mapping for analytics filtering
  * Auto-matches users to their salesperson name in Jobber data
+ *
+ * @deprecated The `user_salesperson_mapping` table is deprecated.
+ * New code should use `fsm_team_profiles.jobber_salesperson_names` instead.
+ * Legacy hooks (useUserSalespersonMapping, useAllSalespersonMappings,
+ * useUpdateSalespersonMapping, useDeleteSalespersonMapping) remain for
+ * backward compatibility with UserSalespersonMappingAdmin.tsx.
+ * Use useFsmSalespersonNames() and useAnalyticsFilter() for new code.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface SalespersonMapping {
   id: string;
@@ -231,26 +239,55 @@ export function useDeleteSalespersonMapping() {
 }
 
 /**
+ * Get Jobber salesperson names from fsm_team_profiles (new source of truth)
+ */
+export function useFsmSalespersonNames() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['fsm_salesperson_names', user?.id],
+    queryFn: async (): Promise<string[]> => {
+      if (!user?.id) return [];
+
+      const { data, error } = await supabase
+        .from('fsm_team_profiles')
+        .select('jobber_salesperson_names')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching FSM salesperson names:', error);
+      }
+
+      return data?.jobber_salesperson_names || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+}
+
+/**
  * Hook to determine if user should see filtered analytics
  * Returns the salesperson name to filter by, or null for admin full access
+ *
+ * Reads from fsm_team_profiles.jobber_salesperson_names (source of truth).
  */
 export function useAnalyticsFilter() {
-  const { profile } = useAuth();
-  const { data: mapping, isLoading } = useUserSalespersonMapping();
+  const { hasPermission } = usePermission();
+  const { data: fsmNames, isLoading } = useFsmSalespersonNames();
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'sales-manager';
+  const isAdmin = hasPermission('view_analytics');
+
+  // FSM team profiles is the source of truth for salesperson names
+  const salespersonName = fsmNames?.[0] || null;
 
   return {
     // Non-admins get filtered, admins see all
-    salespersonFilter: isAdmin ? null : mapping?.salesperson_name || null,
+    salespersonFilter: isAdmin ? null : salespersonName,
     // True if user has no mapping and is not admin
-    requiresSetup: !isAdmin && !mapping && !isLoading,
-    // True if mapping exists but is unverified
-    isUnverified: !isAdmin && mapping && !mapping.is_verified,
+    requiresSetup: !isAdmin && !salespersonName && !isLoading,
     // Admin can choose to view as any salesperson
     isAdmin,
-    // The user's own mapping for display
-    userMapping: mapping,
     isLoading,
   };
 }

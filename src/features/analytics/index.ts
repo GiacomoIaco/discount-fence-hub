@@ -2,5 +2,5 @@
 export { default as Analytics } from './Analytics';
 export { MobileAnalyticsView } from './components/MobileAnalyticsView';
 export { UserSalespersonMappingAdmin, SalespersonMappingSettings } from './components/UserSalespersonMappingAdmin';
-export { useAnalyticsFilter, useUserSalespersonMapping } from './hooks/useUserSalespersonMapping';
+export { useAnalyticsFilter } from './hooks/useUserSalespersonMapping';
 export { usePersonalMetrics } from './hooks/usePersonalMetrics';

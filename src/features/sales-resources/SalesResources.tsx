@@ -17,10 +17,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showError } from '../../lib/toast';
+import { usePermission } from '../../contexts/PermissionContext';
 
 interface SalesResourcesProps {
   onBack: () => void;
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   viewMode?: 'mobile' | 'desktop'; // Reserved for future use
 }
 
@@ -50,7 +50,8 @@ interface ResourceFile {
   is_new?: boolean; // Added within last 7 days
 }
 
-const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
+const SalesResources = ({ onBack }: SalesResourcesProps) => {
+  const { hasPermission } = usePermission();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [files, setFiles] = useState<ResourceFile[]>([]);
   const [archivedFiles, setArchivedFiles] = useState<ResourceFile[]>([]);
@@ -68,8 +69,8 @@ const SalesResources = ({ onBack, userRole }: SalesResourcesProps) => {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const canEdit = userRole === 'sales-manager' || userRole === 'admin';
-  const isAdmin = userRole === 'admin';
+  const canEdit = hasPermission('manage_team');
+  const isAdmin = hasPermission('manage_settings');
 
   useEffect(() => {
     loadFolders();

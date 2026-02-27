@@ -18,7 +18,6 @@ export function MobileAnalyticsView({ onBack }: MobileAnalyticsViewProps) {
   const {
     salespersonFilter,
     requiresSetup,
-    isUnverified,
     isAdmin,
     isLoading: mappingLoading,
   } = useAnalyticsFilter();
@@ -138,14 +137,6 @@ export function MobileAnalyticsView({ onBack }: MobileAnalyticsViewProps) {
               </>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Unverified warning for non-admins */}
-      {!isAdmin && isUnverified && (
-        <div className="mx-4 mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700">
-          <strong>Note:</strong> Your account was auto-matched to "{salespersonFilter}".
-          Contact an admin if this is incorrect.
         </div>
       )}
 

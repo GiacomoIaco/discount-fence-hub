@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 // Helper to detect if URL is a video
 function isVideoUrl(url: string): boolean {
@@ -153,6 +154,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const { mutateAsync: assignRequest } = useAssignRequestMutation();
   const { users } = useUsers();
   const { profile } = useAuth();
+  const { hasPermission, hasSection } = usePermission();
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [submitterName, setSubmitterName] = useState<string>('');
@@ -182,7 +184,7 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const documentInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user can edit (admin or operations)
-  const canEdit = profile?.role === 'admin' || profile?.role === 'operations';
+  const canEdit = hasPermission('manage_settings') || hasSection('yard');
 
   // Mark request as viewed when component mounts
   useEffect(() => {

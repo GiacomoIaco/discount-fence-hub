@@ -12,17 +12,15 @@ import CustomFieldsSettings from './components/CustomFieldsSettings';
 import QuoteApprovalSettings from './components/QuoteApprovalSettings';
 import { TerritoriesPage } from './territories';
 import { SalespersonMappingSettings } from '../analytics';
-import type { UserRole } from '../../types';
 
 // Declare build time from vite config
 declare const __BUILD_TIME__: string;
 
 interface SettingsProps {
   onBack: () => void;
-  userRole: UserRole;
 }
 
-export default function Settings({ onBack, userRole }: SettingsProps) {
+export default function Settings({ onBack }: SettingsProps) {
   const [activePage, setActivePage] = useState<SettingsPage>('app');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -92,7 +90,7 @@ export default function Settings({ onBack, userRole }: SettingsProps) {
         return (
           <div className="p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-6">Team Management</h1>
-            <TeamManagement userRole={userRole} />
+            <TeamManagement />
           </div>
         );
 

@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react';
 import { Users, UserPlus, Mail, Shield, Trash2, Ban, CheckCircle, X, Search, Filter, Pencil, Phone, Clock, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { showInfo, showSuccess, showError } from '../../../lib/toast';
+import { ROLE_DISPLAY_NAMES } from '../../../lib/permissions/defaults';
+import type { AppRole } from '../../../lib/permissions/types';
 
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
 type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 interface TeamMember {
   id: string;
   email: string;
   full_name: string;
-  role: UserRole;
+  role: string; // legacy role from user_profiles
+  app_role?: AppRole; // from user_roles table
   phone?: string;
   created_at: string;
   last_login?: string;
@@ -30,7 +33,7 @@ interface PendingUser {
 interface Invitation {
   id: string;
   email: string;
-  role: UserRole;
+  role: string;
   invited_by: string;
   sent_at: string;
   expires_at: string;
@@ -38,12 +41,9 @@ interface Invitation {
   inviter_name?: string;
 }
 
-interface TeamManagementProps {
-  userRole: UserRole;
-}
-
-const TeamManagement = ({ userRole }: TeamManagementProps) => {
+const TeamManagement = () => {
   const { profile } = useAuth();
+  const { hasPermission, role: currentUserRole } = usePermission();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
@@ -52,18 +52,18 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvingUser, setApprovingUser] = useState<PendingUser | null>(null);
-  const [approveRole, setApproveRole] = useState<UserRole>('sales');
+  const [approveRole, setApproveRole] = useState<AppRole>('sales_rep');
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editForm, setEditForm] = useState({ full_name: '', email: '', phone: '' });
   const [inviteEmail, setInviteEmail] = useState('');
   const [_invitePhone, _setInvitePhone] = useState('');
-  const [inviteRole, setInviteRole] = useState<UserRole>('sales');
+  const [inviteRole, setInviteRole] = useState<AppRole>('sales_rep');
   const [inviting, setInviting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
-  const canManageUsers = userRole === 'admin' || userRole === 'sales-manager';
+  const canManageUsers = hasPermission('manage_team');
 
   useEffect(() => {
     if (canManageUsers) {
@@ -78,12 +78,18 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       setLoading(true);
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('*, user_roles(role_key)')
         .or('approval_status.eq.approved,approval_status.is.null')
         .order('full_name', { ascending: true });
 
       if (error) throw error;
-      setMembers(data || []);
+
+      // Enrich with app_role from user_roles join
+      const enriched = (data || []).map((m: any) => ({
+        ...m,
+        app_role: m.user_roles?.role_key || undefined,
+      }));
+      setMembers(enriched);
     } catch (error) {
       console.error('Error loading team members:', error);
     } finally {
@@ -108,7 +114,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
 
   const handleApproveClick = (user: PendingUser) => {
     setApprovingUser(user);
-    setApproveRole('sales');
+    setApproveRole('sales_rep');
     setShowApproveModal(true);
   };
 
@@ -235,7 +241,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
       showInfo(`Invitation sent to ${inviteEmail}`);
 
       setInviteEmail('');
-      setInviteRole('sales');
+      setInviteRole('sales_rep');
       setShowInviteModal(false);
       loadInvitations();
     } catch (error) {
@@ -257,7 +263,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingMember || userRole !== 'admin') return;
+    if (!editingMember || !hasPermission('manage_settings')) return;
 
     setSaving(true);
     try {
@@ -284,16 +290,22 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
     }
   };
 
-  const handleUpdateRole = async (userId: string, newRole: UserRole) => {
-    if (userRole !== 'admin') return;
+  const handleUpdateRole = async (userId: string, newRole: AppRole) => {
+    if (!hasPermission('manage_settings')) return;
 
     try {
+      // Upsert into user_roles (trigger syncs to user_profiles.role)
       const { error } = await supabase
-        .from('user_profiles')
-        .update({ role: newRole })
-        .eq('id', userId);
+        .from('user_roles')
+        .upsert({
+          user_id: userId,
+          role_key: newRole,
+          assigned_by: profile?.id,
+          assigned_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
+      showSuccess('Role updated');
       loadTeamMembers();
     } catch (error) {
       console.error('Error updating role:', error);
@@ -302,7 +314,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
   };
 
   const handleToggleActive = async (userId: string, currentStatus: boolean) => {
-    if (userRole !== 'admin') return;
+    if (!hasPermission('manage_settings')) return;
 
     try {
       const { error } = await supabase
@@ -319,7 +331,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (userRole !== 'admin' || !profile) return;
+    if (!hasPermission('manage_settings') || !profile) return;
     if (userId === profile.id) {
       showError('You cannot delete your own account');
       return;
@@ -369,24 +381,26 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
     }
   };
 
-  const getRoleBadgeColor = (role: UserRole) => {
-    switch (role) {
-      case 'admin': return 'bg-purple-100 text-purple-800';
-      case 'sales-manager': return 'bg-blue-100 text-blue-800';
-      case 'operations': return 'bg-green-100 text-green-800';
-      case 'yard': return 'bg-amber-100 text-amber-800';
-      case 'sales': return 'bg-gray-100 text-gray-800';
-    }
+  const getRoleBadgeColor = (role: string) => {
+    const colors: Record<string, string> = {
+      'owner': 'bg-red-100 text-red-800',
+      'admin': 'bg-purple-100 text-purple-800',
+      'sales_manager': 'bg-blue-100 text-blue-800',
+      'sales_rep': 'bg-gray-100 text-gray-800',
+      'front_desk': 'bg-teal-100 text-teal-800',
+      'ops_manager': 'bg-emerald-100 text-emerald-800',
+      'operations': 'bg-green-100 text-green-800',
+      'yard': 'bg-amber-100 text-amber-800',
+      'crew': 'bg-orange-100 text-orange-800',
+      // Legacy values (during transition)
+      'sales-manager': 'bg-blue-100 text-blue-800',
+      'sales': 'bg-gray-100 text-gray-800',
+    };
+    return colors[role] || 'bg-gray-100 text-gray-800';
   };
 
-  const getRoleLabel = (role: UserRole) => {
-    switch (role) {
-      case 'admin': return 'Admin';
-      case 'sales-manager': return 'Sales Mgr';
-      case 'operations': return 'Operations';
-      case 'yard': return 'Yard';
-      case 'sales': return 'Sales';
-    }
+  const getRoleLabel = (role: string) => {
+    return ROLE_DISPLAY_NAMES[role as AppRole] || role;
   };
 
   const formatPhoneNumber = (phone: string): string => {
@@ -408,7 +422,8 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
     const matchesSearch =
       member.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       member.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || member.role === roleFilter;
+    const effectiveRole = member.app_role || member.role;
+    const matchesRole = roleFilter === 'all' || effectiveRole === roleFilter;
     return matchesSearch && matchesRole;
   });
 
@@ -461,11 +476,9 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
             className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="sales-manager">Sales Manager</option>
-            <option value="operations">Operations</option>
-            <option value="yard">Yard</option>
-            <option value="sales">Sales</option>
+            {(Object.entries(ROLE_DISPLAY_NAMES) as [AppRole, string][]).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -597,7 +610,7 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                   <th className="text-left px-4 py-2 font-medium text-gray-700">Phone</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-700">Joined</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-700">Role</th>
-                  {userRole === 'admin' && (
+                  {hasPermission('manage_settings') && (
                     <th className="text-center px-4 py-2 font-medium text-gray-700 w-32">Actions</th>
                   )}
                 </tr>
@@ -640,25 +653,23 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                       {new Date(member.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2">
-                      {userRole === 'admin' && member.id !== profile?.id ? (
+                      {hasPermission('manage_settings') && member.id !== profile?.id ? (
                         <select
-                          value={member.role}
-                          onChange={(e) => handleUpdateRole(member.id, e.target.value as UserRole)}
-                          className={`px-2 py-0.5 rounded text-xs font-medium border ${getRoleBadgeColor(member.role)}`}
+                          value={member.app_role || member.role}
+                          onChange={(e) => handleUpdateRole(member.id, e.target.value as AppRole)}
+                          className={`px-2 py-0.5 rounded text-xs font-medium border ${getRoleBadgeColor(member.app_role || member.role)}`}
                         >
-                          <option value="sales">Sales</option>
-                          <option value="operations">Operations</option>
-                          <option value="yard">Yard</option>
-                          <option value="sales-manager">Sales Mgr</option>
-                          <option value="admin">Admin</option>
+                          {(Object.entries(ROLE_DISPLAY_NAMES) as [AppRole, string][]).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
                         </select>
                       ) : (
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeColor(member.role)}`}>
-                          {getRoleLabel(member.role)}
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeColor(member.app_role || member.role)}`}>
+                          {getRoleLabel(member.app_role || member.role)}
                         </span>
                       )}
                     </td>
-                    {userRole === 'admin' && (
+                    {hasPermission('manage_settings') && (
                       <td className="px-4 py-2">
                         <div className="flex items-center justify-center gap-1">
                           <button
@@ -728,14 +739,14 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
                   value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                  onChange={(e) => setInviteRole(e.target.value as AppRole)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="sales">Sales</option>
-                  <option value="operations">Operations</option>
-                  <option value="yard">Yard</option>
-                  <option value="sales-manager">Sales Manager</option>
-                  {userRole === 'admin' && <option value="admin">Admin</option>}
+                  {(Object.entries(ROLE_DISPLAY_NAMES) as [AppRole, string][]).map(([key, label]) => {
+                    // Only owner/admin can assign owner/admin roles
+                    if ((key === 'owner' || key === 'admin') && currentUserRole !== 'owner' && currentUserRole !== 'admin') return null;
+                    return <option key={key} value={key}>{label}</option>;
+                  })}
                 </select>
               </div>
 
@@ -845,14 +856,13 @@ const TeamManagement = ({ userRole }: TeamManagementProps) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assign Role</label>
                 <select
                   value={approveRole}
-                  onChange={(e) => setApproveRole(e.target.value as UserRole)}
+                  onChange={(e) => setApproveRole(e.target.value as AppRole)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="sales">Sales</option>
-                  <option value="operations">Operations</option>
-                  <option value="yard">Yard</option>
-                  <option value="sales-manager">Sales Manager</option>
-                  {userRole === 'admin' && <option value="admin">Admin</option>}
+                  {(Object.entries(ROLE_DISPLAY_NAMES) as [AppRole, string][]).map(([key, label]) => {
+                    if ((key === 'owner' || key === 'admin') && currentUserRole !== 'owner' && currentUserRole !== 'admin') return null;
+                    return <option key={key} value={key}>{label}</option>;
+                  })}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">This determines what features they can access</p>
               </div>

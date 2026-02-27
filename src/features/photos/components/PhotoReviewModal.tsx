@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { X, Sparkles, Check, Save, Trash2 } from 'lucide-react';
 import type { Photo } from '../lib/photos';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface PhotoReviewModalProps {
   photo: Photo | null;
   activeTab: 'gallery' | 'pending' | 'saved' | 'archived' | 'flagged';
-  userRole: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   uploaderName: string;
   editingTags: string[];
   editingScore: number;
@@ -37,7 +37,6 @@ interface PhotoReviewModalProps {
 export function PhotoReviewModal({
   photo,
   activeTab,
-  userRole,
   uploaderName,
   editingTags,
   editingScore,
@@ -61,6 +60,8 @@ export function PhotoReviewModal({
   onToggleEnhancedView,
   onResetEnhancement,
 }: PhotoReviewModalProps) {
+  const { hasPermission } = usePermission();
+
   // Reset enhancement state when photo changes
   useEffect(() => {
     if (photo && onResetEnhancement) {
@@ -299,7 +300,7 @@ export function PhotoReviewModal({
                   </div>
                 )}
 
-                {activeTab === 'archived' && userRole === 'admin' && (
+                {activeTab === 'archived' && hasPermission('manage_settings') && (
                   <button
                     onClick={onPermanentDelete}
                     disabled={reviewLoading}
@@ -310,7 +311,7 @@ export function PhotoReviewModal({
                   </button>
                 )}
 
-                {activeTab === 'archived' && userRole === 'sales-manager' && (
+                {activeTab === 'archived' && hasPermission('manage_team') && !hasPermission('manage_settings') && (
                   <p className="text-gray-500 text-center py-3">Only admins can delete archived photos</p>
                 )}
               </div>

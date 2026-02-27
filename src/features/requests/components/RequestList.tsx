@@ -5,6 +5,7 @@ import { useMyRequestsQuery, useAllRequestsQuery } from '../hooks/useRequestsQue
 import { useUsers, useRequestAge } from '../hooks/useRequests';
 import { getUnreadCounts, getRequestViewStatus, getPinnedRequestIds, toggleRequestPin, getWatchedRequestIds } from '../lib/requests';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface RequestListProps {
   onRequestClick: (request: Request) => void;
@@ -120,6 +121,7 @@ const RequestAgeIndicator = ({ request }: { request: Request }) => {
 
 export default function RequestList({ onRequestClick, onNewRequest }: RequestListProps) {
   const { profile } = useAuth();
+  const { role } = usePermission();
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'archived'>('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<RequestType | 'all'>('all');
@@ -146,7 +148,7 @@ export default function RequestList({ onRequestClick, onNewRequest }: RequestLis
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'updated'>('newest');
 
   // Sales role sees only their requests, everyone else sees all requests
-  const isSalesOnly = profile?.role === 'sales';
+  const isSalesOnly = role === 'sales_rep';
 
   const myRequestsQuery = useMyRequestsQuery({
     stage: activeTab === 'active' ? undefined : activeTab === 'completed' ? 'completed' : 'archived'

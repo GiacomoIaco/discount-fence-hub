@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermission } from '../contexts/PermissionContext';
 
 export type Platform = 'desktop' | 'tablet' | 'mobile';
 export type LegacyPlatform = 'desktop' | 'mobile' | 'both';
@@ -59,6 +60,7 @@ export const detectPlatform = (): Platform => {
 
 export const useMenuVisibility = () => {
   const { user, profile } = useAuth();
+  const { role: appRole } = usePermission();
   const [menuVisibility, setMenuVisibility] = useState<Map<string, MenuVisibilityItem>>(new Map());
   const [loading, setLoading] = useState(true);
 
@@ -107,7 +109,7 @@ export const useMenuVisibility = () => {
       : optionsOrRole || {};
 
     const { overrideRole, platform } = options;
-    const userRole = overrideRole || profile?.role || 'sales';
+    const userRole = overrideRole || appRole || 'sales_rep';
     const userId = user?.id;
 
     // Check platform availability first (if platform specified)
@@ -184,7 +186,7 @@ export const useMenuVisibility = () => {
     platform: Platform,
     role?: string
   ): Record<MenuCategory, MenuVisibilityItem[]> => {
-    const userRole = role || profile?.role || 'sales';
+    const userRole = role || appRole || 'sales_rep';
     const grouped: Record<MenuCategory, MenuVisibilityItem[]> = {
       main: [],
       communication: [],

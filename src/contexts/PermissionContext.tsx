@@ -12,7 +12,6 @@ import type {
 import {
   DEFAULT_ROLE_SECTIONS,
   DEFAULT_ROLE_PERMISSIONS,
-  mapLegacyRole,
 } from '../lib/permissions/defaults';
 
 // ============================================================================
@@ -64,33 +63,6 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
-  // Create fallback permissions from legacy role
-  const createFallbackPermissions = useCallback((
-    legacyRole: string | null | undefined,
-    isSuperAdmin: boolean
-  ): UserPermissions => {
-    const role = mapLegacyRole(legacyRole);
-
-    // Super admin gets everything
-    if (isSuperAdmin) {
-      return {
-        role,
-        isSuperAdmin: true,
-        sections: new Set(Object.values(DEFAULT_ROLE_SECTIONS).flat() as SectionKey[]),
-        permissions: new Set(Object.values(DEFAULT_ROLE_PERMISSIONS).flat() as PermissionKey[]),
-        buScope: [],
-      };
-    }
-
-    return {
-      role,
-      isSuperAdmin: false,
-      sections: new Set(DEFAULT_ROLE_SECTIONS[role] || []),
-      permissions: new Set(DEFAULT_ROLE_PERMISSIONS[role] || []),
-      buScope: [],
-    };
-  }, []);
-
   // Load permissions when user changes
   useEffect(() => {
     if (!user?.id) {
@@ -103,15 +75,12 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       if (loaded) {
         setPermissions(loaded);
       } else {
-        // Fallback to legacy role from profile
-        const fallback = createFallbackPermissions(
-          profile?.role,
-          profile?.is_super_admin || false
-        );
-        setPermissions(fallback);
+        // All active users should have user_roles entries (backfilled by migration 279)
+        console.error('No permissions found for user - ensure user_roles entry exists');
+        setPermissions(null);
       }
     });
-  }, [user?.id, profile?.role, profile?.is_super_admin, loadPermissions, createFallbackPermissions]);
+  }, [user?.id, loadPermissions]);
 
   // Check if user has access to a section
   const hasSection = useCallback((section: SectionKey): boolean => {

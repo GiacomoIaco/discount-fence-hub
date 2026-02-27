@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, FileText, Video, Archive, Trash2, Eye, Plus } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { supabase } from '../../../lib/supabase';
 import PresentationUpload from './PresentationUpload';
 import PresentationViewer from './PresentationViewer';
@@ -26,14 +27,15 @@ interface Presentation {
 
 export default function ClientPresentation({ onBack, isMobile = false }: ClientPresentationProps) {
   const { profile } = useAuth();
+  const { hasPermission } = usePermission();
   const [presentations, setPresentations] = useState<Presentation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedPresentation, setSelectedPresentation] = useState<Presentation | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
-  const canManage = profile?.role === 'admin' || profile?.role === 'sales-manager';
-  const canDelete = profile?.role === 'admin';
+  const canManage = hasPermission('manage_team');
+  const canDelete = hasPermission('manage_settings');
 
   useEffect(() => {
     loadPresentations();

@@ -135,25 +135,3 @@ export const PERMISSION_CATEGORIES = {
   admin: ['manage_team', 'manage_roles', 'manage_settings', 'export_data', 'view_all_bus', 'manage_integrations'] as PermissionKey[],
 };
 
-// ============================================================================
-// Legacy Role Mapping
-// ============================================================================
-
-/**
- * Map legacy user_profiles.role values to new AppRole
- */
-export const LEGACY_ROLE_MAP: Record<string, AppRole> = {
-  'admin': 'admin',
-  'sales-manager': 'sales_manager',
-  'sales': 'sales_rep',
-  'operations': 'operations',
-  'yard': 'yard',
-};
-
-/**
- * Get AppRole from legacy role string
- */
-export function mapLegacyRole(legacyRole: string | null | undefined): AppRole {
-  if (!legacyRole) return 'operations'; // default fallback
-  return LEGACY_ROLE_MAP[legacyRole] || 'operations';
-}

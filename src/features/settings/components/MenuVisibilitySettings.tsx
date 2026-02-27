@@ -4,6 +4,8 @@ import type { Platform, MenuCategory } from '../../../hooks/useMenuVisibility';
 import { supabase } from '../../../lib/supabase';
 import { showSuccess, showError } from '../../../lib/toast';
 import { X, Users, Check, Monitor, Tablet, Smartphone, Palette } from 'lucide-react';
+import { ROLE_DISPLAY_NAMES } from '../../../lib/permissions/defaults';
+import type { AppRole } from '../../../lib/permissions/types';
 
 const CATEGORY_OPTIONS: { value: MenuCategory; label: string }[] = [
   { value: 'main', label: 'Main' },
@@ -54,7 +56,7 @@ const MenuVisibilitySettings = () => {
     loading,
   } = useMenuVisibility();
 
-  const roles = ['sales', 'operations', 'yard', 'sales-manager', 'admin'];
+  const roles: AppRole[] = ['owner', 'admin', 'sales_manager', 'sales_rep', 'front_desk', 'ops_manager', 'operations', 'yard', 'crew'];
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<string | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -169,14 +171,19 @@ const MenuVisibilitySettings = () => {
   };
 
   const getRoleLabel = (role: string): string => {
-    const labels: Record<string, string> = {
-      'sales': 'Sales',
+    // Short labels for table headers to save space
+    const shortLabels: Record<string, string> = {
+      'owner': 'Owner',
+      'admin': 'Admin',
+      'sales_manager': 'Sales Mgr',
+      'sales_rep': 'Sales',
+      'front_desk': 'Front Desk',
+      'ops_manager': 'Ops Mgr',
       'operations': 'Ops',
       'yard': 'Yard',
-      'sales-manager': 'Sales Mgr',
-      'admin': 'Admin',
+      'crew': 'Crew',
     };
-    return labels[role] || role;
+    return shortLabels[role] || ROLE_DISPLAY_NAMES[role as AppRole] || role;
   };
 
   const openUserModal = (menuId: string) => {

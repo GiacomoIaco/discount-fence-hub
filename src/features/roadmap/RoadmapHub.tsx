@@ -3,6 +3,7 @@ import RoadmapLayout from './RoadmapLayout';
 import RoadmapWorkspace from './components/RoadmapWorkspace';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../contexts/PermissionContext';
 import type { RoadmapItem } from './types';
 
 // Hub configuration with colors
@@ -51,6 +52,7 @@ function saveViewState(state: ViewState) {
 
 export default function RoadmapHub({ onBack }: RoadmapHubProps) {
   const { profile } = useAuth();
+  const { hasPermission } = usePermission();
   const [items, setItems] = useState<RoadmapItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,7 +66,7 @@ export default function RoadmapHub({ onBack }: RoadmapHubProps) {
   });
 
   // Check if user is admin (can change statuses)
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = hasPermission('manage_settings');
 
   // Save view state when selectedHubs changes
   useEffect(() => {

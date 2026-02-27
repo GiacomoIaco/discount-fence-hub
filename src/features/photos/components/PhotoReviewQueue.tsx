@@ -7,10 +7,9 @@ import { showSuccess } from '../../../lib/toast';
 
 interface PhotoReviewQueueProps {
   onBack: () => void;
-  userRole: 'sales-manager' | 'admin';
 }
 
-const PhotoReviewQueue = ({ onBack, userRole: _userRole }: PhotoReviewQueueProps) => {
+const PhotoReviewQueue = ({ onBack }: PhotoReviewQueueProps) => {
   const [pendingPhotos, setPendingPhotos] = useState<Photo[]>([]);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [editingTags, setEditingTags] = useState<string[]>([]);

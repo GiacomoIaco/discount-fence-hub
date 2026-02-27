@@ -14,6 +14,7 @@ import { isSelectedInSession } from './lib/photos';
 import PhotoAnalytics from './components/PhotoAnalytics';
 import BulkPhotoUpload from './components/BulkPhotoUpload';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../contexts/PermissionContext';
 
 // Import custom hooks
 import {
@@ -45,7 +46,6 @@ import {
 
 interface PhotoGalleryProps {
   onBack?: () => void;
-  userRole?: 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
   viewMode?: 'mobile' | 'desktop';
   userId?: string;
   userName?: string;
@@ -53,13 +53,13 @@ interface PhotoGalleryProps {
 
 export function PhotoGalleryRefactored({
   onBack,
-  userRole = 'sales',
   viewMode = 'mobile',
   userId,
   userName,
 }: PhotoGalleryProps) {
   // Get authenticated user info from context (this ensures we always have current user data)
   const { user, profile } = useAuth();
+  const { hasPermission } = usePermission();
 
   // Use auth context user info if available, otherwise fall back to props
   const effectiveUserId = user?.id || userId;
@@ -77,7 +77,7 @@ export function PhotoGalleryRefactored({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Core gallery state
-  const gallery = usePhotoGallery(userRole, viewMode);
+  const gallery = usePhotoGallery(viewMode);
   const { activeTab, setActiveTab, photos, setPhotos, currentIndex, setCurrentIndex, sessionId, loadPhotos } =
     gallery;
 
@@ -307,7 +307,7 @@ export function PhotoGalleryRefactored({
 
   // Show analytics
   if (showAnalytics) {
-    return <PhotoAnalytics onBack={() => setShowAnalytics(false)} userRole={userRole} />;
+    return <PhotoAnalytics onBack={() => setShowAnalytics(false)} />;
   }
 
   // Show bulk upload
@@ -354,7 +354,7 @@ export function PhotoGalleryRefactored({
                 >
                   Gallery
                 </button>
-                {(userRole === 'sales-manager' || userRole === 'admin') && (
+                {hasPermission('manage_team') && (
                   <>
                     <button
                       onClick={() => setActiveTab('pending')}
@@ -401,7 +401,7 @@ export function PhotoGalleryRefactored({
               </div>
 
               {/* Edit/Select Mode Button */}
-              {(userRole === 'sales-manager' || userRole === 'admin') && (
+              {hasPermission('manage_team') && (
                 <button
                   onClick={() => {
                     setEditMode(!editMode);
@@ -428,7 +428,7 @@ export function PhotoGalleryRefactored({
               )}
 
               {/* Bulk Upload Button */}
-              {(userRole === 'admin' || userRole === 'sales-manager') && (
+              {hasPermission('manage_team') && (
                 <button
                   onClick={() => setShowBulkUpload(true)}
                   className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 bg-green-100 text-green-700 hover:bg-green-200"
@@ -439,7 +439,7 @@ export function PhotoGalleryRefactored({
               )}
 
               {/* Analytics Button */}
-              {(userRole === 'admin' || userRole === 'sales-manager') && (
+              {hasPermission('manage_team') && (
                 <button
                   onClick={() => setShowAnalytics(true)}
                   className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
@@ -450,7 +450,7 @@ export function PhotoGalleryRefactored({
               )}
 
               {/* Manage Tags Button (Admin only) */}
-              {userRole === 'admin' && (
+              {hasPermission('manage_settings') && (
                 <button
                   onClick={() => setShowTagManagement(true)}
                   className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -479,7 +479,7 @@ export function PhotoGalleryRefactored({
               openViewFlags(photo);  // Always open flags modal on flagged tab
             } else if (
               (activeTab === 'pending' || activeTab === 'saved' || activeTab === 'archived') &&
-              (userRole === 'sales-manager' || userRole === 'admin')
+              hasPermission('manage_team')
             ) {
               openReviewModal(photo);  // Open review modal for pending/saved/archived tabs
             } else {
@@ -498,7 +498,6 @@ export function PhotoGalleryRefactored({
         show={editMode}
         viewMode={viewMode}
         activeTab={activeTab}
-        userRole={userRole}
         selectedCount={selectedPhotoIds.size}
         isEnhancing={enhancementQueueState.isProcessing}
         onSelectAll={selectAll}
@@ -578,7 +577,6 @@ export function PhotoGalleryRefactored({
       <PhotoReviewModal
         photo={reviewingPhoto}
         activeTab={activeTab}
-        userRole={userRole}
         uploaderName={uploaderName}
         editingTags={editingTags}
         editingScore={editingScore}
@@ -629,7 +627,6 @@ export function PhotoGalleryRefactored({
         show={!!viewingFlags}
         photo={viewingFlags?.photo || null}
         flags={viewingFlags?.flags || []}
-        userRole={userRole}
         onClose={closeViewFlags}
         onResolveFlag={resolveFlag}
         onDismissFlag={dismissFlag}

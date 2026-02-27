@@ -1429,6 +1429,8 @@ export interface FsmTeamProfile {
   updated_at: string;
   // BU assignments for rep filtering (from migration 182)
   assigned_qbo_class_ids: string[];
+  // Jobber salesperson names (from migration 278) - array for multi-Jobber-account support
+  jobber_salesperson_names: string[];
   // Joined from auth.users
   user?: {
     id: string;
@@ -1510,6 +1512,8 @@ export interface FsmTeamMember {
   is_active: boolean;
   // BU assignments for rep filtering (from migration 182)
   assigned_qbo_class_ids?: string[];
+  // Jobber salesperson names (from migration 278)
+  jobber_salesperson_names?: string[];
   // Aggregated data
   territories: {
     territory_id: string;
@@ -1548,6 +1552,7 @@ export interface FsmTeamProfileFormData {
   user_id: string;
   fsm_roles: FsmRole[];
   assigned_qbo_class_ids: string[];  // QBO Classes this team member handles
+  jobber_salesperson_names: string[]; // Jobber salesperson name(s)
   max_daily_assessments: number;
   crew_id: string;
   is_active: boolean;

@@ -1,13 +1,14 @@
 import { Activity, Camera, MessageSquare, TrendingUp, AlertCircle, CheckCircle, Clock, Target } from 'lucide-react';
 import type { AnalyticsData } from '../hooks/useAnalytics';
-import type { UserRole } from '../../../types';
+import { usePermission } from '../../../contexts/PermissionContext';
 
 interface OverviewTabProps {
   data: AnalyticsData;
-  userRole: UserRole;
 }
 
-export function OverviewTab({ data, userRole }: OverviewTabProps) {
+export function OverviewTab({ data }: OverviewTabProps) {
+  const { hasPermission } = usePermission();
+
   // Calculate recent activity (last 7 days snapshot)
   const recentWeek = data.timeSeries.slice(-1)[0];
   const previousWeek = data.timeSeries.slice(-2)[0];
@@ -215,7 +216,7 @@ export function OverviewTab({ data, userRole }: OverviewTabProps) {
       )}
 
       {/* Team Performance Summary (for managers/admin) */}
-      {(userRole === 'admin' || userRole === 'sales-manager') && data.teamPerformance.length > 0 && (
+      {hasPermission('view_analytics') && data.teamPerformance.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performers</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

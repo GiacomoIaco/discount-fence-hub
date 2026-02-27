@@ -3,8 +3,7 @@ import { Pin, PinOff, User, LogOut } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import CreateDropdown from '../components/CreateDropdown';
 import type { Section } from '../lib/routes';
-
-type UserRole = 'sales' | 'operations' | 'sales-manager' | 'admin' | 'yard';
+import { usePermission } from '../contexts/PermissionContext';
 
 interface NavigationItem {
   id: Section;
@@ -22,9 +21,6 @@ interface SidebarProps {
   navigationItems: NavigationItem[];
   activeSection: Section;
   onNavigate: (section: Section) => void;
-  userRole: UserRole;
-  setUserRole: (role: UserRole) => void;
-  profileRole: UserRole | undefined;
   profileFullName: string | undefined;
   profileAvatarUrl: string | undefined;
   userName: string;
@@ -46,9 +42,6 @@ export default function Sidebar({
   navigationItems,
   activeSection,
   onNavigate,
-  userRole,
-  setUserRole,
-  profileRole,
   profileFullName,
   profileAvatarUrl,
   userName,
@@ -59,6 +52,7 @@ export default function Sidebar({
   onCreateRequest,
   onCreateQuote
 }: SidebarProps) {
+  const { role: permissionRole } = usePermission();
   // Hover-to-peek state
   const [isPeeking, setIsPeeking] = useState(false);
   const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -221,26 +215,7 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* Role Switcher for Admin Only - show based on authenticated profile, not current view */}
-        {isExpanded && profileRole === 'admin' && (
-          <div className="mb-3">
-            <p className="text-xs text-gray-400 mb-2">Switch View (Admin):</p>
-            <select
-              value={userRole}
-              onChange={(e) => {
-                setUserRole(e.target.value as UserRole);
-                onNavigate('home');
-              }}
-              className="w-full px-2 py-1 text-sm bg-gray-800 border border-gray-700 rounded text-white"
-            >
-              <option value="sales">Sales View</option>
-              <option value="operations">Operations View</option>
-              <option value="yard">Yard View</option>
-              <option value="sales-manager">Sales Manager View</option>
-              <option value="admin">Admin View</option>
-            </select>
-          </div>
-        )}
+        {/* Role display removed - role switching is now managed via Team Management */}
 
         {/* User Profile and Sign Out */}
         <div className="flex items-center gap-2">
@@ -264,7 +239,7 @@ export default function Sidebar({
                 <p className="font-medium text-xs text-white truncate">
                   {profileFullName || userName}
                 </p>
-                <p className="text-xs text-gray-400 capitalize">{profileRole || userRole}</p>
+                <p className="text-xs text-gray-400 capitalize">{permissionRole || 'user'}</p>
               </div>
             )}
           </button>

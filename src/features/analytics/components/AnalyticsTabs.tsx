@@ -7,7 +7,6 @@ import { JobberDataTab } from './jobber/JobberDataTab';
 import { ResidentialApiDashboard } from './jobber/residential-api';
 import { DateRangePicker } from './DateRangePicker';
 import type { AnalyticsData, DateRange } from '../hooks/useAnalytics';
-import type { UserRole } from '../../../types';
 
 export type TabId = 'overview' | 'requests' | 'sales' | 'photos' | 'jobber' | 'residential-api';
 
@@ -15,14 +14,13 @@ interface AnalyticsTabsProps {
   data: AnalyticsData | null;
   loading: boolean;
   error: Error | null;
-  userRole: UserRole;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
 }
 
-export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDateRangeChange, activeTab, onTabChange }: AnalyticsTabsProps) {
+export function AnalyticsTabs({ data, loading, error, dateRange, onDateRangeChange, activeTab, onTabChange }: AnalyticsTabsProps) {
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview', icon: TrendingUp },
     { id: 'requests' as TabId, label: 'Requests', icon: BarChart },
@@ -96,7 +94,7 @@ export function AnalyticsTabs({ data, loading, error, userRole, dateRange, onDat
         ) : (
           <>
             {activeTab === 'overview' && (
-              <OverviewTab data={data} userRole={userRole} />
+              <OverviewTab data={data} />
             )}
 
             {activeTab === 'requests' && (

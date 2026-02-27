@@ -23,6 +23,7 @@ import ConvertToJobModal from './ConvertToJobModal';
 import QuickTicketModal, { type FsmTicketContext } from '../QuickTicketModal';
 import { useSendQuote, useApproveQuote, useConvertQuoteToJobWithSelection, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { usePermission } from '../../../../contexts/PermissionContext';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePriceWithCommunityOverride, useCommunityProducts } from '../../../client_hub/hooks/usePricingResolution';
 import { fetchSkuLaborCostPerFoot } from '../../hooks/useSkuLaborCost';
@@ -171,13 +172,10 @@ export default function QuoteCard({
 
   // Get current user for role-based permissions
   const { profile } = useAuth();
+  const { hasPermission, isSuperAdmin } = usePermission();
 
   // Check if current user can approve quotes (admin or sales-manager roles)
-  const canApproveQuotes = useMemo(() => {
-    if (!profile?.role) return false;
-    const approverRoles = ['admin', 'sales-manager'];
-    return approverRoles.includes(profile.role) || profile.is_super_admin === true;
-  }, [profile]);
+  const canApproveQuotes = hasPermission('manage_team') || isSuperAdmin;
 
   // Fetch alternative quotes in the same group
   const { data: alternatives } = useQuoteAlternatives(quote?.quote_group);
