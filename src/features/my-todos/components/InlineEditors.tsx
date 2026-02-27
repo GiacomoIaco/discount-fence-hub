@@ -933,22 +933,20 @@ export function QuickAddTask({
               if (e.key === 'Enter') handleSubmit();
               if (e.key === 'Escape') onCancel();
             }}
-            onBlur={() => {
-              if (!title.trim()) onCancel();
-            }}
             placeholder="Enter task title and press Enter..."
             className="flex-1 px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
             disabled={createItem.isPending}
           />
           {createItem.isPending && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleSubmit}
             disabled={createItem.isPending || !title.trim()}
             className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
           >
             Add
           </button>
-          <button onClick={onCancel} className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded">
+          <button onMouseDown={(e) => e.preventDefault()} onClick={onCancel} className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded">
             Cancel
           </button>
         </div>

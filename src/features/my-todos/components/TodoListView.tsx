@@ -207,11 +207,11 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
       </div>
 
       {/* Sections + Tasks */}
-      {(!sections || sections.length === 0) ? (
-        <EmptyState message="No sections yet. Add a section to get started." />
-      ) : (
-        <div className="space-y-4">
-          {sections.map(section => (
+      <div className="space-y-4">
+        {(!sections || sections.length === 0) ? (
+          <EmptyState message="No sections yet. Add a section to get started." />
+        ) : (
+          sections.map(section => (
             <SectionBlock
               key={section.id}
               section={section}
@@ -238,48 +238,48 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
               }}
               updateSection={updateSection}
             />
-          ))}
+          ))
+        )}
 
-          {/* Add Section */}
-          {showAddSection ? (
-            <div className="flex items-center gap-2 p-3 border border-dashed border-gray-300 rounded-lg">
-              <input
-                type="text"
-                value={addingSectionTitle}
-                onChange={(e) => setAddingSectionTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddSection();
-                  if (e.key === 'Escape') { setShowAddSection(false); setAddingSectionTitle(''); }
-                }}
-                placeholder="Section title..."
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                autoFocus
-              />
-              <button
-                onClick={handleAddSection}
-                disabled={createSection.isPending}
-                className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                Add
-              </button>
-              <button
-                onClick={() => { setShowAddSection(false); setAddingSectionTitle(''); }}
-                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
+        {/* Add Section — always visible */}
+        {showAddSection ? (
+          <div className="flex items-center gap-2 p-3 border border-dashed border-gray-300 rounded-lg">
+            <input
+              type="text"
+              value={addingSectionTitle}
+              onChange={(e) => setAddingSectionTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddSection();
+                if (e.key === 'Escape') { setShowAddSection(false); setAddingSectionTitle(''); }
+              }}
+              placeholder="Section title..."
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              autoFocus
+            />
             <button
-              onClick={() => setShowAddSection(true)}
-              className="w-full px-4 py-3 text-sm text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 rounded-lg transition-colors flex items-center justify-center gap-2"
+              onClick={handleAddSection}
+              disabled={createSection.isPending}
+              className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" />
-              Add Section
+              Add
             </button>
-          )}
-        </div>
-      )}
+            <button
+              onClick={() => { setShowAddSection(false); setAddingSectionTitle(''); }}
+              className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAddSection(true)}
+            className="w-full px-4 py-3 text-sm text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Section
+          </button>
+        )}
+      </div>
 
       {/* Task Detail Modal */}
       {selectedTaskId && (
