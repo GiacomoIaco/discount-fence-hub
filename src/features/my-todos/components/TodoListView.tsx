@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, type Dispatch, type SetStateAction } from 'react';
-import { Plus, ChevronDown, ChevronRight, Pencil, Trash2, Settings, Users, Archive } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Pencil, Trash2, Settings, Users, Archive, GripVertical } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -14,9 +14,11 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  useSortable,
 } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useTodoListsQuery } from '../hooks/useTodoLists';
-import { useTodoSectionsQuery, useCreateTodoSection, useUpdateTodoSection, useDeleteTodoSection } from '../hooks/useTodoSections';
+import { useTodoSectionsQuery, useCreateTodoSection, useUpdateTodoSection, useDeleteTodoSection, useReorderTodoSections } from '../hooks/useTodoSections';
 import {
   useTodoItemsQuery,
   useUpdateTodoItemStatus,
@@ -71,6 +73,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
   const createSection = useCreateTodoSection();
   const updateSection = useUpdateTodoSection();
   const deleteSection = useDeleteTodoSection();
+  const reorderSections = useReorderTodoSections();
 
   // Drag sensors
   const sensors = useSensors(
@@ -101,7 +104,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
     });
   }, []);
 
-  const handleDragEnd = useCallback((event: DragEndEvent, sectionId: string) => {
+  const handleItemDragEnd = useCallback((event: DragEndEvent, sectionId: string) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -118,6 +121,23 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
 
     reorderItems.mutate({ listId, items: updates });
   }, [itemsBySection, listId, reorderItems]);
+
+  const handleSectionDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !sections) return;
+
+    const oldIndex = sections.findIndex(s => s.id === active.id);
+    const newIndex = sections.findIndex(s => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sections, oldIndex, newIndex);
+    const updates = reordered.map((s, idx) => ({
+      id: s.id,
+      sort_order: idx,
+    }));
+
+    reorderSections.mutate({ listId, sections: updates });
+  }, [sections, listId, reorderSections]);
 
   const handleStatusChange = useCallback(async (taskId: string, status: string) => {
     await updateStatus.mutateAsync({ id: taskId, status, listId });
@@ -211,34 +231,47 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
         {(!sections || sections.length === 0) ? (
           <EmptyState message="No sections yet. Add a section to get started." />
         ) : (
-          sections.map(section => (
-            <SectionBlock
-              key={section.id}
-              section={section}
-              sectionItems={itemsBySection[section.id] || []}
-              isCollapsed={collapsedSections.has(section.id)}
-              listId={listId}
-              allSections={sections}
-              lastComments={lastComments}
-              addingTaskInSection={addingTaskInSection}
-              sensors={sensors}
-              onToggleSection={toggleSection}
-              onDragEnd={handleDragEnd}
-              onStatusChange={handleStatusChange}
-              onUpdateField={handleUpdateField}
-              onDeleteTask={handleDeleteTask}
-              onDeleteSection={handleDeleteSection}
-              onSetAddingTask={setAddingTaskInSection}
-              onOpenTask={(itemId) => {
-                setTaskViewed(itemId);
-                setSelectedTaskId(itemId);
-              }}
-              onOpenCommentPopup={(taskId, taskTitle, position) => {
-                setCommentPopup({ taskId, taskTitle, position });
-              }}
-              updateSection={updateSection}
-            />
-          ))
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleSectionDragEnd}
+          >
+            <SortableContext
+              items={sections.map(s => s.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-4">
+                {sections.map(section => (
+                  <SortableSectionBlock
+                    key={section.id}
+                    section={section}
+                    sectionItems={itemsBySection[section.id] || []}
+                    isCollapsed={collapsedSections.has(section.id)}
+                    listId={listId}
+                    allSections={sections}
+                    lastComments={lastComments}
+                    addingTaskInSection={addingTaskInSection}
+                    sensors={sensors}
+                    onToggleSection={toggleSection}
+                    onDragEnd={handleItemDragEnd}
+                    onStatusChange={handleStatusChange}
+                    onUpdateField={handleUpdateField}
+                    onDeleteTask={handleDeleteTask}
+                    onDeleteSection={handleDeleteSection}
+                    onSetAddingTask={setAddingTaskInSection}
+                    onOpenTask={(itemId) => {
+                      setTaskViewed(itemId);
+                      setSelectedTaskId(itemId);
+                    }}
+                    onOpenCommentPopup={(taskId, taskTitle, position) => {
+                      setCommentPopup({ taskId, taskTitle, position });
+                    }}
+                    updateSection={updateSection}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         {/* Add Section — always visible */}
@@ -304,6 +337,54 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
   );
 }
 
+// Sortable wrapper for SectionBlock
+function SortableSectionBlock(props: SectionBlockProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.section.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <SectionBlock {...props} dragListeners={listeners} />
+    </div>
+  );
+}
+
+// Props type shared between SortableSectionBlock and SectionBlock
+interface SectionBlockProps {
+  section: TodoSection;
+  sectionItems: TodoItem[];
+  isCollapsed: boolean;
+  listId: string;
+  allSections: TodoSection[];
+  lastComments: Record<string, any> | undefined;
+  addingTaskInSection: string | null;
+  sensors: ReturnType<typeof useSensors>;
+  onToggleSection: (sectionId: string) => void;
+  onDragEnd: (event: DragEndEvent, sectionId: string) => void;
+  onStatusChange: (taskId: string, status: string) => Promise<void>;
+  onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onDeleteSection: (sectionId: string, title: string) => Promise<void>;
+  onSetAddingTask: Dispatch<SetStateAction<string | null>>;
+  onOpenTask: (itemId: string) => void;
+  onOpenCommentPopup: (taskId: string, taskTitle: string, position: { top: number; left: number }) => void;
+  updateSection: ReturnType<typeof useUpdateTodoSection>;
+  dragListeners?: Record<string, any>;
+}
+
 // Extracted section component to avoid useState in .map()
 function SectionBlock({
   section,
@@ -324,26 +405,8 @@ function SectionBlock({
   onOpenTask,
   onOpenCommentPopup,
   updateSection,
-}: {
-  section: TodoSection;
-  sectionItems: TodoItem[];
-  isCollapsed: boolean;
-  listId: string;
-  allSections: TodoSection[];
-  lastComments: Record<string, any> | undefined;
-  addingTaskInSection: string | null;
-  sensors: ReturnType<typeof useSensors>;
-  onToggleSection: (sectionId: string) => void;
-  onDragEnd: (event: DragEndEvent, sectionId: string) => void;
-  onStatusChange: (taskId: string, status: string) => Promise<void>;
-  onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
-  onDeleteTask: (taskId: string) => Promise<void>;
-  onDeleteSection: (sectionId: string, title: string) => Promise<void>;
-  onSetAddingTask: Dispatch<SetStateAction<string | null>>;
-  onOpenTask: (itemId: string) => void;
-  onOpenCommentPopup: (taskId: string, taskTitle: string, position: { top: number; left: number }) => void;
-  updateSection: ReturnType<typeof useUpdateTodoSection>;
-}) {
+  dragListeners,
+}: SectionBlockProps) {
   const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
   const sectionColor = getSectionColor(section.color);
 
@@ -354,6 +417,15 @@ function SectionBlock({
         className={`${sectionColor.bg} px-4 py-3 flex items-center gap-3 cursor-pointer`}
         onClick={() => onToggleSection(section.id)}
       >
+        {/* Drag handle for section reorder */}
+        <div
+          className="cursor-grab active:cursor-grabbing text-white/60 hover:text-white/90 -ml-1"
+          onClick={(e) => e.stopPropagation()}
+          {...dragListeners}
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+
         {isCollapsed ? (
           <ChevronRight className="w-4 h-4 text-white/80" />
         ) : (

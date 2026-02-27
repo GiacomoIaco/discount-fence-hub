@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import TodoSidebar from './TodoSidebar';
 
 interface TodoLayoutProps {
@@ -9,7 +9,6 @@ interface TodoLayoutProps {
   onSelectList: (listId: string) => void;
   onMyWorkClick: () => void;
   onNewListClick: () => void;
-  onBack: () => void;
   isMobileSidebarOpen: boolean;
   onToggleMobileSidebar: () => void;
 }
@@ -21,7 +20,6 @@ export default function TodoLayout({
   onSelectList,
   onMyWorkClick,
   onNewListClick,
-  onBack,
   isMobileSidebarOpen,
   onToggleMobileSidebar,
 }: TodoLayoutProps) {
@@ -40,24 +38,17 @@ export default function TodoLayout({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Back to Main App"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-
-          {/* Mobile hamburger */}
+        {/* Top Bar (mobile only - hamburger for sidebar) */}
+        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 lg:hidden">
           <button
             onClick={onToggleMobileSidebar}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             title="Toggle sidebar"
           >
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
+
+          <span className="text-sm font-medium text-gray-600">My To-Dos</span>
         </div>
 
         {/* Content Area */}

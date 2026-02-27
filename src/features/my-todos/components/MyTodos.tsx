@@ -10,7 +10,7 @@ interface MyTodosProps {
   onBack: () => void;
 }
 
-export default function MyTodos({ onBack }: MyTodosProps) {
+export default function MyTodos({ onBack: _ }: MyTodosProps) {
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [showMyWork, setShowMyWork] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -104,7 +104,6 @@ export default function MyTodos({ onBack }: MyTodosProps) {
         onSelectList={handleSelectList}
         onMyWorkClick={handleMyWorkClick}
         onNewListClick={() => setShowNewListModal(true)}
-        onBack={onBack}
         isMobileSidebarOpen={isMobileSidebarOpen}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       >

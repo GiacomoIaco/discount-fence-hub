@@ -78,14 +78,26 @@ export function useTodoListMembersQuery(listId: string | null) {
 
       const { data, error } = await supabase
         .from('todo_list_members')
-        .select(`
-          *,
-          user:user_profiles!todo_list_members_user_id_fkey(id, full_name, avatar_url)
-        `)
+        .select('*')
         .eq('list_id', listId);
 
       if (error) throw error;
-      return data || [];
+      if (!data || data.length === 0) return [];
+
+      // Fetch user profiles separately (can't join via FK that goes to auth.users)
+      const userIds = data.map(m => m.user_id);
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', userIds);
+
+      const profileMap: Record<string, { id: string; full_name: string; avatar_url: string | null }> = {};
+      (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+      return data.map(m => ({
+        ...m,
+        user: profileMap[m.user_id] || null,
+      }));
     },
     enabled: !!listId,
   });
