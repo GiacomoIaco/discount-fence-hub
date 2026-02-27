@@ -76,18 +76,29 @@ const TeamManagement = () => {
   const loadTeamMembers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*, user_roles(role_key)')
-        .or('approval_status.eq.approved,approval_status.is.null')
-        .order('full_name', { ascending: true });
+      // Query user_profiles and user_roles separately
+      // (user_roles FK goes to auth.users, not user_profiles, so PostgREST can't join them)
+      const [profilesRes, rolesRes] = await Promise.all([
+        supabase
+          .from('user_profiles')
+          .select('*')
+          .or('approval_status.eq.approved,approval_status.is.null')
+          .order('full_name', { ascending: true }),
+        supabase
+          .from('user_roles')
+          .select('user_id, role_key'),
+      ]);
 
-      if (error) throw error;
+      if (profilesRes.error) throw profilesRes.error;
 
-      // Enrich with app_role from user_roles join
-      const enriched = (data || []).map((m: any) => ({
+      // Build a lookup map for roles
+      const roleMap = new Map<string, string>();
+      (rolesRes.data || []).forEach((r: any) => roleMap.set(r.user_id, r.role_key));
+
+      // Enrich profiles with app_role
+      const enriched = (profilesRes.data || []).map((m: any) => ({
         ...m,
-        app_role: m.user_roles?.role_key || undefined,
+        app_role: roleMap.get(m.id) || undefined,
       }));
       setMembers(enriched);
     } catch (error) {
