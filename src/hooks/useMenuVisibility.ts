@@ -59,7 +59,7 @@ export const detectPlatform = (): Platform => {
 };
 
 export const useMenuVisibility = () => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { role: appRole } = usePermission();
   const [menuVisibility, setMenuVisibility] = useState<Map<string, MenuVisibilityItem>>(new Map());
   const [loading, setLoading] = useState(true);

@@ -41,30 +41,11 @@ export default function PresentationViewer({ presentation, onBack, isMobile = fa
   const [editedTitle, setEditedTitle] = useState('');
   const [editedTalkingPoints, setEditedTalkingPoints] = useState('');
   const [savingTalkingPoints, setSavingTalkingPoints] = useState(false);
-  const [userRole, setUserRole] = useState<string>('');
 
   useEffect(() => {
     loadSlides();
     loadNotes();
-    loadUserRole();
   }, []);
-
-  const loadUserRole = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
-      setUserRole(data?.role || '');
-    } catch (error) {
-      console.error('Error loading user role:', error);
-    }
-  };
 
   useEffect(() => {
     // Load note for current slide

@@ -22,7 +22,6 @@ import QuoteSidebar from './QuoteSidebar';
 import ConvertToJobModal from './ConvertToJobModal';
 import QuickTicketModal, { type FsmTicketContext } from '../QuickTicketModal';
 import { useSendQuote, useApproveQuote, useConvertQuoteToJobWithSelection, useUpdateQuoteStatus, useUpdateQuote, useRequestManagerApproval, useManagerApproveQuote, useManagerRejectQuote, useCreateAlternativeQuote, useQuoteAlternatives } from '../../hooks/useQuotes';
-import { useAuth } from '../../../../contexts/AuthContext';
 import { usePermission } from '../../../../contexts/PermissionContext';
 import type { SkuSearchResult } from '../../hooks/useSkuSearch';
 import { useEffectiveRateSheet, useRateSheetPrices, resolvePriceWithCommunityOverride, useCommunityProducts } from '../../../client_hub/hooks/usePricingResolution';
@@ -171,7 +170,6 @@ export default function QuoteCard({
   const hasNoRateSheet = !effectiveRateSheet?.rateSheetId && (form.clientId || form.communityId);
 
   // Get current user for role-based permissions
-  const { profile } = useAuth();
   const { hasPermission, isSuperAdmin } = usePermission();
 
   // Check if current user can approve quotes (admin or sales-manager roles)

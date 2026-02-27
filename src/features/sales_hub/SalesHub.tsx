@@ -12,7 +12,6 @@ import {
   PinOff,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePermission } from '../../contexts/PermissionContext';
 import { useTabRoute } from '../../hooks/useTabRoute';
 import type { SalesHubView } from './types';
 import { SalesDashboard } from './components';
@@ -55,8 +54,7 @@ interface SalesHubProps {
 
 export default function SalesHub({ onBack: _onBack, initialView = 'dashboard' }: SalesHubProps) {
   const [activeView, setActiveView] = useState<SalesHubView>(initialView);
-  const { user, profile } = useAuth();
-  const { role } = usePermission();
+  const { user } = useAuth();
 
   // Sync view state with URL
   const { navigateToTab } = useTabRoute<SalesHubView>({

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import RoadmapLayout from './RoadmapLayout';
 import RoadmapWorkspace from './components/RoadmapWorkspace';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
 import { usePermission } from '../../contexts/PermissionContext';
 import type { RoadmapItem } from './types';
 
@@ -51,7 +50,6 @@ function saveViewState(state: ViewState) {
 }
 
 export default function RoadmapHub({ onBack }: RoadmapHubProps) {
-  const { profile } = useAuth();
   const { hasPermission } = usePermission();
   const [items, setItems] = useState<RoadmapItem[]>([]);
   const [loading, setLoading] = useState(true);

@@ -9,10 +9,6 @@ import type {
   RawUserPermissions,
   PermissionContextValue,
 } from '../lib/permissions/types';
-import {
-  DEFAULT_ROLE_SECTIONS,
-  DEFAULT_ROLE_PERMISSIONS,
-} from '../lib/permissions/defaults';
 
 // ============================================================================
 // Context Definition
@@ -25,7 +21,7 @@ const PermissionContext = createContext<PermissionContextValue | undefined>(unde
 // ============================================================================
 
 export function PermissionProvider({ children }: { children: React.ReactNode }) {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 

@@ -7,7 +7,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { showError } from '../../../lib/toast';
-import { useAuth } from '../../../contexts/AuthContext';
 import { usePermission } from '../../../contexts/PermissionContext';
 
 // Helper to detect if URL is a video
@@ -153,7 +152,6 @@ export default function RequestDetail({ requestId, onClose, onUpdate }: RequestD
   const { mutateAsync: addNote } = useAddRequestNoteMutation();
   const { mutateAsync: assignRequest } = useAssignRequestMutation();
   const { users } = useUsers();
-  const { profile } = useAuth();
   const { hasPermission, hasSection } = usePermission();
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);

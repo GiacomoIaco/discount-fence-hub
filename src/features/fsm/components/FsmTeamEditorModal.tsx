@@ -54,6 +54,7 @@ export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorMod
     territory_coverage: [],
     work_schedule: [],
     skills: [],
+    jobber_salesperson_names: [],
   });
 
   const [activeSection, setActiveSection] = useState<'basic' | 'territories' | 'schedule' | 'skills'>('basic');
@@ -81,6 +82,7 @@ export default function FsmTeamEditorModal({ member, onClose }: FsmTeamEditorMod
           project_type_id: s.project_type_id,
           proficiency: s.proficiency,
         })) || [],
+        jobber_salesperson_names: member.jobber_salesperson_names || [],
       });
     }
   }, [member, existingProfile]);
