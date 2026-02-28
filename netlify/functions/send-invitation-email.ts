@@ -48,14 +48,26 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Verify the requesting user is an admin
-    const { data: inviter, error: inviterError } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', invitedBy)
-      .single();
+    // Verify the requesting user has permission to manage the team
+    // Check user_roles (new system) first, fallback to legacy user_profiles.role
+    const [{ data: userRole }, { data: inviter }] = await Promise.all([
+      supabase
+        .from('user_roles')
+        .select('role_key')
+        .eq('user_id', invitedBy)
+        .single(),
+      supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', invitedBy)
+        .single(),
+    ]);
 
-    if (inviterError || inviter?.role !== 'admin') {
+    const appRole = userRole?.role_key;
+    const legacyRole = inviter?.role;
+    const canInvite = ['owner', 'admin'].includes(appRole || '') || legacyRole === 'admin';
+
+    if (!canInvite) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Unauthorized: Only admins can send invitations' }),
