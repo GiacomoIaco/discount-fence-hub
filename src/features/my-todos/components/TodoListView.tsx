@@ -660,6 +660,15 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
             Show {staleCount} archived
           </button>
         )}
+
+        {/* Keyboard shortcuts help */}
+        <button
+          onClick={() => setShowHelp(true)}
+          className="hidden md:inline-flex items-center justify-center w-7 h-7 text-xs font-mono text-gray-400 hover:text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          title="Keyboard shortcuts (?)"
+        >
+          ?
+        </button>
       </div>
 
       {/* Filter Bar — Mobile: horizontal scrolling pills */}
@@ -870,6 +879,11 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
       )}
 
       {/* Comment Popup */}
+      {/* Keyboard Shortcuts Help */}
+      {showHelp && (
+        <KeyboardShortcutsHelp onClose={() => setShowHelp(false)} />
+      )}
+
       {commentPopup && (
         <InlineCommentPopup
           taskId={commentPopup.taskId}
