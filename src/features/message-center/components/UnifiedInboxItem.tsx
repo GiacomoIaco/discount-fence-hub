@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { MessageSquare, Megaphone, Bell, Reply, Check, ExternalLink, Users, User, Ticket, Archive, ArchiveRestore, Mail, MailOpen } from 'lucide-react';
+import { MessageSquare, Megaphone, Bell, Reply, Check, ExternalLink, Users, User, Ticket, Archive, ArchiveRestore, Mail, MailOpen, Pin, BellOff, X } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { InlineReplyComposer } from './InlineReplyComposer';
 import type { UnifiedMessage, Conversation } from '../types';
@@ -21,6 +21,16 @@ interface UnifiedInboxItemProps {
   isReplying?: boolean;
   /** Hide inline actions (Reply, Mark Read, Open) - use for mobile where tap opens conversation */
   hideInlineActions?: boolean;
+  /** Whether this conversation is pinned */
+  isPinned?: boolean;
+  /** Whether this conversation is muted */
+  isMuted?: boolean;
+  /** Callback to toggle pin */
+  onTogglePin?: (conversationRef: string) => void;
+  /** Callback to toggle mute */
+  onToggleMute?: (conversationRef: string) => void;
+  /** Conversation reference key for preferences */
+  conversationRef?: string;
 }
 
 const SWIPE_THRESHOLD = 60; // px to trigger action
@@ -64,26 +74,53 @@ export function UnifiedInboxItem({
   onToggleRead,
   isReplying: externalIsReplying,
   hideInlineActions = false,
+  isPinned = false,
+  isMuted = false,
+  onTogglePin,
+  onToggleMute,
+  conversationRef,
 }: UnifiedInboxItemProps) {
   const [showReplyComposer, setShowReplyComposer] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [showContextMenu, setShowContextMenu] = useState(false);
 
   // Swipe gesture state
   const [swipeX, setSwipeX] = useState(0);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const isSwipingRef = useRef(false);
 
+  // Long-press for context menu (pin/mute)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTouchRef = useRef<{ x: number; y: number } | null>(null);
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
     isSwipingRef.current = false;
-  }, []);
+
+    // Start long-press timer for context menu
+    longPressTouchRef.current = { x: touch.clientX, y: touch.clientY };
+    longPressTimerRef.current = setTimeout(() => {
+      if (longPressTouchRef.current && !isSwipingRef.current && conversationRef) {
+        setShowContextMenu(true);
+        longPressTouchRef.current = null;
+        // Cancel any swipe in progress
+        touchStartRef.current = null;
+      }
+    }, 500);
+  }, [conversationRef]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!touchStartRef.current) return;
     const touch = e.touches[0];
     const deltaX = touch.clientX - touchStartRef.current.x;
     const deltaY = touch.clientY - touchStartRef.current.y;
+
+    // Cancel long-press on any significant movement
+    if (longPressTouchRef.current && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      longPressTouchRef.current = null;
+    }
 
     // If vertical scroll is dominant, don't swipe
     if (!isSwipingRef.current && Math.abs(deltaY) > Math.abs(deltaX)) {
@@ -105,6 +142,10 @@ export function UnifiedInboxItem({
   }, []);
 
   const handleTouchEnd = useCallback(() => {
+    // Clear long-press timer
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTouchRef.current = null;
+
     if (!touchStartRef.current) return;
 
     if (Math.abs(swipeX) >= SWIPE_THRESHOLD) {
@@ -257,14 +298,22 @@ export function UnifiedInboxItem({
         <div className="flex-1 min-w-0">
           {/* Row 1: Sender + timestamp */}
           <div className="flex items-center justify-between gap-2">
-            <h3
-              className={cn(
-                'text-sm truncate',
-                message.isUnread ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
+            <div className="flex items-center gap-1 min-w-0">
+              {isPinned && (
+                <Pin className="w-3 h-3 text-blue-500 flex-shrink-0 rotate-45" />
               )}
-            >
-              {message.title}
-            </h3>
+              <h3
+                className={cn(
+                  'text-sm truncate',
+                  message.isUnread ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
+                )}
+              >
+                {message.title}
+              </h3>
+              {isMuted && (
+                <BellOff className="w-3 h-3 text-gray-400 flex-shrink-0" />
+              )}
+            </div>
             <span className="text-xs text-gray-400 flex-shrink-0">
               {formatTimestamp(message.timestamp)}
             </span>
@@ -362,6 +411,58 @@ export function UnifiedInboxItem({
             isSending={isSending || externalIsReplying}
             maxLength={320}
           />
+        </div>
+      )}
+
+      {/* Long-press Context Menu (bottom sheet) */}
+      {showContextMenu && conversationRef && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={() => setShowContextMenu(false)}
+        >
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative bg-white rounded-t-2xl w-full max-w-lg pb-safe animate-in slide-in-from-bottom-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="px-4 pb-2">
+              <p className="text-sm font-medium text-gray-900 truncate">{message.title}</p>
+            </div>
+            <div className="border-t border-gray-100">
+              <button
+                onClick={() => {
+                  onTogglePin?.(conversationRef);
+                  setShowContextMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              >
+                <Pin className={cn('w-5 h-5', isPinned ? 'text-blue-600 rotate-45' : 'text-gray-500')} />
+                <span className="text-sm text-gray-900">{isPinned ? 'Unpin' : 'Pin to top'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  onToggleMute?.(conversationRef);
+                  setShowContextMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              >
+                <BellOff className={cn('w-5 h-5', isMuted ? 'text-orange-600' : 'text-gray-500')} />
+                <span className="text-sm text-gray-900">{isMuted ? 'Unmute' : 'Mute notifications'}</span>
+              </button>
+            </div>
+            <div className="border-t border-gray-100 px-4 py-2">
+              <button
+                onClick={() => setShowContextMenu(false)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

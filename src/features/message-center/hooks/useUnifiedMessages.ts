@@ -478,6 +478,61 @@ async function fetchUnifiedMessages(
     // Sort all messages by timestamp (newest first)
     taggedMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
+    // Fetch user's conversation preferences for pin/mute sorting
+    const { data: prefs } = await supabase
+      .from('conversation_preferences')
+      .select('conversation_ref, is_pinned, is_muted')
+      .eq('user_id', userId);
+
+    const pinnedSet = new Set<string>();
+    const mutedSet = new Set<string>();
+    (prefs || []).forEach((p) => {
+      if (p.is_pinned) pinnedSet.add(p.conversation_ref);
+      if (p.is_muted) mutedSet.add(p.conversation_ref);
+    });
+
+    // Tag messages with conversation_ref for matching
+    const getRef = (m: UnifiedMessage): string | undefined => {
+      switch (m.type) {
+        case 'sms': return `sms:${(m.rawData as Conversation).id}`;
+        case 'team_chat': return `team_chat:${(m.rawData as TeamChatConversation).conversation_id}`;
+        case 'ticket_chat': return `ticket_chat:${(m.rawData as TicketChatData).request_id}`;
+        case 'team_announcement': return `announcement:${m.actionId}`;
+        default: return undefined;
+      }
+    };
+
+    // Move pinned conversations to top (preserve order within pinned/unpinned groups)
+    if (pinnedSet.size > 0) {
+      const pinned = taggedMessages.filter((m) => { const r = getRef(m); return r && pinnedSet.has(r); });
+      const unpinned = taggedMessages.filter((m) => { const r = getRef(m); return !r || !pinnedSet.has(r); });
+      taggedMessages.length = 0;
+      taggedMessages.push(...pinned, ...unpinned);
+    }
+
+    // Subtract muted conversations from unread counts
+    for (const m of taggedMessages) {
+      const ref = getRef(m);
+      if (ref && mutedSet.has(ref) && m.isUnread && !m.isDismissed) {
+        switch (m.type) {
+          case 'sms': counts.sms--; break;
+          case 'team_chat': counts.chats--; break;
+          case 'team_announcement': counts.announcements--; break;
+          case 'ticket_chat': counts.tickets--; break;
+          case 'system_notification': counts.alerts--; break;
+        }
+        counts.all--;
+      }
+    }
+
+    // Ensure counts don't go negative
+    counts.all = Math.max(0, counts.all);
+    counts.sms = Math.max(0, counts.sms);
+    counts.chats = Math.max(0, counts.chats);
+    counts.announcements = Math.max(0, counts.announcements);
+    counts.tickets = Math.max(0, counts.tickets);
+    counts.alerts = Math.max(0, counts.alerts);
+
     return { messages: taggedMessages, counts };
   } catch (error) {
     console.debug('[useUnifiedMessages] Error fetching messages:', error);

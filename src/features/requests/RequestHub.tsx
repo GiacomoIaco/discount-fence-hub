@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Plus, Ticket } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Plus, Ticket, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { RequestType, Request } from './lib/requests';
 import RequestForm from './components/RequestForm';
 import RequestList from './components/RequestList';
@@ -11,10 +12,12 @@ interface RequestHubProps {
   onClearEntity?: () => void;
 }
 
-type View = 'menu' | 'list' | 'form' | 'detail';
+type View = 'menu' | 'list' | 'form' | 'detail' | 'loading';
 
 export default function RequestHub({ onBack, entityContext, onClearEntity }: RequestHubProps) {
-  const [view, setView] = useState<View>('menu');
+  const [view, setView] = useState<View>(
+    entityContext?.type === 'ticket' && entityContext.id ? 'loading' : 'menu'
+  );
   const [selectedRequestType, setSelectedRequestType] = useState<RequestType | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
@@ -47,6 +50,7 @@ export default function RequestHub({ onBack, entityContext, onClearEntity }: Req
   // Handle deep-link from entity navigation (e.g., inbox "Go to Ticket")
   useEffect(() => {
     if (entityContext?.type === 'ticket' && entityContext.id) {
+      setView('loading');
       const fetchAndNavigate = async () => {
         try {
           const { supabase } = await import('../../lib/supabase');
@@ -58,9 +62,14 @@ export default function RequestHub({ onBack, entityContext, onClearEntity }: Req
           if (data) {
             setSelectedRequest(data as Request);
             setView('detail');
+          } else {
+            toast.error('Ticket not found');
+            setView('list');
           }
         } catch (error) {
           console.error('Failed to load ticket:', error);
+          toast.error('Failed to load ticket');
+          setView('list');
         }
       };
       fetchAndNavigate();
@@ -279,6 +288,18 @@ export default function RequestHub({ onBack, entityContext, onClearEntity }: Req
         requestId={selectedRequest.id}
         onClose={handleCloseDetail}
       />
+    );
+  }
+
+  // Loading View (deep-link fetch in progress)
+  if (view === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-sm text-gray-500">Loading ticket...</p>
+        </div>
+      </div>
     );
   }
 

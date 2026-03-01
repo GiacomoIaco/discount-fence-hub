@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, Send, Trash2, Loader2, Play, Pause } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { transcribeAudio } from '../../../lib/openai';
 import { useAuth } from '../../../contexts/AuthContext';
 import { cn } from '../../../lib/utils';
 import toast from 'react-hot-toast';
@@ -14,10 +15,14 @@ const MAX_DURATION = 120; // 2 minutes max
 
 interface VoiceMessageRecorderProps {
   /** Called with the public URL of the uploaded audio file */
-  onSend: (audioUrl: string, durationSeconds: number) => void;
+  onSend: (audioUrl: string, durationSeconds: number, transcript?: string) => void;
   disabled?: boolean;
   /** Supabase storage bucket name */
   bucket?: string;
+  /** Start recording immediately on mount (skip idle state) */
+  autoStart?: boolean;
+  /** Called when user discards recording or cancels */
+  onCancel?: () => void;
 }
 
 type RecorderState = 'idle' | 'recording' | 'recorded' | 'uploading';
@@ -26,6 +31,8 @@ export function VoiceMessageRecorder({
   onSend,
   disabled = false,
   bucket = 'voice-messages',
+  autoStart = false,
+  onCancel,
 }: VoiceMessageRecorderProps) {
   const { user } = useAuth();
   const [state, setState] = useState<RecorderState>('idle');
@@ -48,6 +55,13 @@ export function VoiceMessageRecorder({
       cleanup();
     };
   }, []);
+
+  // Auto-start recording on mount if requested
+  useEffect(() => {
+    if (autoStart && state === 'idle') {
+      startRecording();
+    }
+  }, [autoStart]);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -136,6 +150,7 @@ export function VoiceMessageRecorder({
     setIsPlaying(false);
     setPlaybackProgress(0);
     setState('idle');
+    onCancel?.();
   };
 
   const togglePlayback = () => {
@@ -184,23 +199,31 @@ export function VoiceMessageRecorder({
     setState('uploading');
 
     try {
+      const audioBlob = audioBlobRef.current;
       const fileName = `voice-msg-${Date.now()}.webm`;
       const filePath = `${user.id}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, audioBlobRef.current, {
-          contentType: 'audio/webm',
-          cacheControl: '3600',
-        });
+      // Upload audio and transcribe in parallel
+      const [uploadResult, transcript] = await Promise.all([
+        supabase.storage
+          .from(bucket)
+          .upload(filePath, audioBlob, {
+            contentType: 'audio/webm',
+            cacheControl: '3600',
+          }),
+        transcribeAudio(audioBlob).catch((err) => {
+          console.warn('Transcription failed, sending without:', err);
+          return undefined;
+        }),
+      ]);
 
-      if (uploadError) throw uploadError;
+      if (uploadResult.error) throw uploadResult.error;
 
       const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
       if (!data?.publicUrl) throw new Error('Failed to get public URL');
 
-      onSend(data.publicUrl, duration);
+      onSend(data.publicUrl, duration, transcript || undefined);
 
       // Reset after successful send
       if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -227,8 +250,16 @@ export function VoiceMessageRecorder({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Idle state: just show mic button
+  // Idle state: show mic button (or nothing if autoStart - recording is initializing)
   if (state === 'idle') {
+    if (autoStart) {
+      return (
+        <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Starting microphone...
+        </div>
+      );
+    }
     return (
       <button
         type="button"

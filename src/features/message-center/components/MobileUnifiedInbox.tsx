@@ -12,6 +12,7 @@ import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
 import { useMarkAllRead } from '../hooks/useMarkAllRead';
 import { useDismissInboxItem } from '../hooks/useDismissInboxItem';
+import { useConversationPreferences } from '../hooks/useConversationPreferences';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { InboxSkeleton } from './InboxSkeleton';
@@ -19,7 +20,18 @@ import { InboxEmptyState } from './InboxEmptyState';
 import { ComposeSheet } from './ComposeSheet';
 import { InboxConversationView } from './InboxConversationView';
 import type { Section } from '../../../lib/routes';
-import type { UnifiedMessage, UnifiedInboxFilter, Conversation } from '../types';
+import type { UnifiedMessage, UnifiedInboxFilter, Conversation, TeamChatConversation, TicketChatData } from '../types';
+
+/** Get the conversation_ref key for a unified message (for preferences) */
+function getConversationRef(msg: UnifiedMessage): string | undefined {
+  switch (msg.type) {
+    case 'sms': return `sms:${(msg.rawData as Conversation).id}`;
+    case 'team_chat': return `team_chat:${(msg.rawData as TeamChatConversation).conversation_id}`;
+    case 'ticket_chat': return `ticket_chat:${(msg.rawData as TicketChatData).request_id}`;
+    case 'team_announcement': return `announcement:${msg.actionId}`;
+    default: return undefined;
+  }
+}
 
 interface MobileUnifiedInboxProps {
   onBack: () => void;
@@ -54,6 +66,7 @@ export function MobileUnifiedInbox({
   const { dismiss: dismissMutation, restore: restoreMutation } = useDismissInboxItem();
   const replyMutation = useReplyToUnifiedMessage();
   const acknowledgeMutation = useAcknowledgeUnifiedItem();
+  const { isPinned, isMuted, togglePin, toggleMute } = useConversationPreferences();
   const [undoMessage, setUndoMessage] = useState<UnifiedMessage | null>(null);
 
   // Handle dismiss (archive)
@@ -108,13 +121,27 @@ export function MobileUnifiedInbox({
   }, [acknowledgeMutation, user?.id]);
 
   // Handle conversation created from compose sheet
-  const handleConversationCreated = useCallback((conversationId: string) => {
-    // After creating, refresh the inbox and let user tap the new conversation
-    refetch();
+  const handleConversationCreated = useCallback(async (conversationId: string) => {
     setShowCompose(false);
-    // Optionally navigate to it directly
-    onNavigate('inbox', { conversationId });
-  }, [onNavigate, refetch]);
+    // Refresh inbox and open the new conversation inline
+    const result = await refetch();
+    const newMessages = result.data?.messages || [];
+    const match = newMessages.find(
+      (m) => m.actionId === conversationId || m.id === `team-chat-${conversationId}`
+    );
+    if (match) {
+      setSelectedMessage(match);
+    } else {
+      // Race condition fallback: retry once after a short delay
+      setTimeout(async () => {
+        const retry = await refetch();
+        const retryMatch = (retry.data?.messages || []).find(
+          (m) => m.actionId === conversationId || m.id === `team-chat-${conversationId}`
+        );
+        if (retryMatch) setSelectedMessage(retryMatch);
+      }, 1000);
+    }
+  }, [refetch]);
 
   // Handle tapping on an inbox item
   const handleItemClick = useCallback(async (message: UnifiedMessage) => {
@@ -180,7 +207,10 @@ export function MobileUnifiedInbox({
   // If a message is selected, show the conversation view
   if (selectedMessage) {
     return (
-      <div className="h-screen bg-gray-50 flex flex-col">
+      <div
+        className="fixed inset-x-0 top-0 z-20 bg-gray-50 flex flex-col"
+        style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <InboxConversationView
           message={selectedMessage}
           onBack={handleBackFromConversation}
@@ -249,20 +279,28 @@ export function MobileUnifiedInbox({
           <InboxEmptyState filter={filter} />
         ) : (
           <div className="bg-white">
-            {messages.map((message) => (
-              <UnifiedInboxItem
-                key={message.id}
-                message={message}
-                onClick={handleItemClick}
-                onReply={handleReply}
-                onAcknowledge={handleAcknowledge}
-                onDismiss={handleDismiss}
-                onRestore={handleRestore}
-                onToggleRead={handleToggleRead}
-                isReplying={replyMutation.isPending}
-                hideInlineActions={true}
-              />
-            ))}
+            {messages.map((message) => {
+              const convRef = getConversationRef(message);
+              return (
+                <UnifiedInboxItem
+                  key={message.id}
+                  message={message}
+                  onClick={handleItemClick}
+                  onReply={handleReply}
+                  onAcknowledge={handleAcknowledge}
+                  onDismiss={handleDismiss}
+                  onRestore={handleRestore}
+                  onToggleRead={handleToggleRead}
+                  isReplying={replyMutation.isPending}
+                  hideInlineActions={true}
+                  conversationRef={convRef}
+                  isPinned={convRef ? isPinned(convRef) : false}
+                  isMuted={convRef ? isMuted(convRef) : false}
+                  onTogglePin={(ref) => togglePin.mutate(ref)}
+                  onToggleMute={(ref) => toggleMute.mutate(ref)}
+                />
+              );
+            })}
           </div>
         )}
       </main>

@@ -8,6 +8,7 @@ import { ArrowLeft, Send, Users, User, MessageSquare, Ticket, Megaphone, Externa
 import { cn } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMessages, useSendMessage } from '../hooks/useMessages';
 import { useReadReceipts } from '../hooks/useReadReceipts';
 import { useMessageReactions } from '../hooks/useMessageReactions';
@@ -48,6 +49,7 @@ interface ChatMessage {
 
 export function InboxConversationView({ message, onBack, onNavigateToEntity }: InboxConversationViewProps) {
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -60,8 +62,8 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isUrgent, setIsUrgent] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [contactPhone, setContactPhone] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +135,42 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
     });
   }, []);
 
+  // Long-press support for mobile
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTouchRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleMessageTouchStart = useCallback((e: React.TouchEvent, msg: ChatMessage) => {
+    const touch = e.touches[0];
+    longPressTouchRef.current = { x: touch.clientX, y: touch.clientY };
+    longPressTimerRef.current = setTimeout(() => {
+      if (longPressTouchRef.current) {
+        setActionMenu({
+          isOpen: true,
+          position: { x: longPressTouchRef.current.x, y: longPressTouchRef.current.y },
+          messageId: msg.id,
+          messageContent: msg.content,
+        });
+        longPressTouchRef.current = null;
+      }
+    }, 500);
+  }, []);
+
+  const handleMessageTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!longPressTouchRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - longPressTouchRef.current.x);
+    const dy = Math.abs(touch.clientY - longPressTouchRef.current.y);
+    if (dx > 10 || dy > 10) {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      longPressTouchRef.current = null;
+    }
+  }, []);
+
+  const handleMessageTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTouchRef.current = null;
+  }, []);
+
   // Build content map for pinned messages bar
   const messageContentMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -194,6 +232,23 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
     }
 
     loadMessages();
+  }, [message]);
+
+  // Fetch phone number for 1:1 team chat click-to-call
+  useEffect(() => {
+    if (message.type === 'team_chat') {
+      const chatData = message.rawData as TeamChatConversation;
+      if (!chatData.is_group && chatData.other_user_id) {
+        supabase
+          .from('user_profiles')
+          .select('phone')
+          .eq('id', chatData.other_user_id)
+          .single()
+          .then(({ data }) => {
+            if (data?.phone) setContactPhone(data.phone);
+          });
+      }
+    }
   }, [message]);
 
   const loadMessages = async () => {
@@ -347,9 +402,12 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
   }, []);
 
   // Handle voice message send
-  const handleVoiceSend = useCallback(async (audioUrl: string, _durationSeconds: number) => {
+  const handleVoiceSend = useCallback(async (audioUrl: string, _durationSeconds: number, transcript?: string) => {
     if (!user?.id) return;
     setIsSending(true);
+    const content = transcript
+      ? `🎤 Voice message\n\n${transcript}`
+      : '🎤 Voice message';
     try {
       switch (message.type) {
         case 'team_chat': {
@@ -357,7 +415,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
           await supabase.from('direct_messages').insert({
             conversation_id: chatData.conversation_id,
             sender_id: user.id,
-            content: '🎤 Voice message',
+            content,
             file_url: audioUrl,
             file_name: 'voice-message.webm',
             file_type: 'audio/webm',
@@ -370,7 +428,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
           await supabase.from('request_notes').insert({
             request_id: ticketData.request_id,
             user_id: user.id,
-            content: '🎤 Voice message',
+            content,
             note_type: 'comment',
             file_url: audioUrl,
             file_name: 'voice-message.webm',
@@ -381,12 +439,13 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
         }
       }
       setIsVoiceMode(false);
+      queryClient.invalidateQueries({ queryKey: ['unified_messages'] });
     } catch (error) {
       console.error('Failed to send voice message:', error);
     } finally {
       setIsSending(false);
     }
-  }, [user?.id, message]);
+  }, [user?.id, message, queryClient]);
 
   // Send reply based on message type
   const handleSendReply = useCallback(async () => {
@@ -430,7 +489,6 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
               ? { reply_to_message_id: replyTarget.id }
               : {}),
             ...(fileData ? { file_url: fileData.file_url, file_name: fileData.file_name, file_type: fileData.file_type, file_size: fileData.file_size } : {}),
-            ...(isUrgent ? { priority: 'urgent' } : {}),
           });
           await loadTeamChatMessages();
           break;
@@ -456,14 +514,15 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
       setReplyText('');
       setReplyTarget(null);
       clearAttachment();
-      setIsUrgent(false);
+      // Invalidate inbox list so conversation moves to top
+      queryClient.invalidateQueries({ queryKey: ['unified_messages'] });
     } catch (error) {
       console.error('Failed to send reply:', error);
       setIsUploading(false);
     } finally {
       setIsSending(false);
     }
-  }, [replyText, isSending, user?.id, message, sendSmsMutation, replyTarget, attachmentFile, conversationRef, isUrgent, clearAttachment]);
+  }, [replyText, isSending, user?.id, message, sendSmsMutation, replyTarget, attachmentFile, conversationRef, clearAttachment, queryClient]);
 
   // Get header info
   const getHeaderInfo = () => {
@@ -560,6 +619,17 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
           {message.type === 'sms' && (message.rawData as Conversation).contact?.phone_primary && (
             <a
               href={`tel:${(message.rawData as Conversation).contact!.phone_primary}`}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              aria-label="Call contact"
+            >
+              <Phone className="w-5 h-5" />
+            </a>
+          )}
+
+          {/* Click-to-call for 1:1 team chats */}
+          {message.type === 'team_chat' && contactPhone && !(message.rawData as TeamChatConversation).is_group && (
+            <a
+              href={`tel:${contactPhone}`}
               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               aria-label="Call contact"
             >
@@ -695,6 +765,9 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
                 key={msg.id}
                 id={`msg-${msg.id}`}
                 onContextMenu={(e) => handleContextMenu(e, msg as ChatMessage)}
+                onTouchStart={(e) => handleMessageTouchStart(e, msg as ChatMessage)}
+                onTouchMove={handleMessageTouchMove}
+                onTouchEnd={handleMessageTouchEnd}
                 className={cn(
                   'flex flex-col max-w-[85%] group',
                   msg.is_own ? 'ml-auto items-end' : 'mr-auto items-start',
@@ -859,6 +932,8 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
                 onSend={handleVoiceSend}
                 disabled={isSending}
                 bucket="chat-files"
+                autoStart
+                onCancel={() => setIsVoiceMode(false)}
               />
             ) : (
               <div className="flex items-end gap-2">
@@ -871,21 +946,6 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
                 >
                   <Paperclip className="w-5 h-5" />
                 </button>
-
-                {/* Urgent toggle (team chat only) */}
-                {message.type === 'team_chat' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsUrgent(prev => !prev)}
-                    className={cn(
-                      'p-2 rounded-lg transition-colors shrink-0',
-                      isUrgent ? 'text-red-600 bg-red-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    )}
-                    title={isUrgent ? 'Remove urgent' : 'Mark as urgent'}
-                  >
-                    <AlertTriangle className="w-5 h-5" />
-                  </button>
-                )}
 
                 <textarea
                   ref={textareaRef}
