@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import { AI_MODELS } from './lib/ai-models';
 
 interface SalesProcess {
   id: string;
@@ -232,8 +233,7 @@ Be specific, reference actual quotes, and provide actionable coaching advice.`;
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        // Use Sonnet 4.5 for high-quality analysis (requires 26s timeout in netlify.toml)
-        model: 'claude-sonnet-4-5-20250929',
+        model: AI_MODELS.claude,
         max_tokens: 4096,
         messages: [
           {

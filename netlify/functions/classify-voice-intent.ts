@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import { AI_MODELS } from './lib/ai-models';
 
 // Intent types the quick recording can route to
 export type VoiceIntent = 'todo' | 'roadmap' | 'request' | 'meeting' | 'unknown';
@@ -66,7 +67,7 @@ Analyze the content and respond ONLY with valid JSON:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: AI_MODELS.claude,
         max_tokens: 512,
         messages: [
           {

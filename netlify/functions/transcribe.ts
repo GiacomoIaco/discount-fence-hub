@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import FormData from 'form-data';
 import axios from 'axios';
+import { AI_MODELS } from './lib/ai-models';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -51,7 +52,7 @@ export const handler: Handler = async (event) => {
       filename: 'audio.webm',
       contentType: contentType,
     });
-    formData.append('model', 'whisper-1');
+    formData.append('model', AI_MODELS.whisper);
     formData.append('language', 'en');
 
     console.log('Sending to Whisper API...');

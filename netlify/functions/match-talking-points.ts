@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import { AI_MODELS } from './lib/ai-models';
 
 export const handler: Handler = async (event) => {
   // CORS headers
@@ -63,7 +64,7 @@ export const handler: Handler = async (event) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: AI_MODELS.claude,
         max_tokens: 4000,
         messages: [{
           role: 'user',

@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import { AI_MODELS } from './lib/ai-models';
 
 // Formula system context for Claude
 const FORMULA_CONTEXT = `
@@ -210,7 +211,7 @@ Based on this product type, suggest what input variables would be needed for the
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: AI_MODELS.claude,
         max_tokens: 2048,
         messages: [
           {

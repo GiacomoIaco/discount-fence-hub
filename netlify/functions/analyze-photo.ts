@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
+import { AI_MODELS } from './lib/ai-models';
 
 // Tag categories for photo classification
 const TAG_CATEGORIES = {
@@ -126,9 +127,8 @@ Respond ONLY with valid JSON in this exact format:
   "analysisNotes": "Brief description of what you see and quality assessment"
 }`;
 
-    // Call GPT-5.1 Vision API (latest multimodal model)
     const response = await openai.chat.completions.create({
-      model: 'gpt-5-1',
+      model: AI_MODELS.openaiVision,
       max_completion_tokens: 1024,
       messages: [
         {

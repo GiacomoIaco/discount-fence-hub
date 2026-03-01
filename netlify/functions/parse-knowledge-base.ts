@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MODELS } from './lib/ai-models';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -79,7 +80,7 @@ Important:
       const mediaType = imageData.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
 
       response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: AI_MODELS.claudeVision,
         max_tokens: 4096,
         messages: [
           {
@@ -104,7 +105,7 @@ Important:
     } else {
       // Handle text documents
       response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: AI_MODELS.claude,
         max_tokens: 4096,
         system: systemPrompt,
         messages: [
