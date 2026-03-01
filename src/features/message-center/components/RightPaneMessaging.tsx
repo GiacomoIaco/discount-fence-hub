@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { X, Minimize2, MessageSquare, Phone, Mail, User, Loader2, ArrowLeft, Inbox, Plus, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../../../lib/utils';
 import { useRightPane } from '../context/RightPaneContext';
 import { useMessages, useSendMessage } from '../hooks/useMessages';
+import { useMessageReactions } from '../hooks/useMessageReactions';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
 import { MessageComposer } from './MessageComposer';
+import { MessageActionMenu } from './MessageActionMenu';
+import { ReactionDisplay } from './ReactionDisplay';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { ComposeSheet } from './ComposeSheet';
@@ -95,6 +98,37 @@ export function RightPaneMessaging() {
 
   const { data: messages = [], isLoading: messagesLoading } = useMessages(conversation?.id || null);
   const sendMessage = useSendMessage();
+
+  // Reactions
+  const messageIds = useMemo(() => messages.map(m => m.id), [messages]);
+  const { reactionsMap, toggleReaction } = useMessageReactions('sms', messageIds);
+
+  // Action menu state
+  const [actionMenu, setActionMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    messageId: string;
+  }>({ isOpen: false, position: { x: 0, y: 0 }, messageId: '' });
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, msgId: string) => {
+    e.preventDefault();
+    setActionMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, messageId: msgId });
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, msgId: string) => {
+    const touch = e.touches[0];
+    longPressTimer.current = setTimeout(() => {
+      setActionMenu({ isOpen: true, position: { x: touch.clientX, y: touch.clientY }, messageId: msgId });
+    }, 500);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -410,10 +444,32 @@ export function RightPaneMessaging() {
             <p className="text-xs">Send a message to start the conversation</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+          messages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              reactions={reactionsMap[msg.id] || []}
+              onToggleReaction={(emoji) => toggleReaction({ messageId: msg.id, emoji })}
+              onContextMenu={(e) => handleContextMenu(e, msg.id)}
+              onTouchStart={(e) => handleTouchStart(e, msg.id)}
+              onTouchEnd={handleTouchEnd}
+            />
           ))
         )}
+
+        {/* Action Menu */}
+        <MessageActionMenu
+          isOpen={actionMenu.isOpen}
+          onClose={() => setActionMenu(prev => ({ ...prev, isOpen: false }))}
+          position={actionMenu.position}
+          messageType="sms"
+          onReaction={(emoji) => toggleReaction({ messageId: actionMenu.messageId, emoji })}
+          onCopy={() => {
+            const msg = messages.find(m => m.id === actionMenu.messageId);
+            if (msg) navigator.clipboard.writeText(msg.body);
+          }}
+        />
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -435,13 +491,24 @@ export function RightPaneMessaging() {
 
 interface MessageBubbleProps {
   message: Message;
+  reactions: { emoji: string; count: number; hasReacted: boolean }[];
+  onToggleReaction: (emoji: string) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onTouchStart: (e: React.TouchEvent) => void;
+  onTouchEnd: () => void;
 }
 
-function MessageBubble({ message }: MessageBubbleProps) {
+function MessageBubble({ message, reactions, onToggleReaction, onContextMenu, onTouchStart, onTouchEnd }: MessageBubbleProps) {
   const isOutbound = message.direction === 'outbound';
 
   return (
-    <div className={cn('flex', isOutbound ? 'justify-end' : 'justify-start')}>
+    <div
+      className={cn('flex flex-col', isOutbound ? 'items-end' : 'items-start')}
+      onContextMenu={onContextMenu}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
       <div
         className={cn(
           'max-w-[80%] rounded-2xl px-4 py-2',
@@ -470,6 +537,11 @@ function MessageBubble({ message }: MessageBubbleProps) {
           )}
         </div>
       </div>
+      <ReactionDisplay
+        reactions={reactions}
+        onToggle={onToggleReaction}
+        isOwnMessage={isOutbound}
+      />
     </div>
   );
 }

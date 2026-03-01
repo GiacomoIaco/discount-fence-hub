@@ -17,6 +17,7 @@ interface SendMCSmsRequest {
   is_group?: boolean;
   recipients?: string[];
   conversation_id?: string;
+  media_url?: string;
 }
 
 export const handler: Handler = async (event) => {
@@ -39,7 +40,7 @@ export const handler: Handler = async (event) => {
   try {
     console.log('[send-mc-sms] Received request body:', event.body);
 
-    const { message_id, to, body, is_group, recipients, conversation_id }: SendMCSmsRequest = JSON.parse(event.body || '{}');
+    const { message_id, to, body, is_group, recipients, conversation_id, media_url }: SendMCSmsRequest = JSON.parse(event.body || '{}');
 
     console.log('[send-mc-sms] Parsed:', {
       message_id,
@@ -102,7 +103,17 @@ export const handler: Handler = async (event) => {
     }
 
     // Helper to send single Twilio message
-    async function sendTwilioMessage(toPhone: string, messageBody: string): Promise<{ success: boolean; sid?: string; error?: string }> {
+    async function sendTwilioMessage(toPhone: string, messageBody: string, mediaUrl?: string): Promise<{ success: boolean; sid?: string; error?: string }> {
+      const params = new URLSearchParams({
+        To: toPhone,
+        From: twilioPhoneNumber!,
+        Body: messageBody,
+        StatusCallback: statusCallbackUrl,
+      });
+      if (mediaUrl) {
+        params.append('MediaUrl', mediaUrl);
+      }
+
       const response = await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
         {
@@ -111,12 +122,7 @@ export const handler: Handler = async (event) => {
             'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({
-            To: toPhone,
-            From: twilioPhoneNumber!,
-            Body: messageBody,
-            StatusCallback: statusCallbackUrl,
-          }),
+          body: params,
         }
       );
 
@@ -143,7 +149,7 @@ export const handler: Handler = async (event) => {
 
       for (const phone of formattedRecipients) {
         try {
-          const result = await sendTwilioMessage(phone, body);
+          const result = await sendTwilioMessage(phone, body, media_url);
           results.push({ phone, ...result });
           console.log(`[send-mc-sms] Sent to ${phone.substring(0, 6)}...: ${result.success ? 'OK' : result.error}`);
         } catch (err) {
@@ -247,7 +253,7 @@ export const handler: Handler = async (event) => {
     }
 
     const formattedPhone = formatPhone(to!);
-    const result = await sendTwilioMessage(formattedPhone, body);
+    const result = await sendTwilioMessage(formattedPhone, body, media_url);
 
     if (!result.success) {
       console.error('[send-mc-sms] Twilio error:', result.error);

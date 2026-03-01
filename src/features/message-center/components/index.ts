@@ -16,3 +16,6 @@ export { FilterPills } from './FilterPills';
 export { UnifiedInboxItem } from './UnifiedInboxItem';
 export { InboxSkeleton } from './InboxSkeleton';
 export { InboxEmptyState } from './InboxEmptyState';
+export { VoiceMessageRecorder, VoiceMessagePlayer } from './VoiceMessageRecorder';
+export { ReplyPreview, QuotedMessage, ReplyButton, ReplyToProvider, useReplyTo } from './QuoteReply';
+export type { ReplyTarget } from './QuoteReply';

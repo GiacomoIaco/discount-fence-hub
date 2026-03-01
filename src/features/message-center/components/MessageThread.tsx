@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Check, CheckCheck, AlertCircle, Clock } from 'lucide-react';
+import { useMessageReactions } from '../hooks/useMessageReactions';
+import { MessageActionMenu } from './MessageActionMenu';
+import { ReactionDisplay } from './ReactionDisplay';
 import type { Message } from '../types';
 
 interface MessageThreadProps {
@@ -11,10 +14,42 @@ interface MessageThreadProps {
 export function MessageThread({ messages, isLoading }: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Action menu state
+  const [actionMenu, setActionMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    messageId: string;
+  }>({ isOpen: false, position: { x: 0, y: 0 }, messageId: '' });
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reactions
+  const messageIds = useMemo(() => messages.map(m => m.id), [messages]);
+  const { reactionsMap, toggleReaction } = useMessageReactions('sms', messageIds);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Long-press / right-click handlers
+  const handleContextMenu = useCallback((e: React.MouseEvent, msgId: string) => {
+    e.preventDefault();
+    setActionMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, messageId: msgId });
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, msgId: string) => {
+    const touch = e.touches[0];
+    longPressTimer.current = setTimeout(() => {
+      setActionMenu({ isOpen: true, position: { x: touch.clientX, y: touch.clientY }, messageId: msgId });
+    }, 500);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -49,11 +84,33 @@ export function MessageThread({ messages, isLoading }: MessageThreadProps) {
           {/* Messages */}
           <div className="space-y-2">
             {msgs.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                reactions={reactionsMap[message.id] || []}
+                onToggleReaction={(emoji) => toggleReaction({ messageId: message.id, emoji })}
+                onContextMenu={(e) => handleContextMenu(e, message.id)}
+                onTouchStart={(e) => handleTouchStart(e, message.id)}
+                onTouchEnd={handleTouchEnd}
+              />
             ))}
           </div>
         </div>
       ))}
+
+      {/* Action Menu */}
+      <MessageActionMenu
+        isOpen={actionMenu.isOpen}
+        onClose={() => setActionMenu(prev => ({ ...prev, isOpen: false }))}
+        position={actionMenu.position}
+        messageType="sms"
+        onReaction={(emoji) => toggleReaction({ messageId: actionMenu.messageId, emoji })}
+        onCopy={() => {
+          const msg = messages.find(m => m.id === actionMenu.messageId);
+          if (msg) navigator.clipboard.writeText(msg.body);
+        }}
+      />
+
       <div ref={bottomRef} />
     </div>
   );
@@ -61,14 +118,25 @@ export function MessageThread({ messages, isLoading }: MessageThreadProps) {
 
 interface MessageBubbleProps {
   message: Message;
+  reactions: { emoji: string; count: number; hasReacted: boolean }[];
+  onToggleReaction: (emoji: string) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onTouchStart: (e: React.TouchEvent) => void;
+  onTouchEnd: () => void;
 }
 
-function MessageBubble({ message }: MessageBubbleProps) {
+function MessageBubble({ message, reactions, onToggleReaction, onContextMenu, onTouchStart, onTouchEnd }: MessageBubbleProps) {
   const isOutbound = message.direction === 'outbound';
   const senderName = message.sender?.full_name;
 
   return (
-    <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+    <div
+      className={`flex flex-col ${isOutbound ? 'items-end' : 'items-start'}`}
+      onContextMenu={onContextMenu}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
       <div
         className={`max-w-[70%] rounded-2xl px-4 py-2 ${
           isOutbound
@@ -107,6 +175,13 @@ function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
       </div>
+
+      {/* Reactions */}
+      <ReactionDisplay
+        reactions={reactions}
+        onToggle={onToggleReaction}
+        isOwnMessage={isOutbound}
+      />
     </div>
   );
 }

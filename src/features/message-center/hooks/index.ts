@@ -7,3 +7,5 @@ export * from './useUnifiedUnreadCount';
 export * from './useUnifiedMessages';
 export * from './useAnnouncements';
 export * from './useMarkUnifiedItemRead';
+export * from './useMessageReactions';
+export * from './useReadReceipts';

@@ -342,7 +342,7 @@ function App() {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
-            <RequestHub onBack={() => navigateTo('home')} />
+            <RequestHub onBack={() => navigateTo('home')} entityContext={entityContext} onClearEntity={clearEntity} />
           </Suspense>
         </ErrorBoundary>
       );
@@ -809,6 +809,7 @@ function App() {
                   <MobileUnifiedInbox
                     onBack={() => navigateTo('home')}
                     onNavigate={navigateTo}
+                    onNavigateToEntity={navigateToEntity}
                     onOpenConversation={(_conv) => {
                       // When opening a conversation from inbox, navigate to message-center
                       // The RightPaneMessaging will handle displaying the conversation

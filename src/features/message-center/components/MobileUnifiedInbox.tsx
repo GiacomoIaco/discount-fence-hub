@@ -24,12 +24,14 @@ import type { UnifiedMessage, UnifiedInboxFilter, Conversation } from '../types'
 interface MobileUnifiedInboxProps {
   onBack: () => void;
   onNavigate: (section: Section, params?: Record<string, string>) => void;
+  onNavigateToEntity?: (entityType: string, params: Record<string, string>) => void;
   onOpenConversation: (conversation: Conversation) => void;
 }
 
 export function MobileUnifiedInbox({
   onBack,
   onNavigate,
+  onNavigateToEntity,
 }: MobileUnifiedInboxProps) {
   const { user } = useAuth();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
@@ -157,24 +159,28 @@ export function MobileUnifiedInbox({
 
   // Handle navigating to source entity (ticket, request, etc.)
   const handleNavigateToEntity = useCallback((entityType: string, params: Record<string, string>) => {
-    // Map entity type to section for navigation
-    const sectionMap: Record<string, Section> = {
-      ticket: 'tickets',
-      request: 'requests',
-      quote: 'quotes',
-      job: 'jobs',
-      invoice: 'invoices',
-    };
-    const section = sectionMap[entityType];
-    if (section) {
-      onNavigate(section, params);
+    if (onNavigateToEntity) {
+      onNavigateToEntity(entityType, params);
+    } else {
+      // Fallback: navigate by section (drops entity params)
+      const sectionMap: Record<string, Section> = {
+        ticket: 'tickets',
+        request: 'requests',
+        quote: 'quotes',
+        job: 'jobs',
+        invoice: 'invoices',
+      };
+      const section = sectionMap[entityType];
+      if (section) {
+        onNavigate(section, params);
+      }
     }
-  }, [onNavigate]);
+  }, [onNavigate, onNavigateToEntity]);
 
   // If a message is selected, show the conversation view
   if (selectedMessage) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="h-screen bg-gray-50 flex flex-col">
         <InboxConversationView
           message={selectedMessage}
           onBack={handleBackFromConversation}

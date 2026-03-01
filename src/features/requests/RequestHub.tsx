@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, DollarSign, Package, Wrench, Building2, AlertTriangle, Plus, Ticket } from 'lucide-react';
 import type { RequestType, Request } from './lib/requests';
 import RequestForm from './components/RequestForm';
@@ -7,11 +7,13 @@ import RequestDetail from './components/RequestDetail';
 
 interface RequestHubProps {
   onBack: () => void;
+  entityContext?: { type: string; id: string; params: Record<string, string> } | null;
+  onClearEntity?: () => void;
 }
 
 type View = 'menu' | 'list' | 'form' | 'detail';
 
-export default function RequestHub({ onBack }: RequestHubProps) {
+export default function RequestHub({ onBack, entityContext, onClearEntity }: RequestHubProps) {
   const [view, setView] = useState<View>('menu');
   const [selectedRequestType, setSelectedRequestType] = useState<RequestType | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
@@ -39,7 +41,31 @@ export default function RequestHub({ onBack }: RequestHubProps) {
   const handleCloseDetail = () => {
     setSelectedRequest(null);
     setView('list');
+    onClearEntity?.();
   };
+
+  // Handle deep-link from entity navigation (e.g., inbox "Go to Ticket")
+  useEffect(() => {
+    if (entityContext?.type === 'ticket' && entityContext.id) {
+      const fetchAndNavigate = async () => {
+        try {
+          const { supabase } = await import('../../lib/supabase');
+          const { data } = await supabase
+            .from('requests')
+            .select('*')
+            .eq('id', entityContext.id)
+            .single();
+          if (data) {
+            setSelectedRequest(data as Request);
+            setView('detail');
+          }
+        } catch (error) {
+          console.error('Failed to load ticket:', error);
+        }
+      };
+      fetchAndNavigate();
+    }
+  }, [entityContext]);
 
   // Menu View - Request Type Selection
   if (view === 'menu') {
