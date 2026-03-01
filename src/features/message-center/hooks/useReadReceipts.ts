@@ -3,12 +3,6 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useEffect } from 'react';
 
-interface ReadReceipt {
-  message_id: string;
-  user_id: string;
-  read_at: string;
-}
-
 type ReadStatus = 'sent' | 'delivered' | 'read';
 
 export function useReadReceipts(conversationId: string | null, messageIds: string[]) {

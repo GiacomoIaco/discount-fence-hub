@@ -2,15 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 
-interface ReactionRecord {
-  id: string;
-  user_id: string;
-  message_type: string;
-  message_id: string;
-  reaction: string;
-  created_at: string;
-}
-
 interface GroupedReaction {
   emoji: string;
   count: number;

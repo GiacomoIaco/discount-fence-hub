@@ -105,7 +105,10 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
         sender_name: m.direction === 'inbound' ? message.title : (profile?.full_name || 'You'),
         is_own: m.direction === 'outbound',
         created_at: m.created_at,
-      }));
+        reply_to_id: null,
+        reply_to_sender_name: undefined,
+        reply_to_content: undefined,
+      } as ChatMessage));
     }
     return chatMessages;
   }, [message.type, message.title, smsMessages, chatMessages, profile?.full_name]);

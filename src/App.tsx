@@ -809,7 +809,7 @@ function App() {
                   <MobileUnifiedInbox
                     onBack={() => navigateTo('home')}
                     onNavigate={navigateTo}
-                    onNavigateToEntity={navigateToEntity}
+                    onNavigateToEntity={(entityType, params) => navigateToEntity(entityType as import('./lib/routes').EntityType, params)}
                     onOpenConversation={(_conv) => {
                       // When opening a conversation from inbox, navigate to message-center
                       // The RightPaneMessaging will handle displaying the conversation

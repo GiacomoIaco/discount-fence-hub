@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Reply, Pin, PinOff, Copy, X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Reply, Pin, PinOff, Copy } from 'lucide-react';
 
 const REACTIONS = ['👍', '👎', '❤️', '😂', '😮', '🙏'];
 

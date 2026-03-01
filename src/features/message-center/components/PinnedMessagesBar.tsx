@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Pin, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { cn } from '../../../lib/utils';
 
 interface PinnedMessageItem {
   id: string;
