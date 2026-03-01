@@ -70,15 +70,6 @@ export function MobileUnifiedInbox({
     setUndoMessage(null);
   }, [restoreMutation, user?.id]);
 
-  // Handle toggle read/unread (for swipe gesture)
-  const handleToggleRead = useCallback(async (message: UnifiedMessage) => {
-    if (!user?.id) return;
-    if (message.isUnread) {
-      await markAsRead(message);
-    }
-    // Note: marking as unread is not supported by the backend - swipe left on unread is a no-op
-  }, [user?.id, markAsRead]);
-
   // Handle pull-to-refresh
   const handleRefresh = useCallback(() => {
     refetch();
@@ -93,6 +84,14 @@ export function MobileUnifiedInbox({
       console.error('Failed to mark as read:', error);
     }
   }, [markAsReadMutation, user?.id]);
+
+  // Handle toggle read/unread (for swipe gesture)
+  const handleToggleRead = useCallback(async (message: UnifiedMessage) => {
+    if (!user?.id) return;
+    if (message.isUnread) {
+      await markAsRead(message);
+    }
+  }, [user?.id, markAsRead]);
 
   // Handle replying to an SMS (for desktop inline replies)
   const handleReply = useCallback(async (message: UnifiedMessage, body: string) => {

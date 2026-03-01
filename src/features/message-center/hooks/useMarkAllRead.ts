@@ -6,8 +6,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import * as messageService from '../services/messageService';
-import * as notificationService from '../services/notificationService';
-import type { UnifiedMessage, Conversation } from '../types';
+import type { UnifiedMessage } from '../types';
 
 interface MarkAllReadParams {
   messages: UnifiedMessage[];
@@ -54,45 +53,48 @@ async function markAllAsRead({ messages, userId }: MarkAllReadParams): Promise<v
   // Announcements: batch upsert to company_message_reads
   if (announcementIds.length > 0) {
     operations.push(
-      supabase
-        .from('company_message_reads')
-        .upsert(
-          announcementIds.map((id) => ({
-            message_id: id,
-            user_id: userId,
-            read_at: new Date().toISOString(),
-          })),
-          { onConflict: 'message_id,user_id' }
-        )
-        .then(() => undefined)
+      (async () => {
+        await supabase
+          .from('company_message_reads')
+          .upsert(
+            announcementIds.map((id) => ({
+              message_id: id,
+              user_id: userId,
+              read_at: new Date().toISOString(),
+            })),
+            { onConflict: 'message_id,user_id' }
+          );
+      })()
     );
   }
 
   // Notifications: batch update is_read = true
   if (notificationIds.length > 0) {
     operations.push(
-      supabase
-        .from('mc_system_notifications')
-        .update({ is_read: true, read_at: new Date().toISOString(), read_by: userId })
-        .in('id', notificationIds)
-        .then(() => undefined)
+      (async () => {
+        await supabase
+          .from('mc_system_notifications')
+          .update({ is_read: true, read_at: new Date().toISOString(), read_by: userId })
+          .in('id', notificationIds);
+      })()
     );
   }
 
   // Tickets: batch upsert to request_note_reads
   if (ticketIds.length > 0) {
     operations.push(
-      supabase
-        .from('request_note_reads')
-        .upsert(
-          ticketIds.map((id) => ({
-            user_id: userId,
-            request_id: id,
-            last_read_at: new Date().toISOString(),
-          })),
-          { onConflict: 'user_id,request_id' }
-        )
-        .then(() => undefined)
+      (async () => {
+        await supabase
+          .from('request_note_reads')
+          .upsert(
+            ticketIds.map((id) => ({
+              user_id: userId,
+              request_id: id,
+              last_read_at: new Date().toISOString(),
+            })),
+            { onConflict: 'user_id,request_id' }
+          );
+      })()
     );
   }
 

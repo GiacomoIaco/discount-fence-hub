@@ -71,7 +71,7 @@ export default function SalesRepView({
   userId,
   userName,
   onMarkAsRead,
-  onUnreadCountChange,
+  // onUnreadCountChange - kept in interface but no longer used after DirectMessages removal
   onTeamCommunicationUnreadCountChange,
   teamCommunicationRefresh,
   navigationItems = [],

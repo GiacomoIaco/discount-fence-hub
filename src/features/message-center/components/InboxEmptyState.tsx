@@ -3,7 +3,7 @@
  * Shows different messages based on the active filter
  */
 
-import { Inbox, MessageSquare, Megaphone, Bell, Ticket } from 'lucide-react';
+import { Inbox, MessageSquare, Megaphone, Bell, Ticket, Users, Archive } from 'lucide-react';
 import type { UnifiedInboxFilter } from '../types';
 
 interface InboxEmptyStateProps {
@@ -35,8 +35,22 @@ const emptyStates: Record<UnifiedInboxFilter, {
     icon: Megaphone,
     iconColor: 'text-purple-400',
     iconBgColor: 'bg-purple-50',
-    title: 'No team announcements',
-    description: 'Company updates and announcements will appear here.',
+    title: 'No team messages',
+    description: 'Team chats and announcements will appear here.',
+  },
+  chats: {
+    icon: Users,
+    iconColor: 'text-green-400',
+    iconBgColor: 'bg-green-50',
+    title: 'No team chats',
+    description: 'Direct messages and group chats will appear here.',
+  },
+  announcements: {
+    icon: Megaphone,
+    iconColor: 'text-purple-400',
+    iconBgColor: 'bg-purple-50',
+    title: 'No announcements',
+    description: 'Company announcements and updates will appear here.',
   },
   tickets: {
     icon: Ticket,
@@ -51,6 +65,13 @@ const emptyStates: Record<UnifiedInboxFilter, {
     iconBgColor: 'bg-amber-50',
     title: 'No notifications',
     description: 'Quote views, invoice payments, and other alerts will appear here.',
+  },
+  archived: {
+    icon: Archive,
+    iconColor: 'text-gray-400',
+    iconBgColor: 'bg-gray-100',
+    title: 'No archived messages',
+    description: 'Messages you archive will appear here for recovery.',
   },
 };
 
