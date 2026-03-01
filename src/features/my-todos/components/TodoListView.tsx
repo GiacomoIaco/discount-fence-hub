@@ -1055,7 +1055,6 @@ function SectionBlock({
                       <th className="px-4 py-2 text-left font-medium w-24">Assigned</th>
                       <th className="px-4 py-2 text-left font-medium w-28">Status</th>
                       <th className="px-4 py-2 text-left font-medium w-24">Due</th>
-                      <th className="px-4 py-2 text-left font-medium w-28">Notes</th>
                       <th className="px-4 py-2 text-left font-medium w-40">Comment</th>
                       <th className="px-4 py-2 text-center font-medium w-20">Actions</th>
                     </tr>

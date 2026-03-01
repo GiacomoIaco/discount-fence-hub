@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, Trash2 } from 'lucide-react';
 import { useTodoItemCommentsQuery, useAddTodoItemComment, useDeleteTodoItemComment, useAddTodoItemFollower } from '../hooks/useTodoItems';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -238,8 +239,14 @@ export default function TaskCommentsPanel({ taskId, listId }: TaskCommentsPanelP
               }
             }}
           />
-          {mentionActive && filteredUsers.length > 0 && (
-            <div className="absolute bottom-full mb-1 left-0 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 max-h-48 overflow-y-auto">
+          {mentionActive && filteredUsers.length > 0 && textareaRef.current && createPortal(
+            <div
+              className="fixed w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-[9999] max-h-48 overflow-y-auto"
+              style={{
+                left: textareaRef.current.getBoundingClientRect().left,
+                bottom: window.innerHeight - textareaRef.current.getBoundingClientRect().top + 4,
+              }}
+            >
               {filteredUsers.map((filteredUser, idx) => (
                 <button
                   key={filteredUser.id}
@@ -257,7 +264,8 @@ export default function TaskCommentsPanel({ taskId, listId }: TaskCommentsPanelP
                   <span className="truncate">{filteredUser.name}</span>
                 </button>
               ))}
-            </div>
+            </div>,
+            document.body
           )}
           <p className="text-xs text-gray-400 mt-1">Press Ctrl+Enter to send</p>
         </div>

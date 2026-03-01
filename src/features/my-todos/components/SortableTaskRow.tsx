@@ -189,18 +189,6 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
         />
       </td>
 
-      {/* Notes */}
-      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <InlineTextEditor
-          value={task.notes}
-          onSave={async (value) => {
-            await onUpdateField({ id: task.id, field: 'notes', value });
-          }}
-          placeholder="Add notes..."
-          className="text-gray-600 max-w-[120px]"
-        />
-      </td>
-
       {/* Last Comment */}
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
         <div
@@ -282,16 +270,6 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
               )}
             </>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenTask();
-            }}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-            title="View details"
-          >
-            <Eye className="w-4 h-4" />
-          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -400,6 +378,7 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
       ref={setNodeRef}
       style={style}
       {...attributes}
+      {...listeners}
       className="relative overflow-hidden"
     >
       {/* Swipe background */}
@@ -439,17 +418,8 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
         onTouchEnd={handleTouchEnd}
       >
         <div className="py-3 px-4">
-          {/* Row 1: drag handle + status circle + title + priority dot */}
+          {/* Row 1: status circle + title + priority dot */}
           <div className="flex items-center gap-2">
-            <button
-              {...listeners}
-              className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation flex-shrink-0"
-              onClick={(e) => e.stopPropagation()}
-              title="Drag to reorder"
-            >
-              <GripVertical className="w-4 h-4" />
-            </button>
-
             {/* Status circle */}
             <div
               className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
@@ -489,7 +459,7 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
           </div>
 
           {/* Row 2: assignee + status badge + due date + comments */}
-          <div className="flex items-center gap-2 mt-2 ml-8 flex-wrap">
+          <div className="flex items-center gap-2 mt-2 ml-7 flex-wrap">
             {/* Assignee avatar */}
             {task.assigned_user ? (
               <div

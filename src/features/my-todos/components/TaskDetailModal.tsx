@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Calendar, CheckCircle2, MessageSquare, Clock, User, Loader2, Edit3,
   Save, AlertTriangle, Send, Paperclip, Camera, Image, FileText, Trash2,
@@ -18,6 +19,7 @@ import { InlineFollowersPicker } from './InlineEditors';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getInitials } from '../../../lib/stringUtils';
 import { getAvatarColor } from '../utils/todoHelpers';
+import { useNotifyMention, useNotifyComment } from '../hooks/useTodoNotifications';
 import type { TodoItemAttachment } from '../types';
 
 interface TaskDetailModalProps {
@@ -137,6 +139,8 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   const updateRecurrence = useUpdateTodoRecurrence();
   const createNextRecurrence = useCreateNextRecurrence();
   const { users } = useUsers();
+  const notifyMention = useNotifyMention();
+  const notifyComment = useNotifyComment();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'details' | 'files'>('chat');
   const [newMessage, setNewMessage] = useState('');
@@ -303,6 +307,36 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
             // Ignore if already a follower
           }
         }
+      }
+    }
+
+    // Send notifications
+    if (mentionedNames.length > 0 && users) {
+      const mentionedUserIds = mentionedNames
+        .map(name => users.find(u => u.name.toLowerCase() === name.toLowerCase())?.id)
+        .filter((id): id is string => !!id && id !== user?.id);
+
+      if (mentionedUserIds.length > 0) {
+        notifyMention.notify({
+          mentionedUserIds,
+          taskTitle: task?.title || '',
+          commentExcerpt: newMessage.trim(),
+          listId,
+          taskId,
+        });
+      }
+    } else if (task) {
+      // Notify followers/assignee about new comment (no mentions)
+      const followerIds = (task.followers || []).map(f => f.user_id).filter(id => id !== user?.id);
+      if (followerIds.length > 0 || (task.assigned_to && task.assigned_to !== user?.id)) {
+        notifyComment.notify({
+          followerIds,
+          assigneeId: task.assigned_to,
+          taskTitle: task.title,
+          commentExcerpt: newMessage.trim(),
+          listId,
+          taskId,
+        });
       }
     }
 
@@ -562,8 +596,14 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                           target.style.height = `${Math.min(target.scrollHeight, 100)}px`;
                         }}
                       />
-                      {mentionActive && filteredUsers.length > 0 && (
-                        <div className="absolute bottom-full mb-1 left-0 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 max-h-48 overflow-y-auto">
+                      {mentionActive && filteredUsers.length > 0 && messageTextareaRef.current && createPortal(
+                        <div
+                          className="fixed w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-[9999] max-h-48 overflow-y-auto"
+                          style={{
+                            left: messageTextareaRef.current.getBoundingClientRect().left,
+                            bottom: window.innerHeight - messageTextareaRef.current.getBoundingClientRect().top + 4,
+                          }}
+                        >
                           {filteredUsers.map((filteredUser, idx) => (
                             <button
                               key={filteredUser.id}
@@ -581,7 +621,8 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                               <span className="truncate">{filteredUser.name}</span>
                             </button>
                           ))}
-                        </div>
+                        </div>,
+                        document.body
                       )}
                     </div>
                     <button
