@@ -4,7 +4,7 @@
  * Conversations open inline for reading and replying
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { ArrowLeft, RefreshCw, Plus, CheckCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
@@ -60,6 +60,10 @@ export function MobileUnifiedInbox({
     userId: user?.id,
     filter,
   });
+
+  // Keep a ref to latest messages for async access after refetch
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const markAsReadMutation = useMarkUnifiedItemRead();
   const markAllReadMutation = useMarkAllRead();
@@ -121,26 +125,27 @@ export function MobileUnifiedInbox({
   }, [acknowledgeMutation, user?.id]);
 
   // Handle conversation created from compose sheet
-  const handleConversationCreated = useCallback(async (conversationId: string) => {
+  const handleConversationCreated = useCallback((conversationId: string) => {
     setShowCompose(false);
-    // Refresh inbox and open the new conversation inline
-    const result = await refetch();
-    const newMessages = result.data?.messages || [];
-    const match = newMessages.find(
-      (m) => m.actionId === conversationId || m.id === `team-chat-${conversationId}`
-    );
-    if (match) {
-      setSelectedMessage(match);
-    } else {
-      // Race condition fallback: retry once after a short delay
-      setTimeout(async () => {
-        const retry = await refetch();
-        const retryMatch = (retry.data?.messages || []).find(
-          (m) => m.actionId === conversationId || m.id === `team-chat-${conversationId}`
-        );
-        if (retryMatch) setSelectedMessage(retryMatch);
-      }, 1000);
-    }
+    // Refresh inbox, then find the new conversation after data updates
+    refetch();
+    // Wait for refetch to complete and messages to update
+    setTimeout(() => {
+      const match = messagesRef.current.find(
+        (m) => m.actionId === conversationId || m.id === `team-chat-${conversationId}`
+      );
+      if (match) {
+        setSelectedMessage(match);
+      } else {
+        // Retry once more after another delay
+        setTimeout(() => {
+          const retryMatch = messagesRef.current.find(
+            (m) => m.actionId === conversationId || m.id === `team-chat-${conversationId}`
+          );
+          if (retryMatch) setSelectedMessage(retryMatch);
+        }, 2000);
+      }
+    }, 1000);
   }, [refetch]);
 
   // Handle tapping on an inbox item
