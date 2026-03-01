@@ -119,7 +119,7 @@ export const handler: Handler = async (event) => {
                        'a client';
 
     const appUrl = process.env.URL || 'https://discount-fence-hub.netlify.app';
-    const messageUrl = `${appUrl}/message-center?conversation=${conversation_id}`;
+    const messageUrl = `${appUrl}/contact-center?conversation=${conversation_id}`;
 
     const smsBody = `${addedByName} added you to a conversation with ${clientName}.\n\nView: ${messageUrl}`;
 

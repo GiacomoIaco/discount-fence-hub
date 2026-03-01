@@ -32,7 +32,7 @@ const FILTER_ITEMS: FilterItem[] = [
   { id: 'archived', label: 'Archived', icon: Archive, countKey: 'archived' },
 ];
 
-const STORAGE_KEY = 'sidebar-collapsed-message-center';
+const STORAGE_KEY = 'sidebar-collapsed-contact-center';
 
 interface MessageCenterSidebarProps {
   activeFilter: ConversationFilter;

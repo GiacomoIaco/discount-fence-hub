@@ -51,7 +51,7 @@ interface SalesRepViewProps {
   onNavigate: (section: Section) => void;
   viewMode: 'mobile' | 'desktop';
   mobileLayout?: 'expanded' | 'compact';
-  unreadAnnouncementsCount: number;
+  inboxUnreadCount: number;
   announcementEngagementCount: number;
   userId?: string;
   userName?: string;
@@ -67,7 +67,7 @@ export default function SalesRepView({
   onNavigate,
   viewMode,
   mobileLayout = 'expanded',
-  unreadAnnouncementsCount,
+  inboxUnreadCount,
   announcementEngagementCount,
   userId,
   userName,
@@ -154,7 +154,7 @@ export default function SalesRepView({
     );
   }
 
-  if (activeSection === 'direct-messages') {
+  if (activeSection === 'inbox') {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <DirectMessages onUnreadCountChange={onUnreadCountChange} />
@@ -263,7 +263,7 @@ export default function SalesRepView({
 
   // Get badge count for specific items
   const getBadgeCount = (menuId: string): number => {
-    if (menuId === 'direct-messages') return unreadAnnouncementsCount;
+    if (menuId === 'inbox') return inboxUnreadCount;
     if (menuId === 'team-communication') return announcementEngagementCount;
     return 0;
   };

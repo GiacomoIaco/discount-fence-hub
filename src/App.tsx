@@ -122,7 +122,7 @@ function App() {
   }, [profile]);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, Analytics, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'my-todos' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'message-center' || activeSection === 'analytics';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'my-todos' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'contact-center' || activeSection === 'analytics';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -198,13 +198,13 @@ function App() {
   const { unreadCount: announcementEngagementCount } = useAnnouncementEngagement();
 
   // Track unread announcements for all users (Chat badge)
-  const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
 
   // Track unread team communication messages (Announcements badge)
   const [teamCommunicationUnreadCount, setTeamCommunicationUnreadCount] = useState(0);
 
   // Message Center unread count (sidebar badge)
-  const messageCenterUnreadCount = useMessageCenterUnread(
+  const contactCenterUnreadCount = useMessageCenterUnread(
     user ? { userId: user.id, userRole: appRole || 'sales_rep' } : undefined
   );
 
@@ -250,9 +250,9 @@ function App() {
       { id: 'my-todos' as Section, menuId: 'my-todos', name: 'My To-Dos', icon: ListTodo, separator: true },
       { id: 'sales-hub' as Section, menuId: 'sales-hub', name: 'Sales', icon: TrendingUp },
       // Contact Center - Company SMS management (admin tool)
-      { id: 'message-center' as Section, menuId: 'message-center', name: 'Contact Center', icon: Phone, badge: messageCenterUnreadCount },
+      { id: 'contact-center' as Section, menuId: 'contact-center', name: 'Contact Center', icon: Phone, badge: contactCenterUnreadCount },
       // Inbox - Unified personal inbox (team chats, SMS, announcements, tickets, notifications)
-      { id: 'direct-messages' as Section, menuId: 'direct-messages', name: 'Inbox', icon: Inbox, badge: unreadAnnouncementsCount },
+      { id: 'inbox' as Section, menuId: 'inbox', name: 'Inbox', icon: Inbox, badge: inboxUnreadCount },
 
       // Admin/Management Section
       { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target, separator: true },
@@ -469,7 +469,7 @@ function App() {
         </ErrorBoundary>
       );
     }
-    if (activeSection === 'direct-messages') {
+    if (activeSection === 'inbox') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
@@ -478,7 +478,7 @@ function App() {
         </ErrorBoundary>
       );
     }
-    if (activeSection === 'message-center') {
+    if (activeSection === 'contact-center') {
       return (
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
@@ -824,12 +824,12 @@ function App() {
                   onNavigate={navigateTo}
                   viewMode={viewMode}
                   mobileLayout={mobileLayout}
-                  unreadAnnouncementsCount={unreadAnnouncementsCount}
+                  inboxUnreadCount={inboxUnreadCount}
                   announcementEngagementCount={announcementEngagementCount}
                   userId={user?.id}
                   userName={profile?.full_name}
                   onMarkAsRead={markRequestAsRead}
-                  onUnreadCountChange={setUnreadAnnouncementsCount}
+                  onUnreadCountChange={setInboxUnreadCount}
                   onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
                   teamCommunicationRefresh={teamCommunicationRefresh}
                   navigationItems={visibleNavigationItems}
@@ -939,7 +939,7 @@ function App() {
         )}
 
         {/* Right-Pane Messaging - accessible from anywhere in the app */}
-        {activeSection !== 'message-center' && <FloatingMessageButton />}
+        {activeSection !== 'contact-center' && <FloatingMessageButton />}
         <RightPaneMessaging />
       </div>
       </RightPaneProvider>

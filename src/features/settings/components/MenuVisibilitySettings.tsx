@@ -21,7 +21,7 @@ const CATEGORY_OPTIONS: { value: MenuCategory; label: string }[] = [
 const DEFAULT_GRADIENTS: Record<string, string> = {
   'presentation': 'from-blue-600 to-blue-700',
   'sales-coach': 'from-purple-600 to-purple-700',
-  'direct-messages': 'from-blue-600 to-blue-700',
+  'inbox': 'from-blue-600 to-blue-700',
   'team-communication': 'from-indigo-600 to-indigo-700',
   'requests': 'from-green-600 to-green-700',
   'bom-yard': 'from-amber-600 to-amber-700',

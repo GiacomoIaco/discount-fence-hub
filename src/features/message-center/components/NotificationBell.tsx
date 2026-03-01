@@ -57,7 +57,7 @@ export function NotificationBell() {
           {/* Footer */}
           <div className="px-4 py-2 border-t bg-gray-50">
             <a
-              href="/message-center?tab=notifications"
+              href="/contact-center?tab=notifications"
               className="text-sm text-blue-600 hover:text-blue-700"
             >
               View all notifications

@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Mic, RefreshCw, BarChart3 } from 'lucide-react';
+import { Home, Inbox, Mic, RefreshCw, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Section } from '../lib/routes';
 
@@ -39,8 +39,8 @@ export default function MobileBottomNav({
     },
     {
       id: 'messages',
-      label: 'Messages',
-      icon: MessageSquare,
+      label: 'Inbox',
+      icon: Inbox,
       action: 'navigate',
       section: 'mobile-inbox',
       badge: unreadMessageCount,

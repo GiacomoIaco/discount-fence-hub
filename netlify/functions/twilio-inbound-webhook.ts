@@ -521,7 +521,7 @@ async function sendPushNotifications(
     body: messageBody.substring(0, 100),
     icon: '/Logo-DF-Transparent.png',
     badge: '/favicon-96x96.png',
-    url: `/message-center?conversation=${conversationId}`,
+    url: `/contact-center?conversation=${conversationId}`,
     tag: `msg-${conversationId}`,
   });
 

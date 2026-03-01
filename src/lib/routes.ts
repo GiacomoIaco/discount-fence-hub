@@ -29,9 +29,9 @@ export type Section =
   | 'jobs'              // FSM jobs
   | 'invoices'          // FSM invoices
   | 'my-todos'
-  | 'message-center'
+  | 'contact-center'
   | 'mobile-inbox'
-  | 'direct-messages'
+  | 'inbox'
   | 'team-communication'
   | 'leadership'
   | 'survey-hub'
@@ -94,9 +94,9 @@ export const ROUTE_CONFIG: Record<Section, string> = {
   'my-todos': 'todos',
 
   // Communication
-  'message-center': 'messages',
+  'contact-center': 'contact-center',
   'mobile-inbox': 'inbox',
-  'direct-messages': 'chat',
+  'inbox': 'inbox',
   'team-communication': 'announcements',
 
   // Admin

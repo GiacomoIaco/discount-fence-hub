@@ -82,7 +82,7 @@ export function MobileUnifiedInbox({
     refetch();
     setShowCompose(false);
     // Optionally navigate to it directly
-    onNavigate('direct-messages', { conversationId });
+    onNavigate('inbox', { conversationId });
   }, [onNavigate, refetch]);
 
   // Handle tapping on an inbox item
