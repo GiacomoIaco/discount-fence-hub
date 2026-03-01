@@ -953,7 +953,6 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                 checklistItems={checklistItems || []}
                 checklistLoading={checklistLoading}
                 users={users || []}
-                userId={user?.id || ''}
                 newSubtaskTitle={newSubtaskTitle}
                 setNewSubtaskTitle={setNewSubtaskTitle}
                 createChecklistItem={createChecklistItem}
@@ -1131,7 +1130,6 @@ interface SubtasksTabContentProps {
   checklistItems: TodoChecklistItem[];
   checklistLoading: boolean;
   users: { id: string; name: string }[];
-  userId: string;
   newSubtaskTitle: string;
   setNewSubtaskTitle: (v: string) => void;
   createChecklistItem: ReturnType<typeof useCreateChecklistItem>;
@@ -1146,7 +1144,6 @@ function SubtasksTabContent({
   checklistItems,
   checklistLoading,
   users,
-  userId,
   newSubtaskTitle,
   setNewSubtaskTitle,
   createChecklistItem,
