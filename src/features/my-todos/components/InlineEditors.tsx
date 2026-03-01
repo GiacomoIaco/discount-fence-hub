@@ -954,3 +954,81 @@ export function QuickAddTask({
     </tr>
   );
 }
+
+// Mobile quick add task - div-based version for mobile card layout
+export function MobileQuickAddTask({
+  sectionId,
+  listId,
+  onCancel,
+  onSuccess,
+}: {
+  sectionId: string;
+  listId: string;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const createItem = useCreateTodoItem();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!title.trim()) {
+      onCancel();
+      return;
+    }
+    try {
+      await createItem.mutateAsync({
+        sectionId,
+        listId,
+        title: title.trim(),
+      });
+      setTitle('');
+      onSuccess();
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    }
+  };
+
+  return (
+    <div className="bg-blue-50 border-b border-blue-100 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSubmit();
+            if (e.key === 'Escape') onCancel();
+          }}
+          placeholder="Task title..."
+          className="flex-1 px-3 py-2 text-sm border border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          disabled={createItem.isPending}
+        />
+        {createItem.isPending && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+      </div>
+      <div className="flex items-center gap-2 mt-2 ml-8">
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleSubmit}
+          disabled={createItem.isPending || !title.trim()}
+          className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          Add
+        </button>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onCancel}
+          className="px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}

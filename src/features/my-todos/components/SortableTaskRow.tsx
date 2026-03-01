@@ -1,9 +1,10 @@
-import { Check, GripVertical, Eye, Trash2, MessageCircle, ArrowRight } from 'lucide-react';
+import { Check, GripVertical, Eye, Trash2, MessageCircle, ArrowRight, Calendar } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isCommentUnread } from '../hooks/useMyTodos';
 import { useMoveTodoItem } from '../hooks/useTodoItems';
-import { formatDate, isOverdue } from '../utils/todoHelpers';
+import { formatDate, isOverdue, statusOptions, getAvatarColor } from '../utils/todoHelpers';
+import { getInitials } from '../../../lib/stringUtils';
 import {
   InlineDatePicker,
   InlineTextEditor,
@@ -304,5 +305,157 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
         </div>
       </td>
     </tr>
+  );
+}
+
+// ============================================
+// Mobile Task Card
+// ============================================
+
+const statusBorderColor: Record<string, string> = {
+  todo: 'border-l-gray-300',
+  in_progress: 'border-l-blue-500',
+  done: 'border-l-green-500',
+  blocked: 'border-l-red-500',
+};
+
+export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange }: SortableTaskRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const taskOverdue = isOverdue(task);
+  const currentStatus = statusOptions.find(o => o.value === task.status) || statusOptions[0];
+  const hasUnreadComment = lastComment && isCommentUnread(task.id, lastComment.created_at);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={`border-l-4 ${statusBorderColor[task.status] || 'border-l-gray-300'} ${
+        taskOverdue ? 'bg-red-50' : 'bg-white'
+      } ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''} cursor-pointer active:bg-gray-50`}
+      onClick={onOpenTask}
+    >
+      <div className="py-3 px-4">
+        {/* Row 1: drag handle + status circle + title + priority dot */}
+        <div className="flex items-center gap-2">
+          <button
+            {...listeners}
+            className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation flex-shrink-0"
+            onClick={(e) => e.stopPropagation()}
+            title="Drag to reorder"
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+
+          {/* Status circle */}
+          <div
+            className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+              task.status === 'done'
+                ? 'bg-green-500 border-green-500'
+                : task.status === 'in_progress'
+                ? 'bg-blue-500 border-blue-500'
+                : task.status === 'blocked'
+                ? 'bg-red-500 border-red-500'
+                : 'border-gray-400'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (task.status !== 'done') {
+                onStatusChange(task.id, 'done');
+              }
+            }}
+          >
+            {task.status === 'done' && (
+              <Check className="w-3 h-3 text-white" />
+            )}
+          </div>
+
+          {/* Title */}
+          <span
+            className={`flex-1 text-sm leading-snug truncate ${
+              task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-900 font-medium'
+            }`}
+          >
+            {task.title}
+          </span>
+
+          {/* High priority dot */}
+          {task.is_high_priority && (
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" title="High Priority" />
+          )}
+        </div>
+
+        {/* Row 2: assignee + status badge + due date + comments */}
+        <div className="flex items-center gap-2 mt-2 ml-8 flex-wrap">
+          {/* Assignee avatar */}
+          {task.assigned_user ? (
+            <div
+              className={`w-6 h-6 rounded-full ${getAvatarColor(task.assigned_user.id)} text-white text-[10px] font-medium flex items-center justify-center flex-shrink-0`}
+              title={task.assigned_user.full_name}
+            >
+              {task.assigned_user.avatar_url ? (
+                <img src={task.assigned_user.avatar_url} alt={task.assigned_user.full_name} className="w-full h-full rounded-full object-cover" />
+              ) : (
+                getInitials(task.assigned_user.full_name)
+              )}
+            </div>
+          ) : null}
+
+          {/* Status badge */}
+          <span
+            className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${currentStatus.bg} ${currentStatus.text} flex-shrink-0`}
+          >
+            {currentStatus.label}
+          </span>
+
+          {/* Due date pill */}
+          {task.due_date && (
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+                taskOverdue
+                  ? 'bg-red-100 text-red-700 font-medium'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              <Calendar className="w-3 h-3" />
+              {formatDate(task.due_date)}
+            </span>
+          )}
+
+          {/* Comment indicator */}
+          {lastComment && (
+            <button
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+                hasUnreadComment
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                onOpenCommentPopup(task.id, task.title, { top: rect.bottom + 4, left: rect.left });
+              }}
+            >
+              <MessageCircle className="w-3 h-3" />
+              {hasUnreadComment && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

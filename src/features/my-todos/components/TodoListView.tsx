@@ -28,8 +28,8 @@ import {
   useTodoLastCommentsQuery,
 } from '../hooks/useTodoItems';
 import { setTaskViewed } from '../hooks/useMyTodos';
-import { SortableTaskRow } from './SortableTaskRow';
-import { InlineCommentPopup, SectionColorPicker, EmptyState, QuickAddTask } from './InlineEditors';
+import { SortableTaskRow, MobileTaskCard } from './SortableTaskRow';
+import { InlineCommentPopup, SectionColorPicker, EmptyState, QuickAddTask, MobileQuickAddTask } from './InlineEditors';
 import TaskDetailModal from './TaskDetailModal';
 import { getSectionColor } from '../utils/todoHelpers';
 import type { TodoItem, TodoSection } from '../types';
@@ -481,65 +481,116 @@ function SectionBlock({
         </div>
       </div>
 
-      {/* Section Items Table */}
+      {/* Section Items */}
       {!isCollapsed && (
         <div className="bg-white">
           {sectionItems.length > 0 ? (
-            <table className="w-full">
-              <thead>
-                <tr className="text-xs text-gray-500 uppercase border-b border-gray-200">
-                  <th className="px-4 py-2 text-left font-medium">Task</th>
-                  <th className="px-4 py-2 text-left font-medium w-24">Assigned</th>
-                  <th className="px-4 py-2 text-left font-medium w-28">Status</th>
-                  <th className="px-4 py-2 text-left font-medium w-24">Due</th>
-                  <th className="px-4 py-2 text-left font-medium w-28">Notes</th>
-                  <th className="px-4 py-2 text-left font-medium w-40">Comment</th>
-                  <th className="px-4 py-2 text-center font-medium w-20">Actions</th>
-                </tr>
-              </thead>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={(e) => onDragEnd(e, section.id)}
-              >
-                <SortableContext
-                  items={sectionItems.map(i => i.id)}
-                  strategy={verticalListSortingStrategy}
+            <>
+              {/* Desktop: Table layout */}
+              <div className="hidden md:block">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-xs text-gray-500 uppercase border-b border-gray-200">
+                      <th className="px-4 py-2 text-left font-medium">Task</th>
+                      <th className="px-4 py-2 text-left font-medium w-24">Assigned</th>
+                      <th className="px-4 py-2 text-left font-medium w-28">Status</th>
+                      <th className="px-4 py-2 text-left font-medium w-24">Due</th>
+                      <th className="px-4 py-2 text-left font-medium w-28">Notes</th>
+                      <th className="px-4 py-2 text-left font-medium w-40">Comment</th>
+                      <th className="px-4 py-2 text-center font-medium w-20">Actions</th>
+                    </tr>
+                  </thead>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(e) => onDragEnd(e, section.id)}
+                  >
+                    <SortableContext
+                      items={sectionItems.map(i => i.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <tbody>
+                        {sectionItems.map((item, idx) => (
+                          <SortableTaskRow
+                            key={item.id}
+                            task={item}
+                            idx={idx}
+                            listId={listId}
+                            sections={allSections}
+                            lastComment={lastComments?.[item.id] || null}
+                            onOpenTask={() => onOpenTask(item.id)}
+                            onOpenCommentPopup={onOpenCommentPopup}
+                            onStatusChange={onStatusChange}
+                            onUpdateField={onUpdateField}
+                            onDeleteTask={onDeleteTask}
+                          />
+                        ))}
+                      </tbody>
+                    </SortableContext>
+                  </DndContext>
+                </table>
+              </div>
+
+              {/* Mobile: Card layout */}
+              <div className="md:hidden">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(e) => onDragEnd(e, section.id)}
                 >
-                  <tbody>
-                    {sectionItems.map((item, idx) => (
-                      <SortableTaskRow
-                        key={item.id}
-                        task={item}
-                        idx={idx}
-                        listId={listId}
-                        sections={allSections}
-                        lastComment={lastComments?.[item.id] || null}
-                        onOpenTask={() => onOpenTask(item.id)}
-                        onOpenCommentPopup={onOpenCommentPopup}
-                        onStatusChange={onStatusChange}
-                        onUpdateField={onUpdateField}
-                        onDeleteTask={onDeleteTask}
-                      />
-                    ))}
-                  </tbody>
-                </SortableContext>
-              </DndContext>
-            </table>
+                  <SortableContext
+                    items={sectionItems.map(i => i.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="divide-y divide-gray-100">
+                      {sectionItems.map((item, idx) => (
+                        <MobileTaskCard
+                          key={item.id}
+                          task={item}
+                          idx={idx}
+                          listId={listId}
+                          sections={allSections}
+                          lastComment={lastComments?.[item.id] || null}
+                          onOpenTask={() => onOpenTask(item.id)}
+                          onOpenCommentPopup={onOpenCommentPopup}
+                          onStatusChange={onStatusChange}
+                          onUpdateField={onUpdateField}
+                          onDeleteTask={onDeleteTask}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </>
           ) : null}
 
           {/* Quick Add Task */}
           {addingTaskInSection === section.id ? (
-            <table className="w-full">
-              <tbody>
-                <QuickAddTask
+            <>
+              {/* Desktop quick-add */}
+              <div className="hidden md:block">
+                <table className="w-full">
+                  <tbody>
+                    <QuickAddTask
+                      sectionId={section.id}
+                      listId={listId}
+                      onCancel={() => onSetAddingTask(null)}
+                      onSuccess={() => onSetAddingTask(null)}
+                    />
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile quick-add */}
+              <div className="md:hidden">
+                <MobileQuickAddTask
                   sectionId={section.id}
                   listId={listId}
                   onCancel={() => onSetAddingTask(null)}
                   onSuccess={() => onSetAddingTask(null)}
                 />
-              </tbody>
-            </table>
+              </div>
+            </>
           ) : (
             <button
               onClick={() => onSetAddingTask(section.id)}

@@ -185,54 +185,55 @@ export default function VoiceRecordingModal({ onClose, onNavigate, userId }: Voi
   const createTodo = async (title: string, dueDate?: string) => {
     if (!userId) throw new Error('User not authenticated');
 
-    // Get or create a "Quick Tasks" personal initiative
-    const { data: existingInitiatives } = await supabase
-      .from('project_initiatives')
+    // Find user's first todo list
+    let { data: lists } = await supabase
+      .from('todo_lists')
       .select('id')
       .eq('created_by', userId)
-      .eq('is_personal', true)
-      .eq('title', 'Quick Tasks')
-      .single();
+      .order('sort_order', { ascending: true })
+      .limit(1);
 
-    let initiativeId: string;
+    let listId: string;
+    let sectionId: string;
 
-    if (existingInitiatives) {
-      initiativeId = existingInitiatives.id;
+    if (lists && lists.length > 0) {
+      listId = lists[0].id;
     } else {
-      // Create the Quick Tasks initiative
-      const { data: newInitiative, error: initError } = await supabase
-        .from('project_initiatives')
-        .insert({
-          title: 'Quick Tasks',
-          description: 'Tasks created via voice recording',
-          is_personal: true,
-          is_private: false,
-          status: 'active',
-          priority: 'medium',
-          progress_percent: 0,
-          color_status: 'green',
-          is_active: true,
-          created_by: userId,
-          sort_order: 0,
-        })
+      // Create default list via RPC
+      await supabase.rpc('ensure_default_todo_list');
+      const { data: newLists } = await supabase
+        .from('todo_lists')
         .select('id')
-        .single();
-
-      if (initError) throw initError;
-      initiativeId = newInitiative.id;
+        .eq('created_by', userId)
+        .order('sort_order', { ascending: true })
+        .limit(1);
+      if (!newLists || newLists.length === 0) throw new Error('Failed to create default list');
+      listId = newLists[0].id;
     }
 
-    // Create the task
+    // Get first section of the list
+    const { data: sections } = await supabase
+      .from('todo_sections')
+      .select('id')
+      .eq('list_id', listId)
+      .order('sort_order', { ascending: true })
+      .limit(1);
+
+    if (!sections || sections.length === 0) throw new Error('No sections found in list');
+    sectionId = sections[0].id;
+
+    // Create the todo item
     const { error: taskError } = await supabase
-      .from('project_tasks')
+      .from('todo_items')
       .insert({
-        initiative_id: initiativeId,
+        section_id: sectionId,
+        list_id: listId,
         title,
         due_date: dueDate || null,
         status: 'todo',
-        sort_order: 0,
+        sort_order: Date.now(), // Use timestamp to put at end
         created_by: userId,
-        owner_id: userId,
+        assigned_to: userId,
       });
 
     if (taskError) throw taskError;
