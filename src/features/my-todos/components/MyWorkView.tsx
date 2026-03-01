@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Search, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Loader2, Calendar, Check } from 'lucide-react';
 import { useMyWorkQuery, setTaskViewed } from '../hooks/useMyTodos';
 import TaskDetailModal from './TaskDetailModal';
 import { EmptyState } from './InlineEditors';
-import { formatDate, isOverdue, statusOptions, getSectionColor } from '../utils/todoHelpers';
+import { formatDate, isOverdue, statusOptions, getSectionColor, getAvatarColor } from '../utils/todoHelpers';
+import { getInitials } from '../../../lib/stringUtils';
 import type { TodoItem } from '../types';
 
 type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done' | 'blocked';
@@ -195,71 +196,17 @@ export default function MyWorkView() {
                 {/* Items */}
                 {!isCollapsed && (
                   <div className="bg-white divide-y divide-gray-100">
-                    {group.items.map(item => {
-                      const overdue = isOverdue(item);
-                      const statusInfo = statusOptions.find(s => s.value === item.status) || statusOptions[0];
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={`px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors flex items-center gap-4 ${
-                            overdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''
-                          }`}
-                          onClick={() => {
-                            setTaskViewed(item.id);
-                            setSelectedTaskId(item.id);
-                            setSelectedTaskListId(item.list_id);
-                          }}
-                        >
-                          {/* Status circle */}
-                          <div
-                            className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
-                              item.status === 'done'
-                                ? 'bg-green-500 border-green-500'
-                                : item.status === 'in_progress'
-                                ? 'bg-blue-500 border-blue-500'
-                                : item.status === 'blocked'
-                                ? 'bg-red-500 border-red-500'
-                                : 'border-gray-400'
-                            }`}
-                          />
-
-                          {/* Priority indicator */}
-                          {item.is_high_priority && (
-                            <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="High Priority" />
-                          )}
-
-                          {/* Title */}
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-sm font-medium ${
-                              item.status === 'done' ? 'line-through text-gray-500' : 'text-gray-900'
-                            }`}>
-                              {item.title}
-                            </span>
-                          </div>
-
-                          {/* Status badge */}
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.bg} ${statusInfo.text}`}>
-                            {statusInfo.label}
-                          </span>
-
-                          {/* Due date */}
-                          <span className={`text-xs w-16 text-right ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                            {formatDate(item.due_date)}
-                          </span>
-
-                          {/* Assigned avatar */}
-                          {item.assigned_user && (
-                            <div
-                              className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center flex-shrink-0"
-                              title={item.assigned_user.full_name}
-                            >
-                              {item.assigned_user.full_name?.charAt(0)?.toUpperCase() || '?'}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {group.items.map(item => (
+                      <MyWorkItem
+                        key={item.id}
+                        item={item}
+                        onOpen={() => {
+                          setTaskViewed(item.id);
+                          setSelectedTaskId(item.id);
+                          setSelectedTaskListId(item.list_id);
+                        }}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -276,6 +223,131 @@ export default function MyWorkView() {
           onClose={() => { setSelectedTaskId(null); setSelectedTaskListId(null); }}
         />
       )}
+    </div>
+  );
+}
+
+// ============================================
+// Responsive item: mobile card + desktop row
+// ============================================
+
+const statusBorderColor: Record<string, string> = {
+  todo: 'border-l-gray-300',
+  in_progress: 'border-l-blue-500',
+  done: 'border-l-green-500',
+  blocked: 'border-l-red-500',
+};
+
+function MyWorkItem({ item, onOpen }: { item: TodoItem; onOpen: () => void }) {
+  const overdue = isOverdue(item);
+  const statusInfo = statusOptions.find(s => s.value === item.status) || statusOptions[0];
+
+  return (
+    <div
+      className={`cursor-pointer transition-colors active:bg-gray-50 hover:bg-blue-50 ${
+        overdue ? 'bg-red-50' : ''
+      }`}
+      onClick={onOpen}
+    >
+      {/* Mobile card (<md) */}
+      <div className={`md:hidden border-l-4 ${statusBorderColor[item.status] || 'border-l-gray-300'} py-3 px-4`}>
+        {/* Row 1: status circle + title + priority */}
+        <div className="flex items-center gap-2">
+          <div
+            className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+              item.status === 'done'
+                ? 'bg-green-500 border-green-500'
+                : item.status === 'in_progress'
+                ? 'bg-blue-500 border-blue-500'
+                : item.status === 'blocked'
+                ? 'bg-red-500 border-red-500'
+                : 'border-gray-400'
+            }`}
+          >
+            {item.status === 'done' && <Check className="w-3 h-3 text-white" />}
+          </div>
+          <span className={`flex-1 text-sm leading-snug truncate ${
+            item.status === 'done' ? 'line-through text-gray-400' : 'text-gray-900 font-medium'
+          }`}>
+            {item.title}
+          </span>
+          {item.is_high_priority && (
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+          )}
+        </div>
+
+        {/* Row 2: assignee + status badge + due date */}
+        <div className="flex items-center gap-2 mt-2 ml-7 flex-wrap">
+          {item.assigned_user && (
+            <div
+              className={`w-6 h-6 rounded-full ${getAvatarColor(item.assigned_user.id)} text-white text-[10px] font-medium flex items-center justify-center flex-shrink-0`}
+              title={item.assigned_user.full_name}
+            >
+              {item.assigned_user.avatar_url ? (
+                <img src={item.assigned_user.avatar_url} alt={item.assigned_user.full_name} className="w-full h-full rounded-full object-cover" />
+              ) : (
+                getInitials(item.assigned_user.full_name)
+              )}
+            </div>
+          )}
+          <span className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${statusInfo.bg} ${statusInfo.text} flex-shrink-0`}>
+            {statusInfo.label}
+          </span>
+          {item.due_date && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+              overdue ? 'bg-red-100 text-red-700 font-medium' : 'bg-gray-100 text-gray-600'
+            }`}>
+              <Calendar className="w-3 h-3" />
+              {formatDate(item.due_date)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop row (>=md) */}
+      <div className={`hidden md:flex items-center gap-4 px-4 py-3 ${
+        overdue ? 'border-l-4 border-l-red-400' : ''
+      }`}>
+        <div
+          className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
+            item.status === 'done'
+              ? 'bg-green-500 border-green-500'
+              : item.status === 'in_progress'
+              ? 'bg-blue-500 border-blue-500'
+              : item.status === 'blocked'
+              ? 'bg-red-500 border-red-500'
+              : 'border-gray-400'
+          }`}
+        />
+        {item.is_high_priority && (
+          <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="High Priority" />
+        )}
+        <div className="flex-1 min-w-0">
+          <span className={`text-sm font-medium ${
+            item.status === 'done' ? 'line-through text-gray-500' : 'text-gray-900'
+          }`}>
+            {item.title}
+          </span>
+        </div>
+        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.bg} ${statusInfo.text}`}>
+          {statusInfo.label}
+        </span>
+        <span className={`text-xs w-16 text-right ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+          {formatDate(item.due_date)}
+        </span>
+        {item.assigned_user && (
+          <div
+            className={`w-6 h-6 rounded-full ${getAvatarColor(item.assigned_user.id)} text-white text-xs flex items-center justify-center flex-shrink-0`}
+            title={item.assigned_user.full_name}
+          >
+            {item.assigned_user.avatar_url ? (
+              <img src={item.assigned_user.avatar_url} alt={item.assigned_user.full_name} className="w-full h-full rounded-full object-cover" />
+            ) : (
+              getInitials(item.assigned_user.full_name)
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
