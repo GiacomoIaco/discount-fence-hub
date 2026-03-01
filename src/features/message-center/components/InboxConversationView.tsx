@@ -439,7 +439,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
         }
       }
       setIsVoiceMode(false);
-      queryClient.invalidateQueries({ queryKey: ['unified_messages'] });
+      queryClient.refetchQueries({ queryKey: ['unified_messages'] });
     } catch (error) {
       console.error('Failed to send voice message:', error);
     } finally {
@@ -514,8 +514,8 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
       setReplyText('');
       setReplyTarget(null);
       clearAttachment();
-      // Invalidate inbox list so conversation moves to top
-      queryClient.invalidateQueries({ queryKey: ['unified_messages'] });
+      // Force refetch inbox list so conversation moves to top (bypass staleTime)
+      queryClient.refetchQueries({ queryKey: ['unified_messages'] });
     } catch (error) {
       console.error('Failed to send reply:', error);
       setIsUploading(false);

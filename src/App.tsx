@@ -15,7 +15,7 @@ import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
 import { useRouteSync } from './hooks/useRouteSync';
 import { RightPaneProvider } from './features/message-center/context/RightPaneContext';
 import { RightPaneMessaging, FloatingMessageButton } from './features/message-center/components';
-import { useMessageCenterUnread } from './features/message-center/hooks';
+import { useMessageCenterUnread, useUnifiedUnreadCount } from './features/message-center/hooks';
 import type { Section } from './lib/routes';
 import type { Request } from './features/requests/lib/requests';
 
@@ -197,8 +197,11 @@ function App() {
   // Admin announcement engagement notifications
   const { unreadCount: announcementEngagementCount } = useAnnouncementEngagement();
 
-  // Track unread announcements for all users (Chat badge)
-  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
+  // Unified inbox unread count (sidebar badge + mobile nav)
+  const unifiedUnread = useUnifiedUnreadCount(
+    user ? { userId: user.id, userRole: appRole || 'sales_rep' } : undefined
+  );
+  const inboxUnreadCount = unifiedUnread.total;
 
   // Track unread team communication messages (Announcements badge)
   const [teamCommunicationUnreadCount, setTeamCommunicationUnreadCount] = useState(0);
@@ -334,6 +337,8 @@ function App() {
               <MyRequestsView
                 onBack={() => navigateTo('home')}
                 onMarkAsRead={markRequestAsRead}
+                entityContext={entityContext}
+                onClearEntity={clearEntity}
               />
             </Suspense>
           </ErrorBoundary>
@@ -830,7 +835,7 @@ function App() {
                   userId={user?.id}
                   userName={profile?.full_name}
                   onMarkAsRead={markRequestAsRead}
-                  onUnreadCountChange={setInboxUnreadCount}
+                  onUnreadCountChange={() => {}}
                   onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
                   teamCommunicationRefresh={teamCommunicationRefresh}
                   navigationItems={visibleNavigationItems}

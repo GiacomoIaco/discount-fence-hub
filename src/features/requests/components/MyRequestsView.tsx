@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import type { Request } from '../lib/requests';
 import RequestList from './RequestList';
@@ -10,13 +10,27 @@ import { RequestListSkeleton } from '../../../components/skeletons';
 interface MyRequestsViewProps {
   onBack: () => void;
   onMarkAsRead?: (requestId: string) => void;
+  entityContext?: { type: string; id: string; params: Record<string, string> } | null;
+  onClearEntity?: () => void;
 }
 
 type View = 'list' | 'detail' | 'hub';
 
-export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequestsViewProps) {
-  const [view, setView] = useState<View>('list');
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+export default function MyRequestsView({ onBack: _onBack, onMarkAsRead, entityContext, onClearEntity }: MyRequestsViewProps) {
+  const [view, setView] = useState<View>(
+    entityContext?.type === 'ticket' && entityContext.id ? 'detail' : 'list'
+  );
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
+    entityContext?.type === 'ticket' ? entityContext.id : null
+  );
+
+  // Handle deep-link from entity navigation (e.g., inbox "Go to Ticket")
+  useEffect(() => {
+    if (entityContext?.type === 'ticket' && entityContext.id) {
+      setSelectedRequestId(entityContext.id);
+      setView('detail');
+    }
+  }, [entityContext]);
 
   // Fetch all requests using React Query
   const { isLoading: loading, refetch: refresh } = useMyRequestsQuery({});
@@ -34,6 +48,7 @@ export default function MyRequestsView({ onBack: _onBack, onMarkAsRead }: MyRequ
   const handleCloseDetail = () => {
     setSelectedRequestId(null);
     setView('list');
+    onClearEntity?.();
   };
 
   const handleNewRequest = () => {
