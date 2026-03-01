@@ -130,6 +130,65 @@ When user asks to expand on an idea (e.g., "expand on S-001"):
 
 ---
 
+## Messaging System
+
+The app has **two distinct messaging tools** — don't confuse them:
+
+| | Contact Center | Inbox |
+|---|---|---|
+| **What** | Company-wide SMS management tool | Personal unified inbox per user |
+| **Route** | `/contact-center` | `/inbox` (desktop), `mobile-inbox` (mobile) |
+| **Section ID** | `contact-center` | `inbox` / `mobile-inbox` |
+| **Audience** | Front desk, ops, admins | All team members |
+| **Content** | Twilio SMS conversations with clients | SMS + Team Chat + Announcements + Tickets + System Notifications |
+| **Feature folder** | `src/features/message-center/` (shared) | `src/features/message-center/` (shared) |
+
+### Contact Center (admin tool)
+
+- **Purpose**: Manage all company SMS conversations with clients (like a shared front-desk phone)
+- **Key component**: `MessageCenterHub` → sidebar filters + conversation list + message thread
+- **Database**: `mc_conversations`, `mc_messages`, `mc_contacts`, `mc_conversation_participants`
+- **SMS**: Twilio inbound via `twilio-inbound-webhook`, outbound via `send-mc-sms`
+- **Features**: Quick reply templates, participant management, project signal detection, sentiment analysis
+- **Access control**: Admins/ops see all; sales reps see only conversations they're invited to
+
+### Inbox (per-user)
+
+- **Purpose**: One place for a user to see everything directed at them
+- **Key components**: `FullPageInbox` (desktop), `MobileUnifiedInbox` (mobile)
+- **Aggregates from 5 sources** via `useUnifiedMessages` hook:
+
+| Source | Table | Type Key | Read Tracking |
+|--------|-------|----------|---------------|
+| SMS conversations | `mc_conversations` | `sms` | `unread_count` on conversation |
+| Team chat (1:1/group) | `conversations` + `direct_messages` | `team_chat` | `unread_count` on conversation |
+| Announcements | `company_messages` | `team_announcement` | `company_message_reads` table |
+| Ticket comments | `request_notes` | `ticket_chat` | Heuristic only (last author != you) |
+| System notifications | `mc_system_notifications` | `system_notification` | `is_read` boolean |
+
+- **Compose**: Only supports creating team DMs/group chats (not SMS)
+- **Notifications**: Push only for SMS inbound; email/SMS notification partially wired
+
+### Shared Infrastructure
+
+Both tools live in `src/features/message-center/` and share:
+- Types (`types/index.ts`), services (`messageService.ts`, `notificationService.ts`)
+- Hooks (`useConversations`, `useMessages`, `useNotifications`, etc.)
+- Netlify functions (`send-mc-sms`, `twilio-inbound-webhook`, `send-push-notification`)
+- Database tables with `mc_` prefix
+
+### Quick Debugging
+
+| Problem | Check |
+|---------|-------|
+| SMS not arriving | Twilio webhook URL, `mc_contacts` phone format, opt-out status |
+| Unread badge wrong | Which source? SMS=`unread_count`, announcements=`company_message_reads`, notifs=`is_read` |
+| Push not firing | `push_subscriptions.is_active`, `error_count < 3`, VAPID keys in env |
+| Conversation not visible to rep | Check `mc_conversation_participants` for their user's contact |
+| Ticket chat not showing | `request_notes.note_type = 'comment'`, user must be submitter/assignee/watcher |
+
+---
+
 ## FSM (Field Service Management) System
 
 The FSM is the core business logic managing the service lifecycle. **All FSM code is centralized in `/src/features/fsm/`**.
