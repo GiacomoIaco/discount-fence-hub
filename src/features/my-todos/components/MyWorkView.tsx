@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Search, ChevronDown, ChevronRight, Loader2, Calendar, Check, Bookmark, X, Plus, ListChecks } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Loader2, Calendar, Check, Bookmark, X, Plus, ListChecks, Eye, EyeOff } from 'lucide-react';
 import { useMyWorkQuery, setTaskViewed } from '../hooks/useMyTodos';
 import { useChecklistProgressQuery } from '../hooks/useTodoChecklist';
 import TaskDetailModal from './TaskDetailModal';
-import TodoMetrics from './TodoMetrics';
 import { EmptyState } from './InlineEditors';
 import { formatDate, isOverdue, statusOptions, getSectionColor, getAvatarColor } from '../utils/todoHelpers';
 import { getInitials } from '../../../lib/stringUtils';
@@ -229,6 +228,17 @@ export default function MyWorkView() {
   // Count stale completed items for "Show archived" link
   const staleCount = useMemo(() => (items || []).filter(isStaleCompleted).length, [items]);
 
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || showCompleted || dueDateFilter !== 'all' || priorityOnly || showArchived;
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setShowCompleted(false);
+    setDueDateFilter('all');
+    setPriorityOnly(false);
+    setShowArchived(false);
+  };
+
   const toggleGroup = (key: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
@@ -256,25 +266,25 @@ export default function MyWorkView() {
         </p>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      {/* Filter Bar — Desktop */}
+      <div className="hidden md:flex items-center gap-3 mb-4">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
-        {/* Status Filter */}
+        {/* Status dropdown */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Statuses</option>
           {statusOptions.map(s => (
@@ -286,68 +296,74 @@ export default function MyWorkView() {
         <select
           value={sortOption}
           onChange={(e) => setSortOption(e.target.value as SortOption)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           <option value="updated">Recently Updated</option>
           <option value="due-date">Due Date</option>
           <option value="created">Recently Created</option>
         </select>
 
-        {/* Show Completed */}
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showCompleted}
-            onChange={(e) => setShowCompleted(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          Show completed
-        </label>
+        {/* Show done toggle */}
+        <button
+          onClick={() => setShowCompleted(!showCompleted)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            showCompleted
+              ? 'bg-gray-100 border-gray-300 text-gray-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          {showCompleted ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          {showCompleted ? 'Done visible' : 'Done hidden'}
+        </button>
 
-        {/* Due date filter pills */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-              dueDateFilter === 'overdue'
-                ? 'bg-red-50 border-red-300 text-red-700 font-medium'
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Overdue
-          </button>
-          <button
-            onClick={() => setDueDateFilter(dueDateFilter === 'today' ? 'all' : 'today')}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-              dueDateFilter === 'today'
-                ? 'bg-amber-50 border-amber-300 text-amber-700 font-medium'
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Due Today
-          </button>
-          <button
-            onClick={() => setDueDateFilter(dueDateFilter === 'this_week' ? 'all' : 'this_week')}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-              dueDateFilter === 'this_week'
-                ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            This Week
-          </button>
-          <button
-            onClick={() => setPriorityOnly(!priorityOnly)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-              priorityOnly
-                ? 'bg-red-50 border-red-300 text-red-700 font-medium'
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            Priority
-          </button>
-        </div>
+        {/* Overdue pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            dueDateFilter === 'overdue'
+              ? 'bg-red-50 border-red-300 text-red-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Overdue
+        </button>
+
+        {/* Due Today pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'today' ? 'all' : 'today')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            dueDateFilter === 'today'
+              ? 'bg-amber-50 border-amber-300 text-amber-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Due Today
+        </button>
+
+        {/* This Week pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'this_week' ? 'all' : 'this_week')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            dueDateFilter === 'this_week'
+              ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          This Week
+        </button>
+
+        {/* Priority pill */}
+        <button
+          onClick={() => setPriorityOnly(!priorityOnly)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            priorityOnly
+              ? 'bg-red-50 border-red-300 text-red-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <div className="w-2 h-2 rounded-full bg-red-500" />
+          Priority
+        </button>
 
         {/* Saved Views */}
         <div className="relative">
@@ -436,17 +452,10 @@ export default function MyWorkView() {
           )}
         </div>
 
-        {/* Clear all filters */}
-        {(searchQuery || statusFilter !== 'all' || !showCompleted || dueDateFilter !== 'all' || priorityOnly || showArchived) && (
+        {/* Clear filters */}
+        {hasActiveFilters && (
           <button
-            onClick={() => {
-              setSearchQuery('');
-              setStatusFilter('all');
-              setShowCompleted(false);
-              setDueDateFilter('all');
-              setPriorityOnly(false);
-              setShowArchived(false);
-            }}
+            onClick={clearAllFilters}
             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
           >
             Clear filters
@@ -464,9 +473,92 @@ export default function MyWorkView() {
         )}
       </div>
 
-      {/* Productivity Metrics */}
-      {items && items.length > 0 && (
-        <TodoMetrics items={items} />
+      {/* Filter Bar — Mobile: horizontal scrolling pills */}
+      <div className="md:hidden flex items-center gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+        {/* Status pills */}
+        {statusOptions.filter(s => s.value !== 'done').map(s => (
+          <button
+            key={s.value}
+            onClick={() => setStatusFilter(statusFilter === s.value ? 'all' : s.value as StatusFilter)}
+            className={`flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              statusFilter === s.value
+                ? `${s.bg} ${s.text} border-current`
+                : 'bg-white border-gray-300 text-gray-600'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+
+        {/* Show done pill */}
+        <button
+          onClick={() => setShowCompleted(!showCompleted)}
+          className={`flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            showCompleted
+              ? 'bg-gray-200 border-gray-400 text-gray-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          {showCompleted ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+          Done
+        </button>
+
+        {/* Overdue pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
+          className={`flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            dueDateFilter === 'overdue'
+              ? 'bg-red-100 border-red-300 text-red-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          Overdue
+        </button>
+
+        {/* Priority pill */}
+        <button
+          onClick={() => setPriorityOnly(!priorityOnly)}
+          className={`flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            priorityOnly
+              ? 'bg-red-100 border-red-300 text-red-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+          Priority
+        </button>
+
+        {/* Search pill */}
+        <div className="flex-shrink-0 relative">
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-24 focus:w-40 transition-all pl-7 pr-2 py-1.5 text-xs border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+        </div>
+
+        {/* Clear all */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearAllFilters}
+            className="flex-shrink-0 px-2 py-1.5 text-xs text-red-500 font-medium"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Active filter count banner — mobile only */}
+      {hasActiveFilters && (
+        <div className="md:hidden mb-3 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 flex items-center justify-between">
+          <span>
+            Showing {filteredItems.length} of {(items || []).length} tasks
+            {statusFilter !== 'all' ? ` · ${statusOptions.find(s => s.value === statusFilter)?.label}` : ''}
+          </span>
+        </div>
       )}
 
       {/* Results */}
