@@ -61,8 +61,15 @@ export interface TodoItem {
   sort_order: number;
   completed_at: string | null;
   completed_by: string | null;
+  // Recurrence
+  recurrence_rule: string | null;       // 'daily' | 'weekly' | 'monthly' | 'custom' | null
+  recurrence_interval: number | null;   // e.g., 2 (every 2 weeks)
+  recurrence_days: string[] | null;     // e.g., ['mon','wed','fri'] for custom
+  recurrence_end_date: string | null;   // optional end date
+  recurrence_parent_id: string | null;  // links instances to original
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
   // Joined data
   assigned_user?: {
     id: string;

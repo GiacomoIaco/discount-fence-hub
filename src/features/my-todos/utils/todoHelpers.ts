@@ -44,18 +44,98 @@ export function getSectionColor(colorValue: string): { bg: string; hover: string
   return DEFAULT_SECTION_COLOR;
 }
 
-// Format date for display
-export function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Strip time from a Date, returning midnight local time
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-// Check if task is overdue
+// Difference in calendar days between two dates (positive = a is after b)
+function diffDays(a: Date, b: Date): number {
+  const msPerDay = 86_400_000;
+  return Math.round((startOfDay(a).getTime() - startOfDay(b).getTime()) / msPerDay);
+}
+
+// Short month+day format, e.g. "Mar 15"
+function shortDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Abbreviated day name, e.g. "Mon"
+function shortDayName(d: Date): string {
+  return d.toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+// Full day name, e.g. "Wednesday"
+function fullDayName(d: Date): string {
+  return d.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+// Format date for display with smart relative labels
+// Pass status to distinguish completed tasks (optional)
+export function formatDate(dateStr: string | null, status?: string): string {
+  if (!dateStr) return '-';
+
+  const date = new Date(dateStr);
+  const today = new Date();
+  const diff = diffDays(date, today); // positive = future, negative = past
+
+  // Completed tasks: just show the plain date, no "Overdue" styling
+  if (status === 'done') {
+    return shortDate(date);
+  }
+
+  // Past due (not done)
+  if (diff < 0) {
+    const daysOverdue = Math.abs(diff);
+    if (daysOverdue === 1) return 'Overdue';
+    return `${daysOverdue}d overdue`;
+  }
+
+  // Today
+  if (diff === 0) return 'Today';
+
+  // Tomorrow
+  if (diff === 1) return 'Tomorrow';
+
+  // 2-6 days out: full day name
+  if (diff >= 2 && diff <= 6) return fullDayName(date);
+
+  // 7-13 days out: "Next Mon" style with date
+  if (diff >= 7 && diff <= 13) {
+    return `${shortDayName(date)}, ${shortDate(date)}`;
+  }
+
+  // Further out: just the date
+  return shortDate(date);
+}
+
+// Check if task is overdue (due date strictly before today, ignoring time)
 export function isOverdue(task: TodoItem): boolean {
   if (!task.due_date) return false;
   if (task.status === 'done') return false;
-  return new Date(task.due_date) < new Date();
+  const dueDay = startOfDay(new Date(task.due_date));
+  const todayDay = startOfDay(new Date());
+  return dueDay < todayDay;
+}
+
+// Check if task is due today
+export function isDueToday(task: TodoItem): boolean {
+  if (!task.due_date) return false;
+  return diffDays(new Date(task.due_date), new Date()) === 0;
+}
+
+// Check if task is due within the next 7 days (including today)
+export function isDueThisWeek(task: TodoItem): boolean {
+  if (!task.due_date) return false;
+  const diff = diffDays(new Date(task.due_date), new Date());
+  return diff >= 0 && diff <= 6;
+}
+
+// Check if task was completed more than 7 days ago
+export function isStaleCompleted(task: TodoItem): boolean {
+  if (!task.completed_at) return false;
+  const daysSinceCompleted = diffDays(new Date(), new Date(task.completed_at));
+  return daysSinceCompleted > 7;
 }
 
 // Status options for tasks

@@ -38,7 +38,16 @@ export {
   useAddTodoItemComment,
   useDeleteTodoItemComment,
   useTodoLastCommentsQuery,
+  useUpdateTodoRecurrence,
+  useCreateNextRecurrence,
 } from './useTodoItems';
+
+export {
+  useCreateTodoNotification,
+  useNotifyAssignment,
+  useNotifyMention,
+  useNotifyComment,
+} from './useTodoNotifications';
 
 // Re-export types
 export type {

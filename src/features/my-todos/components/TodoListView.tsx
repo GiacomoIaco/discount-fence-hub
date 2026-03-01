@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, type Dispatch, type SetStateAction } from 'react';
-import { Plus, ChevronDown, ChevronRight, Pencil, Trash2, Settings, Users, Archive, GripVertical, Search, UserCircle, Eye, EyeOff } from 'lucide-react';
+import { useState, useRef, useMemo, useCallback, type Dispatch, type SetStateAction } from 'react';
+import { Plus, ChevronDown, ChevronRight, Pencil, Trash2, Settings, Users, Archive, GripVertical, Search, UserCircle, Eye, EyeOff, Bookmark, X } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -33,7 +33,65 @@ import { SortableTaskRow, MobileTaskCard } from './SortableTaskRow';
 import { InlineCommentPopup, SectionColorPicker, EmptyState, QuickAddTask, MobileQuickAddTask } from './InlineEditors';
 import TaskDetailModal from './TaskDetailModal';
 import { getSectionColor, statusOptions } from '../utils/todoHelpers';
+import { useTodoKeyboard } from '../hooks/useTodoKeyboard';
+import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 import type { TodoItem, TodoSection, TodoItemStatus } from '../types';
+
+// Auto-hide tasks completed more than 7 days ago
+function isStaleCompleted(task: TodoItem): boolean {
+  if (task.status !== 'done' || !task.completed_at) return false;
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  return new Date(task.completed_at) < sevenDaysAgo;
+}
+
+// === Saved Views ===
+
+interface SavedView {
+  id: string;
+  name: string;
+  filters: {
+    searchQuery: string;
+    statusFilter: string;
+    myTasksOnly: boolean;
+    showDone: boolean;
+    dueDateFilter: string;
+    priorityOnly: boolean;
+  };
+}
+
+const SAVED_VIEWS_KEY = 'todo-saved-views';
+
+function getSavedViews(): SavedView[] {
+  try {
+    const stored = localStorage.getItem(SAVED_VIEWS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSavedViews(views: SavedView[]) {
+  localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
+}
+
+const PRESET_VIEWS: SavedView[] = [
+  {
+    id: 'preset-overdue',
+    name: 'My Overdue',
+    filters: { searchQuery: '', statusFilter: 'all', myTasksOnly: true, showDone: false, dueDateFilter: 'overdue', priorityOnly: false },
+  },
+  {
+    id: 'preset-today',
+    name: 'Due Today',
+    filters: { searchQuery: '', statusFilter: 'all', myTasksOnly: false, showDone: false, dueDateFilter: 'today', priorityOnly: false },
+  },
+  {
+    id: 'preset-priority',
+    name: 'High Priority',
+    filters: { searchQuery: '', statusFilter: 'all', myTasksOnly: false, showDone: false, dueDateFilter: 'all', priorityOnly: true },
+  },
+];
 
 interface TodoListViewProps {
   listId: string;
@@ -72,6 +130,81 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
   const [statusFilter, setStatusFilter] = useState<TodoItemStatus | 'all'>('all');
   const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [showDone, setShowDone] = useState(true);
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'today' | 'this_week'>('all');
+  const [priorityOnly, setPriorityOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Saved views state
+  const [savedViews, setSavedViews] = useState<SavedView[]>(getSavedViews);
+  const [showViewsDropdown, setShowViewsDropdown] = useState(false);
+  const [savingViewName, setSavingViewName] = useState('');
+  const [showSaveInput, setShowSaveInput] = useState(false);
+
+  // Keyboard shortcuts
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { showHelp, setShowHelp } = useTodoKeyboard({
+    onNewTask: () => {
+      if (sections && sections.length > 0) {
+        setAddingTaskInSection(sections[0].id);
+      }
+    },
+    onFocusSearch: () => {
+      searchInputRef.current?.focus();
+    },
+    onToggleMyTasks: () => {
+      setMyTasksOnly(prev => !prev);
+    },
+    onSetStatus: (index) => {
+      const statuses: Array<TodoItemStatus | 'all'> = ['todo', 'in_progress', 'done', 'blocked'];
+      const newStatus = statuses[index];
+      setStatusFilter(prev => prev === newStatus ? 'all' : newStatus);
+    },
+    onEscape: () => {
+      setSearchQuery('');
+      setStatusFilter('all');
+      setMyTasksOnly(false);
+      setShowDone(true);
+      setDueDateFilter('all');
+      setPriorityOnly(false);
+    },
+  });
+
+  const handleSaveView = () => {
+    if (!savingViewName.trim()) return;
+    const newView: SavedView = {
+      id: `custom-${Date.now()}`,
+      name: savingViewName.trim(),
+      filters: {
+        searchQuery,
+        statusFilter: statusFilter as string,
+        myTasksOnly,
+        showDone,
+        dueDateFilter,
+        priorityOnly,
+      },
+    };
+    const updated = [...savedViews, newView];
+    setSavedViews(updated);
+    saveSavedViews(updated);
+    setSavingViewName('');
+    setShowSaveInput(false);
+  };
+
+  const handleLoadView = (view: SavedView) => {
+    setSearchQuery(view.filters.searchQuery);
+    setStatusFilter(view.filters.statusFilter as any);
+    setMyTasksOnly(view.filters.myTasksOnly);
+    setShowDone(view.filters.showDone);
+    setDueDateFilter(view.filters.dueDateFilter as any);
+    setPriorityOnly(view.filters.priorityOnly);
+    setShowViewsDropdown(false);
+  };
+
+  const handleDeleteView = (viewId: string) => {
+    const updated = savedViews.filter(v => v.id !== viewId);
+    setSavedViews(updated);
+    saveSavedViews(updated);
+  };
 
   // Mutations
   const updateStatus = useUpdateTodoItemStatus();
@@ -122,10 +255,44 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
       );
     }
 
-    return result;
-  }, [items, showDone, statusFilter, myTasksOnly, searchQuery, user?.id]);
+    // Due date filters
+    if (dueDateFilter !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
 
-  const hasActiveFilters = searchQuery || statusFilter !== 'all' || myTasksOnly || !showDone;
+      if (dueDateFilter === 'overdue') {
+        result = result.filter(i => {
+          if (!i.due_date || i.status === 'done') return false;
+          return i.due_date < todayStr;
+        });
+      } else if (dueDateFilter === 'today') {
+        result = result.filter(i => i.due_date === todayStr);
+      } else if (dueDateFilter === 'this_week') {
+        const weekEnd = new Date(today);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        const weekEndStr = weekEnd.toISOString().split('T')[0];
+        result = result.filter(i => i.due_date && i.due_date >= todayStr && i.due_date <= weekEndStr);
+      }
+    }
+
+    // High priority filter
+    if (priorityOnly) {
+      result = result.filter(i => i.is_high_priority);
+    }
+
+    // Auto-hide stale completed (done > 7 days ago) unless showing archived
+    if (!showArchived) {
+      result = result.filter(i => !isStaleCompleted(i));
+    }
+
+    return result;
+  }, [items, showDone, statusFilter, myTasksOnly, searchQuery, user?.id, dueDateFilter, priorityOnly, showArchived]);
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || myTasksOnly || !showDone || dueDateFilter !== 'all' || priorityOnly || showArchived;
+
+  // Count stale completed items for "Show archived" link
+  const staleCount = useMemo(() => (items || []).filter(isStaleCompleted).length, [items]);
 
   // Group filtered items by section
   const itemsBySection = useMemo(() => {
@@ -136,8 +303,13 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
         map[item.section_id].push(item);
       }
     });
-    // Sort each section's items by sort_order
-    Object.values(map).forEach(arr => arr.sort((a, b) => a.sort_order - b.sort_order));
+    // Sort each section's items: done items last, then by sort_order within each group
+    Object.values(map).forEach(arr => arr.sort((a, b) => {
+      const aDone = a.status === 'done' ? 1 : 0;
+      const bDone = b.status === 'done' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return a.sort_order - b.sort_order;
+    }));
     return map;
   }, [filteredItems, sections]);
 
@@ -278,6 +450,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search tasks..."
             value={searchQuery}
@@ -324,6 +497,142 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
           {showDone ? 'Done visible' : 'Done hidden'}
         </button>
 
+        {/* Overdue pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            dueDateFilter === 'overdue'
+              ? 'bg-red-50 border-red-300 text-red-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Overdue
+        </button>
+
+        {/* Due Today pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'today' ? 'all' : 'today')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            dueDateFilter === 'today'
+              ? 'bg-amber-50 border-amber-300 text-amber-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Due Today
+        </button>
+
+        {/* Due This Week pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'this_week' ? 'all' : 'this_week')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            dueDateFilter === 'this_week'
+              ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          This Week
+        </button>
+
+        {/* High Priority pill */}
+        <button
+          onClick={() => setPriorityOnly(!priorityOnly)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            priorityOnly
+              ? 'bg-red-50 border-red-300 text-red-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <div className="w-2 h-2 rounded-full bg-red-500" />
+          Priority
+        </button>
+
+        {/* Saved Views */}
+        <div className="relative">
+          <button
+            onClick={() => setShowViewsDropdown(!showViewsDropdown)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            Views
+          </button>
+          {showViewsDropdown && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowViewsDropdown(false)} />
+              <div className="absolute top-full mt-1 right-0 z-50 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+                {/* Presets */}
+                <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase">Presets</div>
+                {PRESET_VIEWS.map(view => (
+                  <button
+                    key={view.id}
+                    onClick={() => handleLoadView(view)}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    {view.name}
+                  </button>
+                ))}
+
+                {/* Saved */}
+                {savedViews.length > 0 && (
+                  <>
+                    <div className="border-t border-gray-100 my-1" />
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase">Saved</div>
+                    {savedViews.map(view => (
+                      <div key={view.id} className="flex items-center px-3 py-2 hover:bg-gray-50 group">
+                        <button
+                          onClick={() => handleLoadView(view)}
+                          className="flex-1 text-left text-sm text-gray-700"
+                        >
+                          {view.name}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteView(view.id); }}
+                          className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Save current */}
+                <div className="border-t border-gray-100 my-1" />
+                {showSaveInput ? (
+                  <div className="px-3 py-2 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={savingViewName}
+                      onChange={(e) => setSavingViewName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveView();
+                        if (e.key === 'Escape') setShowSaveInput(false);
+                      }}
+                      placeholder="View name..."
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleSaveView}
+                      disabled={!savingViewName.trim()}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowSaveInput(true)}
+                    className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Save current view
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Clear filters */}
         {hasActiveFilters && (
           <button
@@ -332,10 +641,23 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
               setStatusFilter('all');
               setMyTasksOnly(false);
               setShowDone(true);
+              setDueDateFilter('all');
+              setPriorityOnly(false);
+              setShowArchived(false);
             }}
             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
           >
             Clear filters
+          </button>
+        )}
+
+        {/* Show archived link */}
+        {staleCount > 0 && !showArchived && (
+          <button
+            onClick={() => setShowArchived(true)}
+            className="text-xs text-gray-500 hover:text-blue-600 hover:underline ml-2"
+          >
+            Show {staleCount} archived
           </button>
         )}
       </div>
@@ -383,6 +705,31 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
           Done
         </button>
 
+        {/* Overdue pill */}
+        <button
+          onClick={() => setDueDateFilter(dueDateFilter === 'overdue' ? 'all' : 'overdue')}
+          className={`flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            dueDateFilter === 'overdue'
+              ? 'bg-red-100 border-red-300 text-red-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          Overdue
+        </button>
+
+        {/* Priority pill */}
+        <button
+          onClick={() => setPriorityOnly(!priorityOnly)}
+          className={`flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            priorityOnly
+              ? 'bg-red-100 border-red-300 text-red-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+          Priority
+        </button>
+
         {/* Search pill — opens search input */}
         <div className="flex-shrink-0 relative">
           <input
@@ -403,6 +750,9 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
               setStatusFilter('all');
               setMyTasksOnly(false);
               setShowDone(true);
+              setDueDateFilter('all');
+              setPriorityOnly(false);
+              setShowArchived(false);
             }}
             className="flex-shrink-0 px-2 py-1.5 text-xs text-red-500 font-medium"
           >

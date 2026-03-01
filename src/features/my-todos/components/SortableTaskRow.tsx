@@ -78,7 +78,7 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
       style={style}
       className={`border-b border-gray-200 hover:bg-blue-50 transition-colors group cursor-pointer ${
         idx % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-      } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''} ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''}`}
+      } ${taskOverdue ? 'bg-red-50 border-l-4 border-l-red-400' : ''} ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''} ${task.status === 'done' ? 'opacity-50' : ''}`}
       onClick={onOpenTask}
     >
       {/* Task Title with drag handle and checkbox */}
@@ -339,121 +339,211 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
   const currentStatus = statusOptions.find(o => o.value === task.status) || statusOptions[0];
   const hasUnreadComment = lastComment && isCommentUnread(task.id, lastComment.created_at);
 
+  // Swipe gesture state
+  const [swipeX, setSwipeX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const [swipeAction, setSwipeAction] = useState<'none' | 'complete' | 'open'>('none');
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const SWIPE_THRESHOLD = 80;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now(),
+    };
+    setSwipeX(0);
+    setSwiping(false);
+    setSwipeAction('none');
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+
+    const deltaX = e.touches[0].clientX - touchStartRef.current.x;
+    const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+
+    // If vertical movement is dominant, let DnD handle it
+    if (Math.abs(deltaY) > Math.abs(deltaX) && !swiping) return;
+
+    // Lock into horizontal swipe
+    if (Math.abs(deltaX) > 10) {
+      setSwiping(true);
+      setSwipeX(deltaX);
+
+      if (deltaX > SWIPE_THRESHOLD) {
+        setSwipeAction('complete');
+      } else if (deltaX < -SWIPE_THRESHOLD) {
+        setSwipeAction('open');
+      } else {
+        setSwipeAction('none');
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (swipeAction === 'complete' && task.status !== 'done') {
+      onStatusChange(task.id, 'done');
+    } else if (swipeAction === 'open') {
+      onOpenTask();
+    }
+
+    // Reset
+    touchStartRef.current = null;
+    setSwipeX(0);
+    setSwiping(false);
+    setSwipeAction('none');
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className={`border-l-4 ${statusBorderColor[task.status] || 'border-l-gray-300'} ${
-        taskOverdue ? 'bg-red-50' : 'bg-white'
-      } ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''} cursor-pointer active:bg-gray-50`}
-      onClick={onOpenTask}
+      className="relative overflow-hidden"
     >
-      <div className="py-3 px-4">
-        {/* Row 1: drag handle + status circle + title + priority dot */}
-        <div className="flex items-center gap-2">
-          <button
-            {...listeners}
-            className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation flex-shrink-0"
-            onClick={(e) => e.stopPropagation()}
-            title="Drag to reorder"
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
-
-          {/* Status circle */}
-          <div
-            className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-              task.status === 'done'
-                ? 'bg-green-500 border-green-500'
-                : task.status === 'in_progress'
-                ? 'bg-blue-500 border-blue-500'
-                : task.status === 'blocked'
-                ? 'bg-red-500 border-red-500'
-                : 'border-gray-400'
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (task.status !== 'done') {
-                onStatusChange(task.id, 'done');
-              }
-            }}
-          >
-            {task.status === 'done' && (
-              <Check className="w-3 h-3 text-white" />
-            )}
-          </div>
-
-          {/* Title */}
-          <span
-            className={`flex-1 text-sm leading-snug truncate ${
-              task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-900 font-medium'
-            }`}
-          >
-            {task.title}
-          </span>
-
-          {/* High priority dot */}
-          {task.is_high_priority && (
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" title="High Priority" />
+      {/* Swipe background */}
+      {swiping && (
+        <div className="absolute inset-0 flex items-center">
+          {swipeX > 0 && (
+            <div className={`absolute inset-0 flex items-center pl-4 transition-colors ${
+              swipeAction === 'complete' ? 'bg-green-500' : 'bg-green-200'
+            }`}>
+              <Check className={`w-6 h-6 ${swipeAction === 'complete' ? 'text-white' : 'text-green-600'}`} />
+            </div>
+          )}
+          {swipeX < 0 && (
+            <div className={`absolute inset-0 flex items-center justify-end pr-4 transition-colors ${
+              swipeAction === 'open' ? 'bg-blue-500' : 'bg-blue-200'
+            }`}>
+              <Eye className={`w-6 h-6 ${swipeAction === 'open' ? 'text-white' : 'text-blue-600'}`} />
+            </div>
           )}
         </div>
+      )}
 
-        {/* Row 2: assignee + status badge + due date + comments */}
-        <div className="flex items-center gap-2 mt-2 ml-8 flex-wrap">
-          {/* Assignee avatar */}
-          {task.assigned_user ? (
-            <div
-              className={`w-6 h-6 rounded-full ${getAvatarColor(task.assigned_user.id)} text-white text-[10px] font-medium flex items-center justify-center flex-shrink-0`}
-              title={task.assigned_user.full_name}
-            >
-              {task.assigned_user.avatar_url ? (
-                <img src={task.assigned_user.avatar_url} alt={task.assigned_user.full_name} className="w-full h-full rounded-full object-cover" />
-              ) : (
-                getInitials(task.assigned_user.full_name)
-              )}
-            </div>
-          ) : null}
-
-          {/* Status badge */}
-          <span
-            className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${currentStatus.bg} ${currentStatus.text} flex-shrink-0`}
-          >
-            {currentStatus.label}
-          </span>
-
-          {/* Due date pill */}
-          {task.due_date && (
-            <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
-                taskOverdue
-                  ? 'bg-red-100 text-red-700 font-medium'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              <Calendar className="w-3 h-3" />
-              {formatDate(task.due_date)}
-            </span>
-          )}
-
-          {/* Comment indicator */}
-          {lastComment && (
+      {/* Foreground (slides) */}
+      <div
+        className={`border-l-4 ${statusBorderColor[task.status] || 'border-l-gray-300'} ${
+          taskOverdue ? 'bg-red-50' : 'bg-white'
+        } ${isDragging ? 'shadow-lg ring-2 ring-blue-500 z-50' : ''} ${
+          task.status === 'done' ? 'opacity-50' : ''
+        } cursor-pointer active:bg-gray-50 transition-transform`}
+        style={{
+          transform: swiping ? `translateX(${swipeX}px)` : 'translateX(0)',
+          transition: swiping ? 'none' : 'transform 0.3s ease-out',
+        }}
+        onClick={!swiping ? onOpenTask : undefined}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="py-3 px-4">
+          {/* Row 1: drag handle + status circle + title + priority dot */}
+          <div className="flex items-center gap-2">
             <button
-              className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
-                hasUnreadComment
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-gray-100 text-gray-500'
+              {...listeners}
+              className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-manipulation flex-shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              title="Drag to reorder"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+
+            {/* Status circle */}
+            <div
+              className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                task.status === 'done'
+                  ? 'bg-green-500 border-green-500'
+                  : task.status === 'in_progress'
+                  ? 'bg-blue-500 border-blue-500'
+                  : task.status === 'blocked'
+                  ? 'bg-red-500 border-red-500'
+                  : 'border-gray-400'
               }`}
               onClick={(e) => {
                 e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                onOpenCommentPopup(task.id, task.title, { top: rect.bottom + 4, left: rect.left });
+                if (task.status !== 'done') {
+                  onStatusChange(task.id, 'done');
+                }
               }}
             >
-              <MessageCircle className="w-3 h-3" />
-              {hasUnreadComment && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
-            </button>
-          )}
+              {task.status === 'done' && (
+                <Check className="w-3 h-3 text-white" />
+              )}
+            </div>
+
+            {/* Title */}
+            <span
+              className={`flex-1 text-sm leading-snug truncate ${
+                task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-900 font-medium'
+              }`}
+            >
+              {task.title}
+            </span>
+
+            {/* High priority dot */}
+            {task.is_high_priority && (
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" title="High Priority" />
+            )}
+          </div>
+
+          {/* Row 2: assignee + status badge + due date + comments */}
+          <div className="flex items-center gap-2 mt-2 ml-8 flex-wrap">
+            {/* Assignee avatar */}
+            {task.assigned_user ? (
+              <div
+                className={`w-6 h-6 rounded-full ${getAvatarColor(task.assigned_user.id)} text-white text-[10px] font-medium flex items-center justify-center flex-shrink-0`}
+                title={task.assigned_user.full_name}
+              >
+                {task.assigned_user.avatar_url ? (
+                  <img src={task.assigned_user.avatar_url} alt={task.assigned_user.full_name} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  getInitials(task.assigned_user.full_name)
+                )}
+              </div>
+            ) : null}
+
+            {/* Status badge */}
+            <span
+              className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${currentStatus.bg} ${currentStatus.text} flex-shrink-0`}
+            >
+              {currentStatus.label}
+            </span>
+
+            {/* Due date pill */}
+            {task.due_date && (
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+                  taskOverdue
+                    ? 'bg-red-100 text-red-700 font-medium'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                <Calendar className="w-3 h-3" />
+                {formatDate(task.due_date)}
+              </span>
+            )}
+
+            {/* Comment indicator */}
+            {lastComment && (
+              <button
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+                  hasUnreadComment
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  onOpenCommentPopup(task.id, task.title, { top: rect.bottom + 4, left: rect.left });
+                }}
+              >
+                <MessageCircle className="w-3 h-3" />
+                {hasUnreadComment && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

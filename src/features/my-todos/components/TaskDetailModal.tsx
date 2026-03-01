@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X, Calendar, CheckCircle2, MessageSquare, Clock, User, Loader2, Edit3,
   Save, AlertTriangle, Send, Paperclip, Camera, Image, FileText, Trash2,
@@ -8,7 +8,10 @@ import {
   useTodoItemsQuery, useUpdateTodoItemStatus, useUpdateTodoItem,
   useTodoItemCommentsQuery, useAddTodoItemComment, useDeleteTodoItemComment,
   useTodoItemAttachmentsQuery, useUploadTodoAttachment, useDeleteTodoAttachment,
+  useAddTodoItemFollower,
+  useUpdateTodoRecurrence, useCreateNextRecurrence,
 } from '../hooks/useTodoItems';
+import { useUsers } from '../../requests/hooks/useRequests';
 import { useTodoSectionsQuery } from '../hooks/useTodoSections';
 import { useTodoListsQuery } from '../hooks/useTodoLists';
 import { InlineFollowersPicker } from './InlineEditors';
@@ -56,6 +59,19 @@ function formatFileSize(bytes: number | null): string {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1048576) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1048576).toFixed(1)}MB`;
+}
+
+function renderCommentContent(content: string) {
+  // Split on @Name patterns
+  const parts = content.split(/(@[A-Za-z\s]+?)(?=\s@|\s*$|[.,!?\s])/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('@') && part.length > 1) {
+      return (
+        <span key={i} className="text-blue-600 font-medium">{part}</span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 // Inline video player for chat
@@ -117,12 +133,23 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   const deleteComment = useDeleteTodoItemComment();
   const uploadAttachment = useUploadTodoAttachment();
   const deleteAttachment = useDeleteTodoAttachment();
+  const addFollower = useAddTodoItemFollower();
+  const updateRecurrence = useUpdateTodoRecurrence();
+  const createNextRecurrence = useCreateNextRecurrence();
+  const { users } = useUsers();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'details' | 'files'>('chat');
   const [newMessage, setNewMessage] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showFilePickerModal, setShowFilePickerModal] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
+
+  // Mention state
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionActive, setMentionActive] = useState(false);
+  const [mentionStart, setMentionStart] = useState(-1);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const messageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Detail editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -137,6 +164,13 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   const photoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const filteredUsers = useMemo(() => {
+    if (!mentionActive || !users) return [];
+    return users
+      .filter(u => u.name.toLowerCase().includes(mentionQuery))
+      .slice(0, 5);
+  }, [mentionActive, mentionQuery, users]);
 
   const task = items?.find(t => t.id === taskId);
   const section = sections?.find(s => s.id === task?.section_id);
@@ -174,6 +208,14 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   // Handlers
   const handleStatusChange = async (status: string) => {
     await updateStatus.mutateAsync({ id: task.id, status, listId });
+    // If completing a recurring task, create the next instance
+    if (status === 'done' && task.recurrence_rule) {
+      try {
+        await createNextRecurrence.mutateAsync({ itemId: task.id, listId });
+      } catch (err) {
+        console.warn('Failed to create next recurring instance:', err);
+      }
+    }
   };
 
   const handleSaveTitle = async () => {
@@ -197,9 +239,73 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
     setIsEditingNotes(false);
   };
 
+  const handleMessageTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setNewMessage(value);
+
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
+      const charBefore = lastAtIndex > 0 ? value[lastAtIndex - 1] : ' ';
+      if ((charBefore === ' ' || charBefore === '\n' || lastAtIndex === 0) && !textAfterAt.includes('\n')) {
+        setMentionQuery(textAfterAt.toLowerCase());
+        setMentionStart(lastAtIndex);
+        setMentionActive(true);
+        setMentionIndex(0);
+        return;
+      }
+    }
+
+    setMentionActive(false);
+  };
+
+  const selectMention = (selectedUser: { id: string; name: string }) => {
+    if (!messageTextareaRef.current) return;
+    const before = newMessage.substring(0, mentionStart);
+    const after = newMessage.substring(messageTextareaRef.current.selectionStart);
+    const newValue = `${before}@${selectedUser.name} ${after}`;
+    setNewMessage(newValue);
+    setMentionActive(false);
+
+    setTimeout(() => {
+      if (messageTextareaRef.current) {
+        const newPos = mentionStart + selectedUser.name.length + 2;
+        messageTextareaRef.current.focus();
+        messageTextareaRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
+
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
+
+    // Parse @mentions
+    const mentionPattern = /@([A-Za-z\s]+?)(?=\s@|\s*$|[.,!?])/g;
+    const mentionedNames: string[] = [];
+    let match;
+    while ((match = mentionPattern.exec(newMessage)) !== null) {
+      mentionedNames.push(match[1].trim());
+    }
+
     await addComment.mutateAsync({ itemId: taskId, content: newMessage.trim() });
+
+    // Auto-follow mentioned users
+    if (users && mentionedNames.length > 0) {
+      for (const name of mentionedNames) {
+        const mentionedUser = users.find(u => u.name.toLowerCase() === name.toLowerCase());
+        if (mentionedUser && mentionedUser.id !== user?.id) {
+          try {
+            await addFollower.mutateAsync({ itemId: taskId, userId: mentionedUser.id, listId });
+          } catch {
+            // Ignore if already a follower
+          }
+        }
+      }
+    }
+
     setNewMessage('');
   };
 
@@ -230,6 +336,27 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionActive && filteredUsers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex(i => Math.min(i + 1, filteredUsers.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectMention(filteredUsers[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMentionActive(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -383,7 +510,7 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                             </a>
                           )}
 
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{renderCommentContent(comment.content)}</p>
                         </div>
                       </div>
                     ))
@@ -419,20 +546,44 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                     >
                       <Paperclip className="w-5 h-5" />
                     </button>
-                    <textarea
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none"
-                      rows={1}
-                      onKeyDown={handleKeyDown}
-                      style={{ minHeight: '38px', maxHeight: '100px' }}
-                      onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement;
-                        target.style.height = 'auto';
-                        target.style.height = `${Math.min(target.scrollHeight, 100)}px`;
-                      }}
-                    />
+                    <div className="flex-1 min-w-0 relative">
+                      <textarea
+                        ref={messageTextareaRef}
+                        value={newMessage}
+                        onChange={handleMessageTextChange}
+                        placeholder="Type a message... (use @ to mention)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none"
+                        rows={1}
+                        onKeyDown={handleKeyDown}
+                        style={{ minHeight: '38px', maxHeight: '100px' }}
+                        onInput={(e) => {
+                          const target = e.target as HTMLTextAreaElement;
+                          target.style.height = 'auto';
+                          target.style.height = `${Math.min(target.scrollHeight, 100)}px`;
+                        }}
+                      />
+                      {mentionActive && filteredUsers.length > 0 && (
+                        <div className="absolute bottom-full mb-1 left-0 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 max-h-48 overflow-y-auto">
+                          {filteredUsers.map((filteredUser, idx) => (
+                            <button
+                              key={filteredUser.id}
+                              type="button"
+                              onClick={() => selectMention(filteredUser)}
+                              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                                idx === mentionIndex ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-medium text-blue-700">
+                                  {filteredUser.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <span className="truncate">{filteredUser.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={handleSendMessage}
                       disabled={addComment.isPending || !newMessage.trim()}
@@ -499,6 +650,90 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                       <span className="text-sm font-medium">{task.is_high_priority ? 'High Priority' : 'Normal'}</span>
                     </button>
                   </div>
+                </div>
+
+                {/* Repeat / Recurrence */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Repeat</label>
+                  <select
+                    value={task.recurrence_rule || 'none'}
+                    onChange={async (e) => {
+                      const rule = e.target.value === 'none' ? null : e.target.value;
+                      await updateRecurrence.mutateAsync({
+                        id: task.id,
+                        listId,
+                        recurrence_rule: rule,
+                        recurrence_interval: rule ? 1 : null,
+                        recurrence_days: null,
+                        recurrence_end_date: task.recurrence_end_date || null,
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="none">None</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="custom">Custom</option>
+                  </select>
+
+                  {task.recurrence_rule === 'custom' && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => (
+                        <button
+                          key={day}
+                          onClick={async () => {
+                            const currentDays = task.recurrence_days || [];
+                            const newDays = currentDays.includes(day)
+                              ? currentDays.filter(d => d !== day)
+                              : [...currentDays, day];
+                            await updateRecurrence.mutateAsync({
+                              id: task.id,
+                              listId,
+                              recurrence_rule: 'custom',
+                              recurrence_interval: task.recurrence_interval,
+                              recurrence_days: newDays.length > 0 ? newDays : null,
+                              recurrence_end_date: task.recurrence_end_date || null,
+                            });
+                          }}
+                          className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                            (task.recurrence_days || []).includes(day)
+                              ? 'bg-blue-100 border-blue-300 text-blue-700'
+                              : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {day.charAt(0).toUpperCase() + day.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {task.recurrence_rule && (
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-500">End date (optional)</label>
+                      <input
+                        type="date"
+                        value={task.recurrence_end_date || ''}
+                        onChange={async (e) => {
+                          await updateRecurrence.mutateAsync({
+                            id: task.id,
+                            listId,
+                            recurrence_rule: task.recurrence_rule,
+                            recurrence_interval: task.recurrence_interval,
+                            recurrence_days: task.recurrence_days,
+                            recurrence_end_date: e.target.value || null,
+                          });
+                        }}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mt-1"
+                      />
+                    </div>
+                  )}
+
+                  {task.recurrence_parent_id && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      This is a recurring instance
+                    </p>
+                  )}
                 </div>
 
                 {/* Assigned To */}

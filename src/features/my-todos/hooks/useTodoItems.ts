@@ -44,6 +44,7 @@ export function useTodoItemsQuery(listId: string | null) {
         .from('todo_items')
         .select('*')
         .eq('list_id', listId)
+        .is('archived_at', null)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
 
@@ -99,6 +100,7 @@ export function useMyWorkQuery() {
           list:todo_lists!todo_items_list_id_fkey(id, title, color)
         `)
         .eq('assigned_to', user.id)
+        .is('archived_at', null)
         .order('updated_at', { ascending: false });
 
       if (assignedError) throw assignedError;
@@ -124,6 +126,7 @@ export function useMyWorkQuery() {
               list:todo_lists!todo_items_list_id_fkey(id, title, color)
             `)
             .in('id', uniqueFollowedIds)
+            .is('archived_at', null)
             .order('updated_at', { ascending: false });
 
           followedItems = followed || [];
@@ -139,6 +142,7 @@ export function useMyWorkQuery() {
           list:todo_lists!todo_items_list_id_fkey(id, title, color)
         `)
         .eq('created_by', user.id)
+        .is('archived_at', null)
         .order('updated_at', { ascending: false });
 
       // Deduplicate
@@ -757,6 +761,66 @@ export function useDeleteTodoAttachment() {
     },
     onSuccess: (_, { itemId }) => {
       queryClient.invalidateQueries({ queryKey: ['todo-item-attachments', itemId] });
+    },
+  });
+}
+
+// ============================================
+// RECURRENCE
+// ============================================
+
+/**
+ * Update recurrence settings on a todo item
+ */
+export function useUpdateTodoRecurrence() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, listId, recurrence_rule, recurrence_interval, recurrence_days, recurrence_end_date }: {
+      id: string;
+      listId: string;
+      recurrence_rule: string | null;
+      recurrence_interval: number | null;
+      recurrence_days: string[] | null;
+      recurrence_end_date: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from('todo_items')
+        .update({
+          recurrence_rule,
+          recurrence_interval,
+          recurrence_days,
+          recurrence_end_date,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { ...data, listId };
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-items', vars.listId] });
+      queryClient.invalidateQueries({ queryKey: ['todo-my-work'] });
+    },
+  });
+}
+
+/**
+ * Create the next recurring instance via DB function
+ */
+export function useCreateNextRecurrence() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ itemId, listId }: { itemId: string; listId: string }) => {
+      const { data, error } = await supabase.rpc('create_next_recurring_todo', { p_item_id: itemId });
+      if (error) throw error;
+      return { newItemId: data, listId };
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-items', vars.listId] });
+      queryClient.invalidateQueries({ queryKey: ['todo-my-work'] });
     },
   });
 }
