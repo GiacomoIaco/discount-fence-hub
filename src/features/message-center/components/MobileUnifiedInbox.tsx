@@ -5,11 +5,13 @@
  */
 
 import { useState, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, Plus } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Plus, CheckCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
+import { useMarkAllRead } from '../hooks/useMarkAllRead';
+import { useDismissInboxItem } from '../hooks/useDismissInboxItem';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { InboxSkeleton } from './InboxSkeleton';
@@ -46,8 +48,36 @@ export function MobileUnifiedInbox({
   });
 
   const markAsReadMutation = useMarkUnifiedItemRead();
+  const markAllReadMutation = useMarkAllRead();
+  const { dismiss: dismissMutation, restore: restoreMutation } = useDismissInboxItem();
   const replyMutation = useReplyToUnifiedMessage();
   const acknowledgeMutation = useAcknowledgeUnifiedItem();
+  const [undoMessage, setUndoMessage] = useState<UnifiedMessage | null>(null);
+
+  // Handle dismiss (archive)
+  const handleDismiss = useCallback((message: UnifiedMessage) => {
+    if (!user?.id) return;
+    dismissMutation.mutate({ message, userId: user.id });
+    setUndoMessage(message);
+    // Auto-clear undo after 5 seconds
+    setTimeout(() => setUndoMessage((prev) => prev?.id === message.id ? null : prev), 5000);
+  }, [dismissMutation, user?.id]);
+
+  // Handle restore (unarchive)
+  const handleRestore = useCallback((message: UnifiedMessage) => {
+    if (!user?.id) return;
+    restoreMutation.mutate({ message, userId: user.id });
+    setUndoMessage(null);
+  }, [restoreMutation, user?.id]);
+
+  // Handle toggle read/unread (for swipe gesture)
+  const handleToggleRead = useCallback(async (message: UnifiedMessage) => {
+    if (!user?.id) return;
+    if (message.isUnread) {
+      await markAsRead(message);
+    }
+    // Note: marking as unread is not supported by the backend - swipe left on unread is a no-op
+  }, [user?.id, markAsRead]);
 
   // Handle pull-to-refresh
   const handleRefresh = useCallback(() => {
@@ -126,6 +156,22 @@ export function MobileUnifiedInbox({
     refetch(); // Refresh to update read status
   }, [refetch]);
 
+  // Handle navigating to source entity (ticket, request, etc.)
+  const handleNavigateToEntity = useCallback((entityType: string, params: Record<string, string>) => {
+    // Map entity type to section for navigation
+    const sectionMap: Record<string, Section> = {
+      ticket: 'tickets',
+      request: 'requests',
+      quote: 'quotes',
+      job: 'jobs',
+      invoice: 'invoices',
+    };
+    const section = sectionMap[entityType];
+    if (section) {
+      onNavigate(section, params);
+    }
+  }, [onNavigate]);
+
   // If a message is selected, show the conversation view
   if (selectedMessage) {
     return (
@@ -133,6 +179,7 @@ export function MobileUnifiedInbox({
         <InboxConversationView
           message={selectedMessage}
           onBack={handleBackFromConversation}
+          onNavigateToEntity={handleNavigateToEntity}
         />
       </div>
     );
@@ -159,14 +206,26 @@ export function MobileUnifiedInbox({
             </div>
           </div>
 
-          <button
-            onClick={handleRefresh}
-            disabled={isRefetching}
-            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-            aria-label="Refresh"
-          >
-            <RefreshCw className={`w-5 h-5 ${isRefetching ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1">
+            {counts.all > 0 && (
+              <button
+                onClick={() => user?.id && markAllReadMutation.mutate({ messages, userId: user.id })}
+                disabled={markAllReadMutation.isPending}
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                aria-label="Mark all as read"
+              >
+                <CheckCheck className={`w-5 h-5 ${markAllReadMutation.isPending ? 'animate-pulse' : ''}`} />
+              </button>
+            )}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefetching}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              aria-label="Refresh"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefetching ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {/* Filter Pills */}
@@ -192,6 +251,9 @@ export function MobileUnifiedInbox({
                 onClick={handleItemClick}
                 onReply={handleReply}
                 onAcknowledge={handleAcknowledge}
+                onDismiss={handleDismiss}
+                onRestore={handleRestore}
+                onToggleRead={handleToggleRead}
                 isReplying={replyMutation.isPending}
                 hideInlineActions={true}
               />
@@ -199,6 +261,22 @@ export function MobileUnifiedInbox({
           </div>
         )}
       </main>
+
+      {/* Undo Snackbar */}
+      {undoMessage && (
+        <div className="fixed left-4 right-4 z-30 animate-in slide-in-from-bottom-4 fade-in"
+             style={{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}>
+          <div className="bg-gray-800 text-white rounded-lg px-4 py-3 flex items-center justify-between shadow-lg">
+            <span className="text-sm">Message archived</span>
+            <button
+              onClick={() => handleRestore(undoMessage)}
+              className="text-sm font-semibold text-blue-400 hover:text-blue-300 ml-4"
+            >
+              Undo
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Floating Action Button - Compose */}
       <button

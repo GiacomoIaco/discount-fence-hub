@@ -45,6 +45,26 @@ async function markUnifiedItemAsRead({ message, userId }: MarkReadParams): Promi
       await notificationService.markAsRead(realId);
       break;
 
+    case 'ticket_chat':
+      // Upsert read tracking for this ticket
+      await supabase
+        .from('request_note_reads')
+        .upsert(
+          {
+            user_id: userId,
+            request_id: realId,
+            last_read_at: new Date().toISOString(),
+          },
+          {
+            onConflict: 'user_id,request_id',
+          }
+        );
+      break;
+
+    case 'team_chat':
+      // Team chat read tracking is handled by the conversations system
+      break;
+
     default:
       console.warn('[useMarkUnifiedItemRead] Unknown message type:', message.type);
   }

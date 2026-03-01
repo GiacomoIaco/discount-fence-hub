@@ -379,6 +379,7 @@ export interface UnifiedMessage {
   preview: string;
   timestamp: Date;
   isUnread: boolean;
+  isDismissed?: boolean;
   icon: string;
   iconColor: string;
   iconBgColor: string;
@@ -387,7 +388,7 @@ export interface UnifiedMessage {
   rawData: Conversation | CompanyMessage | SystemNotification | TeamChatConversation | TicketChatData;
 }
 
-export type UnifiedInboxFilter = 'all' | 'sms' | 'team' | 'tickets' | 'alerts';
+export type UnifiedInboxFilter = 'all' | 'sms' | 'team' | 'chats' | 'announcements' | 'tickets' | 'alerts' | 'archived';
 
 export interface CompanyMessage {
   id: string;

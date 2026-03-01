@@ -32,7 +32,8 @@ interface UnifiedMessagesResult {
   counts: {
     all: number;
     sms: number;
-    team: number;
+    chats: number;
+    announcements: number;
     tickets: number;
     alerts: number;
   };
@@ -283,9 +284,17 @@ async function fetchUserTickets(userId: string, limit: number): Promise<TicketCh
     userNameMap.set(p.id, p.full_name || 'Unknown');
   });
 
-  // Step 6: Get unread counts (notes created after user's last view)
-  // For simplicity, mark as unread if latest note is not by the current user
-  // TODO: Implement proper read tracking with request_note_reads table
+  // Step 6: Get read tracking data from request_note_reads
+  const { data: readRecords } = await supabase
+    .from('request_note_reads')
+    .select('request_id, last_read_at')
+    .eq('user_id', userId)
+    .in('request_id', requestIdArray);
+
+  const readMap = new Map<string, string>();
+  readRecords?.forEach((r) => {
+    readMap.set(r.request_id, r.last_read_at);
+  });
 
   // Step 7: Build TicketChatData array
   const tickets: TicketChatData[] = [];
@@ -294,6 +303,11 @@ async function fetchUserTickets(userId: string, limit: number): Promise<TicketCh
     const latestNote = latestNoteByRequest.get(requestId);
 
     if (reqInfo && latestNote) {
+      const lastReadAt = readMap.get(requestId);
+      const isUnread = lastReadAt
+        ? new Date(latestNote.created_at) > new Date(lastReadAt)
+        : latestNote.user_id !== userId; // Fallback: unread if not from current user
+
       tickets.push({
         request_id: requestId,
         request_title: reqInfo.title,
@@ -302,7 +316,7 @@ async function fetchUserTickets(userId: string, limit: number): Promise<TicketCh
         last_note_at: latestNote.created_at,
         last_note_by: latestNote.user_id,
         last_note_by_name: latestNote.user_id ? userNameMap.get(latestNote.user_id) || null : null,
-        unread_count: latestNote.user_id !== userId ? 1 : 0, // Simple: unread if not from current user
+        unread_count: isUnread ? 1 : 0,
         user_role: reqInfo.role,
       });
     }
@@ -320,18 +334,31 @@ async function fetchUnifiedMessages(
   const { userId, filter = 'all', limit = 50 } = options;
 
   if (!userId) {
-    return { messages: [], counts: { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 } };
+    return { messages: [], counts: { all: 0, sms: 0, chats: 0, announcements: 0, tickets: 0, alerts: 0 } };
   }
 
   const messages: UnifiedMessage[] = [];
-  const counts = { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 };
+  const counts = { all: 0, sms: 0, chats: 0, announcements: 0, tickets: 0, alerts: 0 };
 
   try {
+    // Fetch dismissed item IDs for this user
+    const { data: dismissedItems } = await supabase
+      .from('inbox_dismissed_items')
+      .select('item_type, item_id')
+      .eq('user_id', userId);
+
+    const dismissedSet = new Set(
+      (dismissedItems || []).map((d) => `${d.item_type}:${d.item_id}`)
+    );
+
     // Fetch based on filter - optimize by only fetching what's needed
-    const fetchSms = filter === 'all' || filter === 'sms';
-    const fetchTeam = filter === 'all' || filter === 'team';
-    const fetchTickets = filter === 'all' || filter === 'tickets';
-    const fetchAlerts = filter === 'all' || filter === 'alerts';
+    // For 'archived' filter, fetch everything then show only dismissed items
+    const isArchived = filter === 'archived';
+    const fetchSms = isArchived || filter === 'all' || filter === 'sms';
+    const fetchTeamChats = isArchived || filter === 'all' || filter === 'team' || filter === 'chats';
+    const fetchAnnouncements = isArchived || filter === 'all' || filter === 'team' || filter === 'announcements';
+    const fetchTickets = isArchived || filter === 'all' || filter === 'tickets';
+    const fetchAlerts = isArchived || filter === 'all' || filter === 'alerts';
 
     // Parallel fetch all required data
     const [smsResult, announcementsResult, teamChatsResult, ticketsResult, alertsResult] = await Promise.all([
@@ -361,7 +388,7 @@ async function fetchUnifiedMessages(
         : Promise.resolve({ data: [], error: null }),
 
       // Team announcements from company_messages
-      fetchTeam
+      fetchAnnouncements
         ? supabase
             .from('company_messages')
             .select(`
@@ -383,7 +410,7 @@ async function fetchUnifiedMessages(
         : Promise.resolve({ data: [], error: null }),
 
       // Team chats (1:1 and group DMs) from get_user_conversations RPC
-      fetchTeam
+      fetchTeamChats
         ? supabase.rpc('get_user_conversations')
         : Promise.resolve({ data: [], error: null }),
 
@@ -405,9 +432,7 @@ async function fetchUnifiedMessages(
 
     // Process SMS conversations
     if (smsResult.data && !smsResult.error) {
-      const smsMessages = (smsResult.data as Conversation[]).map(conversationToUnified);
-      messages.push(...smsMessages);
-      counts.sms = smsMessages.filter((m) => m.isUnread).length;
+      messages.push(...(smsResult.data as Conversation[]).map(conversationToUnified));
     }
 
     // Process team announcements
@@ -418,40 +443,45 @@ async function fetchUnifiedMessages(
         return announcementToUnified({ ...msg, isRead } as CompanyMessage & { isRead: boolean });
       });
       messages.push(...announcementMessages);
-      counts.team += announcementMessages.filter((m) => m.isUnread).length;
     }
 
     // Process team chats (1:1 and group DMs)
     if (teamChatsResult.data && !teamChatsResult.error) {
-      const teamChatMessages = (teamChatsResult.data as TeamChatConversation[]).map(teamChatToUnified);
-      messages.push(...teamChatMessages);
-      counts.team += teamChatMessages.filter((m) => m.isUnread).length;
+      messages.push(...(teamChatsResult.data as TeamChatConversation[]).map(teamChatToUnified));
     }
 
     // Process tickets
     if (ticketsResult && Array.isArray(ticketsResult)) {
-      const ticketMessages = ticketsResult.map(ticketChatToUnified);
-      messages.push(...ticketMessages);
-      counts.tickets = ticketMessages.filter((m) => m.isUnread).length;
+      messages.push(...ticketsResult.map(ticketChatToUnified));
     }
 
     // Process notifications
     if (alertsResult.data && !alertsResult.error) {
-      const alertMessages = (alertsResult.data as SystemNotification[]).map(notificationToUnified);
-      messages.push(...alertMessages);
-      counts.alerts = alertMessages.filter((m) => m.isUnread).length;
+      messages.push(...(alertsResult.data as SystemNotification[]).map(notificationToUnified));
     }
 
-    // Calculate total unread
-    counts.all = counts.sms + counts.team + counts.tickets + counts.alerts;
+    // Calculate total unread (from non-dismissed items only)
+    const nonDismissed = messages.filter((m) => !dismissedSet.has(`${m.type}:${m.actionId}`));
+    counts.sms = nonDismissed.filter((m) => m.type === 'sms' && m.isUnread).length;
+    counts.chats = nonDismissed.filter((m) => m.type === 'team_chat' && m.isUnread).length;
+    counts.announcements = nonDismissed.filter((m) => m.type === 'team_announcement' && m.isUnread).length;
+    counts.tickets = nonDismissed.filter((m) => m.type === 'ticket_chat' && m.isUnread).length;
+    counts.alerts = nonDismissed.filter((m) => m.type === 'system_notification' && m.isUnread).length;
+    counts.all = counts.sms + counts.chats + counts.announcements + counts.tickets + counts.alerts;
+
+    // Tag messages with dismissed status for filtering
+    const taggedMessages = messages.map((m) => ({
+      ...m,
+      isDismissed: dismissedSet.has(`${m.type}:${m.actionId}`),
+    }));
 
     // Sort all messages by timestamp (newest first)
-    messages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    taggedMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-    return { messages, counts };
+    return { messages: taggedMessages, counts };
   } catch (error) {
     console.debug('[useUnifiedMessages] Error fetching messages:', error);
-    return { messages: [], counts: { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 } };
+    return { messages: [], counts: { all: 0, sms: 0, chats: 0, announcements: 0, tickets: 0, alerts: 0 } };
   }
 }
 
@@ -470,25 +500,34 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
   // Filter messages based on current filter (for quick filter switching with cached data)
   const filteredMessages = useMemo(() => {
     if (!data?.messages) return [];
-    if (filter === 'all') return data.messages;
 
-    // Team filter includes both team_chat and team_announcement
-    if (filter === 'team') {
-      return data.messages.filter((m) => m.type === 'team_chat' || m.type === 'team_announcement');
+    // Archived filter: show only dismissed items
+    if (filter === 'archived') {
+      return data.messages.filter((m) => m.isDismissed);
     }
 
-    const typeMap: Record<UnifiedInboxFilter, UnifiedMessage['type'] | null> = {
-      all: null,
+    // All other filters: exclude dismissed items
+    const active = data.messages.filter((m) => !m.isDismissed);
+
+    if (filter === 'all') return active;
+
+    // Team filter (legacy) includes both team_chat and team_announcement
+    if (filter === 'team') {
+      return active.filter((m) => m.type === 'team_chat' || m.type === 'team_announcement');
+    }
+
+    const typeMap: Record<string, UnifiedMessage['type'] | null> = {
       sms: 'sms',
-      team: 'team_chat', // fallback, handled above
+      chats: 'team_chat',
+      announcements: 'team_announcement',
       tickets: 'ticket_chat',
       alerts: 'system_notification',
     };
 
     const targetType = typeMap[filter];
-    if (!targetType) return data.messages;
+    if (!targetType) return active;
 
-    return data.messages.filter((m) => m.type === targetType);
+    return active.filter((m) => m.type === targetType);
   }, [data?.messages, filter]);
 
   // Subscribe to realtime updates
@@ -548,7 +587,7 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
 
   return {
     messages: filteredMessages,
-    counts: data?.counts || { all: 0, sms: 0, team: 0, tickets: 0, alerts: 0 },
+    counts: data?.counts || { all: 0, sms: 0, chats: 0, announcements: 0, tickets: 0, alerts: 0 },
     isLoading,
     isRefetching,
     refetch,

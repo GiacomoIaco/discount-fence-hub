@@ -12,7 +12,8 @@ interface FilterPillsProps {
   counts: {
     all: number;
     sms: number;
-    team: number;
+    chats: number;
+    announcements: number;
     tickets: number;
     alerts: number;
   };
@@ -27,9 +28,11 @@ interface FilterOption {
 const filters: FilterOption[] = [
   { id: 'all', label: 'All', countKey: 'all' },
   { id: 'sms', label: 'SMS', countKey: 'sms' },
-  { id: 'team', label: 'Team', countKey: 'team' },
+  { id: 'chats', label: 'Chats', countKey: 'chats' },
+  { id: 'announcements', label: 'Announcements', countKey: 'announcements' },
   { id: 'tickets', label: 'Tickets', countKey: 'tickets' },
   { id: 'alerts', label: 'Alerts', countKey: 'alerts' },
+  { id: 'archived', label: 'Archived', countKey: 'all' },
 ];
 
 export function FilterPills({ activeFilter, onFilterChange, counts }: FilterPillsProps) {
@@ -38,7 +41,8 @@ export function FilterPills({ activeFilter, onFilterChange, counts }: FilterPill
       {filters.map((filter) => {
         const isActive = activeFilter === filter.id;
         const count = counts[filter.countKey];
-        const hasUnread = count > 0;
+        // Archived pill doesn't show unread count
+        const hasUnread = filter.id !== 'archived' && count > 0;
 
         return (
           <button

@@ -25,7 +25,6 @@ const SalesResources = lazy(() => import('../../features/sales-resources').then(
 const RequestHub = lazy(() => import('../../features/requests').then(module => ({ default: module.RequestHub })));
 const MyRequestsView = lazy(() => import('../../features/requests').then(module => ({ default: module.MyRequestsView })));
 const TeamCommunication = lazy(() => import('../../features/communication').then(module => ({ default: module.TeamCommunication })));
-const DirectMessages = lazy(() => import('../../features/communication').then(module => ({ default: module.DirectMessages })));
 const Settings = lazy(() => import('../../features/settings').then(module => ({ default: module.Settings })));
 const MyTodos = lazy(() => import('../../features/my-todos').then(m => ({ default: m.MyTodos })));
 const BOMCalculatorHub = lazy(() => import('../../features/bom_calculator/BOMCalculatorHub'));
@@ -150,14 +149,6 @@ export default function SalesRepView({
     return (
       <Suspense fallback={<LoadingFallback />}>
         <TeamCommunication onBack={() => onNavigate('home')} onUnreadCountChange={onTeamCommunicationUnreadCountChange} refreshTrigger={teamCommunicationRefresh} />
-      </Suspense>
-    );
-  }
-
-  if (activeSection === 'inbox') {
-    return (
-      <Suspense fallback={<LoadingFallback />}>
-        <DirectMessages onUnreadCountChange={onUnreadCountChange} />
       </Suspense>
     );
   }

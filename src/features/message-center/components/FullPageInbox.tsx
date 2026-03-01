@@ -4,11 +4,15 @@
  */
 
 import { useState, useCallback } from 'react';
-import { RefreshCw, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { RefreshCw, Plus, CheckCheck } from 'lucide-react';
+import { buildEntityUrl, type EntityType } from '../../../lib/routes';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
+import { useMarkAllRead } from '../hooks/useMarkAllRead';
+import { useDismissInboxItem } from '../hooks/useDismissInboxItem';
 import { FilterPills } from './FilterPills';
 import { UnifiedInboxItem } from './UnifiedInboxItem';
 import { InboxSkeleton } from './InboxSkeleton';
@@ -19,6 +23,7 @@ import type { UnifiedMessage, UnifiedInboxFilter } from '../types';
 
 export function FullPageInbox() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
   const [showCompose, setShowCompose] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<UnifiedMessage | null>(null);
@@ -35,6 +40,8 @@ export function FullPageInbox() {
   });
 
   const markAsReadMutation = useMarkUnifiedItemRead();
+  const markAllReadMutation = useMarkAllRead();
+  const { dismiss: dismissMutation, restore: restoreMutation } = useDismissInboxItem();
   const replyMutation = useReplyToUnifiedMessage();
   const acknowledgeMutation = useAcknowledgeUnifiedItem();
 
@@ -82,6 +89,24 @@ export function FullPageInbox() {
     }
   }, [markAsRead]);
 
+  // Handle dismiss (archive)
+  const handleDismiss = useCallback((message: UnifiedMessage) => {
+    if (!user?.id) return;
+    dismissMutation.mutate({ message, userId: user.id });
+  }, [dismissMutation, user?.id]);
+
+  // Handle restore (unarchive)
+  const handleRestore = useCallback((message: UnifiedMessage) => {
+    if (!user?.id) return;
+    restoreMutation.mutate({ message, userId: user.id });
+  }, [restoreMutation, user?.id]);
+
+  // Handle navigating to source entity (ticket, request, etc.)
+  const handleNavigateToEntity = useCallback((entityType: string, params: Record<string, string>) => {
+    const url = buildEntityUrl(entityType as EntityType, params);
+    if (url) navigate(url);
+  }, [navigate]);
+
   // Handle going back from conversation view
   const handleBackFromConversation = useCallback(() => {
     setSelectedMessage(null);
@@ -103,6 +128,17 @@ export function FullPageInbox() {
             </div>
 
             <div className="flex items-center gap-2">
+              {counts.all > 0 && (
+                <button
+                  onClick={() => user?.id && markAllReadMutation.mutate({ messages, userId: user.id })}
+                  disabled={markAllReadMutation.isPending}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  aria-label="Mark all as read"
+                  title="Mark all as read"
+                >
+                  <CheckCheck className={`w-5 h-5 ${markAllReadMutation.isPending ? 'animate-pulse' : ''}`} />
+                </button>
+              )}
               <button
                 onClick={handleRefresh}
                 disabled={isRefetching}
@@ -147,6 +183,8 @@ export function FullPageInbox() {
                     onClick={handleItemClick}
                     onReply={handleReply}
                     onAcknowledge={handleAcknowledge}
+                    onDismiss={handleDismiss}
+                    onRestore={handleRestore}
                     isReplying={replyMutation.isPending}
                     hideInlineActions={true}
                   />
@@ -163,6 +201,7 @@ export function FullPageInbox() {
           <InboxConversationView
             message={selectedMessage}
             onBack={handleBackFromConversation}
+            onNavigateToEntity={handleNavigateToEntity}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center bg-gray-50">

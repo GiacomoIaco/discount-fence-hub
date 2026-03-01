@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Users, User, MessageSquare, Ticket, Megaphone } from 'lucide-react';
+import { ArrowLeft, Send, Users, User, MessageSquare, Ticket, Megaphone, ExternalLink } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -14,6 +14,7 @@ import type { UnifiedMessage, Conversation, TeamChatConversation, TicketChatData
 interface InboxConversationViewProps {
   message: UnifiedMessage;
   onBack: () => void;
+  onNavigateToEntity?: (entityType: string, params: Record<string, string>) => void;
 }
 
 interface ChatMessage {
@@ -26,7 +27,7 @@ interface ChatMessage {
   type?: 'text' | 'system';
 }
 
-export function InboxConversationView({ message, onBack }: InboxConversationViewProps) {
+export function InboxConversationView({ message, onBack, onNavigateToEntity }: InboxConversationViewProps) {
   const { user, profile } = useAuth();
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -289,6 +290,17 @@ export function InboxConversationView({ message, onBack }: InboxConversationView
               <p className="text-xs text-gray-500">{headerInfo.subtitle}</p>
             )}
           </div>
+
+          {/* Navigate to source entity */}
+          {message.type === 'ticket_chat' && onNavigateToEntity && (
+            <button
+              onClick={() => onNavigateToEntity('ticket', { id: message.actionId })}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Go to Ticket
+            </button>
+          )}
         </div>
       </header>
 
