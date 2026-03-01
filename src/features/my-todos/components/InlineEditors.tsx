@@ -4,6 +4,7 @@ import { CheckCircle2, ChevronDown, Search, Edit3, Check, Loader2, User, UserPlu
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUsers } from '../../requests/hooks/useRequests';
 import { useUpdateTodoItem, useCreateTodoItem, useAddTodoItemComment, useAddTodoItemFollower, useRemoveTodoItemFollower, setTaskViewed } from '../hooks/useMyTodos';
+import { useNotifyAssignment } from '../hooks/useTodoNotifications';
 import { useUpdateTodoSection } from '../hooks/useTodoSections';
 import { getInitials } from '../../../lib/stringUtils';
 import {
@@ -526,6 +527,7 @@ export function InlineAssignedToPicker({ task, listId }: { task: TodoItem; listI
 
   const { users, loading: usersLoading } = useUsers();
   const updateItem = useUpdateTodoItem();
+  const notifyAssignment = useNotifyAssignment();
 
   const assignedUser = task.assigned_user;
 
@@ -574,6 +576,15 @@ export function InlineAssignedToPicker({ task, listId }: { task: TodoItem; listI
   const handleSelectUser = async (userId: string | null) => {
     try {
       await updateItem.mutateAsync({ id: task.id, listId, assigned_to: userId });
+      // Notify the new assignee (skip if unassigning or reassigning to same person)
+      if (userId && userId !== task.assigned_to) {
+        notifyAssignment.notify({
+          newAssigneeId: userId,
+          taskTitle: task.title,
+          listId,
+          taskId: task.id,
+        });
+      }
       setIsOpen(false);
       setSearchQuery('');
     } catch (error) {
