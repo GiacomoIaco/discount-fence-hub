@@ -1,4 +1,4 @@
-import { Check, GripVertical, Eye, Trash2, MessageCircle, ArrowRight, Calendar } from 'lucide-react';
+import { Check, GripVertical, Eye, Trash2, MessageCircle, ArrowRight, Calendar, ListChecks } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isCommentUnread } from '../hooks/useMyTodos';
@@ -31,9 +31,10 @@ export interface SortableTaskRowProps {
   onStatusChange: (taskId: string, status: string) => void;
   onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
   onDeleteTask: (taskId: string) => void;
+  checklistProgress?: { total: number; completed: number } | null;
 }
 
-export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, onUpdateField, onDeleteTask }: SortableTaskRowProps) {
+export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, onUpdateField, onDeleteTask, checklistProgress }: SortableTaskRowProps) {
   const {
     attributes,
     listeners,
@@ -135,6 +136,22 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
                   className={task.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}
                 />
               </div>
+
+              {/* Checklist progress indicator */}
+              {checklistProgress && checklistProgress.total > 0 && (
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-2" title={`${checklistProgress.completed} of ${checklistProgress.total} subtasks completed`}>
+                  <ListChecks className="w-3.5 h-3.5 text-gray-400" />
+                  <span className={`text-xs font-medium ${checklistProgress.completed === checklistProgress.total ? 'text-green-600' : 'text-gray-500'}`}>
+                    {checklistProgress.completed}/{checklistProgress.total}
+                  </span>
+                  <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${checklistProgress.completed === checklistProgress.total ? 'bg-green-500' : 'bg-blue-500'}`}
+                      style={{ width: `${Math.round((checklistProgress.completed / checklistProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Followers inline */}
@@ -297,7 +314,7 @@ const statusBorderColor: Record<string, string> = {
   blocked: 'border-l-red-500',
 };
 
-export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange }: SortableTaskRowProps) {
+export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, checklistProgress }: SortableTaskRowProps) {
   const {
     attributes,
     listeners,
@@ -512,6 +529,18 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
                 <MessageCircle className="w-3 h-3" />
                 {hasUnreadComment && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
               </button>
+            )}
+
+            {/* Checklist progress pill */}
+            {checklistProgress && checklistProgress.total > 0 && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+                checklistProgress.completed === checklistProgress.total
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                <ListChecks className="w-3 h-3" />
+                {checklistProgress.completed}/{checklistProgress.total}
+              </span>
             )}
           </div>
         </div>

@@ -29,6 +29,7 @@ import {
   useTodoLastCommentsQuery,
 } from '../hooks/useTodoItems';
 import { setTaskViewed } from '../hooks/useMyTodos';
+import { useChecklistProgressQuery } from '../hooks/useTodoChecklist';
 import { SortableTaskRow, MobileTaskCard } from './SortableTaskRow';
 import { InlineCommentPopup, SectionColorPicker, EmptyState, QuickAddTask, MobileQuickAddTask } from './InlineEditors';
 import TaskDetailModal from './TaskDetailModal';
@@ -108,9 +109,10 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
 
   const list = lists?.find(l => l.id === listId);
 
-  // Collect item IDs for last comments query
+  // Collect item IDs for last comments and checklist progress queries
   const itemIds = useMemo(() => (items || []).map(i => i.id), [items]);
   const { data: lastComments } = useTodoLastCommentsQuery(itemIds);
+  const { data: checklistProgressMap } = useChecklistProgressQuery(itemIds);
 
   // State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -805,6 +807,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
                     listId={listId}
                     allSections={sections}
                     lastComments={lastComments}
+                    checklistProgressMap={checklistProgressMap}
                     addingTaskInSection={addingTaskInSection}
                     sensors={sensors}
                     onToggleSection={toggleSection}
@@ -930,6 +933,7 @@ interface SectionBlockProps {
   listId: string;
   allSections: TodoSection[];
   lastComments: Record<string, any> | undefined;
+  checklistProgressMap: Record<string, { total: number; completed: number }> | undefined;
   addingTaskInSection: string | null;
   sensors: ReturnType<typeof useSensors>;
   onToggleSection: (sectionId: string) => void;
@@ -953,6 +957,7 @@ function SectionBlock({
   listId,
   allSections,
   lastComments,
+  checklistProgressMap,
   addingTaskInSection,
   sensors,
   onToggleSection,
@@ -1077,6 +1082,7 @@ function SectionBlock({
                             listId={listId}
                             sections={allSections}
                             lastComment={lastComments?.[item.id] || null}
+                            checklistProgress={checklistProgressMap?.[item.id] || null}
                             onOpenTask={() => onOpenTask(item.id)}
                             onOpenCommentPopup={onOpenCommentPopup}
                             onStatusChange={onStatusChange}
@@ -1110,6 +1116,7 @@ function SectionBlock({
                           listId={listId}
                           sections={allSections}
                           lastComment={lastComments?.[item.id] || null}
+                          checklistProgress={checklistProgressMap?.[item.id] || null}
                           onOpenTask={() => onOpenTask(item.id)}
                           onOpenCommentPopup={onOpenCommentPopup}
                           onStatusChange={onStatusChange}

@@ -79,6 +79,10 @@ export interface TodoItem {
   section?: TodoSection;
   list?: TodoList;
   followers?: TodoItemFollower[];
+  checklist_progress?: {
+    total: number;
+    completed: number;
+  };
 }
 
 export interface TodoItemFollower {
@@ -108,6 +112,25 @@ export interface TodoItemComment {
     full_name: string;
     avatar_url: string | null;
   };
+}
+
+export interface TodoChecklistItem {
+  id: string;
+  parent_item_id: string;
+  title: string;
+  is_completed: boolean;
+  assigned_to: string | null;
+  sort_order: number;
+  completed_at: string | null;
+  completed_by: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  assigned_user?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  } | null;
 }
 
 export interface TodoItemAttachment {

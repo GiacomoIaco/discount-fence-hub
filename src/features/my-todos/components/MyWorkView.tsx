@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Search, ChevronDown, ChevronRight, Loader2, Calendar, Check, Bookmark, X, Plus } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Loader2, Calendar, Check, Bookmark, X, Plus, ListChecks } from 'lucide-react';
 import { useMyWorkQuery, setTaskViewed } from '../hooks/useMyTodos';
+import { useChecklistProgressQuery } from '../hooks/useTodoChecklist';
 import TaskDetailModal from './TaskDetailModal';
 import TodoMetrics from './TodoMetrics';
 import { EmptyState } from './InlineEditors';
@@ -68,6 +69,10 @@ const MY_WORK_PRESETS: MyWorkSavedView[] = [
 
 export default function MyWorkView() {
   const { data: items, isLoading } = useMyWorkQuery();
+
+  // Fetch checklist progress for all items
+  const allItemIds = useMemo(() => (items || []).map(i => i.id), [items]);
+  const { data: checklistProgressMap } = useChecklistProgressQuery(allItemIds);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -498,6 +503,7 @@ export default function MyWorkView() {
                       <MyWorkItem
                         key={item.id}
                         item={item}
+                        checklistProgress={checklistProgressMap?.[item.id] || null}
                         onOpen={() => {
                           setTaskViewed(item.id);
                           setSelectedTaskId(item.id);
@@ -536,7 +542,7 @@ const statusBorderColor: Record<string, string> = {
   blocked: 'border-l-red-500',
 };
 
-function MyWorkItem({ item, onOpen }: { item: TodoItem; onOpen: () => void }) {
+function MyWorkItem({ item, checklistProgress, onOpen }: { item: TodoItem; checklistProgress?: { total: number; completed: number } | null; onOpen: () => void }) {
   const overdue = isOverdue(item);
   const statusInfo = statusOptions.find(s => s.value === item.status) || statusOptions[0];
 
@@ -599,6 +605,17 @@ function MyWorkItem({ item, onOpen }: { item: TodoItem; onOpen: () => void }) {
               {formatDate(item.due_date)}
             </span>
           )}
+          {/* Checklist progress pill */}
+          {checklistProgress && checklistProgress.total > 0 && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
+              checklistProgress.completed === checklistProgress.total
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              <ListChecks className="w-3 h-3" />
+              {checklistProgress.completed}/{checklistProgress.total}
+            </span>
+          )}
         </div>
       </div>
 
@@ -620,12 +637,27 @@ function MyWorkItem({ item, onOpen }: { item: TodoItem; onOpen: () => void }) {
         {item.is_high_priority && (
           <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="High Priority" />
         )}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex items-center gap-2">
           <span className={`text-sm font-medium ${
             item.status === 'done' ? 'line-through text-gray-500' : 'text-gray-900'
           }`}>
             {item.title}
           </span>
+          {/* Checklist progress */}
+          {checklistProgress && checklistProgress.total > 0 && (
+            <div className="flex items-center gap-1.5 flex-shrink-0" title={`${checklistProgress.completed} of ${checklistProgress.total} subtasks completed`}>
+              <ListChecks className="w-3.5 h-3.5 text-gray-400" />
+              <span className={`text-xs font-medium ${checklistProgress.completed === checklistProgress.total ? 'text-green-600' : 'text-gray-500'}`}>
+                {checklistProgress.completed}/{checklistProgress.total}
+              </span>
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${checklistProgress.completed === checklistProgress.total ? 'bg-green-500' : 'bg-blue-500'}`}
+                  style={{ width: `${Math.round((checklistProgress.completed / checklistProgress.total) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.bg} ${statusInfo.text}`}>
           {statusInfo.label}

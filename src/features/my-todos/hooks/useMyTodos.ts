@@ -49,6 +49,16 @@ export {
   useNotifyComment,
 } from './useTodoNotifications';
 
+export {
+  useChecklistItemsQuery,
+  useChecklistProgressQuery,
+  useCreateChecklistItem,
+  useToggleChecklistItem,
+  useUpdateChecklistItem,
+  useDeleteChecklistItem,
+  useReorderChecklistItems,
+} from './useTodoChecklist';
+
 // Re-export types
 export type {
   TodoList,
@@ -57,6 +67,7 @@ export type {
   TodoItem,
   TodoItemFollower,
   TodoItemComment,
+  TodoChecklistItem,
   TodoVisibility,
   TodoItemStatus,
 } from '../types';

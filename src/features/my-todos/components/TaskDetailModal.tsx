@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   X, Calendar, CheckCircle2, MessageSquare, Clock, User, Loader2, Edit3,
   Save, AlertTriangle, Send, Paperclip, Camera, Image, FileText, Trash2,
-  Play, Video, Download,
+  Play, Video, Download, ListChecks, GripVertical, Plus, Square, CheckSquare, Users,
 } from 'lucide-react';
 import {
   useTodoItemsQuery, useUpdateTodoItemStatus, useUpdateTodoItem,
@@ -20,7 +20,32 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { getInitials } from '../../../lib/stringUtils';
 import { getAvatarColor } from '../utils/todoHelpers';
 import { useNotifyMention, useNotifyComment } from '../hooks/useTodoNotifications';
-import type { TodoItemAttachment } from '../types';
+import {
+  useChecklistItemsQuery,
+  useCreateChecklistItem,
+  useToggleChecklistItem,
+  useUpdateChecklistItem,
+  useDeleteChecklistItem,
+  useReorderChecklistItems,
+} from '../hooks/useTodoChecklist';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { TodoItemAttachment, TodoChecklistItem } from '../types';
 
 interface TaskDetailModalProps {
   taskId: string;
@@ -142,7 +167,16 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   const notifyMention = useNotifyMention();
   const notifyComment = useNotifyComment();
 
-  const [activeTab, setActiveTab] = useState<'chat' | 'details' | 'files'>('chat');
+  // Checklist/subtasks hooks
+  const { data: checklistItems, isLoading: checklistLoading } = useChecklistItemsQuery(taskId);
+  const createChecklistItem = useCreateChecklistItem();
+  const toggleChecklistItem = useToggleChecklistItem();
+  const updateChecklistItem = useUpdateChecklistItem();
+  const deleteChecklistItem = useDeleteChecklistItem();
+  const reorderChecklistItems = useReorderChecklistItems();
+
+  const [activeTab, setActiveTab] = useState<'chat' | 'details' | 'subtasks' | 'files'>('chat');
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showFilePickerModal, setShowFilePickerModal] = useState(false);
@@ -451,7 +485,7 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
 
           {/* Tabs */}
           <div className="border-b border-gray-200 flex flex-shrink-0">
-            {(['chat', 'details', 'files'] as const).map(tab => (
+            {(['chat', 'details', 'subtasks', 'files'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -463,8 +497,12 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
               >
                 {tab === 'chat' && <MessageSquare className="w-4 h-4" />}
                 {tab === 'details' && <Clock className="w-4 h-4" />}
+                {tab === 'subtasks' && <ListChecks className="w-4 h-4" />}
                 {tab === 'files' && <Paperclip className="w-4 h-4" />}
                 <span className="capitalize">{tab}</span>
+                {tab === 'subtasks' && checklistItems && checklistItems.length > 0 && (
+                  <span className="bg-gray-200 text-gray-700 text-xs px-1.5 py-0.5 rounded-full">{checklistItems.length}</span>
+                )}
                 {tab === 'files' && (attachments?.length || 0) > 0 && (
                   <span className="bg-gray-200 text-gray-700 text-xs px-1.5 py-0.5 rounded-full">{attachments?.length}</span>
                 )}
@@ -908,6 +946,24 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
               </div>
             )}
 
+            {/* ===== SUBTASKS TAB ===== */}
+            {activeTab === 'subtasks' && (
+              <SubtasksTabContent
+                taskId={taskId}
+                checklistItems={checklistItems || []}
+                checklistLoading={checklistLoading}
+                users={users || []}
+                userId={user?.id || ''}
+                newSubtaskTitle={newSubtaskTitle}
+                setNewSubtaskTitle={setNewSubtaskTitle}
+                createChecklistItem={createChecklistItem}
+                toggleChecklistItem={toggleChecklistItem}
+                updateChecklistItem={updateChecklistItem}
+                deleteChecklistItem={deleteChecklistItem}
+                reorderChecklistItems={reorderChecklistItems}
+              />
+            )}
+
             {/* ===== FILES TAB ===== */}
             {activeTab === 'files' && (
               <div className="p-4 sm:p-6">
@@ -1063,6 +1119,315 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
         </div>
       )}
     </>
+  );
+}
+
+// ============================================
+// Subtasks Tab Content
+// ============================================
+
+interface SubtasksTabContentProps {
+  taskId: string;
+  checklistItems: TodoChecklistItem[];
+  checklistLoading: boolean;
+  users: { id: string; name: string }[];
+  userId: string;
+  newSubtaskTitle: string;
+  setNewSubtaskTitle: (v: string) => void;
+  createChecklistItem: ReturnType<typeof useCreateChecklistItem>;
+  toggleChecklistItem: ReturnType<typeof useToggleChecklistItem>;
+  updateChecklistItem: ReturnType<typeof useUpdateChecklistItem>;
+  deleteChecklistItem: ReturnType<typeof useDeleteChecklistItem>;
+  reorderChecklistItems: ReturnType<typeof useReorderChecklistItems>;
+}
+
+function SubtasksTabContent({
+  taskId,
+  checklistItems,
+  checklistLoading,
+  users,
+  userId,
+  newSubtaskTitle,
+  setNewSubtaskTitle,
+  createChecklistItem,
+  toggleChecklistItem,
+  updateChecklistItem,
+  deleteChecklistItem,
+  reorderChecklistItems,
+}: SubtasksTabContentProps) {
+  const completedCount = checklistItems.filter(i => i.is_completed).length;
+  const totalCount = checklistItems.length;
+  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleAddSubtask = () => {
+    const title = newSubtaskTitle.trim();
+    if (!title) return;
+    createChecklistItem.mutate({ parentItemId: taskId, title });
+    setNewSubtaskTitle('');
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = checklistItems.findIndex(i => i.id === active.id);
+    const newIndex = checklistItems.findIndex(i => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(checklistItems, oldIndex, newIndex);
+    const updates = reordered.map((item, idx) => ({ id: item.id, sort_order: idx }));
+    reorderChecklistItems.mutate({ parentItemId: taskId, items: updates });
+  };
+
+  return (
+    <div className="p-4 sm:p-6">
+      {/* Progress bar */}
+      {totalCount > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between text-sm mb-1.5">
+            <span className="text-gray-600 font-medium">
+              {completedCount} of {totalCount} completed
+            </span>
+            <span className="text-gray-500">{progressPct}%</span>
+          </div>
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 rounded-full transition-all duration-300"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Add subtask input */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <Plus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Add subtask..."
+            value={newSubtaskTitle}
+            onChange={(e) => setNewSubtaskTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddSubtask();
+              }
+            }}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <button
+          onClick={handleAddSubtask}
+          disabled={!newSubtaskTitle.trim() || createChecklistItem.isPending}
+          className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Add
+        </button>
+      </div>
+
+      {/* Checklist items */}
+      {checklistLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+        </div>
+      ) : checklistItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+          <ListChecks className="w-10 h-10 mb-3" />
+          <p className="text-sm font-medium">No subtasks yet</p>
+          <p className="text-xs">Break this task into smaller steps.</p>
+        </div>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={checklistItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-1">
+              {checklistItems.map(item => (
+                <SortableChecklistItem
+                  key={item.id}
+                  item={item}
+                  taskId={taskId}
+                  users={users}
+                  toggleChecklistItem={toggleChecklistItem}
+                  updateChecklistItem={updateChecklistItem}
+                  deleteChecklistItem={deleteChecklistItem}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// Sortable Checklist Item
+// ============================================
+
+function SortableChecklistItem({
+  item,
+  taskId,
+  users,
+  toggleChecklistItem,
+  updateChecklistItem,
+  deleteChecklistItem,
+}: {
+  item: TodoChecklistItem;
+  taskId: string;
+  users: { id: string; name: string }[];
+  toggleChecklistItem: ReturnType<typeof useToggleChecklistItem>;
+  updateChecklistItem: ReturnType<typeof useUpdateChecklistItem>;
+  deleteChecklistItem: ReturnType<typeof useDeleteChecklistItem>;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const assignBtnRef = useRef<HTMLButtonElement>(null);
+  const assignDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showAssignDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        assignDropdownRef.current && !assignDropdownRef.current.contains(e.target as Node) &&
+        assignBtnRef.current && !assignBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowAssignDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAssignDropdown]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 px-2 py-2 rounded-lg group hover:bg-gray-50 transition-colors ${
+        isDragging ? 'shadow-lg ring-2 ring-blue-500 bg-white z-50' : ''
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-0.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+
+      {/* Checkbox */}
+      <button
+        onClick={() => toggleChecklistItem.mutate({
+          id: item.id,
+          parentItemId: taskId,
+          isCompleted: !item.is_completed,
+        })}
+        className="flex-shrink-0"
+      >
+        {item.is_completed ? (
+          <CheckSquare className="w-5 h-5 text-green-500" />
+        ) : (
+          <Square className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+        )}
+      </button>
+
+      {/* Title */}
+      <span
+        className={`flex-1 text-sm ${
+          item.is_completed ? 'line-through text-gray-400' : 'text-gray-800'
+        }`}
+      >
+        {item.title}
+      </span>
+
+      {/* Assign button */}
+      <div className="relative flex-shrink-0">
+        <button
+          ref={assignBtnRef}
+          onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-colors flex-shrink-0 ${
+            item.assigned_user
+              ? `${getAvatarColor(item.assigned_user.id)} text-white`
+              : 'border border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500 opacity-0 group-hover:opacity-100'
+          }`}
+          title={item.assigned_user?.full_name || 'Assign someone'}
+        >
+          {item.assigned_user
+            ? getInitials(item.assigned_user.full_name)
+            : <Users className="w-3 h-3" />}
+        </button>
+        {showAssignDropdown && (
+          <div
+            ref={assignDropdownRef}
+            className="absolute right-0 top-full mt-1 z-50 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-48 overflow-y-auto"
+          >
+            {item.assigned_to && (
+              <button
+                onClick={() => {
+                  updateChecklistItem.mutate({
+                    id: item.id,
+                    parentItemId: taskId,
+                    assigned_to: null,
+                  });
+                  setShowAssignDropdown(false);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+              >
+                Unassign
+              </button>
+            )}
+            {users.map(u => (
+              <button
+                key={u.id}
+                onClick={() => {
+                  updateChecklistItem.mutate({
+                    id: item.id,
+                    parentItemId: taskId,
+                    assigned_to: u.id,
+                  });
+                  setShowAssignDropdown(false);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <div className={`w-5 h-5 rounded-full ${getAvatarColor(u.id)} text-white text-[10px] flex items-center justify-center`}>
+                  {getInitials(u.name)}
+                </div>
+                <span className="truncate">{u.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Delete button */}
+      <button
+        onClick={() => deleteChecklistItem.mutate({ id: item.id, parentItemId: taskId })}
+        className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+        title="Delete subtask"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
   );
 }
 
