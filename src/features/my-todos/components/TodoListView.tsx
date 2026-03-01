@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, type Dispatch, type SetStateAction } from 'react';
-import { Plus, ChevronDown, ChevronRight, Pencil, Trash2, Settings, Users, Archive, GripVertical } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Pencil, Trash2, Settings, Users, Archive, GripVertical, Search, UserCircle, Eye, EyeOff } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -17,6 +17,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useTodoListsQuery } from '../hooks/useTodoLists';
 import { useTodoSectionsQuery, useCreateTodoSection, useUpdateTodoSection, useDeleteTodoSection, useReorderTodoSections } from '../hooks/useTodoSections';
 import {
@@ -31,8 +32,8 @@ import { setTaskViewed } from '../hooks/useMyTodos';
 import { SortableTaskRow, MobileTaskCard } from './SortableTaskRow';
 import { InlineCommentPopup, SectionColorPicker, EmptyState, QuickAddTask, MobileQuickAddTask } from './InlineEditors';
 import TaskDetailModal from './TaskDetailModal';
-import { getSectionColor } from '../utils/todoHelpers';
-import type { TodoItem, TodoSection } from '../types';
+import { getSectionColor, statusOptions } from '../utils/todoHelpers';
+import type { TodoItem, TodoSection, TodoItemStatus } from '../types';
 
 interface TodoListViewProps {
   listId: string;
@@ -42,6 +43,7 @@ interface TodoListViewProps {
 }
 
 export default function TodoListView({ listId, onEditList, onManageMembers, onArchiveList }: TodoListViewProps) {
+  const { user } = useAuth();
   const { data: lists } = useTodoListsQuery();
   const { data: sections } = useTodoSectionsQuery(listId);
   const { data: items } = useTodoItemsQuery(listId);
@@ -65,6 +67,12 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
   } | null>(null);
   const [showListMenu, setShowListMenu] = useState(false);
 
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<TodoItemStatus | 'all'>('all');
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [showDone, setShowDone] = useState(true);
+
   // Mutations
   const updateStatus = useUpdateTodoItemStatus();
   const updateItem = useUpdateTodoItem();
@@ -81,11 +89,49 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Group items by section
+  // Filter items then group by section
+  const filteredItems = useMemo(() => {
+    let result = items || [];
+
+    // Hide completed
+    if (!showDone) {
+      result = result.filter(i => i.status !== 'done');
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(i => i.status === statusFilter);
+    }
+
+    // My tasks only (assigned to me OR I follow)
+    if (myTasksOnly && user?.id) {
+      result = result.filter(i =>
+        i.assigned_to === user.id ||
+        i.created_by === user.id ||
+        i.followers?.some(f => f.user_id === user.id)
+      );
+    }
+
+    // Search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(i =>
+        i.title.toLowerCase().includes(q) ||
+        i.notes?.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [items, showDone, statusFilter, myTasksOnly, searchQuery, user?.id]);
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || myTasksOnly || !showDone;
+
+  // Group filtered items by section
   const itemsBySection = useMemo(() => {
     const map: Record<string, TodoItem[]> = {};
     (sections || []).forEach(s => { map[s.id] = []; });
-    (items || []).forEach(item => {
+    filteredItems.forEach(item => {
       if (map[item.section_id]) {
         map[item.section_id].push(item);
       }
@@ -93,7 +139,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
     // Sort each section's items by sort_order
     Object.values(map).forEach(arr => arr.sort((a, b) => a.sort_order - b.sort_order));
     return map;
-  }, [items, sections]);
+  }, [filteredItems, sections]);
 
   const toggleSection = useCallback((sectionId: string) => {
     setCollapsedSections(prev => {
@@ -225,6 +271,156 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
           )}
         </div>
       </div>
+
+      {/* Filter Bar — Desktop */}
+      <div className="hidden md:flex items-center gap-3 mb-4">
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        {/* Status dropdown */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as TodoItemStatus | 'all')}
+          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Statuses</option>
+          {statusOptions.map(s => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+
+        {/* @Me toggle */}
+        <button
+          onClick={() => setMyTasksOnly(!myTasksOnly)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            myTasksOnly
+              ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <UserCircle className="w-4 h-4" />
+          @Me
+        </button>
+
+        {/* Show done toggle */}
+        <button
+          onClick={() => setShowDone(!showDone)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            !showDone
+              ? 'bg-gray-100 border-gray-300 text-gray-700 font-medium'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          {showDone ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          {showDone ? 'Done visible' : 'Done hidden'}
+        </button>
+
+        {/* Clear filters */}
+        {hasActiveFilters && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setStatusFilter('all');
+              setMyTasksOnly(false);
+              setShowDone(true);
+            }}
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Filter Bar — Mobile: horizontal scrolling pills */}
+      <div className="md:hidden flex items-center gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+        {/* @Me pill */}
+        <button
+          onClick={() => setMyTasksOnly(!myTasksOnly)}
+          className={`flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            myTasksOnly
+              ? 'bg-blue-100 border-blue-300 text-blue-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          <UserCircle className="w-3.5 h-3.5" />
+          @Me
+        </button>
+
+        {/* Status pills */}
+        {statusOptions.filter(s => s.value !== 'done').map(s => (
+          <button
+            key={s.value}
+            onClick={() => setStatusFilter(statusFilter === s.value ? 'all' : s.value as TodoItemStatus)}
+            className={`flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              statusFilter === s.value
+                ? `${s.bg} ${s.text} border-current`
+                : 'bg-white border-gray-300 text-gray-600'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+
+        {/* Hide done pill */}
+        <button
+          onClick={() => setShowDone(!showDone)}
+          className={`flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+            !showDone
+              ? 'bg-gray-200 border-gray-400 text-gray-700'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          {showDone ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+          Done
+        </button>
+
+        {/* Search pill — opens search input */}
+        <div className="flex-shrink-0 relative">
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-24 focus:w-40 transition-all pl-7 pr-2 py-1.5 text-xs border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+        </div>
+
+        {/* Clear all — only when filters active */}
+        {hasActiveFilters && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setStatusFilter('all');
+              setMyTasksOnly(false);
+              setShowDone(true);
+            }}
+            className="flex-shrink-0 px-2 py-1.5 text-xs text-red-500 font-medium"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Active filter count banner */}
+      {hasActiveFilters && (
+        <div className="mb-3 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 flex items-center justify-between">
+          <span>
+            Showing {filteredItems.length} of {(items || []).length} tasks
+            {myTasksOnly ? ' (assigned to you)' : ''}
+            {statusFilter !== 'all' ? ` · ${statusOptions.find(s => s.value === statusFilter)?.label}` : ''}
+          </span>
+        </div>
+      )}
 
       {/* Sections + Tasks */}
       <div className="space-y-4">

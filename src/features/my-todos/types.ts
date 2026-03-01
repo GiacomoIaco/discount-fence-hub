@@ -60,6 +60,7 @@ export interface TodoItem {
   is_high_priority: boolean;
   sort_order: number;
   completed_at: string | null;
+  completed_by: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
