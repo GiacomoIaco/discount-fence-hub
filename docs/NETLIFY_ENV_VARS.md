@@ -12,9 +12,9 @@ This document lists all environment variables configured in Netlify for the Disc
 - **GOOGLE_API_KEY** - Google services API key
 
 ### Email Service
-- **SENDGRID_API_KEY** - SendGrid API key for sending invitation emails
+- **RESEND_API_KEY** - Resend API key for sending emails
   - Sender: giacomo@discountfenceusa.com
-  - Must be verified in SendGrid/Twilio
+  - Domain must be verified in Resend
 
 ### Database (Supabase)
 - **VITE_SUPABASE_URL** - Supabase project URL (public, used in frontend)
@@ -30,7 +30,7 @@ All variables are set to:
 
 ## Security Notes
 - ✅ Frontend keys (VITE_*) are safe to expose in client
-- ⚠️ Backend keys (SENDGRID_API_KEY, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY) must remain server-side only
+- ⚠️ Backend keys (RESEND_API_KEY, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY) must remain server-side only
 - Never commit actual key values to git
 - Service role key bypasses Row Level Security - use carefully
 
@@ -38,7 +38,7 @@ All variables are set to:
 2025-10-09
 
 ## Required for Features
-- **User Invitations**: SENDGRID_API_KEY, SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL
+- **User Invitations**: RESEND_API_KEY, SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL
 - **User Deletion**: SUPABASE_SERVICE_ROLE_KEY
 - **AI Features**: ANTHROPIC_API_KEY, VITE_ANTHROPIC_API_KEY, VITE_OPENAI_API_KEY
 - **Voice Transcription**: VITE_ASSEMBLYAI_API_KEY

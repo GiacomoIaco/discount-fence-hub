@@ -170,41 +170,29 @@ export default async (request: Request, context: Context) => {
       );
     }
 
-    // Send email using SendGrid
-    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
-    if (!sendgridApiKey) {
-      throw new Error("SendGrid API key not configured");
+    // Send email using Resend
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      throw new Error("Resend API key not configured");
     }
 
-    const sendGridResponse = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Authorization": `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        personalizations: [
-          {
-            to: recipients.map((email) => ({ email })),
-            subject: `Weekly Leadership Summary - ${formatDate(weekStart)} to ${formatDate(weekEnd)}`,
-          },
-        ],
-        from: {
-          email: "noreply@discountfence.com",
-          name: "Discount Fence Leadership",
-        },
-        content: [
-          {
-            type: "text/html",
-            value: emailHTML,
-          },
-        ],
+        from: "Leadership Weekly Summary <giacomo@discountfenceusa.com>",
+        to: recipients,
+        subject: `Weekly Leadership Summary - ${formatDate(weekStart)} to ${formatDate(weekEnd)}`,
+        html: emailHTML,
       }),
     });
 
-    if (!sendGridResponse.ok) {
-      const errorText = await sendGridResponse.text();
-      throw new Error(`SendGrid error: ${errorText}`);
+    if (!resendResponse.ok) {
+      const errorText = await resendResponse.text();
+      throw new Error(`Resend error: ${errorText}`);
     }
 
     return new Response(

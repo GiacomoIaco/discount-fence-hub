@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
+const resendApiKey = process.env.RESEND_API_KEY;
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -109,7 +109,7 @@ export const handler: Handler = async (event) => {
     const errors: string[] = [];
 
     // Send email
-    if ((method === 'email' || method === 'both') && recipientEmail && sendgridApiKey) {
+    if ((method === 'email' || method === 'both') && recipientEmail && resendApiKey) {
       try {
         await sendEmail({
           to: recipientEmail,
@@ -214,8 +214,8 @@ interface EmailParams {
 }
 
 async function sendEmail(params: EmailParams): Promise<void> {
-  if (!sendgridApiKey) {
-    throw new Error('SendGrid not configured');
+  if (!resendApiKey) {
+    throw new Error('Resend not configured');
   }
 
   const {
@@ -333,23 +333,23 @@ async function sendEmail(params: EmailParams): Promise<void> {
 </html>
 `;
 
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${sendgridApiKey}`,
+      'Authorization': `Bearer ${resendApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: 'quotes@discountfenceusa.com', name: 'Discount Fence USA' },
+      from: 'Discount Fence USA <quotes@discountfenceusa.com>',
+      to: [to],
       subject: `Your Quote #${quoteNumber} from Discount Fence USA`,
-      content: [{ type: 'text/html', value: html }],
+      html,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`SendGrid API error: ${errorText}`);
+    throw new Error(`Resend API error: ${errorText}`);
   }
 }
 

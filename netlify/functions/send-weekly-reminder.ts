@@ -111,33 +111,28 @@ const handler = schedule('0 22 * * 4', async () => {
       </html>
     `;
 
-    // Send email to each user via SendGrid
+    // Send email to each user via Resend
     const emailPromises = users.map(async (user) => {
       if (!user.email) return;
 
       try {
-        const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            personalizations: [{
-              to: [{ email: user.email }],
-            }],
-            from: { email: 'giacomo@discountfenceusa.com', name: 'Leadership Updates' },
+            from: 'Leadership Updates <giacomo@discountfenceusa.com>',
+            to: [user.email],
             subject: `Reminder: Submit Weekly Updates by Friday 2pm - ${weekRange}`,
-            content: [{
-              type: 'text/html',
-              value: emailHtml,
-            }],
+            html: emailHtml,
           }),
         });
 
-        if (!sendGridResponse.ok) {
-          const errorText = await sendGridResponse.text();
-          console.error(`SendGrid error for ${user.email}:`, errorText);
+        if (!resendResponse.ok) {
+          const errorText = await resendResponse.text();
+          console.error(`Resend error for ${user.email}:`, errorText);
         } else {
           console.log(`Reminder sent to: ${user.email}`);
         }

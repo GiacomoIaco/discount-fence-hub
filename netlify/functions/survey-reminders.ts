@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
+const resendApiKey = process.env.RESEND_API_KEY;
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -123,7 +123,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         const unsubscribeUrl = `${appUrl}/.netlify/functions/survey-unsubscribe?token=${recipient.response_token}`;
 
         // Send email reminder
-        if (deliveryMethods.includes('email') && recipient.recipient_email && sendgridApiKey) {
+        if (deliveryMethods.includes('email') && recipient.recipient_email && resendApiKey) {
           try {
             await sendReminderEmail({
               to: recipient.recipient_email,
@@ -254,23 +254,23 @@ async function sendReminderEmail(params: ReminderEmailParams): Promise<void> {
 </html>
 `;
 
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${sendgridApiKey}`,
+      'Authorization': `Bearer ${resendApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: 'surveys@discountfenceusa.com', name: 'Discount Fence USA' },
+      from: 'Discount Fence USA <surveys@discountfenceusa.com>',
+      to: [to],
       subject,
-      content: [{ type: 'text/html', value: html }],
+      html,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`SendGrid API error: ${errorText}`);
+    throw new Error(`Resend API error: ${errorText}`);
   }
 }
 

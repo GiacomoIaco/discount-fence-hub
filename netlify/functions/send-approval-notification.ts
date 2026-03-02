@@ -3,7 +3,7 @@ import { Handler } from '@netlify/functions';
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-const sendGridApiKey = process.env.SENDGRID_API_KEY;
+const resendApiKey = process.env.RESEND_API_KEY;
 
 interface ApprovalNotificationRequest {
   userId: string;
@@ -37,8 +37,8 @@ export const handler: Handler = async (event) => {
     const appUrl = process.env.URL || 'https://discount-fence-hub.netlify.app';
     const results: { email?: boolean; sms?: boolean } = {};
 
-    // 1. Send Email via SendGrid
-    if (sendGridApiKey) {
+    // 1. Send Email via Resend
+    if (resendApiKey) {
       try {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -64,23 +64,23 @@ export const handler: Handler = async (event) => {
           </div>
         `;
 
-        const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${sendGridApiKey}`,
+            'Authorization': `Bearer ${resendApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            personalizations: [{ to: [{ email }] }],
-            from: { email: 'giacomo@discountfenceusa.com', name: 'Discount Fence Hub' },
+            from: 'Discount Fence Hub <giacomo@discountfenceusa.com>',
+            to: [email],
             subject: 'Your Account Has Been Approved!',
-            content: [{ type: 'text/html', value: emailHtml }],
+            html: emailHtml,
           }),
         });
 
-        results.email = sendGridResponse.ok;
-        if (!sendGridResponse.ok) {
-          console.error('SendGrid error:', await sendGridResponse.text());
+        results.email = resendResponse.ok;
+        if (!resendResponse.ok) {
+          console.error('Resend error:', await resendResponse.text());
         }
       } catch (emailError) {
         console.error('Error sending email:', emailError);

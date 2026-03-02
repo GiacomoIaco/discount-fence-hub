@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
+const resendApiKey = process.env.RESEND_API_KEY;
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -112,7 +112,7 @@ export const handler: Handler = async (event) => {
     }
 
     // Send email if enabled
-    if (creator.email && emailEnabled && sendgridApiKey) {
+    if (creator.email && emailEnabled && resendApiKey) {
       promises.push(sendEmail(creator.email, emailSubject, emailHtml));
     }
 
@@ -142,30 +142,30 @@ export const handler: Handler = async (event) => {
 };
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  if (!sendgridApiKey) {
-    console.log('SendGrid not configured, skipping email');
+  if (!resendApiKey) {
+    console.log('Resend not configured, skipping email');
     return;
   }
 
   try {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${sendgridApiKey}`,
+        'Authorization': `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: 'notifications@discountfenceusa.com', name: 'Discount Fence Hub' },
+        from: 'Discount Fence Hub <notifications@discountfenceusa.com>',
+        to: [to],
         subject,
-        content: [{ type: 'text/html', value: html }],
+        html,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`SendGrid error for ${to}:`, errorText);
-      throw new Error(`SendGrid API error: ${errorText}`);
+      console.error(`Resend error for ${to}:`, errorText);
+      throw new Error(`Resend API error: ${errorText}`);
     }
 
     console.log(`Email sent to ${to}`);

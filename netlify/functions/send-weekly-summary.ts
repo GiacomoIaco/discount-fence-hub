@@ -118,32 +118,27 @@ const handler = schedule('0 19 * * 5', async () => {
 
     console.log(`Sending summary to ${recipients.length} recipients`);
 
-    // 6. Send email via SendGrid
+    // 6. Send email via Resend
     const weekRange = formatWeekRange(currentWeek);
 
-    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{
-          to: recipients.map(email => ({ email })),
-        }],
-        from: { email: 'giacomo@discountfenceusa.com', name: 'Leadership Weekly Summary' },
+        from: 'Leadership Weekly Summary <giacomo@discountfenceusa.com>',
+        to: recipients,
         subject: `Leadership Weekly Summary - Week of ${weekRange}`,
-        content: [{
-          type: 'text/html',
-          value: emailHtml,
-        }],
+        html: emailHtml,
       }),
     });
 
-    if (!sendGridResponse.ok) {
-      const errorText = await sendGridResponse.text();
-      console.error('SendGrid error:', errorText);
-      throw new Error(`SendGrid API error: ${errorText}`);
+    if (!resendResponse.ok) {
+      const errorText = await resendResponse.text();
+      console.error('Resend error:', errorText);
+      throw new Error(`Resend API error: ${errorText}`);
     }
 
     console.log('Summary email sent successfully');

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
+const resendApiKey = process.env.RESEND_API_KEY;
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -155,7 +155,7 @@ export const handler: Handler = async (event) => {
         const unsubscribeUrl = `${appUrl}/.netlify/functions/survey-unsubscribe?token=${recipient.response_token}`;
 
         // Send email
-        if (deliveryMethods.includes('email') && contact.contact_email && sendgridApiKey) {
+        if (deliveryMethods.includes('email') && contact.contact_email && resendApiKey) {
           try {
             await sendEmail({
               to: contact.contact_email,
@@ -341,28 +341,28 @@ function generateEmailHtml(params: EmailParams): string {
 }
 
 async function sendEmail(params: { to: string; subject: string; html: string }): Promise<void> {
-  if (!sendgridApiKey) {
-    console.log('SendGrid not configured, skipping email');
+  if (!resendApiKey) {
+    console.log('Resend not configured, skipping email');
     return;
   }
 
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${sendgridApiKey}`,
+      'Authorization': `Bearer ${resendApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: params.to }] }],
-      from: { email: 'surveys@discountfenceusa.com', name: 'Discount Fence USA' },
+      from: 'Discount Fence USA <surveys@discountfenceusa.com>',
+      to: [params.to],
       subject: params.subject,
-      content: [{ type: 'text/html', value: params.html }],
+      html: params.html,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`SendGrid API error: ${errorText}`);
+    throw new Error(`Resend API error: ${errorText}`);
   }
 }
 
