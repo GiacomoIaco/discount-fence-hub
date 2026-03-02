@@ -80,9 +80,12 @@ export const handler: Handler = async (event) => {
     const inviterName = inviter?.full_name || 'Your manager';
     const appUrl = process.env.URL || 'https://discount-fence-hub.netlify.app';
     const isCrewInvite = invitation.role === 'crew';
+    const lang = invitation.preferred_language || (isCrewInvite ? 'es' : 'en');
 
     let emailSent = false;
     let smsSent = false;
+    let smsError = '';
+    let emailError = '';
 
     // Send SMS reminder (for crew, or for non-crew with phone)
     const phoneToUse = invitation.phone;
@@ -90,18 +93,27 @@ export const handler: Handler = async (event) => {
       try {
         const formattedPhone = formatPhone(phoneToUse);
 
-        const smsBody = isCrewInvite
-          ? [
-              `Recordatorio: ${inviterName} te invito a Discount Fence Hub.`,
-              ``,
-              `Para empezar:`,
-              `1. Abre: ${appUrl}`,
-              `2. Toca "Entrar con telefono"`,
-              `3. Ingresa tu numero y el codigo`,
-              ``,
-              `Agrega la app a tu pantalla de inicio!`,
-            ].join('\n')
-          : `Reminder: ${inviterName} invited you to Discount Fence Hub. Create your account: ${appUrl}/signup?email=${encodeURIComponent(invitation.email)}&token=${invitation.token}`;
+        const crewLoginUrl = `${appUrl}/crew-login`;
+        let smsBody: string;
+        if (isCrewInvite) {
+          smsBody = lang === 'es'
+            ? [
+                `Recordatorio: ${inviterName} te invito a Discount Fence Hub.`,
+                `1. Abre: ${crewLoginUrl}`,
+                `2. Ingresa tu numero de telefono`,
+                `3. Ingresa el codigo que recibiras`,
+                `Agrega la app a tu pantalla!`,
+              ].join('\n')
+            : [
+                `Reminder: ${inviterName} invited you to Discount Fence Hub.`,
+                `1. Open: ${crewLoginUrl}`,
+                `2. Enter your phone number`,
+                `3. Enter the code you receive`,
+                `Add the app to your home screen!`,
+              ].join('\n');
+        } else {
+          smsBody = `Reminder: ${inviterName} invited you to Discount Fence Hub. Create your account: ${appUrl}/signup?email=${encodeURIComponent(invitation.email)}&token=${invitation.token}`;
+        }
 
         const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
         const twilioResponse = await fetch(
@@ -122,10 +134,13 @@ export const handler: Handler = async (event) => {
 
         smsSent = twilioResponse.ok;
         if (!twilioResponse.ok) {
-          console.error('Twilio reminder error:', await twilioResponse.text());
+          const twilioError = await twilioResponse.text();
+          console.error('Twilio reminder error:', twilioError);
+          smsError = `Twilio: ${twilioError}`;
         }
       } catch (err) {
         console.error('Error sending reminder SMS:', err);
+        smsError = err instanceof Error ? err.message : 'Unknown SMS error';
       }
     }
 
@@ -165,15 +180,19 @@ export const handler: Handler = async (event) => {
 
         emailSent = sgResponse.ok;
         if (!sgResponse.ok) {
-          console.error('SendGrid reminder error:', await sgResponse.text());
+          const sgError = await sgResponse.text();
+          console.error('SendGrid reminder error:', sgResponse.status, sgError);
+          emailError = `SendGrid ${sgResponse.status}: ${sgError}`;
         }
       } catch (err) {
         console.error('Error sending reminder email:', err);
+        emailError = err instanceof Error ? err.message : 'Unknown email error';
       }
     }
 
     if (!smsSent && !emailSent) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to send reminder via any channel' }) };
+      const details = [smsError, emailError].filter(Boolean).join('; ') || 'No channel available';
+      return { statusCode: 500, body: JSON.stringify({ error: `Failed to send reminder: ${details}` }) };
     }
 
     // Update tracking

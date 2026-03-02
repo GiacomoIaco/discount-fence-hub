@@ -21,6 +21,8 @@ const Login = () => {
     const path = window.location.pathname;
     if (path === '/reset-password') {
       setView('reset-password');
+    } else if (path === '/crew-login') {
+      setView('crew-login');
     }
   }, []);
 

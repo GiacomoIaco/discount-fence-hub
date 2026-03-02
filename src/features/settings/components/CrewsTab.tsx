@@ -43,6 +43,7 @@ const CrewsTab = () => {
   const [inviteName, setInviteName] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteIsContractor, setInviteIsContractor] = useState(true);
+  const [inviteLanguage, setInviteLanguage] = useState<'en' | 'es'>('es');
   const [inviteCrewId, setInviteCrewId] = useState<string | null>(null); // null = new crew
 
   // Load crew-role invitations
@@ -164,6 +165,7 @@ const CrewsTab = () => {
     setInviteName(crew.lead_name || crew.name);
     setInvitePhone(crew.lead_phone || '');
     setInviteIsContractor(crew.is_subcontractor);
+    setInviteLanguage(crew.is_subcontractor ? 'es' : 'en');
     setShowInviteModal(true);
   };
 
@@ -172,6 +174,7 @@ const CrewsTab = () => {
     setInviteName('');
     setInvitePhone('');
     setInviteIsContractor(true);
+    setInviteLanguage('es');
     setShowInviteModal(true);
   };
 
@@ -213,6 +216,7 @@ const CrewsTab = () => {
           role: 'crew',
           invitedBy: profile.id,
           invitedByName: profile.full_name,
+          language: inviteLanguage,
         }),
       });
 
@@ -553,7 +557,7 @@ const CrewsTab = () => {
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setInviteIsContractor(false)}
+                      onClick={() => { setInviteIsContractor(false); setInviteLanguage('en'); }}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
                         !inviteIsContractor
                           ? 'bg-blue-50 border-blue-300 text-blue-700'
@@ -564,7 +568,7 @@ const CrewsTab = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setInviteIsContractor(true)}
+                      onClick={() => { setInviteIsContractor(true); setInviteLanguage('es'); }}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
                         inviteIsContractor
                           ? 'bg-orange-50 border-orange-300 text-orange-700'
@@ -576,6 +580,34 @@ const CrewsTab = () => {
                   </div>
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SMS Language</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInviteLanguage('es')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                      inviteLanguage === 'es'
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Espanol
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInviteLanguage('en')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                      inviteLanguage === 'en'
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
 
               <div className="flex gap-2 pt-2">
                 <button

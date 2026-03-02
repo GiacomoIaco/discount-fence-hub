@@ -20,6 +20,7 @@ interface InvitationEmailRequest {
   role: string;
   invitedBy: string;
   invitedByName: string;
+  language?: 'en' | 'es';
 }
 
 export const handler: Handler = async (event) => {
@@ -34,11 +35,11 @@ export const handler: Handler = async (event) => {
   try {
     console.log('Starting invitation email function...');
 
-    const { email, phone, role, invitedBy, invitedByName }: InvitationEmailRequest = JSON.parse(
+    const { email, phone, role, invitedBy, invitedByName, language }: InvitationEmailRequest = JSON.parse(
       event.body || '{}'
     );
 
-    console.log('Parsed request:', { email, phone: phone?.substring(0, 6), role, invitedBy, invitedByName });
+    console.log('Parsed request:', { email, phone: phone?.substring(0, 6), role, invitedBy, invitedByName, language });
 
     const isCrewInvite = role === 'crew';
 
@@ -159,6 +160,9 @@ export const handler: Handler = async (event) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
 
+    // Determine language: explicit param, or default es for crew, en for others
+    const preferredLanguage = language || (isCrewInvite ? 'es' : 'en');
+
     const { data: invitation, error: invitationError } = await supabase
       .from('user_invitations')
       .insert({
@@ -170,6 +174,7 @@ export const handler: Handler = async (event) => {
         sent_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString(),
         is_used: false,
+        preferred_language: preferredLanguage,
       })
       .select()
       .single();
@@ -197,16 +202,22 @@ export const handler: Handler = async (event) => {
             else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) formattedPhone = '+' + formattedPhone;
           }
 
-          const smsBody = [
-            `Hola! ${invitedByName} te invito a Discount Fence Hub.`,
-            ``,
-            `Para empezar:`,
-            `1. Abre este link: ${appUrl}`,
-            `2. Toca "Entrar con telefono"`,
-            `3. Ingresa tu numero y el codigo que recibiras`,
-            ``,
-            `Tip: Agrega la app a tu pantalla de inicio para acceso rapido.`,
-          ].join('\n');
+          const crewLoginUrl = `${appUrl}/crew-login`;
+          const smsBody = preferredLanguage === 'es'
+            ? [
+                `${invitedByName} te invito a Discount Fence Hub.`,
+                `1. Abre: ${crewLoginUrl}`,
+                `2. Ingresa tu numero de telefono`,
+                `3. Ingresa el codigo que recibiras`,
+                `Agrega la app a tu pantalla!`,
+              ].join('\n')
+            : [
+                `${invitedByName} invited you to Discount Fence Hub.`,
+                `1. Open: ${crewLoginUrl}`,
+                `2. Enter your phone number`,
+                `3. Enter the code you receive`,
+                `Add the app to your home screen!`,
+              ].join('\n');
 
           const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
           const twilioResponse = await fetch(
