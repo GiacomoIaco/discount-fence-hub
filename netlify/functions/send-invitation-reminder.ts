@@ -145,7 +145,7 @@ export const handler: Handler = async (event) => {
     }
 
     // Send email reminder (for non-crew with email)
-    if (!isCrewInvite && invitation.email && process.env.SENDGRID_API_KEY) {
+    if (!isCrewInvite && invitation.email && process.env.RESEND_API_KEY) {
       try {
         const invitationLink = `${appUrl}/signup?email=${encodeURIComponent(invitation.email)}&token=${invitation.token}`;
         const emailHtml = `
@@ -164,25 +164,25 @@ export const handler: Handler = async (event) => {
           </div>
         `;
 
-        const sgResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            personalizations: [{ to: [{ email: invitation.email }] }],
-            from: { email: 'giacomo@discountfenceusa.com' },
+            from: 'Discount Fence Hub <giacomo@discountfenceusa.com>',
+            to: [invitation.email],
             subject: 'Reminder: You\'re invited to Discount Fence Hub',
-            content: [{ type: 'text/html', value: emailHtml }],
+            html: emailHtml,
           }),
         });
 
-        emailSent = sgResponse.ok;
-        if (!sgResponse.ok) {
-          const sgError = await sgResponse.text();
-          console.error('SendGrid reminder error:', sgResponse.status, sgError);
-          emailError = `SendGrid ${sgResponse.status}: ${sgError}`;
+        emailSent = resendResponse.ok;
+        if (!resendResponse.ok) {
+          const resendError = await resendResponse.text();
+          console.error('Resend reminder error:', resendResponse.status, resendError);
+          emailError = `Resend ${resendResponse.status}: ${resendError}`;
         }
       } catch (err) {
         console.error('Error sending reminder email:', err);

@@ -266,28 +266,23 @@ export const handler: Handler = async (event) => {
           </div>
         `;
 
-        const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            personalizations: [{
-              to: [{ email }],
-            }],
-            from: { email: 'giacomo@discountfenceusa.com' },
+            from: 'Discount Fence Hub <giacomo@discountfenceusa.com>',
+            to: [email],
             subject: 'You\'ve been invited to Discount Fence Hub',
-            content: [{
-              type: 'text/html',
-              value: emailHtml,
-            }],
+            html: emailHtml,
           }),
         });
 
-        if (!sendGridResponse.ok) {
-          const errorText = await sendGridResponse.text();
-          console.error('SendGrid error:', errorText);
+        if (!resendResponse.ok) {
+          const errorText = await resendResponse.text();
+          console.error('Resend error:', resendResponse.status, errorText);
         } else {
           console.log('Invitation email sent successfully to:', email);
         }
