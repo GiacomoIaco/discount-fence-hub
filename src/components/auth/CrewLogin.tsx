@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Phone, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface CrewLoginProps {
   onBackToLogin: () => void;
@@ -52,6 +53,22 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
     setLoading(true);
     try {
       const fullPhone = formatPhoneForApi(phone);
+
+      // Check if this phone is authorized (existing user or pending invitation)
+      const { data: authorized, error: checkError } = await supabase
+        .rpc('check_crew_phone_authorized', { p_phone: fullPhone });
+
+      if (checkError) {
+        console.error('Phone check error:', checkError);
+        setError('Error verificando numero. Intenta de nuevo.');
+        return;
+      }
+
+      if (!authorized) {
+        setError('Este numero no esta registrado. Pide a tu supervisor que te invite.');
+        return;
+      }
+
       const { error } = await signInWithPhone(fullPhone);
       if (error) {
         setError(error.message);

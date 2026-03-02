@@ -56,7 +56,7 @@ const TeamManagement = () => {
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editForm, setEditForm] = useState({ full_name: '', email: '', phone: '' });
   const [inviteEmail, setInviteEmail] = useState('');
-  const [_invitePhone, _setInvitePhone] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
   const [inviteRole, setInviteRole] = useState<AppRole>('sales_rep');
   const [inviting, setInviting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -227,8 +227,13 @@ const TeamManagement = () => {
     }
   };
 
+  const isCrewInvite = inviteRole === 'crew';
+
   const handleInviteUser = async () => {
-    if (!inviteEmail || !canManageUsers || !profile) return;
+    if (!canManageUsers || !profile) return;
+    // Crew needs phone, others need email
+    if (isCrewInvite && !invitePhone) return;
+    if (!isCrewInvite && !inviteEmail) return;
 
     setInviting(true);
     try {
@@ -236,7 +241,8 @@ const TeamManagement = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: inviteEmail,
+          email: isCrewInvite ? undefined : inviteEmail,
+          phone: isCrewInvite ? invitePhone : undefined,
           role: inviteRole,
           invitedBy: profile.id,
           invitedByName: profile.full_name,
@@ -249,9 +255,10 @@ const TeamManagement = () => {
         throw new Error(result.error || 'Failed to send invitation');
       }
 
-      showInfo(`Invitation sent to ${inviteEmail}`);
+      showInfo(`Invitation sent to ${isCrewInvite ? invitePhone : inviteEmail}`);
 
       setInviteEmail('');
+      setInvitePhone('');
       setInviteRole('sales_rep');
       setShowInviteModal(false);
       loadInvitations();
@@ -736,17 +743,6 @@ const TeamManagement = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
                   value={inviteRole}
@@ -761,13 +757,42 @@ const TeamManagement = () => {
                 </select>
               </div>
 
+              {inviteRole === 'crew' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 rounded-l-lg text-sm">+1</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={invitePhone}
+                      onChange={(e) => setInvitePhone(e.target.value)}
+                      placeholder="(512) 555-1234"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">They'll receive an SMS with instructions to log in via phone code</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={handleInviteUser}
-                  disabled={inviting || !inviteEmail}
+                  disabled={inviting || (inviteRole === 'crew' ? !invitePhone : !inviteEmail)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {inviting ? 'Sending...' : 'Send Invitation'}
+                  {inviting ? 'Sending...' : inviteRole === 'crew' ? 'Send SMS Invite' : 'Send Invitation'}
                 </button>
                 <button
                   onClick={() => setShowInviteModal(false)}

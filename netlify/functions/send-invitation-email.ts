@@ -40,8 +40,17 @@ export const handler: Handler = async (event) => {
 
     console.log('Parsed request:', { email, phone: phone?.substring(0, 6), role, invitedBy, invitedByName });
 
-    // Validate required fields
-    if (!email || !role || !invitedBy || !invitedByName) {
+    const isCrewInvite = role === 'crew';
+
+    // Validate required fields: crew needs phone, others need email
+    if (isCrewInvite) {
+      if (!phone || !role || !invitedBy || !invitedByName) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'Missing required fields (phone required for crew)' }),
+        };
+      }
+    } else if (!email || !role || !invitedBy || !invitedByName) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'Missing required fields' }),
@@ -74,33 +83,65 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Check if user already exists
-    const { data: existingProfile } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('email', email)
-      .single();
+    // Check for existing user / pending invitation
+    if (isCrewInvite) {
+      // For crew: check by phone number
+      const normalizedPhone = phone!.replace(/[^\d]/g, '');
 
-    if (existingProfile) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'A user with this email already exists' }),
-      };
-    }
+      const { data: existingByPhone } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .like('phone', `%${normalizedPhone.slice(-10)}%`)
+        .limit(1);
 
-    // Check if there's already a pending invitation
-    const { data: existingInvitation } = await supabase
-      .from('user_invitations')
-      .select('id, is_used')
-      .eq('email', email)
-      .eq('is_used', false)
-      .single();
+      if (existingByPhone && existingByPhone.length > 0) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'A user with this phone number already exists' }),
+        };
+      }
 
-    if (existingInvitation) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'This email already has a pending invitation' }),
-      };
+      const { data: existingInvite } = await supabase
+        .from('user_invitations')
+        .select('id')
+        .like('phone', `%${normalizedPhone.slice(-10)}%`)
+        .eq('is_used', false)
+        .limit(1);
+
+      if (existingInvite && existingInvite.length > 0) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'This phone number already has a pending invitation' }),
+        };
+      }
+    } else {
+      // For non-crew: check by email
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (existingProfile) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'A user with this email already exists' }),
+        };
+      }
+
+      const { data: existingInvitation } = await supabase
+        .from('user_invitations')
+        .select('id, is_used')
+        .eq('email', email)
+        .eq('is_used', false)
+        .single();
+
+      if (existingInvitation) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'This email already has a pending invitation' }),
+        };
+      }
     }
 
     // Generate invitation token
@@ -121,7 +162,8 @@ export const handler: Handler = async (event) => {
     const { data: invitation, error: invitationError } = await supabase
       .from('user_invitations')
       .insert({
-        email,
+        email: email || null,
+        phone: phone || null,
         role,
         invited_by: invitedBy,
         token,
@@ -142,97 +184,143 @@ export const handler: Handler = async (event) => {
       email
     )}&token=${token}`;
 
-    // Send invitation email via SendGrid API
-    try {
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">You've been invited to join Discount Fence Hub</h2>
-          <p>${invitedByName} has invited you to join as a <strong>${role}</strong>.</p>
-          <p>Click the button below to accept your invitation and create your account:</p>
-          <div style="margin: 30px 0;">
-            <a href="${invitationLink}"
-               style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
-              Accept Invitation
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 14px;">This invitation will expire in 7 days.</p>
-          <p style="color: #6b7280; font-size: 14px;">If the button doesn't work, copy and paste this link:</p>
-          <p style="color: #2563eb; font-size: 12px; word-break: break-all;">${invitationLink}</p>
-        </div>
-      `;
-
-      const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          personalizations: [{
-            to: [{ email }],
-          }],
-          from: { email: 'giacomo@discountfenceusa.com' },
-          subject: 'You\'ve been invited to Discount Fence Hub',
-          content: [{
-            type: 'text/html',
-            value: emailHtml,
-          }],
-        }),
-      });
-
-      if (!sendGridResponse.ok) {
-        const errorText = await sendGridResponse.text();
-        console.error('SendGrid error:', errorText);
-        // Don't throw - try SMS as backup
-      } else {
-        console.log('Invitation email sent successfully to:', email);
-      }
-    } catch (emailError) {
-      console.error('Error sending email:', emailError);
-      // Don't fail the whole request if email fails, try SMS
-    }
-
-    // Send SMS invitation if phone provided
+    // --- Send notifications ---
     let smsSent = false;
-    if (phone && twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+
+    if (isCrewInvite) {
+      // Crew invite: SMS only (Spanish) with app link + instructions
+      if (phone && twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+        try {
+          let formattedPhone = phone.replace(/[^\d+]/g, '');
+          if (!formattedPhone.startsWith('+')) {
+            if (formattedPhone.length === 10) formattedPhone = '+1' + formattedPhone;
+            else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) formattedPhone = '+' + formattedPhone;
+          }
+
+          const smsBody = [
+            `Hola! ${invitedByName} te invito a Discount Fence Hub.`,
+            ``,
+            `Para empezar:`,
+            `1. Abre este link: ${appUrl}`,
+            `2. Toca "Entrar con telefono"`,
+            `3. Ingresa tu numero y el codigo que recibiras`,
+            ``,
+            `Tip: Agrega la app a tu pantalla de inicio para acceso rapido.`,
+          ].join('\n');
+
+          const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
+          const twilioResponse = await fetch(
+            `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                To: formattedPhone,
+                From: twilioPhoneNumber,
+                Body: smsBody,
+              }),
+            }
+          );
+
+          smsSent = twilioResponse.ok;
+          if (!twilioResponse.ok) {
+            console.error('Twilio error:', await twilioResponse.text());
+          } else {
+            console.log('Crew invitation SMS sent to:', formattedPhone.substring(0, 6) + '...');
+          }
+        } catch (smsError) {
+          console.error('Error sending crew SMS:', smsError);
+        }
+      }
+    } else {
+      // Non-crew: email + optional SMS
       try {
-        // Format phone number
-        let formattedPhone = phone.replace(/[^\d+]/g, '');
-        if (!formattedPhone.startsWith('+')) {
-          if (formattedPhone.length === 10) {
-            formattedPhone = '+1' + formattedPhone;
-          } else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) {
-            formattedPhone = '+' + formattedPhone;
-          }
-        }
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">You've been invited to join Discount Fence Hub</h2>
+            <p>${invitedByName} has invited you to join as a <strong>${role}</strong>.</p>
+            <p>Click the button below to accept your invitation and create your account:</p>
+            <div style="margin: 30px 0;">
+              <a href="${invitationLink}"
+                 style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+                Accept Invitation
+              </a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">This invitation will expire in 7 days.</p>
+            <p style="color: #6b7280; font-size: 14px;">If the button doesn't work, copy and paste this link:</p>
+            <p style="color: #2563eb; font-size: 12px; word-break: break-all;">${invitationLink}</p>
+          </div>
+        `;
 
-        const smsBody = `${invitedByName} invited you to Discount Fence Hub! Create your account: ${invitationLink}`;
+        const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            personalizations: [{
+              to: [{ email }],
+            }],
+            from: { email: 'giacomo@discountfenceusa.com' },
+            subject: 'You\'ve been invited to Discount Fence Hub',
+            content: [{
+              type: 'text/html',
+              value: emailHtml,
+            }],
+          }),
+        });
 
-        const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
-        const twilioResponse = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Basic ${auth}`,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-              To: formattedPhone,
-              From: twilioPhoneNumber,
-              Body: smsBody,
-            }),
-          }
-        );
-
-        smsSent = twilioResponse.ok;
-        if (!twilioResponse.ok) {
-          console.error('Twilio error:', await twilioResponse.text());
+        if (!sendGridResponse.ok) {
+          const errorText = await sendGridResponse.text();
+          console.error('SendGrid error:', errorText);
         } else {
-          console.log('Invitation SMS sent successfully to:', formattedPhone.substring(0, 6) + '...');
+          console.log('Invitation email sent successfully to:', email);
         }
-      } catch (smsError) {
-        console.error('Error sending SMS:', smsError);
+      } catch (emailError) {
+        console.error('Error sending email:', emailError);
+      }
+
+      // Also send SMS if phone provided
+      if (phone && twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+        try {
+          let formattedPhone = phone.replace(/[^\d+]/g, '');
+          if (!formattedPhone.startsWith('+')) {
+            if (formattedPhone.length === 10) formattedPhone = '+1' + formattedPhone;
+            else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) formattedPhone = '+' + formattedPhone;
+          }
+
+          const smsBody = `${invitedByName} invited you to Discount Fence Hub! Create your account: ${invitationLink}`;
+
+          const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
+          const twilioResponse = await fetch(
+            `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                To: formattedPhone,
+                From: twilioPhoneNumber,
+                Body: smsBody,
+              }),
+            }
+          );
+
+          smsSent = twilioResponse.ok;
+          if (!twilioResponse.ok) {
+            console.error('Twilio error:', await twilioResponse.text());
+          } else {
+            console.log('Invitation SMS sent to:', formattedPhone.substring(0, 6) + '...');
+          }
+        } catch (smsError) {
+          console.error('Error sending SMS:', smsError);
+        }
       }
     }
 
