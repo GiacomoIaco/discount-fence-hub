@@ -24,6 +24,8 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
   const { user } = useAuth();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [roleOverride, setRoleOverride] = useState<AppRole | null>(null);
+  const [overridePermissions, setOverridePermissions] = useState<UserPermissions | null>(null);
 
   // Load permissions from database
   const loadPermissions = useCallback(async (userId: string) => {
@@ -59,6 +61,36 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
+  // Load permissions for an overridden role
+  const loadRolePermissions = useCallback(async (role: AppRole) => {
+    try {
+      const [sectionsRes, permsRes] = await Promise.all([
+        supabase.from('role_section_access').select('section_key').eq('role_key', role),
+        supabase.from('role_permissions').select('permission_key').eq('role_key', role),
+      ]);
+
+      return {
+        role,
+        isSuperAdmin: false,
+        sections: new Set((sectionsRes.data || []).map(r => r.section_key as SectionKey)),
+        permissions: new Set((permsRes.data || []).map(r => r.permission_key as PermissionKey)),
+        buScope: permissions?.buScope || [],
+      } as UserPermissions;
+    } catch (err) {
+      console.error('Error loading role permissions for override:', err);
+      return null;
+    }
+  }, [permissions?.buScope]);
+
+  // Load override permissions when roleOverride changes
+  useEffect(() => {
+    if (!roleOverride) {
+      setOverridePermissions(null);
+      return;
+    }
+    loadRolePermissions(roleOverride).then(setOverridePermissions);
+  }, [roleOverride, loadRolePermissions]);
+
   // Load permissions when user changes
   useEffect(() => {
     if (!user?.id) {
@@ -78,19 +110,22 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     });
   }, [user?.id, loadPermissions]);
 
+  // The effective permissions (override or real)
+  const effective = roleOverride && overridePermissions ? overridePermissions : permissions;
+
   // Check if user has access to a section
   const hasSection = useCallback((section: SectionKey): boolean => {
-    if (!permissions) return false;
-    if (permissions.isSuperAdmin) return true;
-    return permissions.sections.has(section);
-  }, [permissions]);
+    if (!effective) return false;
+    if (effective.isSuperAdmin) return true;
+    return effective.sections.has(section);
+  }, [effective]);
 
   // Check if user has a permission
   const hasPermission = useCallback((permission: PermissionKey): boolean => {
-    if (!permissions) return false;
-    if (permissions.isSuperAdmin) return true;
-    return permissions.permissions.has(permission);
-  }, [permissions]);
+    if (!effective) return false;
+    if (effective.isSuperAdmin) return true;
+    return effective.permissions.has(permission);
+  }, [effective]);
 
   // Refresh permissions
   const refresh = useCallback(async () => {
@@ -101,16 +136,24 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     }
   }, [user?.id, loadPermissions]);
 
+  // Clear override when user changes
+  useEffect(() => {
+    setRoleOverride(null);
+  }, [user?.id]);
+
   // Memoized context value
   const value = useMemo<PermissionContextValue>(() => ({
-    permissions,
+    permissions: effective,
     hasSection,
     hasPermission,
-    role: permissions?.role || null,
+    role: effective?.role || null,
+    realRole: permissions?.role || null,
     isSuperAdmin: permissions?.isSuperAdmin || false,
     isLoading,
     refresh,
-  }), [permissions, hasSection, hasPermission, isLoading, refresh]);
+    roleOverride,
+    setRoleOverride,
+  }), [effective, permissions, hasSection, hasPermission, isLoading, refresh, roleOverride]);
 
   return (
     <PermissionContext.Provider value={value}>

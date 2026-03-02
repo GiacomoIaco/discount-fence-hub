@@ -186,14 +186,20 @@ export interface PermissionContextValue {
   hasSection: (section: SectionKey) => boolean;
   /** Check if user has a permission */
   hasPermission: (permission: PermissionKey) => boolean;
-  /** User's role key */
+  /** User's role key (reflects override if active) */
   role: AppRole | null;
+  /** User's real role (never overridden) */
+  realRole: AppRole | null;
   /** Is super admin */
   isSuperAdmin: boolean;
   /** Loading state */
   isLoading: boolean;
   /** Refresh permissions from database */
   refresh: () => Promise<void>;
+  /** Admin role override — view the app as a different role */
+  roleOverride: AppRole | null;
+  /** Set role override (null to clear) */
+  setRoleOverride: (role: AppRole | null) => void;
 }
 
 // ============================================================================
