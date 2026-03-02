@@ -418,8 +418,8 @@ const CrewsTab = () => {
                         {crew.lead_name && crew.lead_name !== crew.name && (
                           <span className="text-gray-500 text-xs ml-1">({crew.lead_name})</span>
                         )}
-                        {crew.lead_user && (
-                          <div className="text-xs text-green-600">{crew.lead_user.full_name}</div>
+                        {crew.lead_name && crew.lead_user_id && (
+                          <div className="text-xs text-green-600">{crew.lead_name}</div>
                         )}
                       </div>
                     </td>
