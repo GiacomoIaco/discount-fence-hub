@@ -62,7 +62,8 @@ async function markUnifiedItemAsRead({ message, userId }: MarkReadParams): Promi
       break;
 
     case 'team_chat':
-      // Team chat read tracking is handled by the conversations system
+      // Mark team chat as read by updating last_read_at on conversation_participants
+      await supabase.rpc('mark_conversation_read', { conv_id: realId });
       break;
 
     default:

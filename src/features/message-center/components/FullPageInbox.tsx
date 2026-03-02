@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Plus, CheckCheck } from 'lucide-react';
+import { cn } from '../../../lib/utils';
 import { buildEntityUrl, type EntityType } from '../../../lib/routes';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
@@ -114,9 +115,9 @@ export function FullPageInbox() {
   }, [refetch]);
 
   return (
-    <div className="h-full flex bg-gray-50">
+    <div className="h-full flex bg-gray-50 overflow-hidden">
       {/* Left Panel - Message List */}
-      <div className={`${selectedMessage ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-96 xl:w-[420px] bg-white border-r border-gray-200`}>
+      <div className={`${selectedMessage ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-96 xl:w-[420px] bg-white border-r border-gray-200 min-h-0`}>
         {/* Header */}
         <header className="border-b border-gray-200 sticky top-0 z-10 bg-white">
           <div className="flex items-center justify-between px-4 py-4">
@@ -173,30 +174,39 @@ export function FullPageInbox() {
             <InboxEmptyState filter={filter} />
           ) : (
             <div>
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={selectedMessage?.id === message.id ? 'bg-blue-50' : ''}
-                >
-                  <UnifiedInboxItem
-                    message={message}
-                    onClick={handleItemClick}
-                    onReply={handleReply}
-                    onAcknowledge={handleAcknowledge}
-                    onDismiss={handleDismiss}
-                    onRestore={handleRestore}
-                    isReplying={replyMutation.isPending}
-                    hideInlineActions={true}
-                  />
-                </div>
-              ))}
+              {messages.map((message) => {
+                const isSelected = selectedMessage?.id === message.id;
+                return (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      'relative',
+                      isSelected && 'bg-blue-50 ring-inset ring-1 ring-blue-200'
+                    )}
+                  >
+                    {isSelected && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 rounded-r" />
+                    )}
+                    <UnifiedInboxItem
+                      message={message}
+                      onClick={handleItemClick}
+                      onReply={handleReply}
+                      onAcknowledge={handleAcknowledge}
+                      onDismiss={handleDismiss}
+                      onRestore={handleRestore}
+                      isReplying={replyMutation.isPending}
+                      hideInlineActions={true}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
       {/* Right Panel - Conversation View */}
-      <div className={`${selectedMessage ? 'flex' : 'hidden lg:flex'} flex-1 flex-col`}>
+      <div className={`${selectedMessage ? 'flex' : 'hidden lg:flex'} flex-1 flex-col min-h-0 overflow-hidden`}>
         {selectedMessage ? (
           <InboxConversationView
             message={selectedMessage}

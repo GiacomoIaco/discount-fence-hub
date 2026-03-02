@@ -374,10 +374,12 @@ export function UnifiedInboxItem({
           )}
         </div>
 
-        {/* Right side: unread dot + archive */}
+        {/* Right side: unread badge + archive */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {message.isUnread && (
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-bold flex items-center justify-center">
+              {(message.unreadCount && message.unreadCount > 0) ? (message.unreadCount > 99 ? '99+' : message.unreadCount) : ''}
+            </span>
           )}
           {message.isDismissed && onRestore ? (
             <button

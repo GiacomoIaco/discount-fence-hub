@@ -379,6 +379,8 @@ export interface UnifiedMessage {
   preview: string;
   timestamp: Date;
   isUnread: boolean;
+  /** Number of unread messages (for types that track counts, e.g. SMS, team_chat) */
+  unreadCount?: number;
   isDismissed?: boolean;
   icon: string;
   iconColor: string;
