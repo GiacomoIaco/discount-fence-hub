@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Loader2, X, CheckCircle, ListTodo, Map, Ticket, MessageSquare, HelpCircle } from 'lucide-react';
+import { Mic, Square, Loader2, X, CheckCircle, AlertCircle, RotateCcw, ListTodo, Map, Ticket, MessageSquare, HelpCircle } from 'lucide-react';
 import { transcribeAudio } from '../lib/openai';
 import { expandRoadmapIdea } from '../lib/claude';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
+import { toastManager } from '../lib/toast';
 import type { Section } from '../lib/routes';
 
 type VoiceIntent = 'todo' | 'roadmap' | 'request' | 'meeting' | 'unknown';
@@ -22,7 +22,7 @@ interface QuickRecordingFABProps {
   userId?: string;
 }
 
-type RecordingState = 'idle' | 'recording' | 'processing' | 'classifying' | 'creating' | 'success' | 'manual';
+type RecordingState = 'idle' | 'recording' | 'processing' | 'classifying' | 'confirming' | 'creating' | 'success' | 'error' | 'manual';
 
 const INTENT_CONFIG: Record<VoiceIntent, { icon: typeof Mic; label: string; color: string }> = {
   todo: { icon: ListTodo, label: 'My Todo', color: 'text-blue-600' },
@@ -36,13 +36,16 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
   const [state, setState] = useState<RecordingState>('idle');
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcript, setTranscript] = useState('');
+  const [detectedLanguage, setDetectedLanguage] = useState<string | undefined>();
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [createdItem, setCreatedItem] = useState<{ type: string; title: string } | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const lastAudioBlobRef = useRef<Blob | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -77,13 +80,14 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
       mediaRecorder.start(100);
       setState('recording');
       setRecordingTime(0);
+      navigator.vibrate?.(50);
 
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (error) {
       console.error('Error starting recording:', error);
-      toast.error('Could not access microphone');
+      toastManager.showError('Could not access microphone');
     }
   };
 
@@ -95,16 +99,19 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    navigator.vibrate?.([50, 30, 50]);
   };
 
   const processRecording = async (audioBlob: Blob) => {
     setState('processing');
+    lastAudioBlobRef.current = audioBlob;
 
     try {
       // Step 1: Transcribe
       const transcriptionResult = await transcribeAudio(audioBlob);
       const transcribedText = transcriptionResult.text;
       setTranscript(transcribedText);
+      setDetectedLanguage(transcriptionResult.detectedLanguage);
 
       // Step 2: Classify intent
       setState('classifying');
@@ -115,23 +122,27 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
       });
 
       if (!classifyResponse.ok) {
-        throw new Error('Classification failed');
+        throw new Error('classification');
       }
 
       const result: ClassificationResult = await classifyResponse.json();
       setClassification(result);
 
-      // If confidence is high enough, auto-create
+      // If confidence is high enough, show confirmation instead of auto-creating
       if (result.confidence >= 0.7 && result.intent !== 'unknown') {
-        await autoCreate(result, transcribedText);
+        setState('confirming');
       } else {
         // Low confidence - let user choose
         setState('manual');
       }
     } catch (error) {
       console.error('Error processing recording:', error);
-      toast.error('Failed to process recording');
-      reset();
+      const msg = error instanceof Error && error.message === 'classification'
+        ? "Couldn't analyze intent. Tap retry."
+        : "Couldn't transcribe audio. Check connection and try again.";
+      setErrorMessage(msg);
+      setState('error');
+      navigator.vibrate?.(200);
     }
   };
 
@@ -151,18 +162,16 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
           break;
 
         case 'request':
-          // For requests, navigate to the request form with pre-filled data
           sessionStorage.setItem('quick-recording-transcript', transcribedText);
           sessionStorage.setItem('quick-recording-type', result.requestType || 'pricing');
           onNavigate('requests');
-          toast.success('Opening request form with your recording...');
+          toastManager.showSuccess('Opening request form with your recording...');
           reset();
           return;
 
         case 'meeting':
-          // For meetings, navigate to sales coach
           onNavigate('sales-coach');
-          toast.success('Opening Sales Coach...');
+          toastManager.showSuccess('Opening Sales Coach...');
           reset();
           return;
 
@@ -172,18 +181,20 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
       }
 
       setState('success');
+      navigator.vibrate?.([100, 50, 100]);
       setTimeout(() => reset(), 2500);
     } catch (error) {
       console.error('Error creating item:', error);
-      toast.error('Failed to create item');
-      setState('manual');
+      const typeName = INTENT_CONFIG[result.intent]?.label || 'item';
+      setErrorMessage(`Couldn't create ${typeName}. Tap retry.`);
+      setState('error');
+      navigator.vibrate?.(200);
     }
   };
 
   const createTodo = async (title: string, dueDate?: string) => {
     if (!userId) throw new Error('User not authenticated');
 
-    // Find user's first todo list
     let { data: lists } = await supabase
       .from('todo_lists')
       .select('id')
@@ -197,7 +208,6 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     if (lists && lists.length > 0) {
       listId = lists[0].id;
     } else {
-      // Create default list via RPC
       await supabase.rpc('ensure_default_todo_list');
       const { data: newLists } = await supabase
         .from('todo_lists')
@@ -209,7 +219,6 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
       listId = newLists[0].id;
     }
 
-    // Get first section of the list
     const { data: sections } = await supabase
       .from('todo_sections')
       .select('id')
@@ -220,7 +229,6 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     if (!sections || sections.length === 0) throw new Error('No sections found in list');
     sectionId = sections[0].id;
 
-    // Create the todo item
     const { error: taskError } = await supabase
       .from('todo_items')
       .insert({
@@ -229,17 +237,16 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
         title,
         due_date: dueDate || null,
         status: 'todo',
-        sort_order: Date.now(), // Use timestamp to put at end
+        sort_order: Date.now(),
         created_by: userId,
         assigned_to: userId,
       });
 
     if (taskError) throw taskError;
-    toast.success('Todo created!');
+    toastManager.showSuccess('Todo created!');
   };
 
   const createRoadmapItem = async (rawIdea: string) => {
-    // Use existing expand roadmap idea function
     const expanded = await expandRoadmapIdea(rawIdea);
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -256,7 +263,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     });
 
     if (error) throw error;
-    toast.success('Roadmap idea created!');
+    toastManager.showSuccess('Roadmap idea created!');
   };
 
   const handleManualSelect = async (intent: VoiceIntent) => {
@@ -271,12 +278,22 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     await autoCreate(updatedClassification, transcript);
   };
 
+  const handleRetry = () => {
+    if (lastAudioBlobRef.current) {
+      setErrorMessage('');
+      processRecording(lastAudioBlobRef.current);
+    }
+  };
+
   const reset = () => {
     setState('idle');
     setRecordingTime(0);
     setTranscript('');
+    setDetectedLanguage(undefined);
     setClassification(null);
     setCreatedItem(null);
+    setErrorMessage('');
+    lastAudioBlobRef.current = null;
   };
 
   const formatTime = (seconds: number) => {
@@ -298,7 +315,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     );
   }
 
-  // Recording state - show recording indicator
+  // Recording state
   if (state === 'recording') {
     return (
       <div className="fixed bottom-6 right-4 z-40">
@@ -337,6 +354,97 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
             <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
             <span className="text-gray-700 font-medium">{statusText}</span>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (state === 'error') {
+    return (
+      <div className="fixed bottom-6 right-4 z-40">
+        <div className="bg-white rounded-2xl shadow-xl p-4 w-80">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-5 h-5" />
+              <span className="font-medium">Something went wrong</span>
+            </div>
+            <button onClick={reset} className="p-1 text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mb-3">{errorMessage}</p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRetry}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium active:scale-95 transition-transform"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Try Again
+            </button>
+            <button
+              onClick={reset}
+              className="flex-1 px-3 py-2.5 text-gray-600 hover:text-gray-800 text-sm font-medium border border-gray-200 rounded-xl"
+            >
+              Record Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Confirmation state
+  if (state === 'confirming' && classification && transcript) {
+    const config = INTENT_CONFIG[classification.intent];
+    const Icon = config.icon;
+
+    return (
+      <div className="fixed bottom-6 right-4 z-40">
+        <div className="bg-white rounded-2xl shadow-xl p-4 w-80">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-medium text-gray-800">Confirm</span>
+            <button onClick={reset} className="p-1 text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Transcript preview */}
+          <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2 mb-3 max-h-16 overflow-auto">
+            "{transcript.substring(0, 150)}{transcript.length > 150 ? '...' : ''}"
+          </div>
+
+          {/* Detected language badge */}
+          {detectedLanguage && detectedLanguage !== 'en' && detectedLanguage !== 'english' && (
+            <div className="flex justify-start mb-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-700">
+                Detected: {detectedLanguage.toUpperCase()}
+              </span>
+            </div>
+          )}
+
+          {/* Detected intent */}
+          <div className="flex items-center gap-2 p-2.5 rounded-xl border-2 border-purple-500 bg-purple-50 mb-3">
+            <Icon className={`w-5 h-5 ${config.color}`} />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-gray-800">{config.label}</div>
+              <div className="text-xs text-gray-500 truncate">{classification.summary}</div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <button
+            onClick={() => autoCreate(classification, transcript)}
+            className="w-full px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium active:scale-[0.98] transition-transform mb-1"
+          >
+            Create {config.label}
+          </button>
+          <button
+            onClick={() => setState('manual')}
+            className="w-full px-4 py-1.5 text-gray-500 hover:text-gray-700 text-xs font-medium"
+          >
+            Change Type
+          </button>
         </div>
       </div>
     );
