@@ -241,6 +241,34 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
     loadMessages();
   }, [message]);
 
+  // Realtime subscription for team chat messages
+  useEffect(() => {
+    if (message.type !== 'team_chat') return;
+    const chatData = message.rawData as TeamChatConversation;
+    const convId = chatData.conversation_id;
+
+    const channel = supabase
+      .channel(`inbox_team_chat_${convId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `conversation_id=eq.${convId}`,
+        },
+        () => {
+          // Reload all messages to get sender names and reply context
+          loadTeamChatMessages();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [message]);
+
   // Fetch phone number for 1:1 team chat click-to-call
   useEffect(() => {
     if (message.type === 'team_chat') {

@@ -275,7 +275,7 @@ function App() {
       // Admin/Management Section
       { id: 'leadership' as Section, menuId: 'leadership', name: 'Leadership', icon: Target, separator: true },
       // Announcements - Team announcements
-      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: teamCommunicationUnreadCount },
+      { id: 'team-communication' as Section, menuId: 'team-communication', name: 'Announcements', icon: MessageSquare, badge: unifiedUnread.announcements },
       { id: 'survey-hub' as Section, menuId: 'survey-hub', name: 'Surveys', icon: ClipboardList },
       { id: 'analytics' as Section, menuId: 'analytics', name: 'Analytics', icon: DollarSign },
       { id: 'roadmap' as Section, menuId: 'roadmap', name: 'Roadmap', icon: Map },
