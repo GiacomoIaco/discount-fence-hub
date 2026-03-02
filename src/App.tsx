@@ -822,6 +822,7 @@ function App() {
                 onNavigate={navigateTo}
                 onNavigateToEntity={(entityType, params) => navigateToEntity(entityType as import('./lib/routes').EntityType, params)}
                 onOpenConversation={() => {}}
+                canCompose={false}
               />
             </Suspense>
           )}

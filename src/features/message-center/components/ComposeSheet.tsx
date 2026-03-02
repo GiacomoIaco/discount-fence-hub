@@ -1,19 +1,38 @@
 /**
  * ComposeSheet - Bottom sheet for starting new conversations from Unified Inbox
  * Supports starting 1:1 and group team chats
+ * Member picker has two tabs: Team (office staff) and Crews (field crews)
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Users, User, Search, ArrowLeft } from 'lucide-react';
+import { X, Users, User, Search, ArrowLeft, HardHat } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
+import { ROLE_DISPLAY_NAMES } from '../../../lib/permissions/defaults';
+import type { AppRole } from '../../../lib/permissions/types';
 
 interface TeamMember {
   id: string;
   full_name: string;
-  email: string;
-  role: string;
+  role: string; // legacy role from user_profiles
+  role_key?: AppRole; // from user_roles
 }
+
+interface CrewPerson {
+  id: string; // crews.id
+  lead_user_id: string; // auth user id — used as participant
+  lead_name: string;
+  name: string; // crew name
+  is_subcontractor: boolean;
+  crew_size: number;
+}
+
+type PersonEntry = {
+  userId: string;
+  displayName: string;
+  subtitle: string;
+  source: 'team' | 'crew';
+};
 
 interface ComposeSheetProps {
   isOpen: boolean;
@@ -23,6 +42,7 @@ interface ComposeSheetProps {
 }
 
 type ComposeStep = 'choose' | 'direct' | 'group';
+type MemberTab = 'team' | 'crews';
 
 export function ComposeSheet({
   isOpen,
@@ -32,28 +52,82 @@ export function ComposeSheet({
 }: ComposeSheetProps) {
   const [step, setStep] = useState<ComposeStep>('choose');
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [crewPersons, setCrewPersons] = useState<CrewPerson[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [activeTab, setActiveTab] = useState<MemberTab>('team');
 
-  // Load team members
-  const loadTeamMembers = useCallback(async () => {
+  // Get role display label
+  const getRoleLabel = (member: TeamMember): string => {
+    const key = member.role_key || member.role;
+    return ROLE_DISPLAY_NAMES[key as AppRole] || key || '';
+  };
+
+  // Load team members (non-crew) and crew persons in parallel
+  const loadAllMembers = useCallback(async () => {
     if (!currentUserId) return;
 
     setLoadingMembers(true);
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, full_name, email, role')
-        .neq('id', currentUserId)
-        .order('full_name');
+      const [teamResult, rolesResult, crewResult] = await Promise.all([
+        // Team: all user_profiles except current user
+        supabase
+          .from('user_profiles')
+          .select('id, full_name, role')
+          .neq('id', currentUserId)
+          .order('full_name'),
+        // Roles: get role_key for each user
+        supabase
+          .from('user_roles')
+          .select('user_id, role_key'),
+        // Crews: only those with a linked user (can receive messages)
+        supabase
+          .from('crews')
+          .select('id, lead_user_id, lead_name, name, is_subcontractor, crew_size')
+          .not('lead_user_id', 'is', null)
+          .eq('is_active', true)
+          .order('name'),
+      ]);
 
-      if (error) throw error;
-      setTeamMembers(data || []);
+      if (teamResult.error) throw teamResult.error;
+
+      // Build a role_key lookup
+      const roleMap = new Map<string, AppRole>();
+      if (rolesResult.data) {
+        for (const r of rolesResult.data) {
+          roleMap.set(r.user_id, r.role_key as AppRole);
+        }
+      }
+
+      // Split: team members are non-crew, crew members are crew role
+      const allProfiles = (teamResult.data || []).map((p) => ({
+        ...p,
+        role_key: roleMap.get(p.id),
+      }));
+
+      // Crew user IDs from the crews table
+      const crewUserIds = new Set(
+        (crewResult.data || [])
+          .filter((c) => c.lead_user_id)
+          .map((c) => c.lead_user_id)
+      );
+
+      // Team = profiles that are NOT crew (by role_key or by crews table match)
+      const team = allProfiles.filter(
+        (p) => p.role_key !== 'crew' && !crewUserIds.has(p.id)
+      );
+
+      setTeamMembers(team);
+      setCrewPersons(
+        (crewResult.data || []).filter(
+          (c) => c.lead_user_id && c.lead_user_id !== currentUserId
+        ) as CrewPerson[]
+      );
     } catch (error) {
-      console.error('Error loading team members:', error);
+      console.error('Error loading members:', error);
     } finally {
       setLoadingMembers(false);
     }
@@ -61,10 +135,10 @@ export function ComposeSheet({
 
   // Load members when stepping into direct or group
   useEffect(() => {
-    if (isOpen && (step === 'direct' || step === 'group') && teamMembers.length === 0) {
-      loadTeamMembers();
+    if (isOpen && (step === 'direct' || step === 'group') && teamMembers.length === 0 && crewPersons.length === 0) {
+      loadAllMembers();
     }
-  }, [isOpen, step, teamMembers.length, loadTeamMembers]);
+  }, [isOpen, step, teamMembers.length, crewPersons.length, loadAllMembers]);
 
   // Reset state when closing
   useEffect(() => {
@@ -73,14 +147,33 @@ export function ComposeSheet({
       setSearchQuery('');
       setSelectedParticipants([]);
       setGroupName('');
+      setActiveTab('team');
     }
   }, [isOpen]);
 
-  // Filter members by search
-  const filteredMembers = teamMembers.filter(
-    (m) =>
-      m.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  // Build unified person entries for the active tab
+  const getPersonEntries = (): PersonEntry[] => {
+    if (activeTab === 'team') {
+      return teamMembers.map((m) => ({
+        userId: m.id,
+        displayName: m.full_name || 'Unknown',
+        subtitle: getRoleLabel(m),
+        source: 'team' as const,
+      }));
+    }
+    return crewPersons.map((c) => ({
+      userId: c.lead_user_id,
+      displayName: c.lead_name || c.name,
+      subtitle: c.is_subcontractor ? 'Contractor' : 'Internal',
+      source: 'crew' as const,
+    }));
+  };
+
+  // Filter by search
+  const filteredPersons = getPersonEntries().filter(
+    (p) =>
+      p.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.subtitle?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Start direct conversation
@@ -132,6 +225,120 @@ export function ComposeSheet({
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
+
+  // Tab pills component
+  const TabPills = () => (
+    <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+      <button
+        onClick={() => setActiveTab('team')}
+        className={cn(
+          'flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-colors',
+          activeTab === 'team'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        )}
+      >
+        Team ({teamMembers.length})
+      </button>
+      <button
+        onClick={() => setActiveTab('crews')}
+        className={cn(
+          'flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5',
+          activeTab === 'crews'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        )}
+      >
+        <HardHat className="w-3.5 h-3.5" />
+        Crews ({crewPersons.length})
+      </button>
+    </div>
+  );
+
+  // Shared person list for direct messages (click to start chat)
+  const DirectPersonList = () => (
+    <>
+      {loadingMembers ? (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      ) : filteredPersons.length === 0 ? (
+        <p className="text-gray-500 text-center py-8">
+          {activeTab === 'crews' ? 'No connected crews' : 'No team members found'}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {filteredPersons.map((person) => (
+            <button
+              key={person.userId}
+              onClick={() => startDirectConversation(person.userId)}
+              disabled={isCreating}
+              className="w-full text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-3"
+            >
+              <div className={cn(
+                'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                person.source === 'crew' ? 'bg-orange-100' : 'bg-blue-100'
+              )}>
+                {person.source === 'crew'
+                  ? <HardHat className="w-5 h-5 text-orange-600" />
+                  : <User className="w-5 h-5 text-blue-600" />
+                }
+              </div>
+              <div className="min-w-0">
+                <div className="font-medium text-gray-900 truncate">{person.displayName}</div>
+                <div className="text-xs text-gray-500">{person.subtitle}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  // Shared person list for group chats (checkboxes)
+  const GroupPersonList = () => (
+    <>
+      {loadingMembers ? (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      ) : filteredPersons.length === 0 ? (
+        <p className="text-gray-500 text-center py-8">
+          {activeTab === 'crews' ? 'No connected crews' : 'No team members found'}
+        </p>
+      ) : (
+        <div className="space-y-2 pb-20">
+          {filteredPersons.map((person) => (
+            <label
+              key={person.userId}
+              className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={selectedParticipants.includes(person.userId)}
+                onChange={() => toggleParticipant(person.userId)}
+                disabled={isCreating}
+                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div className={cn(
+                'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                person.source === 'crew' ? 'bg-orange-100' : 'bg-blue-100'
+              )}>
+                {person.source === 'crew'
+                  ? <HardHat className="w-5 h-5 text-orange-600" />
+                  : <User className="w-5 h-5 text-blue-600" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-gray-900 truncate">{person.displayName}</div>
+                <div className="text-xs text-gray-500">{person.subtitle}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   if (!isOpen) return null;
 
@@ -209,9 +416,12 @@ export function ComposeSheet({
             </div>
           )}
 
-          {/* Step 2: Direct - Select member */}
+          {/* Step 2: Direct - Select person */}
           {step === 'direct' && (
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
+              {/* Tabs */}
+              <TabPills />
+
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -219,39 +429,19 @@ export function ComposeSheet({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search team members..."
+                  placeholder={activeTab === 'crews' ? 'Search crews...' : 'Search team members...'}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* Members list */}
-              {loadingMembers ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-                </div>
-              ) : filteredMembers.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No team members found</p>
-              ) : (
-                <div className="space-y-2">
-                  {filteredMembers.map((member) => (
-                    <button
-                      key={member.id}
-                      onClick={() => startDirectConversation(member.id)}
-                      disabled={isCreating}
-                      className="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                    >
-                      <div className="font-semibold text-gray-900">{member.full_name}</div>
-                      <div className="text-sm text-gray-600">{member.email}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* Person list */}
+              <DirectPersonList />
             </div>
           )}
 
           {/* Step 2: Group - Name + select participants */}
           {step === 'group' && (
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
               {/* Group name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -266,6 +456,9 @@ export function ComposeSheet({
                 />
               </div>
 
+              {/* Tabs */}
+              <TabPills />
+
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -273,7 +466,7 @@ export function ComposeSheet({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search team members..."
+                  placeholder={activeTab === 'crews' ? 'Search crews...' : 'Search team members...'}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -285,35 +478,8 @@ export function ComposeSheet({
                 </div>
               )}
 
-              {/* Members list with checkboxes */}
-              {loadingMembers ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-                </div>
-              ) : filteredMembers.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No team members found</p>
-              ) : (
-                <div className="space-y-2 pb-20">
-                  {filteredMembers.map((member) => (
-                    <label
-                      key={member.id}
-                      className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedParticipants.includes(member.id)}
-                        onChange={() => toggleParticipant(member.id)}
-                        disabled={isCreating}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900">{member.full_name}</div>
-                        <div className="text-sm text-gray-600 truncate">{member.email}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
+              {/* Person list with checkboxes */}
+              <GroupPersonList />
 
               {/* Create button - fixed at bottom */}
               <div className="fixed left-0 right-0 p-4 bg-white border-t border-gray-200 above-mobile-nav sm:relative sm:!bottom-auto sm:border-0 sm:p-0 sm:pt-4">

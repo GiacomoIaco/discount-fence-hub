@@ -38,12 +38,15 @@ interface MobileUnifiedInboxProps {
   onNavigate: (section: Section, params?: Record<string, string>) => void;
   onNavigateToEntity?: (entityType: string, params: Record<string, string>) => void;
   onOpenConversation: (conversation: Conversation) => void;
+  /** When false, hides the compose FAB and sheet (e.g. crew role = reply-only) */
+  canCompose?: boolean;
 }
 
 export function MobileUnifiedInbox({
   onBack,
   onNavigate,
   onNavigateToEntity,
+  canCompose = true,
 }: MobileUnifiedInboxProps) {
   const { user } = useAuth();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
@@ -326,23 +329,26 @@ export function MobileUnifiedInbox({
         </div>
       )}
 
-      {/* Floating Action Button - Compose */}
-      <button
-        onClick={() => setShowCompose(true)}
-        className="fixed right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-20"
-        style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
-        aria-label="New message"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
+      {/* Floating Action Button - Compose (hidden for reply-only roles like crew) */}
+      {canCompose && (
+        <>
+          <button
+            onClick={() => setShowCompose(true)}
+            className="fixed right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-20"
+            style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+            aria-label="New message"
+          >
+            <Plus className="w-6 h-6" />
+          </button>
 
-      {/* Compose Sheet */}
-      <ComposeSheet
-        isOpen={showCompose}
-        onClose={() => setShowCompose(false)}
-        onConversationCreated={handleConversationCreated}
-        currentUserId={user?.id}
-      />
+          <ComposeSheet
+            isOpen={showCompose}
+            onClose={() => setShowCompose(false)}
+            onConversationCreated={handleConversationCreated}
+            currentUserId={user?.id}
+          />
+        </>
+      )}
     </div>
   );
 }
