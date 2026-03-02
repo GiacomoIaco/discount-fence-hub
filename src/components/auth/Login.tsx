@@ -4,8 +4,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import Signup from './Signup';
 import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
+import CrewLogin from './CrewLogin';
 
-type AuthView = 'login' | 'signup' | 'forgot-password' | 'reset-password';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'crew-login';
 
 const Login = () => {
   const [view, setView] = useState<AuthView>('login');
@@ -25,6 +26,10 @@ const Login = () => {
 
   if (view === 'signup') {
     return <Signup onBackToLogin={() => setView('login')} />;
+  }
+
+  if (view === 'crew-login') {
+    return <CrewLogin onBackToLogin={() => setView('login')} />;
   }
 
   if (view === 'forgot-password') {
@@ -140,7 +145,7 @@ const Login = () => {
         </form>
 
         {/* Footer */}
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-2">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
             <button
@@ -148,6 +153,15 @@ const Login = () => {
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Sign up
+            </button>
+          </p>
+          <p className="text-sm text-gray-500">
+            Equipo?{' '}
+            <button
+              onClick={() => setView('crew-login')}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Entrar con telefono
             </button>
           </p>
         </div>

@@ -65,6 +65,8 @@ const SalesHub = lazy(() => import('./features/sales_hub/SalesHub'));
 const SchedulePage = lazy(() => import('./features/schedule/SchedulePage'));
 // Note: RequestsHub, QuotesHub, JobsHub, InvoicesHub are now routed through ProjectsHub
 const MessageCenterHub = lazy(() => import('./features/message-center/MessageCenterHub'));
+const CrewProfile = lazy(() => import('./features/crew/CrewProfile'));
+import { CrewMobileShell } from './layouts/CrewMobileShell';
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -84,7 +86,7 @@ function App() {
   const navigate = useNavigate();
 
   // Permission system - single source of truth for access control
-  const { role: appRole, hasPermission, hasSection } = usePermission();
+  const { role: appRole, hasPermission, hasSection, roleOverride, setRoleOverride } = usePermission();
 
   const userName = profile?.full_name || 'User';
   const [activeSection, setActiveSection] = useState<Section>('home');
@@ -113,13 +115,14 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Check if user needs onboarding (first login, never completed onboarding)
+  // Crew members skip onboarding (handled by trigger, this is defense-in-depth)
   useEffect(() => {
-    if (profile && !profile.onboarding_completed_at && profile.approval_status !== 'pending') {
+    if (profile && !profile.onboarding_completed_at && profile.approval_status !== 'pending' && appRole !== 'crew') {
       setShowOnboarding(true);
     } else {
       setShowOnboarding(false);
     }
-  }, [profile]);
+  }, [profile, appRole]);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, Analytics, etc.)
   const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'my-todos' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'contact-center' || activeSection === 'analytics';
@@ -183,6 +186,18 @@ function App() {
       setActiveSection('yard');
     }
   }, [appRole, activeSection]);
+
+  // Auto-redirect crew to mobile-inbox (their home is Chat)
+  useEffect(() => {
+    if (appRole === 'crew' && activeSection !== 'mobile-inbox' && activeSection !== 'crew-profile') {
+      setActiveSection('mobile-inbox');
+    }
+  }, [appRole, activeSection]);
+
+  // Force mobile view for crew members
+  useEffect(() => {
+    if (appRole === 'crew') setViewMode('mobile');
+  }, [appRole]);
 
   // Enable escalation engine for operations/admin roles
   const isOperationsRole = hasPermission('manage_schedule') || hasPermission('manage_settings');
@@ -784,6 +799,37 @@ function App() {
     );
   }
 
+  // Crew mobile view — simplified 2-tab shell (Chat + Profile)
+  if (viewMode === 'mobile' && appRole === 'crew') {
+    return (
+      <ToastProvider>
+        <CrewMobileShell
+          activeTab={activeSection === 'crew-profile' ? 'profile' : 'chat'}
+          onTabChange={(tab) => navigateTo(tab === 'profile' ? 'crew-profile' : 'mobile-inbox')}
+          unreadCount={inboxUnreadCount}
+          profileFullName={userName}
+          profileAvatarUrl={profile?.avatar_url}
+          signOut={signOut}
+        >
+          {activeSection === 'crew-profile' ? (
+            <Suspense fallback={<LoadingFallback />}>
+              <CrewProfile />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<LoadingFallback />}>
+              <MobileUnifiedInbox
+                onBack={() => {}}
+                onNavigate={navigateTo}
+                onNavigateToEntity={(entityType, params) => navigateToEntity(entityType as import('./lib/routes').EntityType, params)}
+                onOpenConversation={() => {}}
+              />
+            </Suspense>
+          )}
+        </CrewMobileShell>
+      </ToastProvider>
+    );
+  }
+
   // Mobile view - same for all roles
   if (viewMode === 'mobile') {
     return (
@@ -870,6 +916,17 @@ function App() {
         />
 
         <div className="flex-1 overflow-auto">
+          {roleOverride && (
+            <div className="bg-amber-500 text-amber-950 text-center text-sm py-1 px-4 flex items-center justify-center gap-2">
+              <span>Viewing as <strong className="capitalize">{roleOverride.replace('_', ' ')}</strong></span>
+              <button
+                onClick={() => setRoleOverride(null)}
+                className="underline font-medium hover:text-amber-800"
+              >
+                Exit
+              </button>
+            </div>
+          )}
           {isHubSection ? (
             // Hub sections take full screen with no wrapper padding
             renderContent()

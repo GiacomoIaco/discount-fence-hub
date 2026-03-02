@@ -46,7 +46,8 @@ export type Section =
   | 'sales-resources'
   | 'manager-dashboard'
   | 'assignment-rules'
-  | 'territories';
+  | 'territories'
+  | 'crew-profile';
 
 /**
  * Route definitions mapping Section to URL path
@@ -110,6 +111,9 @@ export const ROUTE_CONFIG: Record<Section, string> = {
   'manager-dashboard': 'manager',
   'assignment-rules': 'settings/assignment-rules',
   'territories': 'settings/territories',
+
+  // Crew
+  'crew-profile': 'crew/profile',
 };
 
 /**
