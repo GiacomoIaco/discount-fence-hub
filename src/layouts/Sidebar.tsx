@@ -54,7 +54,7 @@ export default function Sidebar({
   onCreateQuote
 }: SidebarProps) {
   const { role: permissionRole, realRole, isSuperAdmin, roleOverride, setRoleOverride } = usePermission();
-  const canSwitchRoles = realRole === 'owner' || realRole === 'admin' || isSuperAdmin;
+  const canSwitchRoles = realRole === 'owner' || isSuperAdmin;
   // Hover-to-peek state
   const [isPeeking, setIsPeeking] = useState(false);
   const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
