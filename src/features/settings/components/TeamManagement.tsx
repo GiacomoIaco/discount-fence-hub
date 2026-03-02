@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Mail, Shield, Trash2, Ban, CheckCircle, X, Search, Filter, Pencil, Phone, Clock, UserCheck, UserX } from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Trash2, Ban, CheckCircle, X, Search, Filter, Pencil, Phone, Clock, UserCheck, UserX, Send } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { usePermission } from '../../../contexts/PermissionContext';
@@ -33,12 +33,15 @@ interface PendingUser {
 interface Invitation {
   id: string;
   email: string;
+  phone?: string;
   role: string;
   invited_by: string;
   sent_at: string;
   expires_at: string;
   is_used: boolean;
   inviter_name?: string;
+  reminder_count?: number;
+  last_reminder_sent_at?: string;
 }
 
 const TeamManagement = () => {
@@ -60,6 +63,7 @@ const TeamManagement = () => {
   const [inviteRole, setInviteRole] = useState<AppRole>('sales_rep');
   const [inviting, setInviting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
@@ -399,6 +403,35 @@ const TeamManagement = () => {
     }
   };
 
+  const handleSendReminder = async (invitation: Invitation) => {
+    if (!canManageUsers || !profile) return;
+    setRemindingId(invitation.id);
+    try {
+      const response = await fetch('/.netlify/functions/send-invitation-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invitationId: invitation.id,
+          requestingUserId: profile.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send reminder');
+      }
+
+      showSuccess(result.message);
+      loadInvitations();
+    } catch (error) {
+      console.error('Error sending reminder:', error);
+      showError(error instanceof Error ? error.message : 'Failed to send reminder');
+    } finally {
+      setRemindingId(null);
+    }
+  };
+
   const getRoleBadgeColor = (role: string) => {
     const colors: Record<string, string> = {
       'owner': 'bg-red-100 text-red-800',
@@ -573,35 +606,73 @@ const TeamManagement = () => {
             <table className="w-full text-sm">
               <thead className="bg-blue-100/50">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-700">Email</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-700">Contact</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-700">Role</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-700">Invited By</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-700">Expires</th>
-                  <th className="text-center px-4 py-2 font-medium text-gray-700 w-16"></th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-700">Reminders</th>
+                  <th className="text-center px-4 py-2 font-medium text-gray-700 w-24"></th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-blue-100">
-                {invitations.map(invitation => (
-                  <tr key={invitation.id} className="hover:bg-blue-50/50">
-                    <td className="px-4 py-2 text-gray-900">{invitation.email}</td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(invitation.role)}`}>
-                        {getRoleLabel(invitation.role)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-600">{invitation.inviter_name}</td>
-                    <td className="px-4 py-2 text-gray-600">{new Date(invitation.expires_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 text-center">
-                      <button
-                        onClick={() => handleDeleteInvitation(invitation.id)}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {invitations.map(invitation => {
+                  const isExpired = new Date(invitation.expires_at) < new Date();
+                  return (
+                    <tr key={invitation.id} className={`hover:bg-blue-50/50 ${isExpired ? 'opacity-60' : ''}`}>
+                      <td className="px-4 py-2 text-gray-900">
+                        {invitation.email || (invitation.phone ? (
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-gray-400" />
+                            {invitation.phone}
+                          </span>
+                        ) : '—')}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(invitation.role)}`}>
+                          {getRoleLabel(invitation.role)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-gray-600">{invitation.inviter_name}</td>
+                      <td className="px-4 py-2 text-gray-600">
+                        <span className={isExpired ? 'text-red-500 font-medium' : ''}>
+                          {isExpired ? 'Expired' : new Date(invitation.expires_at).toLocaleDateString()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-gray-500 text-xs">
+                        {invitation.reminder_count ? (
+                          <span>{invitation.reminder_count} sent</span>
+                        ) : (
+                          <span className="text-gray-400">None</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {!isExpired && (
+                            <button
+                              onClick={() => handleSendReminder(invitation)}
+                              disabled={remindingId === invitation.id}
+                              className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-50"
+                              title="Send Reminder"
+                            >
+                              {remindingId === invitation.id ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Send className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteInvitation(invitation.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
