@@ -498,6 +498,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
             conversation_id: chatData.conversation_id,
             sender_id: user.id,
             content: replyText || (fileData ? `📎 ${fileData.file_name}` : ''),
+            detected_language: profile?.preferred_language || 'en',
             ...(replyTarget?.messageType === 'team_chat' && replyTarget?.id
               ? { reply_to_message_id: replyTarget.id }
               : {}),
@@ -514,6 +515,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
             user_id: user.id,
             content: replyText || (fileData ? `📎 ${fileData.file_name}` : ''),
             note_type: 'comment',
+            detected_language: profile?.preferred_language || 'en',
             ...(replyTarget?.messageType === 'ticket_chat' && replyTarget?.id
               ? { reply_to_note_id: replyTarget.id }
               : {}),
