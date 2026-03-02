@@ -26,18 +26,14 @@ interface CrewWithStatus extends Crew {
   invitation?: CrewInvitation;
 }
 
-interface CrewsTabProps {
-  showInviteOnMount?: boolean;
-}
-
-const CrewsTab = ({ showInviteOnMount }: CrewsTabProps) => {
+const CrewsTab = () => {
   const { profile } = useAuth();
   const { data: crews = [], isLoading: crewsLoading, refetch: refetchCrews } = useCrews();
   const createCrew = useCreateCrew();
 
   const [invitations, setInvitations] = useState<CrewInvitation[]>([]);
   const [invitationsLoaded, setInvitationsLoaded] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(showInviteOnMount || false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -224,10 +220,11 @@ const CrewsTab = ({ showInviteOnMount }: CrewsTabProps) => {
       if (!response.ok) throw new Error(result.error || 'Failed to send invitation');
 
       // Link invitation_id to crew
-      if (crewId && result.invitationId) {
+      const invId = result.invitation?.id;
+      if (crewId && invId) {
         await supabase
           .from('crews')
-          .update({ invitation_id: result.invitationId })
+          .update({ invitation_id: invId })
           .eq('id', crewId);
       }
 

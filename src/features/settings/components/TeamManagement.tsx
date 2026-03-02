@@ -68,7 +68,6 @@ const TeamManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'team' | 'crews'>('team');
-  const [crewInviteFromHeader, setCrewInviteFromHeader] = useState(false);
 
   const canManageUsers = hasPermission('manage_team');
 
@@ -504,19 +503,15 @@ const TeamManagement = () => {
           <Users className="w-6 h-6 text-blue-600" />
           <h2 className="text-xl font-bold text-gray-900">Team Management</h2>
         </div>
-        <button
-          onClick={() => {
-            if (activeTab === 'crews') {
-              setCrewInviteFromHeader(true);
-            } else {
-              setShowInviteModal(true);
-            }
-          }}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>{activeTab === 'crews' ? 'Invite Crew' : 'Invite'}</span>
-        </button>
+        {activeTab === 'team' && (
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Invite</span>
+          </button>
+        )}
       </div>
 
       {/* Tab Toggle */}
@@ -547,10 +542,7 @@ const TeamManagement = () => {
 
       {/* Crews Tab */}
       {activeTab === 'crews' && (
-        <CrewsTab
-          showInviteOnMount={crewInviteFromHeader}
-          key={crewInviteFromHeader ? 'invite' : 'normal'}
-        />
+        <CrewsTab />
       )}
 
       {/* Team Tab Content */}
