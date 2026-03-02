@@ -125,7 +125,7 @@ function App() {
   }, [profile, appRole]);
 
   // Auto-collapse sidebar when entering hub sections (BOM Calculator, Yard, Leadership, Roadmap, Settings, Analytics, etc.)
-  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'my-todos' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'contact-center' || activeSection === 'analytics';
+  const isHubSection = activeSection === 'bom-calculator' || activeSection === 'bom-calculator-v2' || activeSection === 'yard' || activeSection === 'leadership' || activeSection === 'my-todos' || activeSection === 'roadmap' || activeSection === 'survey-hub' || activeSection === 'client-hub' || activeSection === 'projects-hub' || activeSection === 'projects-list' || activeSection === 'sales-hub' || activeSection === 'schedule' || activeSection === 'requests' || activeSection === 'quotes' || activeSection === 'jobs' || activeSection === 'invoices' || activeSection === 'team' || activeSection === 'contact-center' || activeSection === 'analytics' || activeSection === 'inbox';
   useEffect(() => {
     if (isHubSection) {
       setSidebarOpen(false);
@@ -217,9 +217,6 @@ function App() {
     user ? { userId: user.id, userRole: appRole || 'sales_rep' } : undefined
   );
   const inboxUnreadCount = unifiedUnread.total;
-
-  // Track unread team communication messages (Announcements badge)
-  const [teamCommunicationUnreadCount, setTeamCommunicationUnreadCount] = useState(0);
 
   // Message Center unread count (sidebar badge)
   const contactCenterUnreadCount = useMessageCenterUnread(
@@ -478,7 +475,7 @@ function App() {
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             <TeamCommunication
-              onUnreadCountChange={setTeamCommunicationUnreadCount}
+              onUnreadCountChange={() => {}}
               refreshTrigger={teamCommunicationRefresh}
               onEditDraft={(draft) => {
                 setEditingDraft(draft);
@@ -883,7 +880,7 @@ function App() {
                   userName={profile?.full_name}
                   onMarkAsRead={markRequestAsRead}
                   onUnreadCountChange={() => {}}
-                  onTeamCommunicationUnreadCountChange={setTeamCommunicationUnreadCount}
+                  onTeamCommunicationUnreadCountChange={() => {}}
                   teamCommunicationRefresh={teamCommunicationRefresh}
                   navigationItems={visibleNavigationItems}
                 />
@@ -916,7 +913,7 @@ function App() {
           onCreateQuote={() => navigateToEntity('quote', { id: 'new' })}
         />
 
-        <div className="flex-1 overflow-auto">
+        <div className={`flex-1 ${activeSection === 'inbox' || activeSection === 'contact-center' ? 'overflow-hidden' : 'overflow-auto'}`}>
           {roleOverride && (
             <div className="bg-amber-500 text-amber-950 text-center text-sm py-1 px-4 flex items-center justify-center gap-2">
               <span>Viewing as <strong className="capitalize">{roleOverride.replace('_', ' ')}</strong></span>
