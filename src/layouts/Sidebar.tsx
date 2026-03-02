@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
-import { Pin, PinOff, User, LogOut } from 'lucide-react';
+import { Pin, PinOff, User, LogOut, Eye } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import CreateDropdown from '../components/CreateDropdown';
 import type { Section } from '../lib/routes';
 import { usePermission } from '../contexts/PermissionContext';
+import type { AppRole } from '../lib/permissions/types';
 
 interface NavigationItem {
   id: Section;
@@ -52,7 +53,8 @@ export default function Sidebar({
   onCreateRequest,
   onCreateQuote
 }: SidebarProps) {
-  const { role: permissionRole } = usePermission();
+  const { role: permissionRole, realRole, isSuperAdmin, roleOverride, setRoleOverride } = usePermission();
+  const canSwitchRoles = realRole === 'owner' || realRole === 'admin' || isSuperAdmin;
   // Hover-to-peek state
   const [isPeeking, setIsPeeking] = useState(false);
   const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -215,7 +217,38 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* Role display removed - role switching is now managed via Team Management */}
+        {/* Admin role switcher — view app as different roles */}
+        {isExpanded && canSwitchRoles && (
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Eye className="w-3.5 h-3.5 text-gray-400" />
+              <p className="text-xs text-gray-400">View As:</p>
+            </div>
+            <select
+              value={roleOverride || ''}
+              onChange={(e) => {
+                const val = e.target.value as AppRole | '';
+                setRoleOverride(val || null);
+              }}
+              className={`w-full px-2 py-1.5 text-sm rounded border transition-colors ${
+                roleOverride
+                  ? 'bg-amber-900/40 border-amber-600/50 text-amber-200'
+                  : 'bg-gray-800 border-gray-700 text-white'
+              }`}
+            >
+              <option value="">My Role ({realRole})</option>
+              <option value="owner">Owner</option>
+              <option value="admin">Admin</option>
+              <option value="sales_manager">Sales Manager</option>
+              <option value="sales_rep">Sales Rep</option>
+              <option value="front_desk">Front Desk</option>
+              <option value="ops_manager">Ops Manager</option>
+              <option value="operations">Operations</option>
+              <option value="yard">Yard</option>
+              <option value="crew">Crew</option>
+            </select>
+          </div>
+        )}
 
         {/* User Profile and Sign Out */}
         <div className="flex items-center gap-2">
