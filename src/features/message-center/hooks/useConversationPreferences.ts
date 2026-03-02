@@ -12,6 +12,7 @@ interface ConversationPreference {
   is_pinned: boolean;
   is_muted: boolean;
   pinned_at: string | null;
+  translations_off: boolean;
 }
 
 export function useConversationPreferences() {
@@ -24,7 +25,7 @@ export function useConversationPreferences() {
       if (!user?.id) return [];
       const { data, error } = await supabase
         .from('conversation_preferences')
-        .select('conversation_ref, is_pinned, is_muted, pinned_at')
+        .select('conversation_ref, is_pinned, is_muted, pinned_at, translations_off')
         .eq('user_id', user.id);
       if (error) throw error;
       return (data || []) as ConversationPreference[];
@@ -85,12 +86,38 @@ export function useConversationPreferences() {
     },
   });
 
+  const toggleTranslations = useMutation({
+    mutationFn: async (conversationRef: string) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      const existing = prefsMap.get(conversationRef);
+      const newOff = !(existing?.translations_off ?? false);
+
+      const { error } = await supabase
+        .from('conversation_preferences')
+        .upsert({
+          user_id: user.id,
+          conversation_ref: conversationRef,
+          translations_off: newOff,
+          is_pinned: existing?.is_pinned ?? false,
+          is_muted: existing?.is_muted ?? false,
+          pinned_at: existing?.pinned_at ?? null,
+        }, { onConflict: 'user_id,conversation_ref' });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversation_preferences'] });
+    },
+  });
+
   return {
     preferences,
     prefsMap,
     isPinned: (ref: string) => prefsMap.get(ref)?.is_pinned ?? false,
     isMuted: (ref: string) => prefsMap.get(ref)?.is_muted ?? false,
+    isTranslationsOff: (ref: string) => prefsMap.get(ref)?.translations_off ?? false,
     togglePin,
     toggleMute,
+    toggleTranslations,
   };
 }

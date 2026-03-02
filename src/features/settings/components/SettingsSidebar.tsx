@@ -16,6 +16,7 @@ import {
   MapPin,
   ShieldCheck,
   Link2,
+  Languages,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -26,6 +27,7 @@ const COLLAPSE_DELAY = 500;
 export type SettingsPage =
   | 'app'
   | 'notifications'
+  | 'language'
   | 'team'
   | 'salesperson-mapping'
   | 'request-settings'
@@ -45,6 +47,7 @@ interface NavItem {
 const GENERAL_NAV_ITEMS: NavItem[] = [
   { id: 'app', label: 'App', icon: Smartphone },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'language', label: 'Language', icon: Languages },
 ];
 
 const TEAM_NAV_ITEMS: NavItem[] = [

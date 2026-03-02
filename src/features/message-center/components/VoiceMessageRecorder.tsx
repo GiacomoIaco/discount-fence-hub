@@ -15,7 +15,7 @@ const MAX_DURATION = 120; // 2 minutes max
 
 interface VoiceMessageRecorderProps {
   /** Called with the public URL of the uploaded audio file */
-  onSend: (audioUrl: string, durationSeconds: number, transcript?: string) => void;
+  onSend: (audioUrl: string, durationSeconds: number, transcript?: string, detectedLanguage?: string) => void;
   disabled?: boolean;
   /** Supabase storage bucket name */
   bucket?: string;
@@ -204,7 +204,7 @@ export function VoiceMessageRecorder({
       const filePath = `${user.id}/${fileName}`;
 
       // Upload audio and transcribe in parallel
-      const [uploadResult, transcript] = await Promise.all([
+      const [uploadResult, transcriptionResult] = await Promise.all([
         supabase.storage
           .from(bucket)
           .upload(filePath, audioBlob, {
@@ -223,7 +223,12 @@ export function VoiceMessageRecorder({
 
       if (!data?.publicUrl) throw new Error('Failed to get public URL');
 
-      onSend(data.publicUrl, duration, transcript || undefined);
+      onSend(
+        data.publicUrl,
+        duration,
+        transcriptionResult?.text || undefined,
+        transcriptionResult?.detectedLanguage || undefined
+      );
 
       // Reset after successful send
       if (audioUrl) URL.revokeObjectURL(audioUrl);

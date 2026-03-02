@@ -130,9 +130,9 @@ export default function VoiceInput({
 
     setState('transcribing');
     try {
-      const text = await transcribeAudio(audioBlob);
-      setTranscript(text);
-      onTranscript(text);
+      const result = await transcribeAudio(audioBlob);
+      setTranscript(result.text);
+      onTranscript(result.text);
       toast.success('Transcribed!');
     } catch (error: any) {
       console.error('Transcription error:', error);

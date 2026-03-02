@@ -193,7 +193,8 @@ export default function AddRoadmapItemModal({
       let transcriptionText: string;
 
       try {
-        transcriptionText = await transcribeAudio(audioBlob);
+        const transcriptionResult = await transcribeAudio(audioBlob);
+        transcriptionText = transcriptionResult.text;
         setTranscript(transcriptionText);
         console.log('Transcription successful:', transcriptionText.substring(0, 100) + '...');
       } catch (transcribeError: any) {

@@ -16,6 +16,7 @@ interface UserProfile {
   is_super_admin?: boolean;
   onboarding_completed_at?: string;
   approval_status?: 'pending' | 'approved' | 'rejected';
+  preferred_language?: 'en' | 'es';
 }
 
 interface AuthContextType {

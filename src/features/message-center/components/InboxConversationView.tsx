@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ArrowLeft, Send, Users, User, MessageSquare, Ticket, Megaphone, ExternalLink, Phone, Check, CheckCheck, CornerDownRight, Search, X, ChevronUp, ChevronDown, Paperclip, AlertTriangle, Mic } from 'lucide-react';
+import { ArrowLeft, Send, Users, User, MessageSquare, Ticket, Megaphone, ExternalLink, Phone, Check, CheckCheck, CornerDownRight, Search, X, ChevronUp, ChevronDown, Paperclip, AlertTriangle, Mic, Globe } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -20,6 +20,9 @@ import { ReplyPreview, QuotedMessage } from './QuoteReply';
 import { PinnedMessagesBar } from './PinnedMessagesBar';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReactionDisplay } from './ReactionDisplay';
+import { TranslatedText } from './TranslatedText';
+import { useConversationPreferences } from '../hooks/useConversationPreferences';
+import { useBatchTranslation } from '../hooks/useTranslation';
 import type { ReplyTarget } from './QuoteReply';
 import type { UnifiedMessage, Conversation, TeamChatConversation, TicketChatData, CompanyMessage } from '../types';
 
@@ -45,6 +48,9 @@ interface ChatMessage {
   file_type?: string | null;
   file_size?: number | null;
   priority?: 'normal' | 'urgent' | null;
+  detected_language?: string | null;
+  /** For messages from the sender — infer language from sender's profile preference */
+  source_type?: 'direct_message' | 'request_note';
 }
 
 export function InboxConversationView({ message, onBack, onNavigateToEntity }: InboxConversationViewProps) {
@@ -91,6 +97,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
     return null;
   }, [message]);
   const { pinnedMessages, pinnedMessageIds, togglePin } = usePinnedMessages(conversationRef);
+  const { isTranslationsOff, toggleTranslations } = useConversationPreferences();
 
   // Reactions
   const reactionType = useMemo(() => {
@@ -278,7 +285,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
     const chatData = message.rawData as TeamChatConversation;
     const { data: messages, error } = await supabase
       .from('direct_messages')
-      .select('id, content, sender_id, created_at, reply_to_message_id, file_url, file_name, file_type, file_size, priority')
+      .select('id, content, sender_id, created_at, reply_to_message_id, file_url, file_name, file_type, file_size, priority, detected_language')
       .eq('conversation_id', chatData.conversation_id)
       .order('created_at', { ascending: true });
 
@@ -313,6 +320,8 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
         file_type: m.file_type,
         file_size: m.file_size,
         priority: m.priority,
+        detected_language: m.detected_language,
+        source_type: 'direct_message' as const,
       };
     }) || []);
   };
@@ -321,7 +330,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
     const ticketData = message.rawData as TicketChatData;
     const { data: notes, error } = await supabase
       .from('request_notes')
-      .select('id, content, user_id, created_at, note_type, reply_to_note_id, file_url, file_name, file_type')
+      .select('id, content, user_id, created_at, note_type, reply_to_note_id, file_url, file_name, file_type, detected_language')
       .eq('request_id', ticketData.request_id)
       .eq('note_type', 'comment')
       .order('created_at', { ascending: true });
@@ -355,6 +364,8 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
         file_url: n.file_url,
         file_name: n.file_name,
         file_type: n.file_type,
+        detected_language: n.detected_language,
+        source_type: 'request_note' as const,
       };
     }) || []);
   };
@@ -402,7 +413,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
   }, []);
 
   // Handle voice message send
-  const handleVoiceSend = useCallback(async (audioUrl: string, _durationSeconds: number, transcript?: string) => {
+  const handleVoiceSend = useCallback(async (audioUrl: string, _durationSeconds: number, transcript?: string, detectedLanguage?: string) => {
     if (!user?.id) return;
     setIsSending(true);
     const content = transcript
@@ -419,6 +430,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
             file_url: audioUrl,
             file_name: 'voice-message.webm',
             file_type: 'audio/webm',
+            detected_language: detectedLanguage || undefined,
           });
           await loadTeamChatMessages();
           break;
@@ -433,6 +445,7 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
             file_url: audioUrl,
             file_name: 'voice-message.webm',
             file_type: 'audio/webm',
+            detected_language: detectedLanguage || undefined,
           });
           await loadTicketMessages();
           break;
@@ -575,6 +588,21 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
   const headerInfo = getHeaderInfo();
   const HeaderIcon = headerInfo.icon;
   const canReply = ['sms', 'team_chat', 'ticket_chat'].includes(message.type);
+  const translationsOff = conversationRef ? isTranslationsOff(conversationRef) : false;
+
+  // Batch-translate messages on conversation load (warm cache)
+  const batchItems = useMemo(() => {
+    if (translationsOff) return [];
+    return chatMessages
+      .filter(m => m.detected_language && m.source_type)
+      .map(m => ({
+        text: m.content,
+        sourceLang: m.detected_language!,
+        sourceType: m.source_type!,
+        sourceId: m.id,
+      }));
+  }, [chatMessages, translationsOff]);
+  useBatchTranslation(batchItems);
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -599,6 +627,21 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
               <p className="text-xs text-gray-500">{headerInfo.subtitle}</p>
             )}
           </div>
+
+          {/* Translation toggle */}
+          {conversationRef && (
+            <button
+              onClick={() => toggleTranslations.mutate(conversationRef)}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                translationsOff ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-100' : 'text-blue-600 bg-blue-50'
+              )}
+              aria-label={translationsOff ? 'Enable translations' : 'Disable translations'}
+              title={translationsOff ? 'Translations off' : 'Translations on'}
+            >
+              <Globe className="w-5 h-5" />
+            </button>
+          )}
 
           {/* Search toggle */}
           <button
@@ -855,9 +898,15 @@ export function InboxConversationView({ message, onBack, onNavigateToEntity }: I
                         )}
                       </div>
                     )}
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {isSearchMatch ? highlightText(msg.content, searchQuery) : msg.content}
-                    </p>
+                    <TranslatedText
+                      content={msg.content}
+                      detectedLanguage={(msg as ChatMessage).detected_language}
+                      sourceType={(msg as ChatMessage).source_type}
+                      sourceId={msg.id}
+                      searchHighlight={isSearchMatch ? highlightText(msg.content, searchQuery) : undefined}
+                      isOwn={msg.is_own}
+                      translationsOff={translationsOff}
+                    />
                   </div>
                   {/* Reply button (right side for other messages) */}
                   {canQuoteReply && !msg.is_own && (

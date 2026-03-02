@@ -210,7 +210,8 @@ export default function RequestForm({ requestType, onClose, onSuccess }: Request
 
     try {
       // Transcribe audio
-      const transcriptionText = await transcribeAudio(audioBlob);
+      const transcriptionResult = await transcribeAudio(audioBlob);
+      const transcriptionText = transcriptionResult.text;
       setTranscript(transcriptionText);
 
       // Parse transcript with AI

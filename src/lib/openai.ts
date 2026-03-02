@@ -1,11 +1,16 @@
-// OpenAI Whisper API integration for voice transcription via Netlify function
+// OpenAI transcription API integration via Netlify function
 
 import { supabase } from './supabase';
 
 // Threshold for using storage upload (500KB - well under Netlify's 1MB limit)
 const STORAGE_THRESHOLD = 500 * 1024;
 
-export async function transcribeAudio(audioBlob: Blob): Promise<string> {
+export interface TranscriptionResult {
+  text: string;
+  detectedLanguage?: string;
+}
+
+export async function transcribeAudio(audioBlob: Blob): Promise<TranscriptionResult> {
   try {
     // Check file size to determine upload method
     if (audioBlob.size > STORAGE_THRESHOLD) {
@@ -14,13 +19,13 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
       return await transcribeViaBase64(audioBlob);
     }
   } catch (error) {
-    console.error('Whisper API error:', error);
+    console.error('Transcription API error:', error);
     throw error;
   }
 }
 
 // For small files: send base64 directly (faster for short recordings)
-async function transcribeViaBase64(audioBlob: Blob): Promise<string> {
+async function transcribeViaBase64(audioBlob: Blob): Promise<TranscriptionResult> {
   const arrayBuffer = await audioBlob.arrayBuffer();
   const base64Audio = btoa(
     new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
@@ -42,12 +47,12 @@ async function transcribeViaBase64(audioBlob: Blob): Promise<string> {
   }
 
   const data = await response.json();
-  return data.text;
+  return { text: data.text, detectedLanguage: data.detectedLanguage };
 }
 
 // For large files: upload to storage first, then transcribe
 // Uses existing 'voice-samples' bucket with temp/ folder for roadmap recordings
-async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
+async function transcribeViaStorage(audioBlob: Blob): Promise<TranscriptionResult> {
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -102,7 +107,7 @@ async function transcribeViaStorage(audioBlob: Blob): Promise<string> {
     }
 
     const data = await response.json();
-    return data.text;
+    return { text: data.text, detectedLanguage: data.detectedLanguage };
   } finally {
     // Always clean up the uploaded file
     console.log('Cleaning up storage...');

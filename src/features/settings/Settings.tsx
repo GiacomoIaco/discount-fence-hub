@@ -6,6 +6,7 @@ import TeamManagement from './components/TeamManagement';
 import RequestSettings from './components/RequestSettings';
 import MenuVisibilitySettings from './components/MenuVisibilitySettings';
 import NotificationSettings from './components/NotificationSettings';
+import LanguageSettings from './components/LanguageSettings';
 import QboClassesSettings from './components/QboClassesSettings';
 import FSMSettings from './components/FSMSettings';
 import CustomFieldsSettings from './components/CustomFieldsSettings';
@@ -83,6 +84,14 @@ export default function Settings({ onBack }: SettingsProps) {
           <div className="p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-6">Notification Settings</h1>
             <NotificationSettings />
+          </div>
+        );
+
+      case 'language':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Language Settings</h1>
+            <LanguageSettings />
           </div>
         );
 

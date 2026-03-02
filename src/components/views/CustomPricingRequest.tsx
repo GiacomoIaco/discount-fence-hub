@@ -126,8 +126,9 @@ export default function CustomPricingRequest({ onBack, viewMode: _viewMode }: Cu
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           setAudioURL(URL.createObjectURL(blob));
 
-          // Transcribe with Whisper
-          const transcript = await transcribeAudio(blob);
+          // Transcribe audio
+          const transcriptionResult = await transcribeAudio(blob);
+          const transcript = transcriptionResult.text;
 
           // Parse with Claude
           const parsed = await parseVoiceTranscript(transcript);

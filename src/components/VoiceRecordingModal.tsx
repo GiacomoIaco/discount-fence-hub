@@ -103,7 +103,8 @@ export default function VoiceRecordingModal({ onClose, onNavigate, userId }: Voi
 
     try {
       // Step 1: Transcribe
-      const transcribedText = await transcribeAudio(audioBlob);
+      const transcriptionResult = await transcribeAudio(audioBlob);
+      const transcribedText = transcriptionResult.text;
       setTranscript(transcribedText);
 
       // Step 2: Classify intent

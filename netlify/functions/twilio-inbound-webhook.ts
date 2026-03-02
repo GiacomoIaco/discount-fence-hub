@@ -83,6 +83,9 @@ export const handler: Handler = async (event) => {
       console.log(`Routing inbound to group conversation: ${conversation.id}`);
     }
 
+    // Detect language of inbound SMS (lightweight heuristic)
+    const detectedLanguage = detectLanguage(body || '');
+
     // Insert message
     const { data: message, error: messageError } = await supabase
       .from('mc_messages')
@@ -96,6 +99,7 @@ export const handler: Handler = async (event) => {
         from_contact_id: contact.id,
         status: 'received',
         sent_at: new Date().toISOString(),
+        detected_language: detectedLanguage,
         metadata: {
           twilio_sid: messageSid,
           num_media: numMedia,
@@ -577,4 +581,35 @@ async function sendPushNotifications(
 
   const sent = results.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
   console.log(`[Push] Sent: ${sent}/${subscriptions.length}`);
+}
+
+/**
+ * Lightweight language detection for SMS messages.
+ * Uses common Spanish indicator words to detect Spanish; defaults to English.
+ * Avoids API calls for every inbound SMS.
+ */
+function detectLanguage(text: string): string {
+  if (!text || text.trim().length < 3) return 'en';
+
+  const lower = text.toLowerCase();
+  const spanishIndicators = [
+    'hola', 'gracias', 'buenos', 'buenas', 'por favor', 'necesito',
+    'quiero', 'tengo', 'puede', 'cuando', 'dónde', 'donde', 'cómo',
+    'como esta', 'está', 'están', 'también', 'todavía', 'mañana',
+    'trabajo', 'cerca', 'cerco', 'puerta', 'cuánto', 'cuanto',
+    'sí', 'bien', 'listo', 'aquí', 'aqui', 'qué', 'para',
+  ];
+
+  const words = lower.split(/\s+/);
+  let spanishCount = 0;
+  for (const indicator of spanishIndicators) {
+    if (lower.includes(indicator)) spanishCount++;
+  }
+
+  // If 2+ Spanish indicators found, or majority of short messages
+  if (spanishCount >= 2 || (words.length <= 5 && spanishCount >= 1)) {
+    return 'es';
+  }
+
+  return 'en';
 }

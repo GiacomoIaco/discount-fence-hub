@@ -40,22 +40,22 @@ export const handler: Handler = async (event) => {
       throw new Error('Either audioUrl or audioData is required');
     }
 
-    // Check file size (Whisper API limit is 25MB)
+    // Check file size (API limit is 25MB)
     const maxSize = 25 * 1024 * 1024;
     if (audioBuffer.length > maxSize) {
       throw new Error(`Audio file too large (${Math.round(audioBuffer.length / 1024 / 1024)}MB). Maximum is 25MB.`);
     }
 
-    // Create FormData
+    // Create FormData — no language param = auto-detect
     const formData = new FormData();
     formData.append('file', audioBuffer, {
       filename: 'audio.webm',
       contentType: contentType,
     });
-    formData.append('model', AI_MODELS.whisper);
-    formData.append('language', 'en');
+    formData.append('model', AI_MODELS.transcription);
+    formData.append('response_format', 'verbose_json');
 
-    console.log('Sending to Whisper API...');
+    console.log(`Sending to transcription API (model: ${AI_MODELS.transcription})...`);
 
     const response = await axios.post(
       'https://api.openai.com/v1/audio/transcriptions',
@@ -69,11 +69,15 @@ export const handler: Handler = async (event) => {
       }
     );
 
-    console.log('Transcription complete');
+    const detectedLanguage = response.data.language || undefined;
+    console.log(`Transcription complete (detected language: ${detectedLanguage || 'unknown'})`);
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ text: response.data.text }),
+      body: JSON.stringify({
+        text: response.data.text,
+        detectedLanguage,
+      }),
     };
   } catch (error: any) {
     console.error('Transcription error:', error.response?.data || error.message);
