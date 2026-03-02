@@ -93,10 +93,10 @@ export function TranslatedText({
       )}
 
       {translation?.translatedText && !isLoading && (
-        <div className={`flex items-start gap-1.5 text-xs ${
+        <div className={`flex items-start gap-1.5 text-sm ${
           isOwn ? 'text-blue-200/80' : 'text-gray-500'
         }`}>
-          <Globe className="w-3 h-3 mt-0.5 shrink-0" />
+          <Globe className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <p className="whitespace-pre-wrap break-words italic">
             {isVoiceMessage && voicePrefix
               ? `${voicePrefix}${translation.translatedText}`
