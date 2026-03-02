@@ -594,44 +594,44 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mc_conversations' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'mc_messages' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'company_messages' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'company_message_reads' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mc_system_notifications', filter: `target_user_id=eq.${userId}` },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       // Team chats - direct_messages table
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'direct_messages' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       // Ticket chats - request_notes table
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'request_notes' },
-        () => queryClient.invalidateQueries({ queryKey: ['unified_messages'] })
+        () => queryClient.refetchQueries({ queryKey: ['unified_messages'] })
       )
       .subscribe();
 
