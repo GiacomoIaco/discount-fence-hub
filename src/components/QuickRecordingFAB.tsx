@@ -72,7 +72,8 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         stream.getTracks().forEach(track => track.stop());
         await processRecording(audioBlob);
       };

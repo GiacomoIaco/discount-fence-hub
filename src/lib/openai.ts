@@ -24,12 +24,22 @@ export async function transcribeAudio(audioBlob: Blob): Promise<TranscriptionRes
   }
 }
 
+// Map MIME type to file extension for OpenAI
+function extForMime(mime: string): string {
+  if (mime.includes('mp4') || mime.includes('m4a')) return 'mp4';
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('wav')) return 'wav';
+  return 'webm';
+}
+
 // For small files: send base64 directly (faster for short recordings)
 async function transcribeViaBase64(audioBlob: Blob): Promise<TranscriptionResult> {
   const arrayBuffer = await audioBlob.arrayBuffer();
   const base64Audio = btoa(
     new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
   );
+
+  const mimeType = audioBlob.type || 'audio/webm';
 
   const response = await fetch('/.netlify/functions/transcribe', {
     method: 'POST',
@@ -38,6 +48,7 @@ async function transcribeViaBase64(audioBlob: Blob): Promise<TranscriptionResult
     },
     body: JSON.stringify({
       audioData: base64Audio,
+      mimeType,
     }),
   });
 
@@ -61,16 +72,18 @@ async function transcribeViaStorage(audioBlob: Blob): Promise<TranscriptionResul
 
   // Generate unique filename in user's folder (will be deleted after transcription)
   // Path must be {user_id}/filename to match RLS policy
+  const mimeType = audioBlob.type || 'audio/webm';
+  const ext = extForMime(mimeType);
   const timestamp = Date.now();
-  const filename = `${user.id}/temp-transcribe-${timestamp}.webm`;
+  const filename = `${user.id}/temp-transcribe-${timestamp}.${ext}`;
 
-  console.log(`Uploading audio to storage (${Math.round(audioBlob.size / 1024)}KB)...`);
+  console.log(`Uploading audio to storage (${Math.round(audioBlob.size / 1024)}KB, ${mimeType})...`);
 
   // Upload to Supabase storage (reusing voice-samples bucket)
   const { error: uploadError } = await supabase.storage
     .from('voice-samples')
     .upload(filename, audioBlob, {
-      contentType: 'audio/webm',
+      contentType: mimeType,
       upsert: false,
     });
 

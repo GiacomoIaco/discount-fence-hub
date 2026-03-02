@@ -17,7 +17,13 @@ export const handler: Handler = async (event) => {
     const body = JSON.parse(event.body || '{}');
 
     let audioBuffer: Buffer;
-    let contentType = 'audio/webm';
+    let contentType = body.mimeType || 'audio/webm';
+
+    // Map MIME type to file extension for OpenAI
+    const ext = contentType.includes('mp4') || contentType.includes('m4a') ? 'mp4'
+      : contentType.includes('ogg') ? 'ogg'
+      : contentType.includes('wav') ? 'wav'
+      : 'webm';
 
     // Support both base64 data (small files) and storage URLs (large files)
     if (body.audioUrl) {
@@ -30,11 +36,11 @@ export const handler: Handler = async (event) => {
       });
 
       audioBuffer = Buffer.from(response.data);
-      contentType = response.headers['content-type'] || 'audio/webm';
+      contentType = response.headers['content-type'] || contentType;
 
       console.log(`Downloaded audio: ${audioBuffer.length} bytes`);
     } else if (body.audioData) {
-      // Legacy: base64 encoded audio (for small files < 1MB)
+      // Base64 encoded audio (for small files < 1MB)
       audioBuffer = Buffer.from(body.audioData, 'base64');
     } else {
       throw new Error('Either audioUrl or audioData is required');
@@ -47,15 +53,16 @@ export const handler: Handler = async (event) => {
     }
 
     // Create FormData — no language param = auto-detect
+    // gpt-4o-mini-transcribe only supports "json" and "text" (NOT verbose_json)
     const formData = new FormData();
     formData.append('file', audioBuffer, {
-      filename: 'audio.webm',
+      filename: `audio.${ext}`,
       contentType: contentType,
     });
     formData.append('model', AI_MODELS.transcription);
-    formData.append('response_format', 'verbose_json');
+    formData.append('response_format', 'json');
 
-    console.log(`Sending to transcription API (model: ${AI_MODELS.transcription})...`);
+    console.log(`Sending to transcription API (model: ${AI_MODELS.transcription}, type: ${contentType})...`);
 
     const response = await axios.post(
       'https://api.openai.com/v1/audio/transcriptions',
@@ -69,8 +76,8 @@ export const handler: Handler = async (event) => {
       }
     );
 
-    const detectedLanguage = response.data.language || undefined;
-    console.log(`Transcription complete (detected language: ${detectedLanguage || 'unknown'})`);
+    // gpt-4o-mini-transcribe json format returns { text } only (no language field)
+    console.log('Transcription complete');
 
     return {
       statusCode: 200,
