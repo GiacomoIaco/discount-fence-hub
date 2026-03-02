@@ -9,7 +9,7 @@ import { supabase } from '../../../lib/supabase';
 import { transcribeAudio } from '../../../lib/openai';
 import { useAuth } from '../../../contexts/AuthContext';
 import { cn } from '../../../lib/utils';
-import toast from 'react-hot-toast';
+import { toastManager } from '../../../lib/toast';
 
 const MAX_DURATION = 120; // 2 minutes max
 
@@ -98,7 +98,8 @@ export function VoiceMessageRecorder({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         audioBlobRef.current = audioBlob;
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
@@ -124,7 +125,7 @@ export function VoiceMessageRecorder({
       }, 1000);
     } catch (error) {
       console.error('Error starting recording:', error);
-      toast.error('Could not access microphone. Check permissions.');
+      toastManager.showError('Could not access microphone. Check permissions.');
     }
   };
 
@@ -244,7 +245,7 @@ export function VoiceMessageRecorder({
       setState('idle');
     } catch (error: any) {
       console.error('Error uploading voice message:', error);
-      toast.error('Failed to send voice message');
+      toastManager.showError('Failed to send voice message');
       setState('recorded');
     }
   };

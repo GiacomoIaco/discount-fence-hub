@@ -8,6 +8,7 @@ export interface ClassificationResult {
   intent: VoiceIntent;
   confidence: number;
   summary: string;
+  detectedLanguage?: string;
   // For todos
   todoTitle?: string;
   todoDueDate?: string;
@@ -54,6 +55,7 @@ Analyze the content and respond ONLY with valid JSON:
   "intent": "todo|roadmap|request|meeting|unknown",
   "confidence": 0.0-1.0,
   "summary": "one-line summary of what they said",
+  "detectedLanguage": "ISO 639-1 code of the transcript language (e.g. en, es, fr)",
   "todoTitle": "if todo: suggested task title",
   "todoDueDate": "if todo and mentioned: ISO date string or null",
   "requestType": "if request: pricing|support|material|other"

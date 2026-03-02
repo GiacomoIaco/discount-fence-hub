@@ -76,13 +76,43 @@ export const handler: Handler = async (event) => {
       }
     );
 
-    // gpt-4o-mini-transcribe json format returns { text } only (no language field)
+    const transcribedText: string = response.data.text;
     console.log('Transcription complete');
+
+    // gpt-4o-mini-transcribe doesn't return language, so detect it with a cheap chat call
+    let detectedLanguage: string | undefined;
+    if (transcribedText.length >= 3) {
+      try {
+        const langResponse = await axios.post(
+          'https://api.openai.com/v1/chat/completions',
+          {
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'Reply with ONLY the ISO 639-1 language code (e.g. en, es, fr). Nothing else.' },
+              { role: 'user', content: transcribedText.slice(0, 200) },
+            ],
+            max_tokens: 4,
+            temperature: 0,
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 5000,
+          }
+        );
+        detectedLanguage = langResponse.data.choices?.[0]?.message?.content?.trim().toLowerCase();
+        console.log(`Detected language: ${detectedLanguage}`);
+      } catch (langErr) {
+        console.warn('Language detection failed, continuing without:', langErr);
+      }
+    }
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        text: response.data.text,
+        text: transcribedText,
         detectedLanguage,
       }),
     };

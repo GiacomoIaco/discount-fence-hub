@@ -12,6 +12,7 @@ interface ClassificationResult {
   intent: VoiceIntent;
   confidence: number;
   summary: string;
+  detectedLanguage?: string;
   todoTitle?: string;
   todoDueDate?: string;
   requestType?: 'pricing' | 'support' | 'material' | 'other';
@@ -129,6 +130,11 @@ export default function VoiceRecordingModal({ onClose, onNavigate, userId }: Voi
 
       const result: ClassificationResult = await classifyResponse.json();
       setClassification(result);
+
+      // Use language from classification (Claude detects it for free)
+      if (result.detectedLanguage) {
+        setDetectedLanguage(result.detectedLanguage);
+      }
 
       // If confidence is high enough, show confirmation instead of auto-creating
       if (result.confidence >= 0.7 && result.intent !== 'unknown') {
