@@ -9,7 +9,7 @@ export function useCrews(locationCode?: string) {
     queryFn: async () => {
       let query = supabase
         .from('crews')
-        .select('*, location:locations(code, name)')
+        .select('*, location:locations(code, name), lead_user:user_profiles!lead_user_id(id, full_name, phone)')
         .order('name');
 
       if (locationCode) {

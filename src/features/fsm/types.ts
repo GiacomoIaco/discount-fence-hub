@@ -151,6 +151,8 @@ export interface Crew {
   is_subcontractor: boolean;
   lead_name: string | null;
   lead_phone: string | null;
+  // Invitation link (from migration 309)
+  invitation_id: string | null;
   // Geocoding (from migration 178)
   home_latitude?: number | null;
   home_longitude?: number | null;
@@ -158,7 +160,7 @@ export interface Crew {
   // Joined
   members?: CrewMember[];
   territory?: Territory;
-  lead_user?: { id: string; email: string; full_name: string | null };
+  lead_user?: { id: string; full_name: string | null; phone: string | null };
   location?: { code: string; name: string }; // Location info from locations table
   // Assignment summary (from view)
   aligned_reps_count?: number;
