@@ -182,7 +182,7 @@ export default function CrewsList() {
                         {crew.lead_user && (
                           <span className="flex items-center gap-1">
                             <UserCircle className="w-3.5 h-3.5" />
-                            {crew.lead_user.full_name || crew.lead_user.email}
+                            {crew.lead_user.full_name || 'Linked'}
                           </span>
                         )}
                       </>
