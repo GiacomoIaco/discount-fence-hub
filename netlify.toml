@@ -45,6 +45,9 @@
 [functions."transcribe"]
   timeout = 26
 
+[functions."classify-voice-intent"]
+  timeout = 26
+
 [functions."expand-roadmap-idea"]
   timeout = 26
 

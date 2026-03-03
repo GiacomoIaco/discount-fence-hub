@@ -125,7 +125,8 @@ export default function VoiceRecordingModal({ onClose, onNavigate, userId }: Voi
       });
 
       if (!classifyResponse.ok) {
-        throw new Error('classification');
+        const errBody = await classifyResponse.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Intent classification failed');
       }
 
       const result: ClassificationResult = await classifyResponse.json();
@@ -145,9 +146,9 @@ export default function VoiceRecordingModal({ onClose, onNavigate, userId }: Voi
       }
     } catch (error) {
       console.error('Error processing recording:', error);
-      const msg = error instanceof Error && error.message === 'classification'
-        ? "Couldn't analyze intent. Tap retry."
-        : "Couldn't transcribe audio. Check connection and try again.";
+      const msg = error instanceof Error
+        ? error.message
+        : "Couldn't process recording. Check connection and try again.";
       setErrorMessage(msg);
       setState('error');
       navigator.vibrate?.(200);

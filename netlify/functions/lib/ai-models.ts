@@ -5,10 +5,10 @@
 
 export const AI_MODELS = {
   /** Anthropic Claude — primary text model for structured parsing, analysis, generation */
-  claude: 'claude-sonnet-4-6-20250514',
+  claude: 'claude-sonnet-4-6',
 
   /** Anthropic Claude — vision model for image + text tasks */
-  claudeVision: 'claude-sonnet-4-6-20250514',
+  claudeVision: 'claude-sonnet-4-6',
 
   /** OpenAI — speech-to-text transcription (auto-detects language) */
   transcription: 'gpt-4o-mini-transcribe',
