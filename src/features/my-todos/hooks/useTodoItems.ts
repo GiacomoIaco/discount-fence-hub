@@ -424,12 +424,13 @@ export function useMoveTodoItemToList() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, sourceListId, targetListId, targetSectionId }: {
+    mutationFn: async (vars: {
       id: string;
       sourceListId: string;
       targetListId: string;
       targetSectionId: string;
     }) => {
+      const { id, targetListId, targetSectionId } = vars;
       const { data, error } = await supabase
         .from('todo_items')
         .update({ list_id: targetListId, section_id: targetSectionId })

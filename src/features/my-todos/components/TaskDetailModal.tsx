@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, Calendar, CheckCircle2, MessageSquare, Clock, User, Loader2, Edit3,
+  X, Calendar, CheckCircle2, MessageSquare, Clock, Loader2, Edit3,
   Save, AlertTriangle, Send, Paperclip, Camera, Image, FileText, Trash2,
   Play, Video, Download, ListChecks, GripVertical, Plus, Square, CheckSquare, Users,
   ChevronDown, ChevronLeft,
