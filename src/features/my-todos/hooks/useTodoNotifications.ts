@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { sendTodoNotification } from '../lib/todoNotifications';
 
 type TodoNotificationType = 'mention' | 'assignment' | 'reminder';
 
@@ -53,6 +54,7 @@ export function useCreateTodoNotification() {
  */
 export function useNotifyAssignment() {
   const createNotification = useCreateTodoNotification();
+  const { user } = useAuth();
 
   return {
     notify: async (params: {
@@ -60,7 +62,9 @@ export function useNotifyAssignment() {
       taskTitle: string;
       listId: string;
       taskId: string;
+      listTitle?: string;
     }) => {
+      // In-app notification
       await createNotification.mutateAsync({
         type: 'assignment',
         title: `You were assigned: ${params.taskTitle}`,
@@ -69,6 +73,20 @@ export function useNotifyAssignment() {
         listId: params.listId,
         taskId: params.taskId,
       });
+
+      // External notifications (email + SMS + push) — fire-and-forget
+      if (user && params.newAssigneeId !== user.id) {
+        sendTodoNotification({
+          type: 'assignment',
+          taskId: params.taskId,
+          taskTitle: params.taskTitle,
+          listId: params.listId,
+          listTitle: params.listTitle || '',
+          triggeredByUserId: user.id,
+          triggeredByName: user.user_metadata?.full_name || user.email || 'Someone',
+          details: { newAssigneeId: params.newAssigneeId },
+        });
+      }
     },
   };
 }
@@ -78,6 +96,7 @@ export function useNotifyAssignment() {
  */
 export function useNotifyMention() {
   const createNotification = useCreateTodoNotification();
+  const { user } = useAuth();
 
   return {
     notify: async (params: {
@@ -87,7 +106,9 @@ export function useNotifyMention() {
       listId: string;
       taskId: string;
       commentId?: string;
+      listTitle?: string;
     }) => {
+      // In-app notifications
       for (const userId of params.mentionedUserIds) {
         await createNotification.mutateAsync({
           type: 'mention',
@@ -99,6 +120,23 @@ export function useNotifyMention() {
           commentId: params.commentId,
         });
       }
+
+      // External notifications — fire-and-forget
+      if (user) {
+        sendTodoNotification({
+          type: 'mention',
+          taskId: params.taskId,
+          taskTitle: params.taskTitle,
+          listId: params.listId,
+          listTitle: params.listTitle || '',
+          triggeredByUserId: user.id,
+          triggeredByName: user.user_metadata?.full_name || user.email || 'Someone',
+          details: {
+            mentionedUserIds: params.mentionedUserIds,
+            commentPreview: params.commentExcerpt,
+          },
+        });
+      }
     },
   };
 }
@@ -108,6 +146,7 @@ export function useNotifyMention() {
  */
 export function useNotifyComment() {
   const createNotification = useCreateTodoNotification();
+  const { user } = useAuth();
 
   return {
     notify: async (params: {
@@ -117,12 +156,14 @@ export function useNotifyComment() {
       commentExcerpt: string;
       listId: string;
       taskId: string;
+      listTitle?: string;
     }) => {
       // Combine assignee + followers, deduplicate
       const userIds = new Set<string>();
       if (params.assigneeId) userIds.add(params.assigneeId);
       params.followerIds.forEach(id => userIds.add(id));
 
+      // In-app notifications
       for (const userId of userIds) {
         await createNotification.mutateAsync({
           type: 'reminder', // Using 'reminder' for general comment notifications
@@ -131,6 +172,20 @@ export function useNotifyComment() {
           targetUserId: userId,
           listId: params.listId,
           taskId: params.taskId,
+        });
+      }
+
+      // External notifications — fire-and-forget
+      if (user) {
+        sendTodoNotification({
+          type: 'comment',
+          taskId: params.taskId,
+          taskTitle: params.taskTitle,
+          listId: params.listId,
+          listTitle: params.listTitle || '',
+          triggeredByUserId: user.id,
+          triggeredByName: user.user_metadata?.full_name || user.email || 'Someone',
+          details: { commentPreview: params.commentExcerpt },
         });
       }
     },

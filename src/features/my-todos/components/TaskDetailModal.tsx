@@ -4,6 +4,7 @@ import {
   X, Calendar, CheckCircle2, MessageSquare, Clock, User, Loader2, Edit3,
   Save, AlertTriangle, Send, Paperclip, Camera, Image, FileText, Trash2,
   Play, Video, Download, ListChecks, GripVertical, Plus, Square, CheckSquare, Users,
+  ChevronDown, ChevronLeft,
 } from 'lucide-react';
 import {
   useTodoItemsQuery, useUpdateTodoItemStatus, useUpdateTodoItem,
@@ -11,11 +12,12 @@ import {
   useTodoItemAttachmentsQuery, useUploadTodoAttachment, useDeleteTodoAttachment,
   useAddTodoItemFollower,
   useUpdateTodoRecurrence, useCreateNextRecurrence,
+  useMoveTodoItemToList,
 } from '../hooks/useTodoItems';
 import { useUsers } from '../../requests/hooks/useRequests';
 import { useTodoSectionsQuery } from '../hooks/useTodoSections';
 import { useTodoListsQuery } from '../hooks/useTodoLists';
-import { InlineFollowersPicker } from './InlineEditors';
+import { InlineFollowersPicker, InlineAssignedToPicker } from './InlineEditors';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getInitials } from '../../../lib/stringUtils';
 import { getAvatarColor } from '../utils/todoHelpers';
@@ -166,6 +168,7 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   const { users } = useUsers();
   const notifyMention = useNotifyMention();
   const notifyComment = useNotifyComment();
+  const moveItemToList = useMoveTodoItemToList();
 
   // Checklist/subtasks hooks
   const { data: checklistItems, isLoading: checklistLoading } = useChecklistItemsQuery(taskId);
@@ -197,6 +200,13 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
   const [editDescription, setEditDescription] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
+  // Move-to-list state
+  const [showMoveToList, setShowMoveToList] = useState(false);
+  const [moveStep, setMoveStep] = useState<'list' | 'section'>('list');
+  const [moveTargetListId, setMoveTargetListId] = useState<string | null>(null);
+  const moveToListRef = useRef<HTMLDivElement>(null);
+  const { data: moveTargetSections } = useTodoSectionsQuery(moveTargetListId);
+
   // File input refs
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -221,6 +231,20 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
       setEditNotes(task.notes || '');
     }
   }, [task]);
+
+  // Click outside for move-to-list dropdown
+  useEffect(() => {
+    if (!showMoveToList) return;
+    const handler = (e: MouseEvent) => {
+      if (moveToListRef.current && !moveToListRef.current.contains(e.target as Node)) {
+        setShowMoveToList(false);
+        setMoveStep('list');
+        setMoveTargetListId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMoveToList]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -472,9 +496,92 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.bg} ${statusInfo.text}`}>
                     {statusInfo.label}
                   </span>
-                  <span className="text-xs text-gray-500">
-                    {list?.title} / {section?.title}
-                  </span>
+                  <div className="relative inline-block" ref={moveToListRef}>
+                    <button
+                      className="text-xs text-gray-500 hover:text-blue-600 hover:underline flex items-center gap-0.5"
+                      onClick={() => {
+                        if (lists && lists.filter(l => l.id !== listId).length > 0) {
+                          setShowMoveToList(!showMoveToList);
+                          setMoveStep('list');
+                          setMoveTargetListId(null);
+                        }
+                      }}
+                      title="Move to different list"
+                    >
+                      {list?.title}
+                      {lists && lists.filter(l => l.id !== listId).length > 0 && (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
+                    <span className="text-xs text-gray-500"> / {section?.title}</span>
+                    {showMoveToList && createPortal(
+                      <div
+                        className="fixed z-[9999] w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+                        style={{
+                          top: (moveToListRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                          left: moveToListRef.current?.getBoundingClientRect().left ?? 0,
+                        }}
+                      >
+                        {moveStep === 'list' ? (
+                          <>
+                            <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase">Move to list</div>
+                            {lists?.filter(l => l.id !== listId).map(l => (
+                              <button
+                                key={l.id}
+                                onClick={() => {
+                                  setMoveTargetListId(l.id);
+                                  setMoveStep('section');
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                              >
+                                <span className="truncate">{l.title}</span>
+                                <ChevronLeft className="w-3 h-3 text-gray-400 rotate-180" />
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setMoveStep('list');
+                                setMoveTargetListId(null);
+                              }}
+                              className="w-full px-3 py-1.5 text-left text-xs font-medium text-gray-500 hover:bg-gray-50 flex items-center gap-1"
+                            >
+                              <ChevronLeft className="w-3 h-3" />
+                              Back
+                            </button>
+                            <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase">Pick section</div>
+                            {moveTargetSections && moveTargetSections.length > 0 ? (
+                              moveTargetSections.map(s => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => {
+                                    moveItemToList.mutate({
+                                      id: task.id,
+                                      sourceListId: listId,
+                                      targetListId: moveTargetListId!,
+                                      targetSectionId: s.id,
+                                    });
+                                    setShowMoveToList(false);
+                                    setMoveStep('list');
+                                    setMoveTargetListId(null);
+                                    onClose();
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                  {s.title}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-gray-400">Loading sections...</div>
+                            )}
+                          </>
+                        )}
+                      </div>,
+                      document.body
+                    )}
+                  </div>
                 </div>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
@@ -818,23 +925,9 @@ export default function TaskDetailModal({ taskId, listId, onClose }: TaskDetailM
                 {/* Assigned To */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Assigned To</label>
-                  {task.assigned_user ? (
-                    <div className="flex items-center gap-2">
-                      {task.assigned_user.avatar_url ? (
-                        <img src={task.assigned_user.avatar_url} alt={task.assigned_user.full_name} className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className={`w-8 h-8 rounded-full ${getAvatarColor(task.assigned_user.id)} flex items-center justify-center`}>
-                          <span className="text-xs font-medium text-white">{getInitials(task.assigned_user.full_name)}</span>
-                        </div>
-                      )}
-                      <span className="text-sm font-medium text-gray-900">{task.assigned_user.full_name}</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                      <User className="w-4 h-4" />
-                      <span>No one assigned</span>
-                    </div>
-                  )}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <InlineAssignedToPicker task={task} listId={listId} />
+                  </div>
                 </div>
 
                 {/* Followers */}

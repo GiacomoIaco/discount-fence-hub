@@ -417,6 +417,38 @@ export function useMoveTodoItem() {
   });
 }
 
+/**
+ * Move a todo item to a different list (and section)
+ */
+export function useMoveTodoItemToList() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, sourceListId, targetListId, targetSectionId }: {
+      id: string;
+      sourceListId: string;
+      targetListId: string;
+      targetSectionId: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('todo_items')
+        .update({ list_id: targetListId, section_id: targetSectionId })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, { sourceListId, targetListId }) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-items', sourceListId] });
+      queryClient.invalidateQueries({ queryKey: ['todo-items', targetListId] });
+      queryClient.invalidateQueries({ queryKey: ['todo-lists'] });
+      queryClient.invalidateQueries({ queryKey: ['todo-my-work'] });
+    },
+  });
+}
+
 // ============================================
 // FOLLOWERS
 // ============================================

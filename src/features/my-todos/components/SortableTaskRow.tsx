@@ -1,8 +1,10 @@
-import { Check, GripVertical, Eye, Trash2, MessageCircle, ArrowRight, Calendar, ListChecks } from 'lucide-react';
+import { Check, GripVertical, Eye, Trash2, MessageCircle, ArrowRight, FolderOutput, ChevronLeft, Calendar, ListChecks } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isCommentUnread } from '../hooks/useMyTodos';
-import { useMoveTodoItem } from '../hooks/useTodoItems';
+import { useMoveTodoItem, useMoveTodoItemToList } from '../hooks/useTodoItems';
+import { useTodoListsQuery } from '../hooks/useTodoLists';
+import { useTodoSectionsQuery } from '../hooks/useTodoSections';
 import { formatDate, formatAge, isOverdue, statusOptions, getAvatarColor } from '../utils/todoHelpers';
 import { getInitials } from '../../../lib/stringUtils';
 import {
@@ -60,6 +62,17 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
   const moveMenuRef = useRef<HTMLDivElement>(null);
   const moveItem = useMoveTodoItem();
 
+  // Move-to-list dropdown
+  const [showMoveToListMenu, setShowMoveToListMenu] = useState(false);
+  const [moveToListMenuPos, setMoveToListMenuPos] = useState({ top: 0, left: 0 });
+  const moveToListButtonRef = useRef<HTMLButtonElement>(null);
+  const moveToListMenuRef = useRef<HTMLDivElement>(null);
+  const [moveToListStep, setMoveToListStep] = useState<'list' | 'section'>('list');
+  const [selectedTargetListId, setSelectedTargetListId] = useState<string | null>(null);
+  const moveItemToList = useMoveTodoItemToList();
+  const { data: allLists } = useTodoListsQuery();
+  const { data: targetSections } = useTodoSectionsQuery(selectedTargetListId);
+
   useEffect(() => {
     if (!showMoveMenu) return;
     const handler = (e: MouseEvent) => {
@@ -72,7 +85,22 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
     return () => document.removeEventListener('mousedown', handler);
   }, [showMoveMenu]);
 
+  useEffect(() => {
+    if (!showMoveToListMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (moveToListMenuRef.current && !moveToListMenuRef.current.contains(e.target as Node) &&
+          moveToListButtonRef.current && !moveToListButtonRef.current.contains(e.target as Node)) {
+        setShowMoveToListMenu(false);
+        setMoveToListStep('list');
+        setSelectedTargetListId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMoveToListMenu]);
+
   const otherSections = sections?.filter(s => s.id !== task.section_id) || [];
+  const otherLists = allLists?.filter(l => l.id !== listId) || [];
 
   return (
     <tr
@@ -286,6 +314,93 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
                       {s.title}
                     </button>
                   ))}
+                </div>,
+                document.body
+              )}
+            </>
+          )}
+          {/* Move to different list */}
+          {otherLists.length > 0 && (
+            <>
+              <button
+                ref={moveToListButtonRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMoveToListMenuPos({ top: rect.bottom + 4, left: rect.left - 140 });
+                  setShowMoveToListMenu(!showMoveToListMenu);
+                  setMoveToListStep('list');
+                  setSelectedTargetListId(null);
+                }}
+                className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                title="Move to different list"
+              >
+                <FolderOutput className="w-4 h-4" />
+              </button>
+              {showMoveToListMenu && createPortal(
+                <div
+                  ref={moveToListMenuRef}
+                  className="fixed z-[9999] w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+                  style={{ top: moveToListMenuPos.top, left: moveToListMenuPos.left }}
+                >
+                  {moveToListStep === 'list' ? (
+                    <>
+                      <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase">Move to list</div>
+                      {otherLists.map(l => (
+                        <button
+                          key={l.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTargetListId(l.id);
+                            setMoveToListStep('section');
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                        >
+                          <span className="truncate">{l.title}</span>
+                          <ChevronLeft className="w-3 h-3 text-gray-400 rotate-180" />
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoveToListStep('list');
+                          setSelectedTargetListId(null);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-xs font-medium text-gray-500 hover:bg-gray-50 flex items-center gap-1"
+                      >
+                        <ChevronLeft className="w-3 h-3" />
+                        Back
+                      </button>
+                      <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase">Pick section</div>
+                      {targetSections && targetSections.length > 0 ? (
+                        targetSections.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveItemToList.mutate({
+                                id: task.id,
+                                sourceListId: listId,
+                                targetListId: selectedTargetListId!,
+                                targetSectionId: s.id,
+                              });
+                              setShowMoveToListMenu(false);
+                              setMoveToListStep('list');
+                              setSelectedTargetListId(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            {s.title}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-gray-400">Loading sections...</div>
+                      )}
+                    </>
+                  )}
                 </div>,
                 document.body
               )}
