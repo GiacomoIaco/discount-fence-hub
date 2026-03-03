@@ -7,6 +7,7 @@ export { NotificationBell } from './NotificationBell';
 export { NotificationList } from './NotificationList';
 export { RightPaneMessaging } from './RightPaneMessaging';
 export { FloatingMessageButton } from './FloatingMessageButton';
+export { InboxPeekToast } from './InboxPeekToast';
 export { MessageButton } from './MessageButton';
 export { NewConversationModal } from './NewConversationModal';
 export { AddParticipantsModal } from './AddParticipantsModal';

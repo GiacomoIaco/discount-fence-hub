@@ -14,7 +14,7 @@ import { useRequestNotifications } from './hooks/useRequestNotifications';
 // useAnnouncementEngagement removed — announcement badge now uses useUnifiedUnreadCount
 import { useRouteSync } from './hooks/useRouteSync';
 import { RightPaneProvider } from './features/message-center/context/RightPaneContext';
-import { RightPaneMessaging, FloatingMessageButton } from './features/message-center/components';
+import { RightPaneMessaging, FloatingMessageButton, InboxPeekToast } from './features/message-center/components';
 import { useMessageCenterUnread, useUnifiedUnreadCount } from './features/message-center/hooks';
 import type { Section } from './lib/routes';
 import type { Request } from './features/requests/lib/requests';
@@ -999,7 +999,12 @@ function App() {
         )}
 
         {/* Right-Pane Messaging - accessible from anywhere in the app */}
-        {activeSection !== 'contact-center' && <FloatingMessageButton />}
+        {activeSection !== 'contact-center' && (
+          <>
+            <FloatingMessageButton />
+            <InboxPeekToast />
+          </>
+        )}
         <RightPaneMessaging />
       </div>
       </RightPaneProvider>

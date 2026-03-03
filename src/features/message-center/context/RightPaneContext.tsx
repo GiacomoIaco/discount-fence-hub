@@ -1,5 +1,13 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { Contact, Conversation } from '../types';
+
+export interface PeekMessage {
+  id: string;
+  senderName: string;
+  preview: string;
+  type: 'sms' | 'team_chat' | 'ticket_chat' | 'team_announcement' | 'system_notification';
+  timestamp: string;
+}
 
 interface RightPaneState {
   isOpen: boolean;
@@ -7,6 +15,7 @@ interface RightPaneState {
   selectedContact: Contact | null;
   selectedConversation: Conversation | null;
   prefilledMessage: string;
+  peekMessage: PeekMessage | null;
 }
 
 interface OpenOptions {
@@ -24,6 +33,8 @@ interface RightPaneContextValue extends RightPaneState {
   setConversation: (conversation: Conversation | null) => void;
   setPrefilledMessage: (message: string) => void;
   reset: () => void;
+  showPeek: (message: PeekMessage) => void;
+  dismissPeek: () => void;
 }
 
 const RightPaneContext = createContext<RightPaneContextValue | null>(null);
@@ -34,6 +45,7 @@ const initialState: RightPaneState = {
   selectedContact: null,
   selectedConversation: null,
   prefilledMessage: '',
+  peekMessage: null,
 };
 
 export function RightPaneProvider({ children }: { children: React.ReactNode }) {
@@ -100,6 +112,38 @@ export function RightPaneProvider({ children }: { children: React.ReactNode }) {
     setState(initialState);
   }, []);
 
+  // Peek auto-dismiss timer
+  const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissPeek = useCallback(() => {
+    if (peekTimerRef.current) {
+      clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = null;
+    }
+    setState(prev => ({ ...prev, peekMessage: null }));
+  }, []);
+
+  const showPeek = useCallback((message: PeekMessage) => {
+    // Don't show peek if pane is already open
+    setState(prev => {
+      if (prev.isOpen) return prev;
+      return { ...prev, peekMessage: message };
+    });
+    // Auto-dismiss after 6 seconds
+    if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
+    peekTimerRef.current = setTimeout(() => {
+      setState(prev => ({ ...prev, peekMessage: null }));
+      peekTimerRef.current = null;
+    }, 6000);
+  }, []);
+
+  // Clear peek when pane opens
+  useEffect(() => {
+    if (state.isOpen && state.peekMessage) {
+      dismissPeek();
+    }
+  }, [state.isOpen, state.peekMessage, dismissPeek]);
+
   return (
     <RightPaneContext.Provider
       value={{
@@ -112,6 +156,8 @@ export function RightPaneProvider({ children }: { children: React.ReactNode }) {
         setConversation,
         setPrefilledMessage,
         reset,
+        showPeek,
+        dismissPeek,
       }}
     >
       {children}
