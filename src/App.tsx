@@ -11,7 +11,7 @@ import { usePermission } from './contexts/PermissionContext';
 import { useEscalationEngine } from './hooks/useEscalationEngine';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { useRequestNotifications } from './hooks/useRequestNotifications';
-import { useAnnouncementEngagement } from './hooks/useAnnouncementEngagement';
+// useAnnouncementEngagement removed — announcement badge now uses useUnifiedUnreadCount
 import { useRouteSync } from './hooks/useRouteSync';
 import { RightPaneProvider } from './features/message-center/context/RightPaneContext';
 import { RightPaneMessaging, FloatingMessageButton } from './features/message-center/components';
@@ -208,9 +208,6 @@ function App() {
 
   // Request notifications
   const { unreadCount: requestUnreadCount, markRequestAsRead } = useRequestNotifications();
-
-  // Admin announcement engagement notifications
-  const { unreadCount: announcementEngagementCount } = useAnnouncementEngagement();
 
   // Unified inbox unread count (sidebar badge + mobile nav)
   const unifiedUnread = useUnifiedUnreadCount(
@@ -875,7 +872,7 @@ function App() {
                   viewMode={viewMode}
                   mobileLayout={mobileLayout}
                   inboxUnreadCount={inboxUnreadCount}
-                  announcementEngagementCount={announcementEngagementCount}
+                  announcementEngagementCount={unifiedUnread.announcements}
                   userId={user?.id}
                   userName={profile?.full_name}
                   onMarkAsRead={markRequestAsRead}

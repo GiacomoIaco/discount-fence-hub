@@ -1,15 +1,21 @@
 import { MessageSquare, X } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { useRightPane } from '../context/RightPaneContext';
-import { useUnreadNotificationCount } from '../hooks/useNotifications';
+import { useUnifiedUnreadCount } from '../hooks/useUnifiedUnreadCount';
 
 interface FloatingMessageButtonProps {
   className?: string;
 }
 
 export function FloatingMessageButton({ className }: FloatingMessageButtonProps) {
+  const { user } = useAuth();
+  const { appRole } = usePermission();
   const { isOpen, toggle } = useRightPane();
-  const { data: unreadCount = 0 } = useUnreadNotificationCount();
+  const { total: unreadCount } = useUnifiedUnreadCount(
+    user ? { userId: user.id, userRole: appRole || undefined } : undefined
+  );
 
   return (
     <button
