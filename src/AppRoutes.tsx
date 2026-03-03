@@ -4,6 +4,7 @@ import App from './App';
 import { ProjectDeepLink } from './components/ProjectDeepLink';
 import PublicSurveyPage from './features/survey_hub/components/PublicSurveyPage';
 import Signup from './components/auth/Signup';
+import CrewLogin from './components/auth/CrewLogin';
 
 // Lazy load public pages to keep initial bundle small
 const ClientQuoteViewPage = lazy(() => import('./features/fsm/pages/ClientQuoteViewPage'));
@@ -12,6 +13,12 @@ const ClientQuoteViewPage = lazy(() => import('./features/fsm/pages/ClientQuoteV
 function SignupPage() {
   const navigate = useNavigate();
   return <Signup onBackToLogin={() => navigate('/')} />;
+}
+
+// Wrapper so /crew-login bypasses App's useRouteSync (same fix as /signup)
+function CrewLoginPage() {
+  const navigate = useNavigate();
+  return <CrewLogin onBackToLogin={() => navigate('/')} />;
 }
 
 // Loading fallback for public pages
@@ -58,6 +65,9 @@ export function AppRoutes() {
 
       {/* Signup page - must be before catch-all so useRouteSync doesn't strip the URL */}
       <Route path="/signup" element={<SignupPage />} />
+
+      {/* Crew login page - must be before catch-all so useRouteSync doesn't strip the URL */}
+      <Route path="/crew-login" element={<CrewLoginPage />} />
 
       {/* All other routes go to the main app */}
       <Route path="/*" element={<App />} />

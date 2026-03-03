@@ -93,7 +93,7 @@ export const handler: Handler = async (event) => {
       try {
         const formattedPhone = formatPhone(phoneToUse);
 
-        const crewLoginUrl = `${appUrl}/crew-login`;
+        const crewLoginUrl = `${appUrl}/crew-login?lang=${lang}`;
         let smsBody: string;
         if (isCrewInvite) {
           smsBody = lang === 'es'

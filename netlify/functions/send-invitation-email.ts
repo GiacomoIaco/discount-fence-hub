@@ -202,7 +202,7 @@ export const handler: Handler = async (event) => {
             else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) formattedPhone = '+' + formattedPhone;
           }
 
-          const crewLoginUrl = `${appUrl}/crew-login`;
+          const crewLoginUrl = `${appUrl}/crew-login?lang=${preferredLanguage}`;
           const smsBody = preferredLanguage === 'es'
             ? [
                 `${invitedByName} te invito a Discount Fence Hub.`,

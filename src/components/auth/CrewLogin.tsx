@@ -1,7 +1,55 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Phone, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+
+const translations = {
+  en: {
+    title: 'Crew Access',
+    phonePrompt: 'Enter your phone number',
+    otpPrompt: 'Enter the code you received',
+    phoneLabel: 'Phone Number',
+    phonePlaceholder: '(512) 555-1234',
+    sendCode: 'Send Code',
+    sending: 'Sending...',
+    verificationCode: 'Verification Code',
+    verify: 'Verify',
+    verifying: 'Verifying...',
+    resendIn: (s: number) => `Resend code in ${s}s`,
+    resendCode: 'Resend code',
+    changeNumber: 'Change number',
+    backToLogin: 'Back to login',
+    invalidPhone: 'Enter a valid phone number',
+    notRegistered: 'This number is not registered. Ask your supervisor to invite you.',
+    verifyError: 'Error verifying number. Try again.',
+    invalidOtp: 'Enter the 6-digit code',
+    unexpectedError: 'Unexpected error. Try again.',
+    resendError: 'Error resending code',
+  },
+  es: {
+    title: 'Acceso Equipo',
+    phonePrompt: 'Ingresa tu numero de telefono',
+    otpPrompt: 'Ingresa el codigo que recibiste',
+    phoneLabel: 'Numero de Telefono',
+    phonePlaceholder: '(512) 555-1234',
+    sendCode: 'Enviar Codigo',
+    sending: 'Enviando...',
+    verificationCode: 'Codigo de Verificacion',
+    verify: 'Verificar',
+    verifying: 'Verificando...',
+    resendIn: (s: number) => `Reenviar codigo en ${s}s`,
+    resendCode: 'Reenviar codigo',
+    changeNumber: 'Cambiar numero',
+    backToLogin: 'Volver al login',
+    invalidPhone: 'Ingresa un numero de telefono valido',
+    notRegistered: 'Este numero no esta registrado. Pide a tu supervisor que te invite.',
+    verifyError: 'Error verificando numero. Intenta de nuevo.',
+    invalidOtp: 'Ingresa el codigo de 6 digitos',
+    unexpectedError: 'Error inesperado. Intenta de nuevo.',
+    resendError: 'Error al reenviar codigo',
+  },
+} as const;
 
 interface CrewLoginProps {
   onBackToLogin: () => void;
@@ -9,6 +57,10 @@ interface CrewLoginProps {
 
 export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
   const { signInWithPhone, verifyPhoneOtp } = useAuth();
+  const [searchParams] = useSearchParams();
+  const lang = (searchParams.get('lang') === 'en' ? 'en' : 'es') as keyof typeof translations;
+  const t = translations[lang];
+
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -46,7 +98,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
 
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 10) {
-      setError('Ingresa un numero de telefono valido');
+      setError(t.invalidPhone);
       return;
     }
 
@@ -60,12 +112,12 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
 
       if (checkError) {
         console.error('Phone check error:', checkError);
-        setError('Error verificando numero. Intenta de nuevo.');
+        setError(t.verifyError);
         return;
       }
 
       if (!authorized) {
-        setError('Este numero no esta registrado. Pide a tu supervisor que te invite.');
+        setError(t.notRegistered);
         return;
       }
 
@@ -77,7 +129,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
         setResendCountdown(60);
       }
     } catch {
-      setError('Error inesperado. Intenta de nuevo.');
+      setError(t.unexpectedError);
     } finally {
       setLoading(false);
     }
@@ -88,7 +140,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
     setError('');
 
     if (otp.length !== 6) {
-      setError('Ingresa el codigo de 6 digitos');
+      setError(t.invalidOtp);
       return;
     }
 
@@ -101,7 +153,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
       }
       // On success, onAuthStateChange fires automatically
     } catch {
-      setError('Error inesperado. Intenta de nuevo.');
+      setError(t.unexpectedError);
     } finally {
       setLoading(false);
     }
@@ -120,7 +172,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
         setResendCountdown(60);
       }
     } catch {
-      setError('Error al reenviar codigo');
+      setError(t.resendError);
     } finally {
       setLoading(false);
     }
@@ -136,12 +188,10 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
 
         {/* Title */}
         <h1 className="text-2xl font-bold text-gray-900 text-center mb-1">
-          Acceso Equipo
+          {t.title}
         </h1>
         <p className="text-gray-600 text-center mb-6">
-          {step === 'phone'
-            ? 'Ingresa tu numero de telefono'
-            : 'Ingresa el codigo que recibiste'}
+          {step === 'phone' ? t.phonePrompt : t.otpPrompt}
         </p>
 
         {/* Error */}
@@ -157,7 +207,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
           <form onSubmit={handleSendOtp} className="space-y-5">
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                Numero de Telefono
+                {t.phoneLabel}
               </label>
               <div className="flex">
                 <span className="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 rounded-l-lg text-sm">
@@ -172,7 +222,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="(512) 555-1234"
+                  placeholder={t.phonePlaceholder}
                 />
               </div>
             </div>
@@ -183,11 +233,11 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
               className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             >
               {loading ? (
-                <span>Enviando...</span>
+                <span>{t.sending}</span>
               ) : (
                 <>
                   <Phone className="w-5 h-5" />
-                  <span>Enviar Codigo</span>
+                  <span>{t.sendCode}</span>
                 </>
               )}
             </button>
@@ -197,7 +247,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
           <form onSubmit={handleVerifyOtp} className="space-y-5">
             <div>
               <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
-                Codigo de Verificacion
+                {t.verificationCode}
               </label>
               <input
                 ref={otpInputRef}
@@ -219,14 +269,14 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
               disabled={loading || otp.length !== 6}
               className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Verificando...' : 'Verificar'}
+              {loading ? t.verifying : t.verify}
             </button>
 
             {/* Resend */}
             <div className="text-center">
               {resendCountdown > 0 ? (
                 <p className="text-sm text-gray-500">
-                  Reenviar codigo en {resendCountdown}s
+                  {t.resendIn(resendCountdown)}
                 </p>
               ) : (
                 <button
@@ -235,7 +285,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
                   disabled={loading}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  Reenviar codigo
+                  {t.resendCode}
                 </button>
               )}
             </div>
@@ -246,7 +296,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
               onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
               className="w-full text-sm text-gray-500 hover:text-gray-700"
             >
-              Cambiar numero
+              {t.changeNumber}
             </button>
           </form>
         )}
@@ -258,7 +308,7 @@ export default function CrewLogin({ onBackToLogin }: CrewLoginProps) {
             className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center space-x-1"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Volver al login</span>
+            <span>{t.backToLogin}</span>
           </button>
         </div>
       </div>
