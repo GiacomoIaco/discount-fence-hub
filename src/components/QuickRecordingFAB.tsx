@@ -418,7 +418,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
           </div>
 
           {/* Transcript preview */}
-          <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2 mb-3 max-h-16 overflow-auto">
+          <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2 mb-3 max-h-16 overflow-auto break-words">
             "{transcript.substring(0, 150)}{transcript.length > 150 ? '...' : ''}"
           </div>
 
@@ -432,11 +432,11 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
           )}
 
           {/* Detected intent */}
-          <div className="flex items-center gap-2 p-2.5 rounded-xl border-2 border-purple-500 bg-purple-50 mb-3">
-            <Icon className={`w-5 h-5 ${config.color}`} />
+          <div className="flex items-center gap-2 p-2.5 rounded-xl border-2 border-purple-500 bg-purple-50 mb-3 overflow-hidden">
+            <Icon className="w-5 h-5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-gray-800">{config.label}</div>
-              <div className="text-xs text-gray-500 truncate">{classification.summary}</div>
+              <div className="text-xs text-gray-500 line-clamp-2 break-words">{classification.summary}</div>
             </div>
           </div>
 
@@ -488,7 +488,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
           </div>
 
           {transcript && (
-            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2 mb-3 max-h-16 overflow-auto">
+            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2 mb-3 max-h-16 overflow-auto break-words">
               "{transcript.substring(0, 150)}{transcript.length > 150 ? '...' : ''}"
             </div>
           )}
