@@ -332,10 +332,9 @@ async function fetchUserTickets(userId: string, limit: number): Promise<TicketCh
   return tickets.slice(0, limit);
 }
 
-// Roles with full access to all SMS conversations (matches messageService.ts)
-const FULL_ACCESS_ROLES = ['admin', 'owner', 'operations', 'ops_manager', 'front_desk'];
-
-// Get allowed SMS conversation IDs for non-admin users
+// Get allowed SMS conversation IDs for this user (participant-based filtering)
+// ALL users only see SMS they're a participant of in Inbox.
+// Full SMS access is via Contact Center, not Inbox.
 async function getAllowedSmsConversationIds(userId: string): Promise<string[] | null> {
   // Find mc_contact for this user (employees are linked via employee_id)
   const { data: userContact } = await supabase
@@ -398,11 +397,10 @@ async function fetchUnifiedMessages(
     const fetchTickets = isArchived || filter === 'all' || filter === 'tickets';
     const fetchAlerts = isArchived || filter === 'all' || filter === 'alerts';
 
-    // For non-admin users, resolve allowed SMS conversation IDs before fetching
-    // Safe default: if role hasn't loaded yet (null/undefined), block SMS rather than show all
-    const needsSmsFilter = !userRole || !FULL_ACCESS_ROLES.includes(userRole);
+    // All users only see SMS conversations they're a participant of in Inbox.
+    // Full SMS access is via Contact Center, not Inbox.
     let allowedSmsIds: string[] | null = null;
-    if (fetchSms && needsSmsFilter) {
+    if (fetchSms) {
       allowedSmsIds = await getAllowedSmsConversationIds(userId);
       // If user has no allowed conversations, skip the fetch entirely
       if (allowedSmsIds && allowedSmsIds.length === 0) {

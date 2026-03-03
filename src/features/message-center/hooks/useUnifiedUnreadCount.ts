@@ -20,9 +20,6 @@ interface UnreadCounts {
   total: number;
 }
 
-// Roles with full access to all SMS conversations
-const FULL_ACCESS_ROLES = ['admin', 'owner', 'operations', 'ops_manager', 'front_desk'];
-
 async function getUnifiedUnreadCounts(options?: UnifiedUnreadOptions): Promise<UnreadCounts> {
   const counts: UnreadCounts = {
     sms: 0,
@@ -37,58 +34,43 @@ async function getUnifiedUnreadCounts(options?: UnifiedUnreadOptions): Promise<U
 
   try {
     // 1. Get SMS conversation unread count (from mc_conversations)
-    // Non-admin users only see conversations they're a participant of
-    // Safe default: if role hasn't loaded yet (null/undefined), block SMS rather than show all
-    const needsSmsFilter = !options.userRole || !FULL_ACCESS_ROLES.includes(options.userRole);
+    // All users only see SMS they're a participant of in Inbox.
+    // Full SMS access is via Contact Center, not Inbox.
+    const { data: userContact } = await supabase
+      .from('mc_contacts')
+      .select('id')
+      .eq('employee_id', options.userId)
+      .single();
 
-    if (needsSmsFilter) {
-      // Find user's mc_contact and their allowed conversation IDs
-      const { data: userContact } = await supabase
-        .from('mc_contacts')
-        .select('id')
-        .eq('employee_id', options.userId)
-        .single();
+    if (userContact) {
+      const { data: participations } = await supabase
+        .from('mc_conversation_participants')
+        .select('conversation_id')
+        .eq('contact_id', userContact.id)
+        .is('left_at', null);
 
-      if (userContact) {
-        const { data: participations } = await supabase
-          .from('mc_conversation_participants')
-          .select('conversation_id')
-          .eq('contact_id', userContact.id)
-          .is('left_at', null);
+      const ids = new Set((participations || []).map(p => p.conversation_id));
 
-        const ids = new Set((participations || []).map(p => p.conversation_id));
-
-        const { data: directConversations } = await supabase
-          .from('mc_conversations')
-          .select('id')
-          .eq('contact_id', userContact.id);
-
-        directConversations?.forEach(c => ids.add(c.id));
-
-        const allowedIds = Array.from(ids);
-        if (allowedIds.length > 0) {
-          const { count: smsCount, error: smsError } = await supabase
-            .from('mc_conversations')
-            .select('*', { count: 'exact', head: true })
-            .gt('unread_count', 0)
-            .in('id', allowedIds);
-
-          if (!smsError && smsCount !== null) {
-            counts.sms = smsCount;
-          }
-        }
-        // else: no allowed conversations → sms count stays 0
-      }
-    } else {
-      // Full access: count all unread SMS conversations
-      const { count: smsCount, error: smsError } = await supabase
+      const { data: directConversations } = await supabase
         .from('mc_conversations')
-        .select('*', { count: 'exact', head: true })
-        .gt('unread_count', 0);
+        .select('id')
+        .eq('contact_id', userContact.id);
 
-      if (!smsError && smsCount !== null) {
-        counts.sms = smsCount;
+      directConversations?.forEach(c => ids.add(c.id));
+
+      const allowedIds = Array.from(ids);
+      if (allowedIds.length > 0) {
+        const { count: smsCount, error: smsError } = await supabase
+          .from('mc_conversations')
+          .select('*', { count: 'exact', head: true })
+          .gt('unread_count', 0)
+          .in('id', allowedIds);
+
+        if (!smsError && smsCount !== null) {
+          counts.sms = smsCount;
+        }
       }
+      // else: no allowed conversations → sms count stays 0
     }
 
     // 2. Get unread announcements (company_messages not yet read by user)
