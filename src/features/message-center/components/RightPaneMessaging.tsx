@@ -36,7 +36,7 @@ export function RightPaneMessaging() {
   } = useRightPane();
 
   const { user } = useAuth();
-  const { appRole } = usePermission();
+  const { role: appRole } = usePermission();
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setLocalConversation] = useState<ConversationWithContact | Conversation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);

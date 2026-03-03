@@ -25,7 +25,7 @@ import type { UnifiedMessage, UnifiedInboxFilter } from '../types';
 
 export function FullPageInbox() {
   const { user } = useAuth();
-  const { appRole } = usePermission();
+  const { role: appRole } = usePermission();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
   const [showCompose, setShowCompose] = useState(false);

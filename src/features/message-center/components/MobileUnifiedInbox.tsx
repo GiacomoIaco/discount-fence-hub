@@ -50,7 +50,7 @@ export function MobileUnifiedInbox({
   canCompose = true,
 }: MobileUnifiedInboxProps) {
   const { user } = useAuth();
-  const { appRole } = usePermission();
+  const { role: appRole } = usePermission();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
   const [showCompose, setShowCompose] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<UnifiedMessage | null>(null);
