@@ -16,13 +16,15 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
-  // Check if this is a password reset callback
+  // Check if URL path maps to a specific auth view
   useEffect(() => {
     const path = window.location.pathname;
     if (path === '/reset-password') {
       setView('reset-password');
     } else if (path === '/crew-login') {
       setView('crew-login');
+    } else if (path === '/signup') {
+      setView('signup');
     }
   }, []);
 
