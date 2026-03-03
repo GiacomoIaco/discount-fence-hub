@@ -11,10 +11,10 @@ interface FloatingMessageButtonProps {
 
 export function FloatingMessageButton({ className }: FloatingMessageButtonProps) {
   const { user } = useAuth();
-  const { appRole } = usePermission();
+  const { role } = usePermission();
   const { isOpen, toggle } = useRightPane();
   const { total: unreadCount } = useUnifiedUnreadCount(
-    user ? { userId: user.id, userRole: appRole || undefined } : undefined
+    user ? { userId: user.id, userRole: role || undefined } : undefined
   );
 
   return (
