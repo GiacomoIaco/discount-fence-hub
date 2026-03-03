@@ -245,7 +245,7 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
         title,
         due_date: dueDate || null,
         status: 'todo',
-        sort_order: Date.now(),
+        sort_order: 0,
         created_by: userId,
         assigned_to: userId,
       });
@@ -370,8 +370,8 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
   // Error state
   if (state === 'error') {
     return (
-      <div className="fixed bottom-6 right-4 z-40">
-        <div className="bg-white rounded-2xl shadow-xl p-4 w-80">
+      <div className="fixed bottom-6 left-4 right-4 z-40">
+        <div className="bg-white rounded-2xl shadow-xl p-4 max-w-sm mx-auto">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-red-600">
               <AlertCircle className="w-5 h-5" />
@@ -408,8 +408,8 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
     const Icon = config.icon;
 
     return (
-      <div className="fixed bottom-6 right-4 z-40">
-        <div className="bg-white rounded-2xl shadow-xl p-4 w-80">
+      <div className="fixed bottom-6 left-4 right-4 z-40">
+        <div className="bg-white rounded-2xl shadow-xl p-4 max-w-sm mx-auto">
           <div className="flex items-center justify-between mb-3">
             <span className="font-medium text-gray-800">Confirm</span>
             <button onClick={reset} className="p-1 text-gray-400 hover:text-gray-600">
@@ -478,8 +478,8 @@ export default function QuickRecordingFAB({ onNavigate, userId }: QuickRecording
   // Manual selection state
   if (state === 'manual' && classification) {
     return (
-      <div className="fixed bottom-6 right-4 z-40">
-        <div className="bg-white rounded-2xl shadow-xl p-4 w-80">
+      <div className="fixed bottom-6 left-4 right-4 z-40">
+        <div className="bg-white rounded-2xl shadow-xl p-4 max-w-sm mx-auto">
           <div className="flex items-center justify-between mb-3">
             <span className="font-medium text-gray-800">What is this?</span>
             <button onClick={reset} className="p-1 text-gray-400 hover:text-gray-600">

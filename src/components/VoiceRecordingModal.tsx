@@ -248,7 +248,7 @@ export default function VoiceRecordingModal({ onClose, onNavigate, userId }: Voi
         title,
         due_date: dueDate || null,
         status: 'todo',
-        sort_order: Date.now(),
+        sort_order: 0,
         created_by: userId,
         assigned_to: userId,
       });
