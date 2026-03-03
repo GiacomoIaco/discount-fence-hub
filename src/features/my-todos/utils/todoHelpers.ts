@@ -44,6 +44,16 @@ export function getSectionColor(colorValue: string): { bg: string; hover: string
   return DEFAULT_SECTION_COLOR;
 }
 
+// Parse a "YYYY-MM-DD" string as local midnight (avoids UTC shift).
+// Full ISO timestamps (containing "T") use standard Date parsing.
+export function parseLocalDate(dateStr: string): Date {
+  if (!dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(dateStr);
+}
+
 // Strip time from a Date, returning midnight local time
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -75,7 +85,7 @@ function fullDayName(d: Date): string {
 export function formatDate(dateStr: string | null, status?: string): string {
   if (!dateStr) return '-';
 
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   const today = new Date();
   const diff = diffDays(date, today); // positive = future, negative = past
 
@@ -113,7 +123,7 @@ export function formatDate(dateStr: string | null, status?: string): string {
 export function isOverdue(task: TodoItem): boolean {
   if (!task.due_date) return false;
   if (task.status === 'done') return false;
-  const dueDay = startOfDay(new Date(task.due_date));
+  const dueDay = startOfDay(parseLocalDate(task.due_date));
   const todayDay = startOfDay(new Date());
   return dueDay < todayDay;
 }
@@ -121,21 +131,29 @@ export function isOverdue(task: TodoItem): boolean {
 // Check if task is due today
 export function isDueToday(task: TodoItem): boolean {
   if (!task.due_date) return false;
-  return diffDays(new Date(task.due_date), new Date()) === 0;
+  return diffDays(parseLocalDate(task.due_date), new Date()) === 0;
 }
 
 // Check if task is due within the next 7 days (including today)
 export function isDueThisWeek(task: TodoItem): boolean {
   if (!task.due_date) return false;
-  const diff = diffDays(new Date(task.due_date), new Date());
+  const diff = diffDays(parseLocalDate(task.due_date), new Date());
   return diff >= 0 && diff <= 6;
 }
 
 // Check if task was completed more than 7 days ago
 export function isStaleCompleted(task: TodoItem): boolean {
   if (!task.completed_at) return false;
-  const daysSinceCompleted = diffDays(new Date(), new Date(task.completed_at));
+  const daysSinceCompleted = diffDays(new Date(), parseLocalDate(task.completed_at));
   return daysSinceCompleted > 7;
+}
+
+// Format task age as relative string (e.g. "Today", "1d", "5d")
+export function formatAge(createdAt: string): string {
+  const created = parseLocalDate(createdAt);
+  const days = diffDays(new Date(), created);
+  if (days <= 0) return 'Today';
+  return `${days}d`;
 }
 
 // Status options for tasks

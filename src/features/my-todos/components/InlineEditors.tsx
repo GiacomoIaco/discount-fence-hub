@@ -10,6 +10,7 @@ import { getInitials } from '../../../lib/stringUtils';
 import {
   getAvatarColor,
   formatDate,
+  formatAge,
   statusOptions,
   headerColorOptions,
 } from '../utils/todoHelpers';
@@ -20,10 +21,12 @@ export function InlineDatePicker({
   value,
   onSave,
   isOverdue = false,
+  createdAt,
 }: {
   value: string | null | undefined;
   onSave: (value: string | null) => Promise<void>;
   isOverdue?: boolean;
+  createdAt?: string | null;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -78,6 +81,8 @@ export function InlineDatePicker({
     >
       {value ? (
         <span className="text-sm">{formatDate(value)}</span>
+      ) : createdAt ? (
+        <span className="text-sm text-gray-400 italic">{formatAge(createdAt)}</span>
       ) : (
         <span className="text-sm text-gray-400">-</span>
       )}

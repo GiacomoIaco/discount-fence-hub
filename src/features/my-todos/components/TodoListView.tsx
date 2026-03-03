@@ -33,7 +33,7 @@ import { useChecklistProgressQuery } from '../hooks/useTodoChecklist';
 import { SortableTaskRow, MobileTaskCard } from './SortableTaskRow';
 import { InlineCommentPopup, SectionColorPicker, EmptyState, QuickAddTask, MobileQuickAddTask } from './InlineEditors';
 import TaskDetailModal from './TaskDetailModal';
-import { getSectionColor, statusOptions } from '../utils/todoHelpers';
+import { getSectionColor, statusOptions, parseLocalDate } from '../utils/todoHelpers';
 import { useTodoKeyboard } from '../hooks/useTodoKeyboard';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 import type { TodoItem, TodoSection, TodoItemStatus } from '../types';
@@ -135,6 +135,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
   const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'today' | 'this_week'>('all');
   const [priorityOnly, setPriorityOnly] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [sortOption, setSortOption] = useState<'custom' | 'age' | 'due_date' | 'assigned'>('custom');
 
   // Saved views state
   const [savedViews, setSavedViews] = useState<SavedView[]>(getSavedViews);
@@ -305,15 +306,30 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
         map[item.section_id].push(item);
       }
     });
-    // Sort each section's items: done items last, then by sort_order within each group
+    // Sort each section's items: done items last, then by chosen sort
     Object.values(map).forEach(arr => arr.sort((a, b) => {
       const aDone = a.status === 'done' ? 1 : 0;
       const bDone = b.status === 'done' ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
+
+      if (sortOption === 'age') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      if (sortOption === 'due_date') {
+        if (!a.due_date && !b.due_date) return a.sort_order - b.sort_order;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return parseLocalDate(a.due_date).getTime() - parseLocalDate(b.due_date).getTime();
+      }
+      if (sortOption === 'assigned') {
+        const aName = a.assigned_user?.full_name || '\uffff';
+        const bName = b.assigned_user?.full_name || '\uffff';
+        return aName.localeCompare(bName);
+      }
       return a.sort_order - b.sort_order;
     }));
     return map;
-  }, [filteredItems, sections]);
+  }, [filteredItems, sections, sortOption]);
 
   const toggleSection = useCallback((sectionId: string) => {
     setCollapsedSections(prev => {
@@ -471,6 +487,18 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
           {statusOptions.map(s => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
+        </select>
+
+        {/* Sort dropdown */}
+        <select
+          value={sortOption}
+          onChange={(e) => setSortOption(e.target.value as any)}
+          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="custom">Sort: Custom</option>
+          <option value="age">Sort: Age</option>
+          <option value="due_date">Sort: Due Date</option>
+          <option value="assigned">Sort: Assigned</option>
         </select>
 
         {/* @Me toggle */}
@@ -741,6 +769,18 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
           Priority
         </button>
 
+        {/* Sort dropdown */}
+        <select
+          value={sortOption}
+          onChange={(e) => setSortOption(e.target.value as any)}
+          className="flex-shrink-0 px-2 py-1.5 text-xs border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="custom">Custom</option>
+          <option value="age">Age</option>
+          <option value="due_date">Due Date</option>
+          <option value="assigned">Assigned</option>
+        </select>
+
         {/* Search pill — opens search input */}
         <div className="flex-shrink-0 relative">
           <input
@@ -825,6 +865,7 @@ export default function TodoListView({ listId, onEditList, onManageMembers, onAr
                       setCommentPopup({ taskId, taskTitle, position });
                     }}
                     updateSection={updateSection}
+                    isDragDisabled={sortOption !== 'custom'}
                   />
                 ))}
               </div>
@@ -947,6 +988,7 @@ interface SectionBlockProps {
   onOpenCommentPopup: (taskId: string, taskTitle: string, position: { top: number; left: number }) => void;
   updateSection: ReturnType<typeof useUpdateTodoSection>;
   dragListeners?: Record<string, any>;
+  isDragDisabled?: boolean;
 }
 
 // Extracted section component to avoid useState in .map()
@@ -971,6 +1013,7 @@ function SectionBlock({
   onOpenCommentPopup,
   updateSection,
   dragListeners,
+  isDragDisabled,
 }: SectionBlockProps) {
   const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
   const sectionColor = getSectionColor(section.color);
@@ -1088,6 +1131,7 @@ function SectionBlock({
                             onStatusChange={onStatusChange}
                             onUpdateField={onUpdateField}
                             onDeleteTask={onDeleteTask}
+                            isDragDisabled={isDragDisabled}
                           />
                         ))}
                       </tbody>
@@ -1122,6 +1166,7 @@ function SectionBlock({
                           onStatusChange={onStatusChange}
                           onUpdateField={onUpdateField}
                           onDeleteTask={onDeleteTask}
+                          isDragDisabled={isDragDisabled}
                         />
                       ))}
                     </div>

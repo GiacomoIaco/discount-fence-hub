@@ -10,6 +10,7 @@ import {
   Globe,
   Lock,
   Menu,
+  BarChart3,
 } from 'lucide-react';
 import { useTodoListsQuery } from '../hooks/useTodoLists';
 import { headerColorOptions } from '../utils/todoHelpers';
@@ -37,8 +38,10 @@ interface TodoLayoutProps {
   children: ReactNode;
   selectedListId: string | null;
   showMyWork: boolean;
+  showAnalytics: boolean;
   onSelectList: (listId: string) => void;
   onMyWorkClick: () => void;
+  onAnalyticsClick: () => void;
   onNewListClick: () => void;
   isMobileSidebarOpen: boolean;
   onToggleMobileSidebar: () => void;
@@ -48,8 +51,10 @@ export default function TodoLayout({
   children,
   selectedListId,
   showMyWork,
+  showAnalytics,
   onSelectList,
   onMyWorkClick,
+  onAnalyticsClick,
   onNewListClick,
   isMobileSidebarOpen,
   onToggleMobileSidebar,
@@ -194,6 +199,24 @@ export default function TodoLayout({
             )}
           </button>
 
+          <button
+            onClick={onAnalyticsClick}
+            className={`w-full flex items-center ${!isExpanded ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              showAnalytics
+                ? 'bg-white/20 text-white shadow-lg'
+                : 'text-teal-100 hover:bg-white/10 hover:text-white'
+            }`}
+            title="Analytics"
+          >
+            <BarChart3 className="w-4 h-4 flex-shrink-0" />
+            {isExpanded && (
+              <>
+                <span className="flex-1 text-left">Analytics</span>
+                {showAnalytics && <ChevronRight className="w-4 h-4" />}
+              </>
+            )}
+          </button>
+
           {/* Divider */}
           {isExpanded && (
             <div className="px-1 pt-2 pb-1">
@@ -279,6 +302,16 @@ export default function TodoLayout({
               >
                 <User className="w-4 h-4" />
                 <span>My Work</span>
+              </button>
+
+              <button
+                onClick={() => { onAnalyticsClick(); onToggleMobileSidebar(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  showAnalytics ? 'bg-white/20 text-white' : 'text-teal-100 hover:bg-white/10'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Analytics</span>
               </button>
 
               <div className="px-1 pt-2 pb-1">

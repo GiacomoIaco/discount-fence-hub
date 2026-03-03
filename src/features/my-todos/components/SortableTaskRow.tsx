@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isCommentUnread } from '../hooks/useMyTodos';
 import { useMoveTodoItem } from '../hooks/useTodoItems';
-import { formatDate, isOverdue, statusOptions, getAvatarColor } from '../utils/todoHelpers';
+import { formatDate, formatAge, isOverdue, statusOptions, getAvatarColor } from '../utils/todoHelpers';
 import { getInitials } from '../../../lib/stringUtils';
 import {
   InlineDatePicker,
@@ -32,9 +32,10 @@ export interface SortableTaskRowProps {
   onUpdateField: (params: { id: string; field: string; value: any }) => Promise<any>;
   onDeleteTask: (taskId: string) => void;
   checklistProgress?: { total: number; completed: number } | null;
+  isDragDisabled?: boolean;
 }
 
-export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, onUpdateField, onDeleteTask, checklistProgress }: SortableTaskRowProps) {
+export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, onUpdateField, onDeleteTask, checklistProgress, isDragDisabled }: SortableTaskRowProps) {
   const {
     attributes,
     listeners,
@@ -42,7 +43,7 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: isDragDisabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -85,15 +86,17 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
       {/* Task Title with drag handle and checkbox */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <button
-            {...attributes}
-            {...listeners}
-            className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
-            onClick={(e) => e.stopPropagation()}
-            title="Drag to reorder"
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
+          {!isDragDisabled && (
+            <button
+              {...attributes}
+              {...listeners}
+              className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+              onClick={(e) => e.stopPropagation()}
+              title="Drag to reorder"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+          )}
           <div className="pl-2 flex-1">
             <div className="flex items-center gap-3">
               {/* Status circle */}
@@ -203,6 +206,7 @@ export function SortableTaskRow({ task, idx, listId, sections, lastComment, onOp
             await onUpdateField({ id: task.id, field: 'due_date', value });
           }}
           isOverdue={!!taskOverdue}
+          createdAt={task.created_at}
         />
       </td>
 
@@ -314,7 +318,7 @@ const statusBorderColor: Record<string, string> = {
   blocked: 'border-l-red-500',
 };
 
-export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, checklistProgress }: SortableTaskRowProps) {
+export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPopup, onStatusChange, checklistProgress, isDragDisabled }: SortableTaskRowProps) {
   const {
     attributes,
     listeners,
@@ -322,7 +326,7 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: isDragDisabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -499,7 +503,7 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
             </span>
 
             {/* Due date pill */}
-            {task.due_date && (
+            {task.due_date ? (
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 ${
                   taskOverdue
@@ -510,7 +514,11 @@ export function MobileTaskCard({ task, lastComment, onOpenTask, onOpenCommentPop
                 <Calendar className="w-3 h-3" />
                 {formatDate(task.due_date)}
               </span>
-            )}
+            ) : task.created_at ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full flex-shrink-0 bg-gray-50 text-gray-400 italic">
+                {formatAge(task.created_at)}
+              </span>
+            ) : null}
 
             {/* Comment indicator */}
             {lastComment && (

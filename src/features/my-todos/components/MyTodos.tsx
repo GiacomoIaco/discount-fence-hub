@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import TodoLayout from './TodoLayout';
 import TodoListView from './TodoListView';
 import MyWorkView from './MyWorkView';
 import { NewListModal, EditListModal, ManageListMembersModal } from './modals/TodoModals';
 import { useEnsureDefaultList, useTodoListsQuery, useArchiveTodoList } from '../hooks/useMyTodos';
+
+const TodoTeamAnalytics = lazy(() => import('./TodoTeamAnalytics'));
 
 interface MyTodosProps {
   onBack: () => void;
@@ -13,6 +15,7 @@ interface MyTodosProps {
 export default function MyTodos({ onBack: _ }: MyTodosProps) {
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [showMyWork, setShowMyWork] = useState(true);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Modals
@@ -39,10 +42,18 @@ export default function MyTodos({ onBack: _ }: MyTodosProps) {
   const handleSelectList = (listId: string) => {
     setSelectedListId(listId);
     setShowMyWork(false);
+    setShowAnalytics(false);
   };
 
   const handleMyWorkClick = () => {
     setShowMyWork(true);
+    setShowAnalytics(false);
+    setSelectedListId(null);
+  };
+
+  const handleAnalyticsClick = () => {
+    setShowAnalytics(true);
+    setShowMyWork(false);
     setSelectedListId(null);
   };
 
@@ -77,6 +88,12 @@ export default function MyTodos({ onBack: _ }: MyTodosProps) {
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
+  } else if (showAnalytics) {
+    content = (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>}>
+        <TodoTeamAnalytics />
+      </Suspense>
+    );
   } else if (showMyWork) {
     content = <MyWorkView />;
   } else if (selectedListId) {
@@ -101,8 +118,10 @@ export default function MyTodos({ onBack: _ }: MyTodosProps) {
       <TodoLayout
         selectedListId={selectedListId}
         showMyWork={showMyWork}
+        showAnalytics={showAnalytics}
         onSelectList={handleSelectList}
         onMyWorkClick={handleMyWorkClick}
+        onAnalyticsClick={handleAnalyticsClick}
         onNewListClick={() => setShowNewListModal(true)}
         isMobileSidebarOpen={isMobileSidebarOpen}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
