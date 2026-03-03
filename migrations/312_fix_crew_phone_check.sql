@@ -92,13 +92,13 @@ BEGIN
     AND is_used = FALSE
     AND phone IS NOT NULL
     AND right(regexp_replace(phone, '\D', '', 'g'), 10) = v_phone_digits
-  ORDER BY created_at DESC
+  ORDER BY invited_at DESC
   LIMIT 1;
 
   IF v_invitation_id IS NOT NULL THEN
     UPDATE user_invitations
     SET is_used = TRUE,
-        used_at = now()
+        accepted_at = now()
     WHERE id = v_invitation_id;
   END IF;
 
