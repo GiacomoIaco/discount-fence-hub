@@ -1,11 +1,18 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import App from './App';
 import { ProjectDeepLink } from './components/ProjectDeepLink';
 import PublicSurveyPage from './features/survey_hub/components/PublicSurveyPage';
+import Signup from './components/auth/Signup';
 
 // Lazy load public pages to keep initial bundle small
 const ClientQuoteViewPage = lazy(() => import('./features/fsm/pages/ClientQuoteViewPage'));
+
+// Wrapper so /signup bypasses App's useRouteSync (which strips unknown paths to /)
+function SignupPage() {
+  const navigate = useNavigate();
+  return <Signup onBackToLogin={() => navigate('/')} />;
+}
 
 // Loading fallback for public pages
 const PublicLoadingFallback = () => (
@@ -48,6 +55,9 @@ export function AppRoutes() {
 
       {/* Public survey page - no auth required */}
       <Route path="/survey" element={<PublicSurveyPage />} />
+
+      {/* Signup page - must be before catch-all so useRouteSync doesn't strip the URL */}
+      <Route path="/signup" element={<SignupPage />} />
 
       {/* All other routes go to the main app */}
       <Route path="/*" element={<App />} />
