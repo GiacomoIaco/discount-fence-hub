@@ -399,7 +399,8 @@ async function fetchUnifiedMessages(
     const fetchAlerts = isArchived || filter === 'all' || filter === 'alerts';
 
     // For non-admin users, resolve allowed SMS conversation IDs before fetching
-    const needsSmsFilter = userRole && !FULL_ACCESS_ROLES.includes(userRole);
+    // Safe default: if role hasn't loaded yet (null/undefined), block SMS rather than show all
+    const needsSmsFilter = !userRole || !FULL_ACCESS_ROLES.includes(userRole);
     let allowedSmsIds: string[] | null = null;
     if (fetchSms && needsSmsFilter) {
       allowedSmsIds = await getAllowedSmsConversationIds(userId);
@@ -603,7 +604,7 @@ export function useUnifiedMessages(options: UseUnifiedMessagesOptions): UnifiedM
   const { userId, filter = 'all' } = options;
 
   const { data, isLoading, isRefetching, refetch } = useQuery({
-    queryKey: ['unified_messages', userId, filter],
+    queryKey: ['unified_messages', userId, filter, options.userRole ?? 'loading'],
     queryFn: () => fetchUnifiedMessages(options),
     enabled: !!userId,
     staleTime: 15000,

@@ -38,7 +38,8 @@ async function getUnifiedUnreadCounts(options?: UnifiedUnreadOptions): Promise<U
   try {
     // 1. Get SMS conversation unread count (from mc_conversations)
     // Non-admin users only see conversations they're a participant of
-    const needsSmsFilter = options.userRole && !FULL_ACCESS_ROLES.includes(options.userRole);
+    // Safe default: if role hasn't loaded yet (null/undefined), block SMS rather than show all
+    const needsSmsFilter = !options.userRole || !FULL_ACCESS_ROLES.includes(options.userRole);
 
     if (needsSmsFilter) {
       // Find user's mc_contact and their allowed conversation IDs
@@ -134,7 +135,7 @@ export function useUnifiedUnreadCount(options?: UnifiedUnreadOptions) {
   const queryClient = useQueryClient();
 
   const { data: counts = { sms: 0, announcements: 0, notifications: 0, total: 0 } } = useQuery({
-    queryKey: ['unified_unread_count', options?.userId],
+    queryKey: ['unified_unread_count', options?.userId, options?.userRole ?? 'loading'],
     queryFn: () => getUnifiedUnreadCounts(options),
     refetchInterval: 30000, // Refetch every 30 seconds
     staleTime: 10000, // Consider data stale after 10 seconds

@@ -59,6 +59,8 @@ interface SalesRepViewProps {
   onTeamCommunicationUnreadCountChange?: (count: number) => void;
   teamCommunicationRefresh?: number;
   navigationItems?: NavigationItem[];
+  entityContext?: { type: string; id: string; params: Record<string, string> } | null;
+  onClearEntity?: () => void;
 }
 
 export default function SalesRepView({
@@ -74,12 +76,14 @@ export default function SalesRepView({
   onTeamCommunicationUnreadCountChange,
   teamCommunicationRefresh,
   navigationItems = [],
+  entityContext,
+  onClearEntity,
 }: SalesRepViewProps) {
   // Internal ticketing (formerly "requests")
   if (activeSection === 'tickets') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <RequestHub onBack={() => onNavigate('home')} />
+        <RequestHub onBack={() => onNavigate('home')} entityContext={entityContext} onClearEntity={onClearEntity} />
       </Suspense>
     );
   }
@@ -91,7 +95,7 @@ export default function SalesRepView({
   if (activeSection === 'my-tickets') {
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <MyRequestsView onBack={() => onNavigate('home')} onMarkAsRead={onMarkAsRead} />
+        <MyRequestsView onBack={() => onNavigate('home')} onMarkAsRead={onMarkAsRead} entityContext={entityContext} onClearEntity={onClearEntity} />
       </Suspense>
     );
   }

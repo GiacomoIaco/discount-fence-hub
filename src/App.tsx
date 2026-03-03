@@ -883,6 +883,8 @@ function App() {
                   onTeamCommunicationUnreadCountChange={() => {}}
                   teamCommunicationRefresh={teamCommunicationRefresh}
                   navigationItems={visibleNavigationItems}
+                  entityContext={entityContext}
+                  onClearEntity={clearEntity}
                 />
               )}
             </ErrorBoundary>
