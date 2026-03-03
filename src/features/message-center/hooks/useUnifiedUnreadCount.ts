@@ -1,7 +1,7 @@
 /**
  * Hook to get unified unread message count across all messaging sources
- * Aggregates: SMS conversations, Team announcements, System notifications
- * Used for the mobile bottom navigation badge
+ * Aggregates: SMS, Team chats, Announcements, Ticket chats, System notifications
+ * Used for sidebar badges, mobile bottom nav badge, floating inbox button
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,8 +14,10 @@ interface UnifiedUnreadOptions {
 }
 
 interface UnreadCounts {
-  sms: number;          // mc_conversations
+  sms: number;           // mc_conversations (participant-only)
+  teamChats: number;     // conversations / direct_messages
   announcements: number; // company_messages (unread)
+  tickets: number;       // request_notes (unread comments)
   notifications: number; // mc_system_notifications
   total: number;
 }
@@ -23,7 +25,9 @@ interface UnreadCounts {
 async function getUnifiedUnreadCounts(options?: UnifiedUnreadOptions): Promise<UnreadCounts> {
   const counts: UnreadCounts = {
     sms: 0,
+    teamChats: 0,
     announcements: 0,
+    tickets: 0,
     notifications: 0,
     total: 0,
   };
@@ -33,164 +37,193 @@ async function getUnifiedUnreadCounts(options?: UnifiedUnreadOptions): Promise<U
   }
 
   try {
-    // 1. Get SMS conversation unread count (from mc_conversations)
-    // All users only see SMS they're a participant of in Inbox.
-    // Full SMS access is via Contact Center, not Inbox.
-    const { data: userContact } = await supabase
-      .from('mc_contacts')
-      .select('id')
-      .eq('employee_id', options.userId)
-      .single();
+    // Fetch all counts in parallel for speed
+    const [smsCount, teamChatCount, announcementCount, ticketCount, notifCount] = await Promise.all([
+      // 1. SMS conversation unread count (participant-only)
+      (async () => {
+        const { data: userContact } = await supabase
+          .from('mc_contacts')
+          .select('id')
+          .eq('employee_id', options.userId)
+          .single();
 
-    if (userContact) {
-      const { data: participations } = await supabase
-        .from('mc_conversation_participants')
-        .select('conversation_id')
-        .eq('contact_id', userContact.id)
-        .is('left_at', null);
+        if (!userContact) return 0;
 
-      const ids = new Set((participations || []).map(p => p.conversation_id));
+        const { data: participations } = await supabase
+          .from('mc_conversation_participants')
+          .select('conversation_id')
+          .eq('contact_id', userContact.id)
+          .is('left_at', null);
 
-      const { data: directConversations } = await supabase
-        .from('mc_conversations')
-        .select('id')
-        .eq('contact_id', userContact.id);
+        const ids = new Set((participations || []).map(p => p.conversation_id));
 
-      directConversations?.forEach(c => ids.add(c.id));
+        const { data: directConversations } = await supabase
+          .from('mc_conversations')
+          .select('id')
+          .eq('contact_id', userContact.id);
 
-      const allowedIds = Array.from(ids);
-      if (allowedIds.length > 0) {
-        const { count: smsCount, error: smsError } = await supabase
+        directConversations?.forEach(c => ids.add(c.id));
+
+        const allowedIds = Array.from(ids);
+        if (allowedIds.length === 0) return 0;
+
+        const { count, error } = await supabase
           .from('mc_conversations')
           .select('*', { count: 'exact', head: true })
           .gt('unread_count', 0)
           .in('id', allowedIds);
 
-        if (!smsError && smsCount !== null) {
-          counts.sms = smsCount;
-        }
-      }
-      // else: no allowed conversations → sms count stays 0
-    }
+        return (!error && count !== null) ? count : 0;
+      })(),
 
-    // 2. Get unread announcements (company_messages not yet read by user)
-    // Check company_message_reads table to see what user has read
-    const { data: announcements, error: announcementError } = await supabase
-      .from('company_messages')
-      .select(`
-        id,
-        company_message_reads!left(user_id)
-      `)
-      .eq('status', 'published')
-      .is('company_message_reads.user_id', null);
+      // 2. Team chat unread count (from get_user_conversations RPC)
+      (async () => {
+        const { data, error } = await supabase.rpc('get_user_conversations');
+        if (error || !data) return 0;
+        return (data as Array<{ unread_count: number }>)
+          .reduce((sum, chat) => sum + (Number(chat.unread_count) || 0), 0);
+      })(),
 
-    if (!announcementError && announcements) {
-      // Filter to count messages not read by current user
-      counts.announcements = announcements.filter(msg => {
-        // If company_message_reads is null or empty, user hasn't read it
-        return !msg.company_message_reads ||
-               (Array.isArray(msg.company_message_reads) &&
-                !msg.company_message_reads.some((r: { user_id: string }) => r.user_id === options.userId));
-      }).length;
-    }
+      // 3. Announcement unread count
+      // Left join filtered to current user's reads — empty array means unread
+      (async () => {
+        const { data, error } = await supabase
+          .from('company_messages')
+          .select(`
+            id,
+            company_message_reads!left(user_id)
+          `)
+          .eq('status', 'published')
+          .eq('company_message_reads.user_id', options.userId!);
 
-    // 3. Get unread notifications count
-    const { count: notifCount, error: notifError } = await supabase
-      .from('mc_system_notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('target_user_id', options.userId)
-      .eq('is_read', false);
+        if (error || !data) return 0;
+        // Messages where the user has no read record have empty array
+        return data.filter(msg =>
+          !msg.company_message_reads ||
+          (Array.isArray(msg.company_message_reads) && msg.company_message_reads.length === 0)
+        ).length;
+      })(),
 
-    if (!notifError && notifCount !== null) {
-      counts.notifications = notifCount;
-    }
+      // 4. Ticket chat unread count (request_notes comments)
+      (async () => {
+        // Get requests where user is submitter, assignee, or watcher
+        const [directResult, watchedResult] = await Promise.all([
+          supabase
+            .from('requests')
+            .select('id')
+            .or(`submitter_id.eq.${options.userId},assigned_to.eq.${options.userId}`)
+            .in('stage', ['new', 'in_progress', 'pending', 'waiting_on_client']),
+          supabase
+            .from('request_watchers')
+            .select('request_id')
+            .eq('user_id', options.userId!),
+        ]);
+
+        const requestIds = new Set<string>();
+        directResult.data?.forEach(r => requestIds.add(r.id));
+        watchedResult.data?.forEach(w => requestIds.add(w.request_id));
+
+        if (requestIds.size === 0) return 0;
+
+        const requestIdArray = Array.from(requestIds);
+
+        // Get latest comment per request and read tracking
+        const [notesResult, readsResult] = await Promise.all([
+          supabase
+            .from('request_notes')
+            .select('request_id, created_at, user_id')
+            .in('request_id', requestIdArray)
+            .eq('note_type', 'comment')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('request_note_reads')
+            .select('request_id, last_read_at')
+            .eq('user_id', options.userId!)
+            .in('request_id', requestIdArray),
+        ]);
+
+        // Build latest note per request
+        const latestByRequest = new Map<string, { created_at: string; user_id: string }>();
+        notesResult.data?.forEach(note => {
+          if (!latestByRequest.has(note.request_id)) {
+            latestByRequest.set(note.request_id, note);
+          }
+        });
+
+        const readMap = new Map<string, string>();
+        readsResult.data?.forEach(r => readMap.set(r.request_id, r.last_read_at));
+
+        let unread = 0;
+        latestByRequest.forEach((note, requestId) => {
+          const lastReadAt = readMap.get(requestId);
+          const isUnread = lastReadAt
+            ? new Date(note.created_at) > new Date(lastReadAt)
+            : note.user_id !== options.userId; // Unread if not from current user
+          if (isUnread) unread++;
+        });
+
+        return unread;
+      })(),
+
+      // 5. System notifications unread count
+      (async () => {
+        const { count, error } = await supabase
+          .from('mc_system_notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('target_user_id', options.userId!)
+          .eq('is_read', false);
+        return (!error && count !== null) ? count : 0;
+      })(),
+    ]);
+
+    counts.sms = smsCount;
+    counts.teamChats = teamChatCount;
+    counts.announcements = announcementCount;
+    counts.tickets = ticketCount;
+    counts.notifications = notifCount;
   } catch (error) {
-    // Silently fail - tables may not exist yet
     console.debug('[UnifiedUnread] Error fetching counts:', error);
   }
 
-  counts.total = counts.sms + counts.announcements + counts.notifications;
+  counts.total = counts.sms + counts.teamChats + counts.announcements + counts.tickets + counts.notifications;
   return counts;
 }
+
+const defaultCounts: UnreadCounts = { sms: 0, teamChats: 0, announcements: 0, tickets: 0, notifications: 0, total: 0 };
 
 export function useUnifiedUnreadCount(options?: UnifiedUnreadOptions) {
   const queryClient = useQueryClient();
 
-  const { data: counts = { sms: 0, announcements: 0, notifications: 0, total: 0 } } = useQuery({
+  const { data: counts = defaultCounts } = useQuery({
     queryKey: ['unified_unread_count', options?.userId, options?.userRole ?? 'loading'],
     queryFn: () => getUnifiedUnreadCounts(options),
-    refetchInterval: 30000, // Refetch every 30 seconds
-    staleTime: 10000, // Consider data stale after 10 seconds
+    refetchInterval: 30000,
+    staleTime: 10000,
     enabled: !!options?.userId,
   });
 
-  // Subscribe to realtime changes
+  // Subscribe to realtime changes for all message sources
   useEffect(() => {
     if (!options?.userId) return;
 
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
+
     const channel = supabase
       .channel('unified_unread_updates')
-      // Listen for conversation updates
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'mc_conversations',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
-        }
-      )
-      // Listen for new messages
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'mc_messages',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
-        }
-      )
-      // Listen for company message changes
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'company_messages',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
-        }
-      )
-      // Listen for message read changes
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'company_message_reads',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
-        }
-      )
-      // Listen for notification changes
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'mc_system_notifications',
-          filter: `target_user_id=eq.${options.userId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['unified_unread_count'] });
-        }
-      )
+      // SMS conversations
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mc_conversations' }, invalidate)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mc_messages' }, invalidate)
+      // Team chats
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, invalidate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, invalidate)
+      // Announcements
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_messages' }, invalidate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_message_reads' }, invalidate)
+      // Ticket comments
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'request_notes' }, invalidate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'request_note_reads' }, invalidate)
+      // System notifications
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mc_system_notifications', filter: `target_user_id=eq.${options.userId}` }, invalidate)
       .subscribe();
 
     return () => {
