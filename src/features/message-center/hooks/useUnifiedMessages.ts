@@ -23,6 +23,7 @@ import type {
 
 interface UseUnifiedMessagesOptions {
   userId?: string;
+  userRole?: string;
   filter?: UnifiedInboxFilter;
   limit?: number;
 }
@@ -331,10 +332,44 @@ async function fetchUserTickets(userId: string, limit: number): Promise<TicketCh
   return tickets.slice(0, limit);
 }
 
+// Roles with full access to all SMS conversations (matches messageService.ts)
+const FULL_ACCESS_ROLES = ['admin', 'owner', 'operations', 'ops_manager', 'front_desk'];
+
+// Get allowed SMS conversation IDs for non-admin users
+async function getAllowedSmsConversationIds(userId: string): Promise<string[] | null> {
+  // Find mc_contact for this user (employees are linked via employee_id)
+  const { data: userContact } = await supabase
+    .from('mc_contacts')
+    .select('id')
+    .eq('employee_id', userId)
+    .single();
+
+  if (!userContact) return [];
+
+  // Get conversation IDs they're participating in
+  const { data: participations } = await supabase
+    .from('mc_conversation_participants')
+    .select('conversation_id')
+    .eq('contact_id', userContact.id)
+    .is('left_at', null);
+
+  const ids = new Set((participations || []).map(p => p.conversation_id));
+
+  // Also include conversations where they are the primary contact
+  const { data: directConversations } = await supabase
+    .from('mc_conversations')
+    .select('id')
+    .eq('contact_id', userContact.id);
+
+  directConversations?.forEach(c => ids.add(c.id));
+
+  return Array.from(ids);
+}
+
 async function fetchUnifiedMessages(
   options: UseUnifiedMessagesOptions
 ): Promise<{ messages: UnifiedMessage[]; counts: UnifiedMessagesResult['counts'] }> {
-  const { userId, filter = 'all', limit = 50 } = options;
+  const { userId, userRole, filter = 'all', limit = 50 } = options;
 
   if (!userId) {
     return { messages: [], counts: { all: 0, sms: 0, chats: 0, announcements: 0, tickets: 0, alerts: 0 } };
@@ -357,37 +392,57 @@ async function fetchUnifiedMessages(
     // Fetch based on filter - optimize by only fetching what's needed
     // For 'archived' filter, fetch everything then show only dismissed items
     const isArchived = filter === 'archived';
-    const fetchSms = isArchived || filter === 'all' || filter === 'sms';
+    let fetchSms = isArchived || filter === 'all' || filter === 'sms';
     const fetchTeamChats = isArchived || filter === 'all' || filter === 'team' || filter === 'chats';
     const fetchAnnouncements = isArchived || filter === 'all' || filter === 'team' || filter === 'announcements';
     const fetchTickets = isArchived || filter === 'all' || filter === 'tickets';
     const fetchAlerts = isArchived || filter === 'all' || filter === 'alerts';
 
+    // For non-admin users, resolve allowed SMS conversation IDs before fetching
+    const needsSmsFilter = userRole && !FULL_ACCESS_ROLES.includes(userRole);
+    let allowedSmsIds: string[] | null = null;
+    if (fetchSms && needsSmsFilter) {
+      allowedSmsIds = await getAllowedSmsConversationIds(userId);
+      // If user has no allowed conversations, skip the fetch entirely
+      if (allowedSmsIds && allowedSmsIds.length === 0) {
+        fetchSms = false;
+      }
+    }
+
     // Parallel fetch all required data
     const [smsResult, announcementsResult, teamChatsResult, ticketsResult, alertsResult] = await Promise.all([
       fetchSms
-        ? supabase
-            .from('mc_conversations')
-            .select(`
-              id,
-              conversation_type,
-              title,
-              contact_id,
-              contact:mc_contacts!mc_conversations_contact_id_fkey(
-                id, display_name, first_name, last_name, company_name
-              ),
-              status,
-              last_message_at,
-              last_message_preview,
-              last_message_direction,
-              unread_count,
-              created_at,
-              updated_at
-            `)
-            .eq('status', 'active')
-            .in('conversation_type', ['client', 'team_direct'])
-            .order('last_message_at', { ascending: false, nullsFirst: false })
-            .limit(limit)
+        ? (() => {
+            let query = supabase
+              .from('mc_conversations')
+              .select(`
+                id,
+                conversation_type,
+                title,
+                contact_id,
+                contact:mc_contacts!mc_conversations_contact_id_fkey(
+                  id, display_name, first_name, last_name, company_name
+                ),
+                status,
+                last_message_at,
+                last_message_preview,
+                last_message_direction,
+                unread_count,
+                created_at,
+                updated_at
+              `)
+              .eq('status', 'active')
+              .in('conversation_type', ['client', 'team_direct'])
+              .order('last_message_at', { ascending: false, nullsFirst: false })
+              .limit(limit);
+
+            // Apply participant filter for non-admin users
+            if (allowedSmsIds) {
+              query = query.in('id', allowedSmsIds);
+            }
+
+            return query;
+          })()
         : Promise.resolve({ data: [], error: null }),
 
       // Team announcements from company_messages

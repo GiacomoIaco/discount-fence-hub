@@ -1,29 +1,13 @@
 /**
  * Communication Feature - Public API
  *
- * This feature provides all team communication functionality:
- * - Direct Messages (1-on-1 and group chat)
+ * This feature provides team communication functionality:
  * - Company Announcements (broadcasts to team)
- * - Message Composition
+ * - Message Composition (announcement creation)
  *
- * IMPORTANT: Only export what should be accessible from outside this feature.
+ * Note: Direct Messages / Team Chat moved to Unified Inbox (message-center feature).
  */
 
-// ============================================================================
-// MAIN COMPONENTS (for other features to use)
-// ============================================================================
-
 export { default as TeamCommunication } from './TeamCommunication';
-export { default as DirectMessages } from './components/DirectMessages';
 export { default as AnnouncementsView } from './components/AnnouncementsView';
 export { default as MessageComposer } from './components/MessageComposer';
-
-// ============================================================================
-// INTERNAL - DO NOT EXPORT
-// ============================================================================
-
-// ❌ DO NOT export: ChatView (internal to DirectMessages)
-// ❌ DO NOT export: Internal message types
-// ❌ DO NOT export: Message utilities
-//
-// These are implementation details and should remain private to this feature.

@@ -18,6 +18,7 @@ import { InboxConversationView } from './InboxConversationView';
 import * as messageService from '../services/messageService';
 import * as quickReplyService from '../services/quickReplyService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import type { Message, Conversation, ConversationWithContact, ShortcodeContext, UnifiedInboxFilter, UnifiedMessage } from '../types';
 
 export function RightPaneMessaging() {
@@ -35,6 +36,7 @@ export function RightPaneMessaging() {
   } = useRightPane();
 
   const { user } = useAuth();
+  const { appRole } = usePermission();
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setLocalConversation] = useState<ConversationWithContact | Conversation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -45,6 +47,7 @@ export function RightPaneMessaging() {
   const [selectedUnifiedMessage, setSelectedUnifiedMessage] = useState<UnifiedMessage | null>(null);
   const { messages: unifiedMessages, counts, isLoading: unifiedLoading, isRefetching, refetch } = useUnifiedMessages({
     userId: user?.id,
+    userRole: appRole || undefined,
     filter: inboxFilter,
   });
 

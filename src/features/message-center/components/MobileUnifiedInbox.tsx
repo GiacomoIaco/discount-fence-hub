@@ -7,6 +7,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { ArrowLeft, RefreshCw, Plus, CheckCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
@@ -49,6 +50,7 @@ export function MobileUnifiedInbox({
   canCompose = true,
 }: MobileUnifiedInboxProps) {
   const { user } = useAuth();
+  const { appRole } = usePermission();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
   const [showCompose, setShowCompose] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<UnifiedMessage | null>(null);
@@ -61,6 +63,7 @@ export function MobileUnifiedInbox({
     refetch,
   } = useUnifiedMessages({
     userId: user?.id,
+    userRole: appRole || undefined,
     filter,
   });
 

@@ -9,6 +9,7 @@ import { RefreshCw, Plus, CheckCheck } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { buildEntityUrl, type EntityType } from '../../../lib/routes';
 import { useAuth } from '../../../contexts/AuthContext';
+import { usePermission } from '../../../contexts/PermissionContext';
 import { useUnifiedMessages } from '../hooks/useUnifiedMessages';
 import { useMarkUnifiedItemRead } from '../hooks/useMarkUnifiedItemRead';
 import { useReplyToUnifiedMessage, useAcknowledgeUnifiedItem } from '../hooks/useReplyToUnifiedMessage';
@@ -24,6 +25,7 @@ import type { UnifiedMessage, UnifiedInboxFilter } from '../types';
 
 export function FullPageInbox() {
   const { user } = useAuth();
+  const { appRole } = usePermission();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<UnifiedInboxFilter>('all');
   const [showCompose, setShowCompose] = useState(false);
@@ -37,6 +39,7 @@ export function FullPageInbox() {
     refetch,
   } = useUnifiedMessages({
     userId: user?.id,
+    userRole: appRole || undefined,
     filter,
   });
 
