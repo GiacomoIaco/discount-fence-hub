@@ -368,7 +368,7 @@ async function getAllowedSmsConversationIds(userId: string): Promise<string[] | 
 async function fetchUnifiedMessages(
   options: UseUnifiedMessagesOptions
 ): Promise<{ messages: UnifiedMessage[]; counts: UnifiedMessagesResult['counts'] }> {
-  const { userId, userRole, filter = 'all', limit = 50 } = options;
+  const { userId, filter = 'all', limit = 50 } = options;
 
   if (!userId) {
     return { messages: [], counts: { all: 0, sms: 0, chats: 0, announcements: 0, tickets: 0, alerts: 0 } };
